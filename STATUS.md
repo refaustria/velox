@@ -36,12 +36,17 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 
 ## Next
 - M1-06 human playtest on the Mac → tuning pass from feedback → M1 sign-off.
-- Then M2 Combat: `architect` ADR 0003 (GAS structure for weapons/health/armor, lag compensation, hitboxes incl. the crouch/capsule decision A11, recorded self-knockback channel A17), then tasks.
+- **M2 Combat started** (ADR 0003 accepted with defaults; tasks `docs/tasks/m2-combat/01–09`): 01 GAS foundation and 07 combat test map run in parallel; 02–05 sequential with architect reviews; 06/08/09 follow.
 - Open for architect (minor): A31 test tolerances were widened to the A1 substep residual by the implementer; confirm or tighten via FixedStep.
 - M0-04 → full CI run → merge `m0-infrastructure` into `main` → M1 Movement: `architect` ADR 0002 (movement component design), then tasks.
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
 
 ## Open questions for the human
+12. **M2 weapon numbers**: ADR 0003 defaults to Q3 vanilla (weapon switch waits for refire). CPMA numbers instead?
+13. **Spawn protection**: Q3 has none; ADR default 0 s (mechanism exists, test map uses 2 s). Keep 0?
+14. **Inventory model**: ADR rejects Lyra's equipment/weapon-instance pattern in favour of a bitmask inventory + granted fire abilities. OK?
+15. **Hit markers**: server-confirmed only (Q3 feel, ~RTT delay) vs predicted with revocation. ADR default: server-confirmed.
+16. **Death camera**: fixed on corpse (ADR default) vs free spectate.
 11. **Crouch out of M1** (architect, ADR 0002 A11): the engine's crouch resizes to class-default capsule geometry, not our pawn-data geometry; fixing it properly belongs to the M2 hitbox/lag-comp design (recommendation: Lyra-style class-default geometry). `bCanCrouch=false` for the M1 playtest. Veto if you want crouching in the movement playtest.
 10. **GitHub push blocked (403).** `gh` is logged in as refaustria with push permission on the repo, but `git push` over HTTPS is denied and no SSH key exists on the VM. Likely the stored token lacks the `repo` write scope. Fix options: run `gh auth refresh -h github.com -s repo` interactively (device-code flow), or add an SSH deploy key with write access. Nothing has been pushed yet; all work is local on `main`, `m0-infrastructure`, `m1-movement`.
 1. ~~Disk space~~ — resolved 2026-10-24: disk cannot be enlarged; freed instead: docker 19 GB, engine trim 17 GB + exclusions, caches/build artefacts 9.8 GB (approved). **35 GB free.** Budget rule from now on: keep ≥ 15 GB free; cooked builds go to `Saved/` and are pruned after upload.
