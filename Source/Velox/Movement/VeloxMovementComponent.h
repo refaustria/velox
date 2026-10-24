@@ -115,6 +115,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Velox|Movement|Net")
 	void ResetCorrectionStats();
 
+	/** The `showdebug VeloxMovement` block (non-shipping; empty in shipping). */
+	void DisplayVeloxDebug(class UCanvas* Canvas, float& YL, float& YPos) const;
+
 	/** Server: Velox state snapshot for the correction queued by the last failed error check (A18). */
 	const FVeloxCorrectionState& GetServerCorrectionState() const { return ServerCorrectionState; }
 

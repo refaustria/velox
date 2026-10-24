@@ -12,6 +12,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "HAL/IConsoleManager.h"
+#include "Movement/VeloxMoveDebug.h"
 #include "Movement/VeloxMovementSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxMovementComponent)
@@ -498,6 +499,13 @@ void UVeloxMovementComponent::ServerMoveHandleClientError(float ClientTimeStamp,
 		ServerCorrectionState.bJumpLatched = bJumpLatched;
 		ServerCorrectionState.PendingKnockback = PendingKnockback;
 	}
+}
+
+void UVeloxMovementComponent::DisplayVeloxDebug(UCanvas* Canvas, float& YL, float& YPos) const
+{
+#if !UE_BUILD_SHIPPING
+	VeloxMoveDebug::DrawDebug(Canvas, *this, YL, YPos);
+#endif
 }
 
 void UVeloxMovementComponent::ResetCorrectionStats()

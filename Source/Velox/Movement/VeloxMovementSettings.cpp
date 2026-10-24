@@ -2,9 +2,20 @@
 
 #include "Movement/VeloxMovementSettings.h"
 
+#include "Movement/VeloxMoveDebug.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxMovementSettings)
 
 FVeloxMoveParams UVeloxMovementSettings::BuildSimParams() const
+{
+	FVeloxMoveParams P = BuildBaseSimParams();
+#if !UE_BUILD_SHIPPING
+	VeloxMoveDebug::ApplyOverrides(P);
+#endif
+	return P;
+}
+
+FVeloxMoveParams UVeloxMovementSettings::BuildBaseSimParams() const
 {
 	FVeloxMoveParams P;
 	P.UnitScale = UnitScale;
@@ -42,7 +53,5 @@ FVeloxMoveParams UVeloxMovementSettings::BuildSimParams() const
 	P.FixedStep = FixedStep;
 	P.bFixedStepIntegration = bFixedStepIntegration;
 	P.bCombineAirMoves = bCombineAirMoves;
-
-	// TODO(M1 task 05): apply non-shipping velox.move.<FieldName> cvar overrides here (ADR 0002 section 6).
 	return P;
 }

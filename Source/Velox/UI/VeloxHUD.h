@@ -13,4 +13,9 @@ class VELOX_API AVeloxHUD : public AHUD
 
 public:
 	AVeloxHUD(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+
+	//~AHUD interface
+	/** M1 debug block: movement speed, ground/air, grace, latch, corrections, fps, ping (cvar velox.hud.Movement). */
+	virtual void DrawHUD() override;
+	//~End of AHUD interface
 };

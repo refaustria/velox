@@ -18,8 +18,11 @@ class VELOX_API UVeloxMovementSettings : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	/** POD copy of every field for VeloxMoveSim (per move). velox.move.* cvar overrides are added here in M1 task 05. */
+	/** POD copy of every field for VeloxMoveSim (per move), with the non-shipping velox.move.<Field> cvar overrides applied. */
 	FVeloxMoveParams BuildSimParams() const;
+
+	/** The same copy without cvar overrides (asset values only; DumpSettings and tests). */
+	FVeloxMoveParams BuildBaseSimParams() const;
 
 	// --- Units ---
 

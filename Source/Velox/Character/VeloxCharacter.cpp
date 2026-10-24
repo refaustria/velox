@@ -14,6 +14,10 @@
 #include "InputActionValue.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "Movement/VeloxMovementSettings.h"
+#include "Movement/VeloxScriptedInputComponent.h"
+
+#include "DisplayDebugHelpers.h"
+#include "Engine/Canvas.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxCharacter)
 
@@ -37,8 +41,25 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 	SetNetUpdateFrequency(60.f);
 	SetMinNetUpdateFrequency(30.f);
 
+#if !UE_BUILD_SHIPPING
+	// Scripted input and the test knockback RPC (task 05). A default subobject so the RPC has a stable name on both ends.
+	ScriptedInput = CreateDefaultSubobject<UVeloxScriptedInputComponent>(TEXT("ScriptedInput"));
+#endif
+
 	// DefaultInputComponentClass stays EnhancedInputComponent (ADR 0001); Velox pawns use the tag-binding subclass.
 	OverrideInputComponentClass = UVeloxInputComponent::StaticClass();
+}
+
+void AVeloxCharacter::DisplayDebug(UCanvas* Canvas, const FDebugDisplayInfo& DebugDisplay, float& YL, float& YPos)
+{
+	Super::DisplayDebug(Canvas, DebugDisplay, YL, YPos);
+
+#if !UE_BUILD_SHIPPING
+	if (const UVeloxMovementComponent* VeloxMovement = GetVeloxMovementComponent(); VeloxMovement && DebugDisplay.IsDisplayOn(TEXT("VeloxMovement")))
+	{
+		VeloxMovement->DisplayVeloxDebug(Canvas, YL, YPos);
+	}
+#endif
 }
 
 UAbilitySystemComponent* AVeloxCharacter::GetAbilitySystemComponent() const

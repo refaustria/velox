@@ -12,6 +12,7 @@ class UAbilitySystemComponent;
 class UInputComponent;
 class UVeloxAbilitySystemComponent;
 class UVeloxMovementComponent;
+class UVeloxScriptedInputComponent;
 class UVeloxPawnData;
 struct FInputActionValue;
 
@@ -43,6 +44,11 @@ public:
 	/** Standing eye height comes from pawn data (the engine would restore the class default on Restart/UnCrouch). */
 	virtual void RecalculateBaseEyeHeight() override;
 	//~End of APawn interface
+
+	//~AActor interface
+	/** `showdebug VeloxMovement` forwards to UVeloxMovementComponent::DisplayVeloxDebug (ACharacter only does so for Physics). */
+	virtual void DisplayDebug(UCanvas* Canvas, const FDebugDisplayInfo& DebugDisplay, float& YL, float& YPos) override;
+	//~End of AActor interface
 
 protected:
 	//~AActor interface
@@ -78,4 +84,8 @@ protected:
 
 private:
 	TArray<uint32> AbilityInputBindHandles;
+
+	/** Test tooling (task 05): scripted input replay and test knockback RPC. Created in non-shipping builds only. */
+	UPROPERTY()
+	TObjectPtr<UVeloxScriptedInputComponent> ScriptedInput;
 };
