@@ -54,10 +54,6 @@
 			"Enabled": false
 		},
 		{
-			"Name": "ModelingToolsEditorMode",
-			"Enabled": false
-		},
-		{
 			"Name": "ChaosVehiclesPlugin",
 			"Enabled": false
 		},
@@ -71,10 +67,6 @@
 		},
 		{
 			"Name": "DatasmithContent",
-			"Enabled": false
-		},
-		{
-			"Name": "HairStrands",
 			"Enabled": false
 		},
 		{

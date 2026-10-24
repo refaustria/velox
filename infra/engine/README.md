@@ -102,3 +102,10 @@ Needs >= 45 GB free on the destination filesystem (52 GB with `--full`), checked
   Linux-only host; `Linux` and path-like names are refused). Only marks; deletion needs `--apply --yes`.
 - `--check-orphans` lists platform-extension plugins whose parent no longer exists and exits 1 if any.
   It also runs automatically after `--apply`. Read-only; run it after any manual deletion too.
+
+## Dependency verification (added after the 2026-10-24 post-mortem)
+
+`trim-plugins.py --verify-deps` checks that every remaining plugin's hard dependencies (`Enabled:true`, not `Optional`) still exist, for the current tree and the planned
+post-state; exit 1 on violations. `--apply` refuses to run when the planned post-state has violations and re-verifies afterwards. `.uplugin` parsing is strict about failures
+(abort unless `--ignore-parse-errors`), name matching is case-insensitive, and a `"Enabled": false` in the `.uproject` never cuts a dependency edge (it is reported as an
+"uproject conflict"). Always run `--verify-deps` before and after any deletion. See `TRIM-REPORT.md` "Post-mortem 2026-10-24".

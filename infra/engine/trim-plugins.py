@@ -108,10 +108,16 @@ def strip_json(text):
     return re.sub(r",(\s*[}\]])", r"\1", "".join(out))
 
 def load_json(p):
+    """Parse a .uplugin/.uproject. UE accepts raw control characters (tabs) inside strings, so strict=False is
+    mandatory (>200 engine .uplugin files have tabs in Description). BOM, // and /* */ comments and trailing
+    commas are tolerated. Raises ValueError on failure -- callers must NOT treat that as 'no dependencies'."""
     with open(p, encoding="utf-8-sig", errors="replace") as f:
-        t = f.read()
-    try: return json.loads(t)
-    except ValueError: return json.loads(strip_json(t))
+        t = f.read().lstrip("\ufeff")
+    try: return json.loads(t, strict=False)
+    except ValueError: return json.loads(strip_json(t), strict=False)
+
+IGNORE_PARSE_ERRORS = False
+PARSE_ERRORS = []
 
 def dir_size(p):
     tot = 0
@@ -128,6 +134,7 @@ def hs(b):
 
 def scan(ue):
     plugs = {}
+    PARSE_ERRORS.clear()
     proot = os.path.join(ue, "Engine", "Plugins")
     for r, ds, fs in os.walk(proot):
         ups = [f for f in fs if f.endswith(".uplugin")]
@@ -135,13 +142,23 @@ def scan(ue):
         up = ups[0]; name = up[:-8]
         try: d = load_json(os.path.join(r, up))
         except Exception as e:
-            print(f"warn: cannot parse {r}/{up}: {e}", file=sys.stderr); continue
+            PARSE_ERRORS.append((os.path.join(r, up), str(e)))
+            print(f"ERROR: cannot parse {os.path.join(r, up)}: {e}", file=sys.stderr)
+            if not IGNORE_PARSE_ERRORS: continue  # collected; scan() aborts below
+            continue
         # nested plugins live in subdirs; size = own dir minus nested plugin dirs is overkill; compute full dir
         plugs[name] = dict(name=name, path=r, enabled_default=bool(d.get("EnabledByDefault", False)),
             deps=[(x["Name"], x.get("Enabled", True), bool(x.get("Optional", False))) for x in d.get("Plugins", [])],
             modules=[(m.get("Name"), m.get("Type"), m.get("LoadingPhase")) for m in d.get("Modules", [])],
             platforms=d.get("SupportedTargetPlatforms"), size=0)
         ds[:] = [x for x in ds]  # keep walking: nested plugins exist
+    if PARSE_ERRORS and not IGNORE_PARSE_ERRORS:
+        sys.exit(f"ABORT: {len(PARSE_ERRORS)} .uplugin file(s) could not be parsed (listed above). A plugin that cannot be "
+                 "parsed would be treated as dependency-free and wrongly deleted. Fix the parser or pass --ignore-parse-errors.")
+    # canonical (case-insensitive, like UE's plugin manager) dependency names
+    lc = {n.lower(): n for n in plugs}
+    for p in plugs.values():
+        p["deps"] = [(lc.get(dn.lower(), dn), e, o) for dn, e, o in p["deps"]]
     # sizes: exclusive of nested plugin directories
     paths = {p["path"] for p in plugs.values()}
     for p in plugs.values():
@@ -212,15 +229,26 @@ def project_module_roots(plugs, srcdir):
                     if w in mod2plug: found.add(mod2plug[w])
     return found
 
-def closure(roots, plugs, disabled=frozenset()):
+def closure(roots, plugs):
+    # NOTE: a uproject "Enabled": false does NOT cut the dependency edge. If a kept plugin hard-requires X, UE refuses
+    # to load that plugin when the project disables X, so X must stay (and the uproject entry is a conflict, see
+    # disabled_conflicts). Cutting the edge here was the real cause of the HairStrands/ModelingToolsEditorMode deletion.
     seen, st = set(), list(roots)
     while st:
         n = st.pop()
         if n in seen or n not in plugs: continue
         seen.add(n)
         for dn, en, opt in plugs[n]["deps"]:
-            if en and not opt and dn not in disabled: st.append(dn)
+            if en and not opt: st.append(dn)
     return seen
+
+def verify_deps(plugs, remaining):
+    """Violations: (plugin, dep) for each remaining plugin with an Enabled:true, non-Optional dependency not in remaining."""
+    return sorted((n, dn) for n in remaining for dn, e, o in plugs[n]["deps"] if e and not o and dn not in remaining)
+
+def print_violations(title, v):
+    print(f"verify-deps [{title}]: {len(v)} violation(s)")
+    for n, dn in v: print(f"  {n} -> {dn} (hard dependency missing)")
 
 def sz_(plugs, n): return plugs[n]["size"]
 
@@ -237,9 +265,15 @@ def main():
                          "(never Linux). Only marks; deleting still needs --apply --yes")
     ap.add_argument("--check-orphans", action="store_true",
                     help="only check for platform-extension plugins whose parent is missing; exit 1 if any")
+    ap.add_argument("--verify-deps", action="store_true",
+                    help="check every remaining plugin's hard deps exist (current tree and planned post-state); exit 1 on violations")
+    ap.add_argument("--ignore-parse-errors", action="store_true",
+                    help="continue although some .uplugin files fail to parse (UNSAFE: those plugins are invisible)")
     ap.add_argument("--no-sizes-of-dirs", action="store_true", help="skip other-dir sizing")
     a = ap.parse_args()
     ue = a.ue_root
+    global IGNORE_PARSE_ERRORS
+    IGNORE_PARSE_ERRORS = a.ignore_parse_errors
     if a.check_orphans:
         sys.exit(1 if report_orphans(ue) else 0)
     prune = [x.strip() for x in a.prune_platforms.split(",") if x.strip()]
@@ -248,11 +282,20 @@ def main():
     plugs = scan(ue)
     pext = scan_platform_ext(ue, set(plugs))
     en, dis = uproject_roots(a.uproject)
+    lcn = {n.lower(): n for n in plugs}
+    canon = lambda n: lcn.get(n.lower(), n)
+    en, dis = {canon(x) for x in en}, {canon(x) for x in dis}
+    global EXTRA_ROOTS
+    EXTRA_ROOTS = {canon(x) for x in EXTRA_ROOTS}
     modroots = project_module_roots(plugs, os.path.join(os.path.dirname(os.path.abspath(a.uproject)), "Source"))
     roots = {n for n, p in plugs.items() if p["enabled_default"]} | en | EXTRA_ROOTS | modroots
     roots -= dis
     roots = {r for r in roots if r in plugs}
-    keep = closure(roots, plugs, dis)
+    keep = closure(roots, plugs)
+    conflicts = sorted((n, dn) for n in keep for dn, e, o in plugs[n]["deps"] if e and not o and dn in dis)
+    if conflicts:
+        print(f"uproject conflicts: {len(conflicts)} plugin(s) disabled in the .uproject but hard-required by kept plugins (they are KEPT):")
+        for n, dn in conflicts: print(f"  {dn} (Enabled:false in uproject) <- required by {n}")
     rdeps = {n: [] for n in plugs}
     for n, p in plugs.items():
         for dn, e, opt in p["deps"]:
@@ -391,8 +434,18 @@ def main():
         os.makedirs(os.path.dirname(os.path.abspath(a.report)), exist_ok=True)
         open(a.report, "w").write(text)
         print("report written:", a.report)
+    print(f"plugins parsed: {len(plugs)}; parse errors: {len(PARSE_ERRORS)}")
+    bad = []
+    if a.verify_deps or a.apply:
+        cur = verify_deps(plugs, set(plugs))
+        post = verify_deps(plugs, set(plugs) - set(safe_all))
+        print_violations("current tree", cur)
+        print_violations("planned post-state (all - deletion set)", post)
+        bad = post if a.apply else (cur or post)
     print(f"safe total {hs(sum(sz(n) for n in top))}; {len(top)} dirs; blocked {len(blocked)}")
+    if a.verify_deps and bad and not a.apply: sys.exit(1)
     if a.apply:
+        if bad: sys.exit("ABORT --apply: planned post-state has hard-dependency violations (see above); nothing deleted.")
         if not a.yes: sys.exit("--apply requires --yes")
         if a.restore_list:
             open(a.restore_list, "w").write("\n".join([plugs[n]["path"] for n in top] + [e["path"] for e in ext_removed] + prune_dirs) + "\n")
@@ -402,7 +455,10 @@ def main():
             print("rm", e["path"]); shutil.rmtree(e["path"], ignore_errors=True)
         for d in prune_dirs:
             print("rm", d); shutil.rmtree(d, ignore_errors=True)
-        if report_orphans(ue): sys.exit(1)
+        after = scan(ue)
+        v = verify_deps(after, set(after))
+        print_violations("after apply", v)
+        if report_orphans(ue) or v: sys.exit(1)
 
 if __name__ == "__main__":
     main()

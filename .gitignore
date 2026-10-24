@@ -21,3 +21,4 @@ Plugins/*/Intermediate/
 *.code-workspace
 # Secrets
 .env
+__pycache__/

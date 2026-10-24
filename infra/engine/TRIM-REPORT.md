@@ -1358,3 +1358,45 @@ The engine is an *installed build*: UBT compiles Velox against prebuilt `Binarie
 - Non-plugin dirs deleted (about 7.9 GB): Engine/Binaries/Android (2.1G), Engine/Intermediate/Build/Android (2.6G), Engine/Binaries/LinuxArm64 (1.1G), Engine/Intermediate/Build/LinuxArm64 (1.3G), ThirdParty/DotNet/10.0/linux-arm64 (658M; host picks x64, GetDotnetPath logic only uses arm64 when uname -m == arm64), ThirdParty/Vulkan/{Android,Mac,Win64} (90M+13M+40M). df after: 94G used / 25G free.
 - Restore list: `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 - Build: `infra/ci/build.sh` FAILS in UBT: "Unable to find parent plugin RigLogic for platform extension plugin Engine/Platforms/Android/Plugins/Animation/RigLogic/RigLogic_Android.uplugin". Orphaned platform-extension plugins (parent deleted): Engine/Platforms/Android/Plugins/Animation/RigLogic, Engine/Platforms/IOS/Plugins/Animation/RigLogic (52 B uplugin each), Engine/Platforms/VisionOS/Plugins/Runtime/OpenXRVisionOS (143 MB). Their removal was refused by the permission classifier (outside the approved list); pending lead approval. Script improvement: trim-plugins.py should also delete platform-extension plugins whose parent is deleted.
+
+## Post-mortem 2026-10-24
+
+**Symptom.** After the trim was applied, `Interchange`, `Dataflow` and `SkeletalMeshModelingTools` hard-require plugins that no longer exist
+(`Interchange -> HairStrands`, `Dataflow` / `SkeletalMeshModelingTools -> ModelingToolsEditorMode`), so the editor build is red.
+
+**Hypothesis checked and REFUTED: JSON parse failure.** The hypothesis was that tab characters inside JSON strings made `json.loads` fail,
+the exception was swallowed and the plugin treated as dependency-free. Facts: the old `scan()` did catch parse errors (`warn: ...; continue`,
+i.e. the plugin was skipped silently on stderr, a real design flaw, now fixed). But (a) all 229 remaining `.uplugin` files parse strictly
+(no raw control characters in strings in this tree; the only strict-parse failures are 6 files with trailing commas, which `strip_json` handled);
+(b) `Interchange` was parsed and listed as `KEEP (root)` in the old report, and its HairStrands dependency is a plain `{"Name":"HairStrands","Enabled":true}`;
+(c) 801 plugins were reported = 229 remaining + 564 dirs deleted + nested children, so nothing was skipped. The parser change (`strict=False`, BOM, comments, trailing commas)
+is kept as hardening, but it did not cause this incident.
+
+**Actual root cause.** `Velox.uproject` listed `HairStrands` and `ModelingToolsEditorMode` as `"Enabled": false`. `closure(roots, plugs, disabled)` treated
+uproject-disabled plugins as a cut in the dependency graph (`dn not in disabled`), so Interchange's hard edge to HairStrands was ignored and HairStrands
+fell into "unreferenced". In UE a project cannot disable a plugin that an enabled plugin hard-requires (the dependant fails to load), so the edge must never be cut.
+Same for ModelingToolsEditorMode: it was classified "unreferenced" before the DENYLIST/NEVER_DELETE logic (which only handles kept plugins) ever applied.
+
+**Fixes in `trim-plugins.py`.**
+1. Parser: `json.loads(strict=False)` after stripping BOM, `//` and `/* */` comments, trailing commas. Any parse failure prints the file and aborts (exit 2) unless `--ignore-parse-errors`.
+2. Plugin-name matching is case-insensitive (dependency names, uproject entries, extra roots are canonicalised to the on-disk name, e.g. `MetaSound` -> `Metasound`).
+3. `closure()` no longer honours uproject `Enabled:false`; instead the script prints "uproject conflicts" for disabled plugins that kept plugins require.
+4. `--verify-deps`: every remaining plugin's `Enabled:true`, non-`Optional` dependencies must exist; checked for the current tree and for the planned post-state (all minus deletion set); exit 1 on violations.
+   `--apply` refuses to run if the planned post-state has violations and re-verifies after deleting.
+
+**Re-run, read-only, 2026-10-24** (`--verify-deps`): 229 plugins parsed, 0 parse errors. Violations (current tree and planned post-state identical):
+```
+Dataflow -> ModelingToolsEditorMode
+Interchange -> HairStrands
+SkeletalMeshModelingTools -> ModelingToolsEditorMode
+```
+`AudioModulation -> MetaSound` is no longer reported (case-insensitive match against `Metasound.uplugin`). No other violations, so no other plugin was wrongly deleted
+(any further wrongly deleted plugin would show as a missing dependency of a remaining one; plugins reachable only through HairStrands/ModelingToolsEditorMode
+themselves cannot be checked until those two are restored).
+
+**Safe list difference.** The tree is already trimmed, so a fresh safe list cannot be regenerated from it (0 safe dirs now). By construction the only previously "safe"
+entries that are now "kept" are `HairStrands` and `ModelingToolsEditorMode`, plus whatever those two hard-require (unknown until restored). `HairStrands` is also on the
+DENYLIST and `ModelingToolsEditorMode` is on `NEVER_DELETE`, so the aggressive-pass behaviour is unchanged.
+
+**Required follow-up (not done here, outside scope).** Restore `Engine/Plugins/Runtime/HairStrands` and `Engine/Plugins/Editor/ModelingToolsEditorMode` (paths are in the restore list),
+remove the two `"Enabled": false` entries from `Velox.uproject`, then run `trim-plugins.py --verify-deps`; iterate until it exits 0.
