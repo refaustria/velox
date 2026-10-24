@@ -88,3 +88,17 @@ Needs >= 45 GB free on the destination filesystem (52 GB with `--full`), checked
   top-level dirs are dropped, `Engine/**/Templates` and `Engine/**/Samples` survive. The post-extraction
   sanity check guards against a repeat. Also: trimming all of `VirtualProduction` removed `Takes`,
   which other plugins need.
+
+## trim-plugins.py: platform extensions and orphan check (2026-10-24 incident)
+- **Incident.** `trim-plugins.py --apply` deleted the parent plugins RigLogic and OpenXR but left their
+  platform-extension plugins under `Engine/Platforms/<Platform>/Plugins/**/<Name>_<Platform>.uplugin`
+  (e.g. `RigLogic_Android.uplugin`). UBT then aborted: `Unable to find parent plugin RigLogic for
+  platform extension plugin .../RigLogic_Android.uplugin`. Engine/Platforms/{Android,IOS,VisionOS} was
+  removed by hand.
+- **Fix.** The script now also scans `Engine/Platforms/*/Plugins/**/*.uplugin` (parent = file stem minus
+  `_<Platform>`, else directory name). Children of any plugin in the deletion set are deleted with it and
+  listed in the report under "Platform extensions removed with their parent".
+- `--prune-platforms Android,IOS,VisionOS,TVOS` marks whole `Engine/Platforms/<X>` dirs (suggested on a
+  Linux-only host; `Linux` and path-like names are refused). Only marks; deletion needs `--apply --yes`.
+- `--check-orphans` lists platform-extension plugins whose parent no longer exists and exits 1 if any.
+  It also runs automatically after `--apply`. Read-only; run it after any manual deletion too.

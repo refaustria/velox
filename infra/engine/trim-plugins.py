@@ -5,6 +5,10 @@ Default mode is READ-ONLY: scans, writes a markdown report, never deletes.
   trim-plugins.py [--ue-root /opt/UnrealEngine-5.8] [--uproject Velox.uproject]
                   [--report infra/engine/TRIM-REPORT.md]
   trim-plugins.py --apply --yes --restore-list deleted.txt   # actually deletes the SAFE list
+  trim-plugins.py --prune-platforms Android,IOS,VisionOS,TVOS  # also mark Engine/Platforms/<X> (deleted only with --apply --yes)
+  trim-plugins.py --check-orphans   # platform-extension plugins without parent; exit 1 if any (also run after --apply)
+Platform-extension plugins (Engine/Platforms/<P>/Plugins/**/<Name>_<P>.uplugin) are deleted together with
+their parent plugin; UBT aborts otherwise ("Unable to find parent plugin ...").
 
 Categories:
   KEEP        enabled by default / enabled in .uproject / transitive hard dependency of those
@@ -150,6 +154,45 @@ def scan(ue):
         p["size"] = tot
     return plugs
 
+def scan_platform_ext(ue, plugin_names):
+    """Platform-extension plugins: Engine/Platforms/<Platform>/Plugins/**/*.uplugin whose parent
+    (file stem minus _<Platform>, else the directory name) is a plugin in Engine/Plugins.
+    Returns list of dicts(path=dir, file, platform, name, parent, parent_exists)."""
+    out = []
+    base = os.path.join(ue, "Engine", "Platforms")
+    if not os.path.isdir(base): return out
+    for plat in sorted(os.listdir(base)):
+        proot = os.path.join(base, plat, "Plugins")
+        for r, _, fs in os.walk(proot):
+            for f in fs:
+                if not f.endswith(".uplugin"): continue
+                stem = f[:-8]
+                suffix = "_" + plat
+                parent = stem[:-len(suffix)] if stem.endswith(suffix) else None
+                if parent is None:
+                    d = os.path.basename(r)
+                    if d in plugin_names: parent = d
+                    else: parent = stem  # unknown naming: treat stem as parent name
+                out.append(dict(path=r, file=os.path.join(r, f), platform=plat, name=stem,
+                                parent=parent, parent_exists=parent in plugin_names))
+    return out
+
+def find_orphans(ue):
+    """Platform-extension plugins whose parent plugin is gone. Only names ending in _<Platform> count
+    (those are the ones UBT requires a parent for)."""
+    plugs = scan(ue)
+    return [e for e in scan_platform_ext(ue, set(plugs))
+            if e["name"].endswith("_" + e["platform"]) and not e["parent_exists"]]
+
+def report_orphans(ue):
+    orph = find_orphans(ue)
+    if orph:
+        print(f"ORPHANS: {len(orph)} platform-extension plugin(s) without parent plugin:")
+        for e in orph: print(f"  {e['file']} (missing parent {e['parent']})")
+    else:
+        print("orphan check: 0 orphaned platform-extension plugins")
+    return orph
+
 def uproject_roots(path):
     en, dis = set(), set()
     if os.path.exists(path):
@@ -189,10 +232,21 @@ def main():
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--yes", action="store_true")
     ap.add_argument("--restore-list")
+    ap.add_argument("--prune-platforms", default="",
+                    help="comma list of Engine/Platforms/<X> dirs to mark for deletion, e.g. Android,IOS,VisionOS,TVOS "
+                         "(never Linux). Only marks; deleting still needs --apply --yes")
+    ap.add_argument("--check-orphans", action="store_true",
+                    help="only check for platform-extension plugins whose parent is missing; exit 1 if any")
     ap.add_argument("--no-sizes-of-dirs", action="store_true", help="skip other-dir sizing")
     a = ap.parse_args()
     ue = a.ue_root
+    if a.check_orphans:
+        sys.exit(1 if report_orphans(ue) else 0)
+    prune = [x.strip() for x in a.prune_platforms.split(",") if x.strip()]
+    if any(x.lower() == "linux" or "/" in x or x in (".", "..") for x in prune):
+        sys.exit("--prune-platforms: refusing Linux / path-like names")
     plugs = scan(ue)
+    pext = scan_platform_ext(ue, set(plugs))
     en, dis = uproject_roots(a.uproject)
     modroots = project_module_roots(plugs, os.path.join(os.path.dirname(os.path.abspath(a.uproject)), "Source"))
     roots = {n for n, p in plugs.items() if p["enabled_default"]} | en | EXTRA_ROOTS | modroots
@@ -247,6 +301,17 @@ def main():
     # drop plugins whose dir is inside another deleted dir (avoid double counting)
     dirs = {n: plugs[n]["path"] for n in safe_all}
     top = [n for n in safe_all if not any(plugs[n]["path"].startswith(dirs[m] + os.sep) for m in safe_all if m != n)]
+    # platform extensions of deleted parents go with them (UBT aborts on orphaned extensions)
+    prune_dirs = []
+    for x in prune:
+        pd = os.path.join(ue, "Engine", "Platforms", x)
+        if os.path.isdir(pd): prune_dirs.append(pd)
+        else: print(f"warn: --prune-platforms: {pd} does not exist", file=sys.stderr)
+    def in_pruned(p): return any(p == d or p.startswith(d + os.sep) for d in prune_dirs)
+    gone_all = set(safe_all)
+    ext_removed = [e for e in pext if e["parent"] in gone_all and not in_pruned(e["path"])]
+    ext_by_parent = {}
+    for e in ext_removed: ext_by_parent.setdefault(e["parent"], []).append(e)
     sz = lambda n: plugs[n]["size"]
     total = sum(p["size"] for p in plugs.values())
     rel = lambda p: os.path.relpath(p, ue)
@@ -273,6 +338,18 @@ def main():
     for n in sorted(top, key=sz, reverse=True):
         cum += sz(n)
         L.append(f"| {n} | {hs(sz(n))} | {hs(cum)} | {'aggressive' if n in is_agg else 'unreferenced'} | {plugs[n]['enabled_default']} |")
+    L.append("\n## Platform extensions removed with their parent\n")
+    if ext_removed:
+        L.append("| Extension | Platform | Parent (deleted) | Path |\n|---|---|---|---|")
+        for e in sorted(ext_removed, key=lambda e: (e["parent"], e["platform"])):
+            L.append(f"| {e['name']} | {e['platform']} | {e['parent']} | `{rel(e['path'])}` |")
+    else:
+        L.append("None.")
+    L.append("\n## Platform dirs marked by --prune-platforms\n")
+    if prune_dirs:
+        for d in prune_dirs: L.append(f"- `{rel(d)}`: {hs(dir_size(d))}")
+    else:
+        L.append("None (suggestion on a Linux-only host: `--prune-platforms Android,IOS,VisionOS,TVOS`).")
     L.append("\n## Blocked candidates (match denylist but kept plugins depend on them)\n")
     L.append("| Plugin | Size | Kept dependants (hard) | EnabledByDefault |\n|---|---|---|---|")
     for n in sorted(blocked, key=sz, reverse=True):
@@ -288,7 +365,9 @@ def main():
     L.append("## Uproject entries for deleted EnabledByDefault plugins\n")
     L.append("Deleted plugins that were `EnabledByDefault` should be marked disabled in `Velox.uproject` to silence 'missing plugin' warnings:\n")
     L.append("```json\n" + ",\n".join(f'{{ "Name": "{n}", "Enabled": false }}' for n in agg_names if n not in dis) + "\n```\n")
-    L.append("## rm -rf block for the safe list (NOT executed)\n\n```bash\n" + "\n".join(f"rm -rf '{plugs[n]['path']}'" for n in sorted(top, key=sz, reverse=True)) + "\n```\n")
+    L.append("## rm -rf block for the safe list (NOT executed)\n\n```bash\n" + "\n".join(f"rm -rf '{plugs[n]['path']}'" for n in sorted(top, key=sz, reverse=True))
+             + "".join(f"\nrm -rf '{e['path']}'" for e in ext_removed)
+             + "".join(f"\nrm -rf '{d}'" for d in prune_dirs) + "\n```\n")
 
     # other dirs
     L.append("## Other large engine directories (not deleted by this script)\n")
@@ -316,9 +395,14 @@ def main():
     if a.apply:
         if not a.yes: sys.exit("--apply requires --yes")
         if a.restore_list:
-            open(a.restore_list, "w").write("\n".join(plugs[n]["path"] for n in top) + "\n")
+            open(a.restore_list, "w").write("\n".join([plugs[n]["path"] for n in top] + [e["path"] for e in ext_removed] + prune_dirs) + "\n")
         for n in top:
             print("rm", plugs[n]["path"]); shutil.rmtree(plugs[n]["path"], ignore_errors=True)
+        for e in ext_removed:
+            print("rm", e["path"]); shutil.rmtree(e["path"], ignore_errors=True)
+        for d in prune_dirs:
+            print("rm", d); shutil.rmtree(d, ignore_errors=True)
+        if report_orphans(ue): sys.exit(1)
 
 if __name__ == "__main__":
     main()
