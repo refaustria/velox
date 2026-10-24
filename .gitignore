@@ -22,3 +22,4 @@ Plugins/*/Intermediate/
 # Secrets
 .env
 __pycache__/
+.claude/worktrees/

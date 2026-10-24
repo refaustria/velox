@@ -129,18 +129,37 @@ def build_data(actions):
 
     ms, _ = get_or_create("/Game/Data", "DA_MovementSettings_Default", unreal.VeloxMovementSettings, None)
     if ms is not None:
-        # ADR 0002 section 1 initial tuning table (UE units); only fields that exist today.
+        # ADR 0002 section 1 initial tuning table (UE units). Python names drop the "b" of bool properties.
         values = {
             "unit_scale": 2.5,
             "max_ground_speed": 800.0,
             "ground_acceleration": 10.0,
             "ground_friction": 6.0,
+            "stop_speed": 250.0,
+            "crouch_speed_scale": 0.25,
+            "step_height": 45.0,
+            "walkable_floor_angle": 45.5,
+            "edge_perch_radius": 15.0,
             "air_acceleration": 1.0,
             "air_max_wish_speed": 800.0,
+            "air_control_enabled": False,  # bAirControl (CPM toggle), ScriptName avoids clash with AirControl
+            "air_stop_acceleration": 2.5,
+            "air_strafe_acceleration": 70.0,
+            "air_strafe_max_wish_speed": 75.0,
+            "air_control": 150.0,
+            "air_control_scale": 32.0,
             "jump_velocity": 675.0,
+            "auto_hop": True,
             "gravity_z": -2000.0,
-            "step_height": 45.0,
-            "ramp_slide_max_angle": 45.5,  # becomes WalkableFloorAngle (45.5) in M1 task 01
+            "ramp_slide_min_normal_speed": 25.0,
+            "ramp_exit_min_angle": 5.0,
+            "ramp_exit_catch_air": True,
+            "knockback_grace_min": 0.05,
+            "knockback_grace_max": 0.2,
+            "knockback_grace_per_speed": 0.00016,
+            "fixed_step": 0.008,
+            "fixed_step_integration": True,
+            "combine_air_moves": False,
         }
         for k, v in values.items():
             try:
