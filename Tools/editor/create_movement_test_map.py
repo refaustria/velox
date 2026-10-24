@@ -10,7 +10,7 @@ Layout (X forward, floor top at Z=0):
   strafe corridor  x 0..5120,  y -500..500 (walls 250 high), markers every 512 cm
   ramp bank        y 1000..3800, lanes 10/20/30/45/50 deg, 1600 cm slope -> 400 cm platform
   stairs           y 4700/5300/5900, 12 steps, risers 20/40/60 cm
-  jump pads        y -1500/-2500/-3500 (placeholder cylinders until AVeloxJumpPad) + target markers
+  jump pads        y -1500/-2500/-3500: AVeloxJumpPad (AimAtTarget) + ATargetPoint + landing marker discs
   bunny-hop gaps   y 7600/8400/9200, gaps 500/700/900 cm over a 100 cm drop
 """
 import math
@@ -177,30 +177,71 @@ def build_stairs():
              folder="Stairs")
 
 
+# Jump pads (ADR 0002 sections 4 and 7). The launch point is the trigger centre, placed at the capsule centre of a
+# pawn standing on the pad (capsule half height 70 cm, floor Z=0). Q3 AimAtTarget puts the apex at the target, so the
+# pad A target sits 30 cm above the platform's near edge: from the pad centre the arc clears the edge by ~28 cm, lands
+# at ~x 1276 and ground friction stops the pawn at ~x 1445 (platform ends at 1500). Default gravity -2000 cm/s^2 gives
+# launch speeds A 1558, B 1789, C 1600 cm/s. Entering the trigger from above launches from higher up (Q3 has the same
+# trigger-centre approximation, ADR 0002 section 4) and overshoots.
+PAD_TRIGGER_EXTENT = (50.0, 50.0, 70.0)   # half extents; 1 m pad, as high as the standing capsule
+PAD_LAUNCH_Z = 70.0                        # trigger centre height above the floor
+PAD_MAX_LAUNCH_SPEED = 4000.0              # ADR 0002 section 4 default, checked below
+VALIDATION_GRAVITY_Z = -2000.0             # UVeloxMovementSettings default (ADR 0002 section 1)
+PADS = []
+
+
 def build_pads():
-    # Placeholder actors until AVeloxJumpPad: green cylinder = pad, cyan flat disc = target/landing point.
-    def pad(name, x, y):
-        box("pad", f"JumpPad{name}_Placeholder", (x, y, 5), (150, 150, 10), "Pad", folder="JumpPads",
-            mesh_path=CYLINDER)
+    def pad(name, x, y, target_loc):
+        tp = EAS.spawn_actor_from_class(unreal.TargetPoint, unreal.Vector(*target_loc))
+        tp.set_actor_label(f"JumpPad{name}_TargetPoint")
+        tp.set_folder_path("JumpPads")
+        count("targetpoint")
+
+        a = EAS.spawn_actor_from_class(unreal.VeloxJumpPad, unreal.Vector(x, y, PAD_LAUNCH_Z))
+        a.set_actor_label(f"JumpPad{name}")
+        a.set_folder_path("JumpPads")
+        a.set_editor_property("mode", unreal.VeloxJumpPadMode.AIM_AT_TARGET)
+        a.set_editor_property("target", tp)
+        a.set_editor_property("override_velocity", True)
+        a.set_editor_property("max_launch_speed", PAD_MAX_LAUNCH_SPEED)
+        trigger = a.get_editor_property("trigger")
+        trigger.set_box_extent(unreal.Vector(*PAD_TRIGGER_EXTENT), False)
+        # Visible pad: flat green disc on the floor, as wide as the trigger, no collision (set by the class).
+        pm = a.get_editor_property("pad_mesh")
+        pm.set_static_mesh(mesh(CYLINDER))
+        pm.set_material(0, MATS["Pad"])
+        pm.set_relative_location(unreal.Vector(0, 0, 5 - PAD_LAUNCH_Z), False, False)
+        pm.set_relative_scale3d(unreal.Vector(PAD_TRIGGER_EXTENT[0] / 50.0, PAD_TRIGGER_EXTENT[1] / 50.0, 0.1))
+        count("jumppad")
+        PADS.append(a)
 
     def target(name, x, y, z):
         box("target", f"JumpPad{name}_Target", (x, y, z + 2), (120, 120, 4), "Target", collide=False,
             folder="JumpPads", mesh_path=CYLINDER)
 
-    # A: platform 800 cm away / 320 cm up.
-    pad("A", 500, -1500)
+    # A: platform 800 cm away / 320 cm up (platform x 1100..1500, top Z=320).
+    pad("A", 500, -1500, (1100, -1500, 420))
     box("platform", "JumpPadA_Platform", (1300, -1500, 160), (400, 400, 320), "Platform", folder="JumpPads")
     target("A", 1300, -1500, 320)
     text("PadA_Text", (200, -1500, 140), "Pad A: +800 fwd / +320 up", folder="JumpPads")
-    # B: flat, 1600 cm.
-    pad("B", 500, -2500)
+    # B: flat, 1600 cm (target level with the launch point: minimum-speed 45 degree arc).
+    pad("B", 500, -2500, (2100, -2500, PAD_LAUNCH_Z))
     target("B", 2100, -2500, 0)
     text("PadB_Text", (200, -2500, 140), "Pad B: flat 1600", folder="JumpPads")
-    # C: vertical 640 cm; ledge beside the pad, target marker in the apex above the pad.
-    pad("C", 500, -3500)
+    # C: vertical 640 cm (capsule centre rises 640 cm); ledge beside the pad, marker disc at the apex.
+    pad("C", 500, -3500, (500, -3500, PAD_LAUNCH_Z + 640))
     box("platform", "JumpPadC_Ledge", (900, -3500, 320), (400, 400, 640), "Platform", folder="JumpPads")
     target("C", 500, -3500, 640)
     text("PadC_Text", (200, -3500, 140), "Pad C: vertical 640", folder="JumpPads")
+
+
+def check_pads():
+    for a in PADS:
+        v = a.compute_launch_velocity(VALIDATION_GRAVITY_Z)
+        speed = v.length()
+        log(f"{a.get_actor_label()}: launch {v} |v|={speed:.0f} cm/s")
+        if not (0.0 < speed <= PAD_MAX_LAUNCH_SPEED):
+            fail(f"{a.get_actor_label()}: launch speed {speed:.0f} outside (0, {PAD_MAX_LAUNCH_SPEED:.0f}]")
 
 
 def build_gaps():
@@ -234,7 +275,7 @@ def build_lighting_and_starts():
 EXPECTED = {
     "ground": 1, "wall": 4, "marker": 11, "text": 11 + 5 + 3 + 3 + 3,
     "ramp": 5, "platform": 5 + 2,  # 5 ramp tops + pad A platform + pad C ledge
-    "step": 36, "pad": 3, "target": 3, "pit": 1, "gapplat": 6,
+    "step": 36, "jumppad": 3, "targetpoint": 3, "target": 3, "pit": 1, "gapplat": 6,
     "playerstart": 2, "light": 2,
 }
 
@@ -265,6 +306,7 @@ def build_map():
     build_pads()
     build_gaps()
     build_lighting_and_starts()
+    check_pads()
 
     log("spawned: " + ", ".join(f"{k}={v}" for k, v in sorted(COUNTS.items())))
     if COUNTS != EXPECTED:
@@ -277,10 +319,16 @@ def build_map():
         fail(f"level has fewer actors ({n_level}) than spawned ({n_spawned})")
     n_sm = sum(1 for a in level_actors if isinstance(a, unreal.StaticMeshActor))
     n_ps = sum(1 for a in level_actors if isinstance(a, unreal.PlayerStart))
-    exp_sm = sum(v for k, v in EXPECTED.items() if k not in ("text", "playerstart", "light"))
-    log(f"StaticMeshActors={n_sm} (expected {exp_sm}) PlayerStarts={n_ps} (expected 2)")
-    if n_sm != exp_sm or n_ps != 2:
+    exp_sm = sum(v for k, v in EXPECTED.items() if k not in ("text", "playerstart", "light", "jumppad", "targetpoint"))
+    n_pads = sum(1 for a in level_actors if isinstance(a, unreal.VeloxJumpPad))
+    n_tp = sum(1 for a in level_actors if isinstance(a, unreal.TargetPoint))
+    log(f"StaticMeshActors={n_sm} (expected {exp_sm}) PlayerStarts={n_ps} (expected 2) "
+        f"VeloxJumpPads={n_pads} (expected 3) TargetPoints={n_tp} (expected 3)")
+    if n_sm != exp_sm or n_ps != 2 or n_pads != 3 or n_tp != 3:
         fail("level actor class counts mismatch")
+    # Map check runs AVeloxJumpPad::CheckForErrors (launch speed validation); the log shows its summary line.
+    unreal.SystemLibrary.execute_console_command(EAS.get_editor_world() if hasattr(EAS, "get_editor_world")
+                                                 else unreal.EditorLevelLibrary.get_editor_world(), "MAP CHECK")
     if not les.save_current_level():
         fail("save_current_level failed")
 

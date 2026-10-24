@@ -4,7 +4,14 @@
 
 #include "AI/Navigation/PathFollowingAgentInterface.h"
 #include "Components/CapsuleComponent.h"
+#include "Core/VeloxLog.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
+#include "HAL/IConsoleManager.h"
 #include "Movement/VeloxMovementSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxMovementComponent)
@@ -35,6 +42,7 @@ UVeloxMovementComponent::UVeloxMovementComponent(const FObjectInitializer& Objec
 	bWantsJumpHeld = false;
 	bHasForwardInput = false;
 	bHasSideInput = false;
+	bJumpLatched = false;
 
 	// FPS rotation: yaw comes from the controller via the character (bUseControllerRotationYaw), never from movement.
 	bOrientRotationToMovement = false;
@@ -51,6 +59,7 @@ UVeloxMovementComponent::UVeloxMovementComponent(const FObjectInitializer& Objec
 	bNetworkSkipProxyPredictionOnNetUpdate = true;
 
 	SetNetworkMoveDataContainer(VeloxNetworkMoveDataContainer);
+	SetMoveResponseDataContainer(VeloxMoveResponseDataContainer);
 }
 
 const UVeloxMovementSettings* UVeloxMovementComponent::GetMovementSettings() const
@@ -151,6 +160,10 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 	SimParams = MovementSettings->BuildSimParams();
 	RampExitVelocityZ = 0.f;
 
+	// VQ3 clears PMF_JUMP_HELD on the first frame without jump (A12). The move's own flag, so the server and a replay
+	// derive the same value. A jump started by CheckJumpInput before this call has held = true and keeps the latch.
+	bJumpLatched = JumpLatchAtMoveStart(bJumpLatched, bWantsJumpHeld);
+
 	ConsumePendingKnockback();
 	MoveStartKnockbackGrace = KnockbackGrace;
 
@@ -181,6 +194,16 @@ void UVeloxMovementComponent::ConsumePendingKnockback()
 	}
 	bForceNextFloorCheck = true;
 	PendingKnockback.Reset();
+}
+
+void UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVelocity)
+{
+	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy)
+	{
+		// Simulated proxies never run moves; the result arrives through replication.
+		return;
+	}
+	PendingKnockback.Add(Impulse, bOverrideVelocity);
 }
 
 void UVeloxMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration)
@@ -253,11 +276,12 @@ bool UVeloxMovementComponent::IsValidLandingSpot(const FVector& CapsuleLocation,
 
 void UVeloxMovementComponent::ProcessLanded(const FHitResult& Hit, float remainingTime, int32 Iterations)
 {
-	// Auto-hop: jump held on landing jumps in the landing frame, before any ground friction (Q3 checks the jump before
-	// PM_Friction). NavWalking ground mode keeps the engine path (it validates the navmesh in ProcessLanded).
-	const bool bAutoHop = HasVeloxPhysics() && SimParams.bAutoHop && bWantsJumpHeld && CharacterOwner
+	// Landing jump: jump held on landing jumps in the landing frame, before any ground friction (Q3 checks the jump
+	// before PM_Friction). With bAutoHop off only if the jump was released since the last jump (VQ3 PMF_JUMP_HELD, A12).
+	// NavWalking ground mode keeps the engine path (it validates the navmesh in ProcessLanded).
+	const bool bLandingJump = HasVeloxPhysics() && WantsLandingJump(bWantsJumpHeld, SimParams.bAutoHop, bJumpLatched) && CharacterOwner
 		&& GetGroundMovementMode() == MOVE_Walking && !bWantsToCrouch;
-	if (!bAutoHop)
+	if (!bLandingJump)
 	{
 		Super::ProcessLanded(Hit, remainingTime, Iterations);
 		return;
@@ -311,6 +335,7 @@ bool UVeloxMovementComponent::DoJump(bool bReplayingMoves, float DeltaTime)
 		// Q3 sets Z (no max with the current Z, no jump hold force).
 		Velocity = VeloxMoveSim::Jump(Velocity, SimParams);
 		SetMovementMode(MOVE_Falling);
+		bJumpLatched = true;
 		return true;
 	}
 	return false;
@@ -394,5 +419,140 @@ void UVeloxMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
 	Super::UpdateFromCompressedFlags(Flags);
 
 	bWantsJumpHeld = (Flags & FSavedMove_Velox::FLAG_JumpHeld) != 0;
-	// TODO(M1 task 04): bHasForwardInput / bHasSideInput from FLAG_Custom_1 / FLAG_Custom_2 once FSavedMove_Velox sends them.
+	bHasForwardInput = (Flags & FSavedMove_Velox::FLAG_HasForwardInput) != 0;
+	bHasSideInput = (Flags & FSavedMove_Velox::FLAG_HasSideInput) != 0;
 }
+
+void UVeloxMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData, float TimeStamp, FVector NewLocation, FVector NewVelocity, FMovementBaseInterfaceData* NewMovementBaseInterfaceData, FName NewBaseBoneName, bool bHasBase, bool bBaseRelativePosition, uint8 ServerMovementMode, FVector ServerGravityDirection)
+{
+	Super::OnClientCorrectionReceived(ClientData, TimeStamp, NewLocation, NewVelocity, NewMovementBaseInterfaceData, NewBaseBoneName, bHasBase, bBaseRelativePosition, ServerMovementMode, ServerGravityDirection);
+
+	// Statistics: client location after the corrected move vs the server's (same measure as p.NetShowCorrections).
+	const FVector ClientLocation = ClientData.LastAckedMove.IsValid() ? ClientData.LastAckedMove->SavedLocation : UpdatedComponent->GetComponentLocation();
+	LastCorrectionCm = static_cast<float>(FVector::Dist(ClientLocation, NewLocation));
+	++NumCorrections;
+	SumCorrectionCm += LastCorrectionCm;
+	MaxCorrectionCm = FMath::Max(MaxCorrectionCm, LastCorrectionCm);
+	LastCorrectionTime = GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0;
+
+	// Velox state the replay starts from. The container is ours (constructor); it is only filled on the packed-RPC path,
+	// so the time stamp guards against stale data from the legacy RPCs.
+	const FVeloxMoveResponseDataContainer& Response = static_cast<const FVeloxMoveResponseDataContainer&>(GetMoveResponseDataContainer());
+	if (!Response.IsCorrection() || Response.ClientAdjustment.TimeStamp != TimeStamp)
+	{
+		return;
+	}
+
+	// Derived state chains from here through the replayed moves (A14).
+	KnockbackGrace = Response.KnockbackGrace;
+	bJumpLatched = Response.bJumpLatched;
+	PendingKnockback = Response.PendingKnockback;
+
+	// PrepMoveFor restores the latch and assigns the pending knockback from each replayed move. The first unacked move
+	// starts where the server's acked move ended, so it gets the server's values; later moves keep their own.
+	if (ClientData.SavedMoves.Num() > 0)
+	{
+		FSavedMove_Velox* FirstMove = static_cast<FSavedMove_Velox*>(ClientData.SavedMoves[0].Get());
+		FirstMove->bSavedJumpLatched = Response.bJumpLatched;
+		FirstMove->SavedPendingKnockback = Response.PendingKnockback;
+	}
+}
+
+bool UVeloxMovementComponent::ClientUpdatePositionAfterServerUpdate()
+{
+	// The replay restores each saved move's inputs (PrepMoveFor); give the live inputs back afterwards, like the engine
+	// does for bPressedJump and bWantsToCrouch. Input events between the last saved move and now would otherwise be lost.
+	const bool bRealJumpHeld = bWantsJumpHeld;
+	const bool bRealForwardInput = bHasForwardInput;
+	const bool bRealSideInput = bHasSideInput;
+
+	const bool bResult = Super::ClientUpdatePositionAfterServerUpdate();
+
+	bWantsJumpHeld = bRealJumpHeld;
+	bHasForwardInput = bRealForwardInput;
+	bHasSideInput = bRealSideInput;
+	return bResult;
+}
+
+void UVeloxMovementComponent::ResetCorrectionStats()
+{
+	NumCorrections = 0;
+	MaxCorrectionCm = 0.f;
+	SumCorrectionCm = 0.f;
+	LastCorrectionCm = 0.f;
+	LastCorrectionTime = -1.0;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Console
+
+#if !UE_BUILD_SHIPPING
+namespace VeloxMovementConsole
+{
+	/** Velox characters the command applies to in an authority world: the one of PlayerId if given, else all player pawns. */
+	void ApplyKnockbackInWorld(UWorld* World, TOptional<int32> PlayerId, const FVector& Impulse, bool bOverride)
+	{
+		int32 NumApplied = 0;
+		for (TActorIterator<ACharacter> It(World); It; ++It)
+		{
+			UVeloxMovementComponent* MoveComp = Cast<UVeloxMovementComponent>(It->GetCharacterMovement());
+			const APlayerState* PlayerState = It->GetPlayerState();
+			if (!MoveComp || !PlayerState || (PlayerId.IsSet() && PlayerState->GetPlayerId() != PlayerId.GetValue()))
+			{
+				continue;
+			}
+			MoveComp->AddKnockback(Impulse, bOverride);
+			++NumApplied;
+			UE_LOG(LogVeloxMovement, Log, TEXT("TestKnockback: %s %s on %s (%s)"), bOverride ? TEXT("set") : TEXT("add"), *Impulse.ToString(), *GetNameSafe(*It), *World->GetName());
+		}
+		if (NumApplied == 0)
+		{
+			UE_LOG(LogVeloxMovement, Warning, TEXT("TestKnockback: no matching Velox character in %s"), *World->GetName());
+		}
+	}
+
+	void TestKnockback(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!World || Args.Num() < 3)
+		{
+			UE_LOG(LogVeloxMovement, Warning, TEXT("Usage: velox.move.TestKnockback X Y Z [override 0|1] (cm/s)"));
+			return;
+		}
+		const FVector Impulse(FCString::Atod(*Args[0]), FCString::Atod(*Args[1]), FCString::Atod(*Args[2]));
+		const bool bOverride = Args.IsValidIndex(3) && FCString::Atoi(*Args[3]) != 0;
+
+		if (World->GetNetMode() != NM_Client)
+		{
+			// Server or standalone: the local player's pawn if there is one, else every player pawn (dedicated server).
+			const APlayerController* LocalPC = World->GetFirstPlayerController();
+			const APlayerState* LocalPS = (LocalPC && LocalPC->IsLocalController()) ? LocalPC->PlayerState.Get() : nullptr;
+			ApplyKnockbackInWorld(World, LocalPS ? TOptional<int32>(LocalPS->GetPlayerId()) : TOptional<int32>(), Impulse, bOverride);
+			return;
+		}
+
+		// Client: server-side knockback exercises the correction path. Only possible when the server runs in-process (PIE).
+		const APlayerController* LocalPC = World->GetFirstPlayerController();
+		const APlayerState* LocalPS = LocalPC ? LocalPC->PlayerState.Get() : nullptr;
+		if (!LocalPS)
+		{
+			UE_LOG(LogVeloxMovement, Warning, TEXT("TestKnockback: no local player state yet"));
+			return;
+		}
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			UWorld* ServerWorld = Context.World();
+			if (Context.WorldType == EWorldType::PIE && ServerWorld && ServerWorld != World && ServerWorld->GetNetMode() != NM_Client && ServerWorld->GetNetMode() != NM_Standalone)
+			{
+				ApplyKnockbackInWorld(ServerWorld, LocalPS->GetPlayerId(), Impulse, bOverride);
+				return;
+			}
+		}
+		UE_LOG(LogVeloxMovement, Warning, TEXT("TestKnockback: no in-process server world; run the command on the server"));
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs TestKnockbackCommand(
+		TEXT("velox.move.TestKnockback"),
+		TEXT("velox.move.TestKnockback X Y Z [override 0|1]: server-side knockback (cm/s) on the local player's pawn through AddKnockback. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&TestKnockback));
+}
+#endif // !UE_BUILD_SHIPPING

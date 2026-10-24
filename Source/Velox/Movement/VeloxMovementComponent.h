@@ -15,22 +15,6 @@
 
 class UVeloxMovementSettings;
 
-/**
- * External velocity change waiting to be applied at the start of the next PerformMovement (ADR 0002 section 4).
- * Filled by AddKnockback (M1 task 04); saved/replayed and sent in corrections by task 04.
- */
-struct FVeloxPendingKnockback
-{
-	/** Velocity to add, or to set when bOverride. */
-	FVector Velocity = FVector::ZeroVector;
-	/** Replace the current velocity instead of adding to it (jump pads). */
-	bool bOverride = false;
-
-	/** An override with zero velocity ("stop") is still pending. */
-	bool IsPending() const { return bOverride || !Velocity.IsZero(); }
-	void Reset() { *this = FVeloxPendingKnockback(); }
-};
-
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxMovementComponent : public UCharacterMovementComponent
 {
@@ -59,6 +43,22 @@ public:
 	void SetJumpHeld(bool bHeld) { bWantsJumpHeld = bHeld; }
 
 	/**
+	 * VQ3 PMF_JUMP_HELD (ADR 0002 A12): set by a successful jump, cleared at the start of a move without jump held. With
+	 * bAutoHop off, a landing jumps only when the latch is clear. Derived from the flag stream on the server.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement")
+	bool IsJumpLatched() const { return bJumpLatched; }
+
+	/** Saved-move restore (PrepMoveFor) and correction only. */
+	void SetJumpLatched(bool bLatched) { bJumpLatched = bLatched; }
+
+	/** A12: the latch at the start of a move (cleared by a move without jump held). Shared with the JumpLatch test. */
+	static bool JumpLatchAtMoveStart(bool bLatched, bool bJumpHeld) { return bLatched && bJumpHeld; }
+
+	/** A12: whether a landing jumps in the landing frame (auto-hop, or VQ3 after a release). Shared with the JumpLatch test. */
+	static bool WantsLandingJump(bool bJumpHeld, bool bAutoHop, bool bLatched) { return bJumpHeld && (bAutoHop || !bLatched); }
+
+	/**
 	 * Raw move input of this frame, X = forward, Y = right (player input or bot). Only its presence per axis is used
 	 * (CPM side-only / forward-only rules); the wish vector itself always comes from Acceleration.
 	 */
@@ -67,6 +67,28 @@ public:
 
 	bool HasForwardInput() const { return bHasForwardInput; }
 	bool HasSideInput() const { return bHasSideInput; }
+
+	/** Saved-move restore (PrepMoveFor) only; game code uses SetLocalMoveInput. */
+	void SetMoveInputPresence(bool bForward, bool bSide)
+	{
+		bHasForwardInput = bForward;
+		bHasSideInput = bSide;
+	}
+
+	/**
+	 * Queues a velocity change for the start of the next move (ADR 0002 section 4): rockets, jump pads, console tests.
+	 * Adds Impulse to the velocity, or replaces the velocity when bOverrideVelocity (jump pads, Q3 trigger_push). Several
+	 * calls before the next move accumulate (an override replaces everything queued before it). Sets a knockback grace
+	 * (no ground friction) of KnockbackGraceFor(Impulse). Callable on the authority and the owning client (predicted
+	 * sources such as jump pads call it on both); ignored on simulated proxies, which never run moves.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Velox|Movement")
+	void AddKnockback(FVector Impulse, bool bOverrideVelocity = false);
+
+	const FVeloxPendingKnockback& GetPendingKnockback() const { return PendingKnockback; }
+
+	/** Saved-move restore (PrepMoveFor, by assignment) and correction only; game code uses AddKnockback. */
+	void SetPendingKnockback(const FVeloxPendingKnockback& InPendingKnockback) { PendingKnockback = InPendingKnockback; }
 
 	/** Remaining ground-friction-free time after a knockback (s). */
 	UFUNCTION(BlueprintPure, Category = "Velox|Movement")
@@ -78,6 +100,27 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Velox|Movement")
 	bool IsOnGround() const { return IsMovingOnGround(); }
 
+	// Owning-client correction statistics (ADR 0002 section 5; HUD and net soak, task 05). Distance is between the
+	// client's location after the corrected move and the server's.
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement|Net")
+	int32 GetNumCorrections() const { return NumCorrections; }
+
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement|Net")
+	float GetMaxCorrectionCm() const { return MaxCorrectionCm; }
+
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement|Net")
+	float GetSumCorrectionCm() const { return SumCorrectionCm; }
+
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement|Net")
+	float GetLastCorrectionCm() const { return LastCorrectionCm; }
+
+	/** World time (s) of the last correction; negative if none yet. */
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement|Net")
+	double GetLastCorrectionTime() const { return LastCorrectionTime; }
+
+	UFUNCTION(BlueprintCallable, Category = "Velox|Movement|Net")
+	void ResetCorrectionStats();
+
 	//~UCharacterMovementComponent interface
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
 	virtual float GetMaxSpeed() const override;
@@ -86,6 +129,7 @@ public:
 	virtual float GetGravityZ() const override;
 	virtual bool CanAttemptJump() const override;
 	virtual bool DoJump(bool bReplayingMoves, float DeltaTime) override;
+	virtual bool ClientUpdatePositionAfterServerUpdate() override;
 	//~End of UCharacterMovementComponent interface
 
 	// The single-argument DoJump is deprecated in the engine and forwards to the two-argument one.
@@ -105,15 +149,16 @@ protected:
 	virtual void StartFalling(int32 Iterations, float remainingTime, float timeTick, const FVector& Delta, const FVector& subLoc) override;
 	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
+	virtual void OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData, float TimeStamp, FVector NewLocation, FVector NewVelocity, FMovementBaseInterfaceData* NewMovementBaseInterfaceData, FName NewBaseBoneName, bool bHasBase, bool bBaseRelativePosition, uint8 ServerMovementMode, FVector ServerGravityDirection) override;
 	//~End of UCharacterMovementComponent interface
+
+	// The deprecated UPrimitiveComponent overload forwards to the one above.
+	using Super::OnClientCorrectionReceived;
 
 	/** True when Velox physics are active (settings assigned). Without settings every hook defers to the engine. */
 	bool HasVeloxPhysics() const { return MovementSettings != nullptr; }
 
-	/**
-	 * Applies PendingKnockback (velocity, grace, lift-off) at the start of a move. ADR 0002 section 4; the entry point
-	 * AddKnockback and the saved-move/correction plumbing are M1 task 04.
-	 */
+	/** Applies PendingKnockback (velocity, grace, lift-off) at the start of a move (ADR 0002 section 4). */
 	void ConsumePendingKnockback();
 
 	/**
@@ -130,13 +175,17 @@ protected:
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Velox|Movement")
 	uint8 bWantsJumpHeld : 1;
 
-	/** Forward/back input present this frame (CPM rules). Sent to the server by task 04 (FLAG_Custom_1). */
+	/** Forward/back input present this frame (CPM rules). Sent to the server as FSavedMove_Velox::FLAG_HasForwardInput. */
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Velox|Movement")
 	uint8 bHasForwardInput : 1;
 
-	/** Side input present this frame (CPM rules). Sent to the server by task 04 (FLAG_Custom_2). */
+	/** Side input present this frame (CPM rules). Sent to the server as FSavedMove_Velox::FLAG_HasSideInput. */
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Velox|Movement")
 	uint8 bHasSideInput : 1;
+
+	/** Jump latch (VQ3 PMF_JUMP_HELD, A12); see IsJumpLatched. */
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Velox|Movement")
+	uint8 bJumpLatched : 1;
 
 	/** Ground-friction-free time left (s); counted down once per PerformMovement. */
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Velox|Movement")
@@ -157,7 +206,17 @@ protected:
 	/** FVeloxMoveParams of the current move: built in SetMovementSettings and at the start of every PerformMovement (A8). */
 	FVeloxMoveParams SimParams;
 
+	// Correction statistics (owning client).
+	int32 NumCorrections = 0;
+	float MaxCorrectionCm = 0.f;
+	float SumCorrectionCm = 0.f;
+	float LastCorrectionCm = 0.f;
+	double LastCorrectionTime = -1.0;
+
 private:
 	/** Persistent storage installed via SetNetworkMoveDataContainer in the constructor. */
 	FVeloxNetworkMoveDataContainer VeloxNetworkMoveDataContainer;
+
+	/** Persistent storage installed via SetMoveResponseDataContainer in the constructor. */
+	FVeloxMoveResponseDataContainer VeloxMoveResponseDataContainer;
 };
