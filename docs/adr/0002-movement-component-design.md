@@ -21,24 +21,28 @@ Friction(V, dt):   s=|V_xy|; if s<ε → V_xy=0; control=max(s, StopSpeed); drop
                    V_xy *= max(s−drop, 0)/s                                         (skipped while KnockbackGrace>0)
 Accelerate(V, WishDir, WishSpeed, Accel, dt):  cur=V·WishDir; add=WishSpeed−cur; if add≤0 return;
                    a=min(Accel·dt·WishSpeed, add); V += a·WishDir        (the dot-product clamp = strafe jumping)
-Ground:            Friction; Accelerate(GroundAcceleration, WishSpeed)
+Ground:            Friction; Accelerate(GroundAcceleration, WishSpeed). While KnockbackGrace>0: no Friction and
+                   Accel = AirAcceleration (Q3 PM_WalkMove: accelerate = pm_airaccelerate under PMF_TIME_KNOCKBACK)
 Air (vanilla):     Accelerate(AirAcceleration, min(WishSpeed, AirMaxWishSpeed))
 Air (CPM, bAirControl): accel = (V·WishDir<0) ? AirStopAcceleration : AirAcceleration;
                    if side-only input: WishSpeed=min(WishSpeed, AirStrafeMaxWishSpeed), accel=AirStrafeAcceleration;
                    Accelerate(...); if forward/back-only input: AirControl():
                      z=V.z; V.z=0; s=|V|; V/=s; dot=V·WishDir; k=AirControlScale·AirControl·dot²·dt;
                      if dot>0: V = normalize(V·s + WishDir·k);  V*=s; V.z=z         (turns without speed change)
-Jump:              V.z = JumpVelocity (set, not max); mode=Falling.  Auto-hop: jump-held on landing → jump in the
-                   landing frame before any friction (Q3 PM_WalkMove checks jump before PM_Friction).
+Jump:              V.z = JumpVelocity (set, not max); mode=Falling; the rest of that frame is an air frame
+                   (AirMove + gravity, Q3 PM_WalkMove → PM_CheckJump → PM_AirMove). Auto-hop: jump-held on landing
+                   → jump in the landing frame before any friction (Q3 checks jump before PM_Friction).
 Gravity:           V.z += GravityZ·dt (engine midpoint integration, apex substep kept)
 Ramp slide:        landing hit with V.z>0 and V·N > RampSlideMinNormalSpeed is not a landing → slide (Q3 PM_GroundTrace)
 Ramp exit:         leaving a ramp upward keeps the ramp's vertical velocity (Q3 clips V to the ground plane, so V.z>0)
 ClipVelocity:      V − N·(V·N)  (UE VectorPlaneProject; Q3 OVERCLIP 1.001 is unnecessary with swept moves)
-Knockback:         V += Impulse (or V = Impulse if override); KnockbackGrace = clamp(|Impulse|·KnockbackGracePerSpeed,
-                   KnockbackGraceMin, KnockbackGraceMax); ground friction off while >0 (Q3 PMF_TIME_KNOCKBACK)
+Knockback:         V += Impulse (or V = Impulse if override); KnockbackGrace = max(KnockbackGrace,
+                   clamp(|Impulse|·KnockbackGracePerSpeed, KnockbackGraceMin, KnockbackGraceMax)); ground friction off
+                   and ground accel = AirAcceleration while >0 (Q3 PMF_TIME_KNOCKBACK; Q3 only sets pm_time when none
+                   is running, max() is a deliberate simplification)
 ```
 
-**Fixed-step integration.** Velocity updates (friction, accelerate, air control) run in substeps of `FixedStep` (default 1/125 s = Q3 `pmove_fixed 1, pmove_msec 8`): `n = ceil(dt/FixedStep)`, each substep `dt/n`. Position integration stays per move (CMC). Rationale: the strafe gain per second otherwise depends on the client frame rate (the Q3 125 fps advantage); with substeps a 60 fps and a 240 fps client gain the same. `bFixedStepIntegration=false` turns it off for A/B tests. Determinism (ADR 0001 §4) only requires identical inputs and dt per move, which the server replays anyway.
+**Fixed-step integration.** Velocity updates (friction, accelerate, air control) run in `n = ceil(dt/FixedStep)` equal substeps of `dt/n` (≤ `FixedStep`; default 1/125 s = Q3 `pmove_fixed 1, pmove_msec 8`). Position integration stays per move (CMC). What it buys (corrected 2026-10-24, see Amendments A1): with the wish direction constant over a move, Q3 `Accelerate` is split-invariant — the component along `WishDir` ends at `min(c0 + Accel·W·dt, W)` however `dt` is split — so substeps do **not** change vanilla strafe gain. They make the *nonlinear* terms frame-rate independent: friction `(1−f·h)^n` including the StopSpeed regime, CPM air control (`k ∝ dt` inside a normalisation) and the per-step choice of CPM air-stop/strafe acceleration from the current velocity. Measured by `FixedStepInvariance` (ground turn, release, run, CPM air control): 60 vs 240 fps differ by 0.47 % with substeps and 4.33 % without. What remains frame-rate dependent by design: steering is sampled once per move (a 240 fps client re-aims four times as often as a 60 fps one — identical to Q3 `pmove_fixed`, whose usercmds are also per client frame; with optimal steering the vanilla gain rate differs by `Accel²W²/n`, under 0.5 % between 60 and 125 fps), and the substep length varies between `FixedStep/2` and `FixedStep`. `bFixedStepIntegration=false` turns substepping off for A/B tests. Determinism (ADR 0001 §4) only requires identical inputs and dt per move, which the server replays anyway.
 
 **Units.** `UnitScale = 2.5 cm per Q3 unit` (Q3 player 56 u → 140 cm, speed 320 → 800 cm/s, step 18 → 45 cm = UE default `MaxStepHeight`). Round, keeps numbers close to UE defaults, maps built from scratch. Alternatives (2.54 "inch", 3.2 "180 cm human") in Alternatives. Assets store UE units; `UnitScale` is for HUD display (ups) and the `velox.move.Preset` helper only.
 
@@ -57,7 +61,7 @@ Knockback:         V += Impulse (or V = Impulse if override); KnockbackGrace = c
 | `AirStopAcceleration`* | pm_airstopaccelerate 2.5 | 2.5 | |
 | `AirStrafeAcceleration`* | pm_strafeaccelerate 70 | 70 | |
 | `AirStrafeMaxWishSpeed`* | pm_wishspeed 30 | 75 | cm/s |
-| `AirControl`*, `AirControlScale`* | pm_aircontrol 150, k 32 | 150, 32 | |
+| `AirControl`*, `AirControlScale`* | pm_aircontrol 150, k 32 | 150, 80 | k is a speed (ups) in `CPM_Aircontrol` (`v_unit·speed + wishdir·k`), so k scales with `UnitScale`: 32 × 2.5 (Amendment A5) |
 | `JumpVelocity` | JUMP_VELOCITY 270 | 675 | cm/s |
 | `bAutoHop`* | CPM/defrag | true | jump while held re-jumps on landing |
 | `GravityZ` | g_gravity 800 | −2000 | cm/s² |
@@ -114,7 +118,8 @@ Inputs: wish direction = `Acceleration` (engine); jump-held = `bWantsJumpHeld` (
 struct FVeloxMoveParams { /* POD copy of every UVeloxMovementSettings number above, built per move by
     UVeloxMovementSettings::BuildSimParams() which also applies velox.move.* cvar overrides (non-shipping) */ };
 struct FVeloxMoveInput  { FVector WishDir = FVector::ZeroVector; /* unit XY or zero */ float WishSpeed = 0.f;
-    bool bHasForwardInput = false, bHasSideInput = false, bJumpHeld = false; };
+    bool bHasForwardInput = false, bHasSideInput = false, bJumpHeld = false; /* jump request this frame; bAutoHop
+    gating (release between jumps when off) is the CMC's job, the sim has no press/release edge state */ };
 struct FVeloxMoveState  { FVector Velocity = FVector::ZeroVector; bool bOnGround = false; float KnockbackGrace = 0.f; };
 namespace VeloxMoveSim {
   int32   NumSubsteps(float Dt, const FVeloxMoveParams& P);                                   // 1 if fixed step off
@@ -128,9 +133,11 @@ namespace VeloxMoveSim {
   FVector ClipVelocity(const FVector& V, const FVector& Normal);
   FVector ApplyKnockback(const FVector& V, const FVector& Impulse, bool bOverride);
   float   KnockbackGraceFor(const FVector& Impulse, const FVeloxMoveParams& P);
-  FVector JumpPadLaunchVelocity(const FVector& From, const FVector& Target, float GravityZ);  // Q3 AimAtTarget
+  FVector JumpPadLaunchVelocity(const FVector& From, const FVector& Target, float GravityZ);  // Target above From:
+          // Q3 AimAtTarget (apex at the target); level or below: minimum-launch-speed arc; zero if unsolvable (A4)
   void    StepFrame(FVeloxMoveState& S, const FVeloxMoveInput& In, float Dt, const FVeloxMoveParams& P); // reference frame:
-          // ground: GroundMove, then Jump if bJumpHeld; air: AirMove + ApplyGravity. No collision. Tests and bot planning only.
+          // ground + bJumpHeld: Jump first, then the frame runs as air (AirMove + ApplyGravity, no friction, Q3 order);
+          // ground: GroundMove, Z = 0; air: AirMove + ApplyGravity; KnockbackGrace -= Dt. No collision. Tests/bots only.
 }
 ```
 `StepFrame` is a reference model, not what the CMC executes (the CMC adds sweeps, floor logic, apex substep); the determinism and feel tests run on it, the CMC-level determinism test (§7) covers the rest.
@@ -140,7 +147,7 @@ namespace VeloxMoveSim {
 `UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVelocity)` (ADR 0001) accumulates into `FVeloxPendingKnockback { FVector Velocity; bool bOverride; }` (own field, not the engine's `PendingImpulseToApply`/`PendingLaunchVelocity`, so it can be saved, replayed and sent in corrections). `ConsumePendingKnockback()` at the start of `PerformMovement`: `Velocity = Sim::ApplyKnockback(...)`; `KnockbackGrace = max(KnockbackGrace, Sim::KnockbackGraceFor(...))`; if `IsMovingOnGround() && (Velocity | CurrentFloor.HitResult.ImpactNormal) > RampSlideMinNormalSpeed` → `SetMovementMode(MOVE_Falling)`; `bForceNextFloorCheck = true`; clear pending. Callable on any role; the authority decides what is legitimate:
 
 - **Server-side impulses (rockets, M2):** server calls `AddKnockback` in the explosion; the owning client learns of it through the standard correction (`ServerCheckClientError` fails at the next move → `ClientAdjustPosition`). To keep the replay consistent, the correction carries Velox state: `FVeloxMoveResponseDataContainer : FCharacterMoveResponseDataContainer` (installed with `SetMoveResponseDataContainer` in the constructor) overrides `ServerFillResponseData(const UCharacterMovementComponent&, const FClientAdjustment&)` to copy `KnockbackGrace` and any unconsumed pending knockback, and `Serialize(UCharacterMovementComponent&, FArchive&, UPackageMap*)` with `SerializeOptionalValue` (1 bit when zero). `OnClientCorrectionReceived` applies them before `ClientUpdatePositionAfterServerUpdate` replays. Without this the client replays with friction on while the server skips it for up to 200 ms → a correction every `NetworkMinTimeBetweenClientAdjustments` after every hit.
-- **Jump pads (predicted, no replication):** `AVeloxJumpPad : AActor`, map-placed, not replicated, `UBoxComponent` trigger (`Overlap` with Pawn only) + editor-only arrow/mesh. Data: `EVeloxJumpPadMode { AimAtTarget, FixedVelocity }`, `TObjectPtr<AActor> Target` (any actor, usually `ATargetPoint`), `FVector LaunchVelocity`, `bool bOverrideVelocity = true` (Q3 trigger_push sets velocity; `false` adds). `OnComponentBeginOverlap` on both server and owning client: `MoveComp->AddKnockback(ComputeLaunchVelocity(MoveComp->GetGravityZ()), bOverrideVelocity)`; `ComputeLaunchVelocity` is `Sim::JumpPadLaunchVelocity(TriggerCentre, TargetLocation, GravityZ)` for `AimAtTarget`. Deterministic: same actor data, same gravity from the character's settings, same overlap during the same move on both sides; override semantics make a re-trigger during replay idempotent. One-move latency (consumed at the next `PerformMovement`) is accepted; simulated proxies get the result via replication. Nav-link metadata for bots is M4.
+- **Jump pads (predicted, no replication):** `AVeloxJumpPad : AActor`, map-placed, not replicated, `UBoxComponent` trigger (`Overlap` with Pawn only) + editor-only arrow/mesh. Data: `EVeloxJumpPadMode { AimAtTarget, FixedVelocity }`, `TObjectPtr<AActor> Target` (any actor, usually `ATargetPoint`), `FVector LaunchVelocity`, `bool bOverrideVelocity = true` (Q3 trigger_push sets velocity; `false` adds). `OnComponentBeginOverlap` on both server and owning client: `MoveComp->AddKnockback(ComputeLaunchVelocity(MoveComp->GetGravityZ()), bOverrideVelocity)`; `ComputeLaunchVelocity` is `Sim::JumpPadLaunchVelocity(TriggerCentre, TargetLocation, GravityZ)` for `AimAtTarget`. Deterministic: same actor data, same gravity from the character's settings, same overlap during the same move on both sides; override semantics make a re-trigger during replay idempotent. Q3's `AimAtTarget` is singular for targets barely above the pad (`t = sqrt(2h/g)` → horizontal speed `d/t` explodes), so `AVeloxJumpPad` validates: `MaxLaunchSpeed` (`EditAnywhere`, default 4000 cm/s) with an editor map-check warning (`CheckForErrors`) and a one-time runtime warning when `|ComputeLaunchVelocity()|` exceeds it or is zero (unsolvable); mappers place `AimAtTarget` targets ≥ 1 m above the pad or use `FixedVelocity`. The launch point is the trigger centre (Q3) while the pawn starts from its capsule centre inside the trigger — a decimetre-scale landing error, accepted (Q3 has the same). The knockback grace a pad launch sets is harmless: the pawn is airborne for longer than `KnockbackGraceMax`. One-move latency (consumed at the next `PerformMovement`) is accepted; simulated proxies get the result via replication. Nav-link metadata for bots is M4.
 - **Rocket-jump self-knockback prediction** (client-side `AddKnockback` when the fake projectile detonates) is specified in the M2 ADR; the plumbing above already supports it. M1 ships a non-shipping console command `velox.move.TestKnockback X Y Z [override]` (server-executed in PIE) to exercise the path.
 
 ### 5. Prediction, correction, validation
@@ -180,11 +187,11 @@ Unit (`Tests/VeloxMoveSimTest.cpp`, `Velox.Movement.*`, world-free, `dt = 1/125`
 - `GroundAccel`: from rest with forward input the speed converges to `MaxGroundSpeed` (±1e-3) and never exceeds it.
 - `AirAccel`: single tick, V=(800,0): wish parallel → zero gain (the clamp); wish perpendicular → gain `> 0`; gain per tick ≤ `AirAcceleration·dt·AirMaxWishSpeed` (|ΔV| bound).
 - `StrafeJump`: 125 ticks with the optimal steering angle (`cos θ = (WishSpeed − a)/|V|`, `a = AirAcceleration·dt·WishSpeed`): total gain `> 0.25 × AirAcceleration·AirMaxWishSpeed·T` and `≤ AirAcceleration·AirMaxWishSpeed·T`; holding forward only: gain `== 0`.
-- `FixedStepInvariance`: same per-1/60-s wish sequence stepped at dt 1/60 and 1/240 → final speeds within 0.5 % with fixed step on; the test also asserts they differ with it off (documents why the feature exists).
+- `FixedStepInvariance`: a per-1/60-s wish sequence that exercises the nonlinear terms (ground run turning 3°/frame, 20 frames of release, 30 frames of forward run, 60 airborne frames of CPM forward-only air control turning 2°/frame) stepped at dt 1/60 and 1/240 → final speed and velocity within 0.5 % with fixed step on; the test also asserts they differ with it off and that the difference is larger (documents why the feature exists). A pure constant-wishdir strafe sequence would pass trivially (split-invariance of `Accelerate`) and must not be used.
 - `AirControl` (CPM on): forward-only input while airborne rotates V towards WishDir with `|V|` unchanged within 1e-3; side input does not.
-- `BunnyHop`: airborne at 1000 cm/s, `StepFrame` with ground contact and jump held → XY bitwise unchanged, Z == `JumpVelocity`; without jump held → exactly one friction tick applied.
-- `Knockback`: on the ground, impulse 1250 cm/s → grace 0.2 s, no friction for 25 ticks, friction resumes on tick 26; override vs additive semantics.
-- `JumpPad`: `JumpPadLaunchVelocity` from (0,0,0) to (800,0,320): analytic flight lands within 1 cm; Z > 0; target below the pad also solvable.
+- `BunnyHop`: airborne at 1000 cm/s, `StepFrame` with ground contact and jump held → XY bitwise unchanged, Z == `JumpVelocity + GravityZ·dt` (the rest of the jump frame is airborne; `Jump()` alone yields Z == `JumpVelocity`), `bOnGround == false`; without jump held → exactly one friction tick applied.
+- `Knockback`: on the ground, impulse 1250 cm/s → grace 0.2 s, no friction for 25 ticks, friction resumes on tick 26; while grace > 0 a ground move with input accelerates with `AirAcceleration`, not `GroundAcceleration` (one tick from (1250,0) with side input: gain == `AirAcceleration·dt·WishSpeed`); override vs additive semantics; `max()` of an existing grace.
+- `JumpPad`: `JumpPadLaunchVelocity` from (0,0,0) to (800,0,320): analytic flight lands within 1 cm with Vz == 0 at the target (apex); vertical target (0,0,640): XY == 0, Z > 0; level target (1600,0,0): lands within 1 cm and Vxy == Vz (45° minimum-speed arc); below (800,0,−400): lands within 1 cm; (0,0,−100) and GravityZ == 0 → zero vector.
 - `Determinism`: 600-tick mixed script run twice through `StepFrame` → bitwise-equal state.
 - `SavedMoveFlags` (exists) + `SavedMoveCombine`: the `CanCombineWith` rules of §5 on hand-built moves.
 
@@ -230,3 +237,19 @@ Bots are `AAIController`-possessed `AVeloxCharacter`s with the same component an
 6. **`06-human-playtest`** (dev writes checklist, human runs) — Mac PIE, dedicated server + 2 clients, `Net PktLag=100 PktLoss=2`: strafe corridor to ≥ 1.4× ground speed, bunny hop across the three gaps, all pads, ramp slide on 30°/45°, stairs at full speed, `TestKnockback` rocket-jump height; sign-off recorded in `STATUS.md`.
 
 Rules for all tasks: never bypass the saved-move path; no engine-field magic numbers outside `SetMovementSettings`; report ADR disagreements instead of deviating.
+
+## Amendments
+
+### 2026-10-24 — design review of task 01 (`VeloxMoveSim`, `UVeloxMovementSettings`), architect
+
+Body text above has been adjusted where an amendment changes it; this section records the decisions.
+
+- **A1 — Fixed-step rationale corrected (§1).** The original rationale ("strafe gain per second otherwise depends on the frame rate") was wrong for this design: with the wish direction constant within a move, Q3 `Accelerate` is split-invariant, so substepping leaves vanilla strafe gain unchanged. Substeps are kept for the nonlinear terms (friction/StopSpeed, CPM air control, CPM accel selection) and for reproducible tests; the implementer's rewritten `FixedStepInvariance` test (0.47 % vs 4.33 %) is the specification now. The per-move steering sample rate and the `FixedStep/2..FixedStep` substep length are accepted residuals. No code change.
+- **A2 — Jump-first order confirmed (§1, §3, §7).** `StepFrame` jumps before any ground processing and runs the rest of the frame as air (Q3 `PM_WalkMove` → `PM_CheckJump` → `PM_AirMove`); Z after a `StepFrame` jump frame is `JumpVelocity + GravityZ·dt`. The old §3 wording "GroundMove, then Jump" was a mistake. The CMC path in §2 (`ProcessLanded` → `DoJump` → `StartNewPhysics` → `PhysFalling` for the remainder) already matches; a jump started by `CheckJumpInput` before `PerformMovement` makes the whole move an air move, also as in Q3.
+- **A3 — `bJumpHeld` semantics (§3).** In the sim `bJumpHeld` means "jump request this frame if on ground"; `bAutoHop` gating stays in the CMC, which owns the press/release edge (`ACharacter::bPressedJump` with `JumpMaxHoldTime = 0` clears after one frame; `bWantsJumpHeld` is the replicated held state used only when `bAutoHop`). Adding Q3 `PMF_JUMP_HELD` state to `FVeloxMoveState` would duplicate engine state for no test value. `FVeloxMoveParams::bAutoHop` is carried but unread by the sim.
+- **A4 — Jump pad solution for level/below targets (§3, §4, §7).** Q3 `AimAtTarget` (apex at the target, `t = sqrt(2h/g)`, `Vxy = d/t`, `Vz = g·t`) is used for targets above the pad; for level or lower targets the minimum-launch-speed arc (`R = |Δ|`, `S = sqrt(g/2R)`, `Vxy = d·S`, `Vz = (h+R)·S`, i.e. `v² = g(R+h)`, launch angle `atan((h+R)/d)`) is used — verified: it lands exactly on the target and its apex is never below it. Q3 cannot express such pads at all, so this is an extension, not a deviation. The near-level singularity of the Q3 branch is handled by actor validation in task 04 (§4), not by the sim.
+- **A5 — Defect: `AirControlScale` has speed units (§1 table).** In `CPM_Aircontrol` the term `wishdir·k` is added to `v_unit·speed` (ups), so `k = 32` is a Q3-unit speed and becomes `32 × UnitScale = 80` in cm. Default changed to 80 in the table; `UVeloxMovementSettings::AirControlScale`, `Tools/editor/create_bootstrap_content.py` and the `SettingsDefaults` test (`AirControlScale == 32 × UnitScale`) follow. Without it CPM air control turns 2.5× too slowly.
+- **A6 — Defect: ground acceleration during knockback grace (§1).** Q3 `PM_WalkMove` uses `pm_airaccelerate` (not `pm_accelerate`) while `PMF_TIME_KNOCKBACK` is set — this is the "temporarily lose full control" effect that makes machine-gun hits slide a grounded player and keeps rocket knockback from being cancelled by counter-steering. `GroundMove` must use `AirAcceleration` for substeps with grace > 0. Test `Knockback` extended (§7).
+- **A7 — Knockback grace semantics recorded.** `max(existing, new)` instead of Q3's "set only if no timer runs" (Q3 also lets `PMF_TIME_LAND` suppress the knockback timer for 250 ms after a hard landing; not reproduced). Grace is counted down once per `PerformMovement` by the move's dt and sampled at move start for every `CalcVelocity` call of that move; a phys-mode change mid-move sees a grace stale by at most one move — accepted. The 25-free-ticks/resume-on-26 boundary in §7 is one 8 ms frame longer than Q3's `PM_DropTimers` order; accepted.
+- **A8 — Interface for tasks 02/04.** `FVeloxMoveParams` is built once per `PerformMovement` (and in `SetMovementSettings`), cached as a member and reused by every `CalcVelocity` call of that move (engine `PhysFalling` l.4933 zeroes `Velocity.Z` around `CalcVelocity` and swaps `Acceleration` for `FallAcceleration`, so `AirMove`'s "Z untouched" contract holds as is). No sim signature changes; `JumpPadLaunchVelocity` keeps three parameters, validation lives on the actor.
+- Deliberately deferred (CPM features outside §1): double-jump bonus, ramp-jump Z bonus, crouch-slide. Not in M1.

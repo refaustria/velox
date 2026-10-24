@@ -12,10 +12,10 @@ Implement ADR 0002 task **`02-cmc-quake-physics`** exactly as specified in `docs
 - `Source/Velox/Movement/VeloxMovementComponent.h/.cpp`
 - `Source/Velox/Character/VeloxCharacter.h/.cpp`, `Source/Velox/Core/VeloxPawnData.h`
 - `Config/DefaultEngine.ini`, `Config/DefaultGame.ini` (ADR §5 blocks only)
-- `Tools/editor/create_data_assets.py` (DA_MovementSettings_Default, DA_PawnData_Default values)
+- `Tools/editor/create_bootstrap_content.py` (DA_MovementSettings_Default, DA_PawnData_Default values; the ADR's `create_data_assets.py` is this file)
 
 ## Relevant ADRs / references
-- `docs/adr/0002-movement-component-design.md` (primary), `docs/adr/0001-project-and-module-structure.md` §3
+- `docs/adr/0002-movement-component-design.md` (primary, **including the Amendments section A1–A8**), `docs/adr/0001-project-and-module-structure.md` §3
 - Engine source for API verification: `/opt/UnrealEngine-5.8/Engine/Source/Runtime/Engine/Private/Components/CharacterMovementComponent.cpp`
 - Rules for all M1 tasks: never bypass the saved-move path; no engine-field magic numbers outside `SetMovementSettings`; report ADR disagreements instead of deviating.
 
@@ -31,3 +31,9 @@ Implement ADR 0002 task **`02-cmc-quake-physics`** exactly as specified in `docs
 
 ## Report back
 Standard format for the agent type; include the design summary (dev-hard) so `architect` can review without the diff.
+
+## Instructions added by the task-01 design review (architect, 2026-10-24)
+- Build `FVeloxMoveParams` once per `PerformMovement` (and in `SetMovementSettings`), cache it in a member, reuse it for every `CalcVelocity` call of that move (A8). Never call `BuildSimParams()` from `CalcVelocity`.
+- `CalcVelocity` builds one `FVeloxMoveInput` from `Acceleration` (WishDir = `Acceleration.GetSafeNormal2D()`, WishSpeed = `Acceleration.Size2D()` × crouch scale), `bHasForwardInput/bHasSideInput`, `bWantsJumpHeld`; pass the start-of-move `KnockbackGrace` to `GroundMove` for every call of the move and decrement `KnockbackGrace` once per `PerformMovement` (A7). Engine `PhysFalling` (l.4933) zeroes `Velocity.Z` and substitutes `FallAcceleration` around `CalcVelocity`; rely on that, do not touch Z in the falling branch.
+- `bAutoHop == false`: `ProcessLanded` never auto-jumps; jumping then needs a fresh press through the engine's `CheckJumpInput`/`bPressedJump` edge (`JumpMaxHoldTime = 0`). `bAutoHop == true`: `bWantsJumpHeld` on landing jumps in the landing frame as in §2 (A3). A jump always leaves the rest of the move as `PhysFalling` → air acceleration (A2).
+- Apply ADR §1 table value `AirControlScale = 80` in `DA_MovementSettings_Default` (A5; the task-01 follow-up changes the C++ default and the bootstrap script).
