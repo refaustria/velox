@@ -29,3 +29,11 @@ Implement ADR 0002 task **`05-debug-tooling-and-net-soak`** exactly as specified
 
 ## Report back
 Standard format for the agent type; include the design summary (dev-hard) so `architect` can review without the diff.
+
+## Instructions added by the task-02 design review (architect, 2026-10-24) — ADR 0002 A9, A12, A13
+Add these scripted checks to `FT_MovementDeterminism` / `Content/Data/MoveScripts/` (all headless, `-UseFixedTimeStep -FPS=120`):
+- **Stairs (A13):** run the 20 cm and 40 cm flights at ≥ 800 cm/s; speed after the flight ≥ 98 % of the speed before. The 60 cm flight must stop the pawn.
+- **Wall slide (A13):** run at 45° into a corridor wall for 1 s; `GetSpeed2D()` settles at `MaxGroundSpeed · cos 45°` ± 5 % (velocity is clipped, not merely blocked).
+- **Ramp exit (A9):** run up the 20° and 30° ramps onto their platforms; the pawn becomes airborne at the top with `Velocity.Z ≈ speed · tan(angle)` (± 10 %) and lands on the platform; running across the 10° ramp sideways does not leave the ground.
+- **Jump latch (A12), VQ3 preset:** script row with jump pressed mid-air (after a release) and held through landing → jump in the landing move, XY speed unchanged; jump held continuously through a landing → no jump, friction applied.
+- `showdebug VeloxMovement` and the HUD block show `bJumpLatched` and the ramp climb rate of the last exit.
