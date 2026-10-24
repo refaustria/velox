@@ -2,7 +2,7 @@
 
 **Milestone:** M0 Infrastructure
 **Agent:** dev (after the human provides disk and the download)
-**Status:** blocked — needs human (disk space, Epic account download)
+**Status:** blocked — needs human (signed Epic download URL); install tooling ready
 **Depends on:** human decisions in STATUS.md open questions
 
 ## Goal
@@ -19,3 +19,7 @@ UE 5.8 Linux is installed at `$UE_ROOT` (proposed `/opt/UnrealEngine-5.8`), owne
 
 ## Verification steps
 1. `infra/ci/build.sh` exit 0 with the smoke test in the summary.
+
+## Notes
+- Tooling: `infra/engine/install-ue-linux.sh` streams the zip via curl into bsdtar (no ~25 GB zip on disk; ~52 GB free needed). Instructions in `infra/engine/README.md`.
+- Human provides the signed URL from unrealengine.com/en-US/linux; then run the script (detached) with `/opt/UnrealEngine-5.8` as dest.
