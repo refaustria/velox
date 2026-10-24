@@ -396,7 +396,8 @@ bool FVeloxScriptedWallSlideTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const float GroundSpeed = Character->GetVeloxMovementComponent()->GetSimParams().MaxGroundSpeed;
+	const auto& Sim = Character->GetVeloxMovementComponent()->GetSimParams();
+	const float GroundSpeed = Sim.MaxGroundSpeed;
 	const FString Json = FString::Printf(TEXT("{\"startYaw\":45,\"startLocation\":[500,300,100],\"rows\":[%s]}"), *RowJson(1.5f, 1.f, 0.f, false));
 	const FRun Run = RunScript(TW, *Character, Json, false);
 	if (!TestTrue(TEXT("script ran"), Run.bStarted && Run.Samples.Num() > 0))
@@ -405,20 +406,16 @@ bool FVeloxScriptedWallSlideTest::RunTest(const FString& Parameters)
 	}
 
 	const FSample& End = Run.Samples.Last();
+	// ADR 0002 A23: steady state of the Q3 ground model against a wall at 45 degrees is a*W*cos45/f, bounded by the
+	// accelerate clamp W/cos45 (about 942.8 cm/s for the defaults).
 	const float Cos45 = FMath::Cos(FMath::DegreesToRadians(45.f));
-	const float SpecSpeed = GroundSpeed * Cos45;
-	AddInfo(FString::Printf(TEXT("45 degree wall slide: %.1f cm/s along the wall, y %.1f; ADR 0002 A13 expected %.1f +-5 %%"), End.Speed2D(), End.Location.Y, SpecSpeed));
+	const float Expected = FMath::Min(Sim.GroundAcceleration * GroundSpeed * Cos45 / Sim.GroundFriction, GroundSpeed / Cos45);
+	const float Measured = End.Speed2D();
+	AddInfo(FString::Printf(TEXT("45 degree wall slide: measured %.1f cm/s, expected %.1f cm/s (ADR 0002 A23), deviation %+.2f %%, y %.1f"), Measured, Expected, 100.f * (Measured - Expected) / Expected, End.Location.Y));
 	TestTrue(TEXT("pressed against the wall (y near 500 - radius)"), End.Location.Y > 440.f && End.Location.Y < 465.f);
 	TestTrue(TEXT("velocity is along the wall (clipped, not just blocked)"), FMath::Abs(End.Velocity.Y) < 1.f);
-	TestTrue(TEXT("at least the A13 speed (ground speed times cos 45, -5 %)"), End.Speed2D() >= 0.95f * SpecSpeed);
-	// The Q3 ground model re-adds speed along the wish direction every tick while the wall removes only the component into
-	// it, so the pawn settles where accelerate balances friction (about 0.9-1.1 x ground speed), above the A13 figure; the
-	// accelerate clamp (wish speed along the wish direction) bounds it at ground speed / cos 45.
-	TestTrue(TEXT("below the accelerate clamp (ground speed / cos 45)"), End.Speed2D() <= GroundSpeed / Cos45);
-	if (!FMath::IsNearlyEqual(End.Speed2D(), SpecSpeed, 0.05f * SpecSpeed))
-	{
-		AddWarning(FString::Printf(TEXT("ADR 0002 A13 expects %.0f +-5 %% for the 45 degree wall slide; the Q3 ground model gives %.0f (accelerate refills the speed along the wall each tick). Spec to be revisited by the architect."), SpecSpeed, End.Speed2D()));
-	}
+	TestTrue(TEXT("faster than ground speed (Q3 wall-hug)"), Measured > GroundSpeed);
+	TestTrue(TEXT("within -10 %/+1 % of the A23 steady state"), Measured >= 0.90f * Expected && Measured <= 1.01f * Expected);
 	return true;
 }
 
