@@ -40,6 +40,8 @@ public:
 	//~APawn interface
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
+	/** Standing eye height comes from pawn data (the engine would restore the class default on Restart/UnCrouch). */
+	virtual void RecalculateBaseEyeHeight() override;
 	//~End of APawn interface
 
 protected:
@@ -54,7 +56,11 @@ protected:
 	/** Server: PossessedBy. Owning client: OnRep_PlayerState. Owner = PlayerState, avatar = this pawn. */
 	void InitAbilityActorInfo();
 
+	/** Capsule size and eye height from pawn data; identical on server and clients. */
+	void ApplyPawnGeometry();
+
 	void Input_Move(const FInputActionValue& InputActionValue);
+	void Input_MoveCompleted(const FInputActionValue& InputActionValue);
 	void Input_LookMouse(const FInputActionValue& InputActionValue);
 	void Input_JumpStarted(const FInputActionValue& InputActionValue);
 	void Input_JumpCompleted(const FInputActionValue& InputActionValue);

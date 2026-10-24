@@ -185,6 +185,10 @@ def build_data(actions):
         pd.set_editor_property("pawn_class", unreal.VeloxCharacter.static_class())
         pd.set_editor_property("movement_settings", ms)
         pd.set_editor_property("input_config", ic)
+        # ADR 0002 section 1 pawn geometry (cm): Q3 box 30 x 30 x 56 u, eye 50 u above the feet.
+        pd.set_editor_property("capsule_radius", 37.5)
+        pd.set_editor_property("capsule_half_height", 70.0)
+        pd.set_editor_property("eye_height", 55.0)
         save(pd)
 
 
