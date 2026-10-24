@@ -446,6 +446,7 @@ void UVeloxMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_
 	SumCorrectionCm += LastCorrectionCm;
 	MaxCorrectionCm = FMath::Max(MaxCorrectionCm, LastCorrectionCm);
 	LastCorrectionTime = GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0;
+	PendingCorrectionTimeStamp = TimeStamp;
 
 	// Velox state the replay starts from. The container is ours (constructor); it is only filled on the packed-RPC path,
 	// so the time stamp guards against stale data from the legacy RPCs.
@@ -461,7 +462,7 @@ void UVeloxMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_
 	PendingKnockback = Response.PendingKnockback;
 #if !UE_BUILD_SHIPPING
 	// Net soak (infra/ci/nettest.sh): what the server's response container delivered, before the replay consumes it.
-	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxCorrectionResponse t=%.3f ts=%.3f grace=%.3f latch=%d"), LastCorrectionTime, TimeStamp, KnockbackGrace, bJumpLatched ? 1 : 0);
+	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxCorrectionResponse t=%.3f ts=%.6f grace=%.6f latch=%d svel=%.1f"), LastCorrectionTime, TimeStamp, KnockbackGrace, bJumpLatched ? 1 : 0, NewVelocity.Size());
 #endif
 
 	// ClientAdjustPosition teleports the pawn after this call; its overlaps must not queue knockback (A19).
@@ -481,12 +482,40 @@ bool UVeloxMovementComponent::ClientUpdatePositionAfterServerUpdate()
 	const bool bRealForwardInput = bHasForwardInput;
 	const bool bRealSideInput = bHasSideInput;
 
+#if !UE_BUILD_SHIPPING
+	// Net soak A25 regression check (infra/ci/nettest.sh): the replay must start at the move right after the correction.
+	// Measured against the correction's own TimeStamp, not LastAckedMove, which a culling ack would already have advanced.
+	if (const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character())
+	{
+		if (ClientData->bUpdatePosition && ClientData->SavedMoves.Num() > 0)
+		{
+			const FSavedMove_Character& FirstMove = *ClientData->SavedMoves[0];
+			UE_LOG(LogVeloxMovement, Log, TEXT("VeloxReplay t=%.3f start=%.6f expected=%.6f moves=%d"), GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0,
+				FirstMove.TimeStamp, PendingCorrectionTimeStamp + FirstMove.DeltaTime, ClientData->SavedMoves.Num());
+		}
+	}
+#endif
+
 	const bool bResult = Super::ClientUpdatePositionAfterServerUpdate();
 
 	bWantsJumpHeld = bRealJumpHeld;
 	bHasForwardInput = bRealForwardInput;
 	bHasSideInput = bRealSideInput;
 	return bResult;
+}
+
+void UVeloxMovementComponent::ClientAckGoodMove_Implementation(float TimeStamp)
+{
+	// A25: a correction received earlier in this frame's net receive has not been replayed yet. Acking now would remove
+	// the saved moves between the correction and this ack, and the replay would start from the corrected state with
+	// those moves missing. Drop the ack; no replay or teleport here (overlaps must not fire inside net dispatch).
+	const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character();
+	if (ClientData && ClientData->bUpdatePosition)
+	{
+		UE_LOG(LogVeloxMovement, Verbose, TEXT("ClientAckGoodMove %.3f ignored: correction pending replay (correction ts %.3f)"), TimeStamp, PendingCorrectionTimeStamp);
+		return;
+	}
+	Super::ClientAckGoodMove_Implementation(TimeStamp);
 }
 
 void UVeloxMovementComponent::ServerMoveHandleClientError(float ClientTimeStamp, float DeltaTime, const FVector& Accel, const FVector& RelativeClientLocation, FMovementBaseInterfaceData* ClientMovementBaseInterfaceData, FName ClientBaseBoneName, uint8 ClientMovementMode)

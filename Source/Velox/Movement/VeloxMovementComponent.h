@@ -130,6 +130,14 @@ public:
 	virtual bool CanAttemptJump() const override;
 	virtual bool DoJump(bool bReplayingMoves, float DeltaTime) override;
 	virtual bool ClientUpdatePositionAfterServerUpdate() override;
+
+	/**
+	 * A25: ignores a good-move ack while a correction is pending replay (ClientData->bUpdatePosition). The engine acks
+	 * without checking that flag, so an ack processed in the same net receive as a correction would cull the saved moves
+	 * (ts_corr, ts_ack] that the replay of the correction still needs. Dropping the ack is lossless: the correction already
+	 * acked up to ts_corr and the next good-move ack follows within NetworkMinTimeBetweenClientAckGoodMoves.
+	 */
+	virtual void ClientAckGoodMove_Implementation(float TimeStamp) override;
 	virtual void ServerMoveHandleClientError(float ClientTimeStamp, float DeltaTime, const FVector& Accel, const FVector& RelativeClientLocation, FMovementBaseInterfaceData* ClientMovementBaseInterfaceData, FName ClientBaseBoneName, uint8 ClientMovementMode) override;
 	//~End of UCharacterMovementComponent interface
 
@@ -226,6 +234,9 @@ protected:
 	float SumCorrectionCm = 0.f;
 	float LastCorrectionCm = 0.f;
 	double LastCorrectionTime = -1.0;
+
+	/** TimeStamp of the last correction received (owning client); the replay must start at the move after it (A25). */
+	float PendingCorrectionTimeStamp = -1.f;
 
 private:
 	/** Persistent storage installed via SetNetworkMoveDataContainer in the constructor. */
