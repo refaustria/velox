@@ -9,6 +9,8 @@ Linux: `infra/ci/build.sh`   macOS: `infra/ci/build-mac.sh`
 Configure via environment or `infra/.env` (copy `infra/env.example`; the real environment wins over the file):
 `UE_ROOT` (required; on Mac `/Users/Shared/Epic Games/UE_5.8` is probed if unset, on Linux `/opt/UnrealEngine-5.8`), `VELOX_PROJECT` (default `<repo>/Velox.uproject`), `VELOX_OUT` (default `Saved/CI`), `VELOX_CONFIG` (default `Development`).
 
+macOS notes: needs `brew install coreutils` (macOS has no `timeout`; `build-mac.sh` uses `gtimeout`, or runs the tests without a time limit and warns), Xcode, Launcher-installed UE 5.8; Server/Client targets are always SKIPPED. First-run walkthrough for the human: `docs/playtests/m1-movement-checklist.md`.
+
 Flags: `--config X`, `--targets a,b`, `--no-tests`, `--tests-only`, `--clean`, `--net-soak` (Linux only: runs `nettest.sh` after build and tests, logs in `<log dir>/nettest/`), `--dry-run`, `-h`.
 `--dry-run` prints every command without running it and needs no engine, only a directory with `Engine/Build/BatchFiles` (and optionally `Engine/Build/InstalledBuild.txt`).
 
