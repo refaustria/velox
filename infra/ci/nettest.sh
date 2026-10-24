@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Headless networked movement soak (M1 task 05, ADR 0002 section 5 and amendments A17-A30).
+# Headless networked movement soak (M1 task 05, ADR 0002 section 5 and amendments A17-A34).
 # Starts a dedicated server and one scripted -nullrhi client on this machine with 100 ms / 2 % packet simulation in both
 # directions, runs the soak scripts and applies the per-script pass criteria from
 # docs/tasks/m1-movement/05-debug-tooling-and-net-soak.md. See infra/ci/README.md.
@@ -75,7 +75,8 @@ run_one() {
   # Real-time pacing, not -UseFixedTimeStep: that mode runs frames as fast as possible, so the (wall-clock) packet
   # simulation would add seconds of game time per 100 ms. The server is paced by NetServerMaxTickRate=60, the client by t.MaxFPS.
   # LogVeloxMovement Verbose on the client: counts the A25 "ClientAckGoodMove ... ignored" lines.
-  local cexec="t.MaxFPS ${CLIENT_FPS}, log LogVeloxMovement Verbose" sexec=""
+  # LogVeloxNet Verbose on the client: one VeloxResend/VeloxSend line per ServerMovePacked RPC (A32/A34 resend counts).
+  local cexec="t.MaxFPS ${CLIENT_FPS}, log LogVeloxMovement Verbose, log LogVeloxNet Verbose" sexec=""
   if [[ "$script" == LatchRun ]]; then cexec="velox.move.Preset Q3, $cexec"; sexec="velox.move.Preset Q3"; fi
   # Debug knob: VELOX_NETTEST_EXEC="p.NetShowCorrections 1" runs extra console commands on both processes.
   if [[ -n "${VELOX_NETTEST_EXEC:-}" ]]; then cexec="$cexec, $VELOX_NETTEST_EXEC"; sexec="${sexec:+$sexec, }$VELOX_NETTEST_EXEC"; fi
@@ -177,8 +178,24 @@ grace_max = num(info_line, "knockback_grace_max", 0.2)
 # of UVeloxMovementSettings (6.0 1/s, 250 cm/s) apply to every script except LatchRun (Preset Q3, which keeps both).
 ground_friction = num(info_line, "ground_friction", 6.0)
 stop_speed = num(info_line, "stop_speed", 250.0)
-# A28(iv): server moves longer than 30 ms (lost RPCs merged into the next move).
+# A28(iv)/A34(i): server moves longer than 20 ms (lost RPCs merged into the next move; also slow client frames).
 gaps = [kv(l) for l in S if "VeloxMoveGap ts=" in l]
+# A32/A34(ii): client RPCs (VeloxResend = carried an OldMove, VeloxSend = none) and server-side repaired losses.
+rpc_lines = [kv(l) for l in C if "VeloxResend old=" in l or "VeloxSend new=" in l]
+resends = [d for d in rpc_lines if "old" in d]
+repaired = [kv(l) for l in S if "VeloxMoveRepaired ts=" in l]
+# Optional position logs (VELOX_NETTEST_EXEC="log LogNetPlayerMovement VeryVerbose"): move stamp -> position.
+POS_RE = re.compile(r"(ClientMove|ServerMove) Time (\S+) .*?Position X=(\S+) Y=(\S+) Z=(\S+)")
+def positions(lines, kind):
+    out = {}
+    for l in lines:
+        m = POS_RE.search(l)
+        if m and m.group(1) == kind:
+            try:
+                out[m.group(2)] = tuple(float(v) for v in m.group(3, 4, 5))
+            except ValueError:
+                pass
+    return out
 responses = [kv(l) for l in C if "VeloxCorrectionResponse t=" in l]
 samples = [kv(l) for l in C if "event=post_correction_sample" in l]
 lands = [kv(l) for l in C if "event=land" in l and "VeloxNetSoak" in l]
@@ -312,7 +329,17 @@ def knockback_checks(airborne):
             detail.append("t_exp=%.6f friction_checks=%d" % (t_exp, checked))
     late = [c for c in in_window(tc + 0.05, tc + 0.6) if c is not intended]
     if late:
-        fails.append("further non-echo correction in [t_corr+0.05, t_corr+0.6]: %s" % fmt(late))
+        why = ""
+        if not airborne:
+            # A34(iv): a merged server move during the friction decay (A31 class) shortly before the stray's acked move.
+            for c in late:
+                r = response_for(c)
+                rts = num(r, "ts", -1.0) if r else -1.0
+                g = next((g for g in gaps if rts - 0.2 <= num(g, "ts") <= rts + 1e-6), None)
+                if g is not None:
+                    why = " - merged move during speed change (A31): VeloxMoveGap ts=%s dt=%s before the stray's ts=%s" % (g.get("ts"), g.get("dt"), r.get("ts"))
+                    break
+        fails.append("further non-echo correction in [t_corr+0.05, t_corr+0.6]: %s%s" % (fmt(late), why))
 
 if script == "StrafeRun":
     pk = num(f, "peak2d"); pt = num(f, "peak_t", -1.0)
@@ -348,20 +375,42 @@ elif script == "PadRun":
         fails.append("expected 3 distinct pads launched live on the client, got %d: %s" % (len(live), sorted(live)))
     def gap_at(ts):
         return next((g for g in gaps if num(g, "ts") - num(g, "dt") < ts + 1e-6 and ts <= num(g, "ts") + 1e-6), None)
+    cpos, spos = positions(C, "ClientMove"), positions(S, "ServerMove")
+    def resend_proof(entry_ts):
+        """A34(iii): the first RPC after the entry move's own RPC (the launch move's) carries the entry move, as OldMove
+        (VeloxResend event=1, A32) or as its pending half. Returns (ok, the RPC line or None)."""
+        after = [d for d in rpc_lines if num(d, "new") > entry_ts + 1e-6]
+        if not after:
+            return False, None
+        first = after[0]
+        carried = abs(num(first, "old", -1.0) - entry_ts) < 2e-6 or abs(num(first, "pending", -1.0) - entry_ts) < 2e-6
+        return carried, first
     for pad in sorted(set(live) | set(srv)):
         lv, sv = live.get(pad, []), srv.get(pad, [])
         if len(lv) != 1:
             fails.append("pad %s: %d client src=live applied=1 lines (want 1)" % (pad, len(lv)))
         if len(sv) != 1:
             fails.append("pad %s: %d server launch lines (want 1)" % (pad, len(sv)))
+        if len(lv) == 1:
+            ok, line = resend_proof(num(lv[0], "ts"))
+            if not ok:
+                fails.append("pad %s: entry move ts=%s not carried by the launch move's RPC (A32 resend): %s" % (
+                    pad, lv[0].get("ts"), "no RPC line after the entry" if line is None else " ".join("%s=%s" % kv_ for kv_ in sorted(line.items()))))
         if len(lv) == 1 and len(sv) == 1:
             cts, sts = num(lv[0], "ts"), num(sv[0], "ts")
             if abs(cts - sts) > 1e-6:
                 g = gap_at(cts)
+                ekey = lv[0].get("ts")
                 if g is not None:
-                    fails.append("pad %s: launch one move apart (lost entry move): client ts=%s server ts=%s, VeloxMoveGap ts=%s dt=%s" % (pad, lv[0].get("ts"), sv[0].get("ts"), g.get("ts"), g.get("dt")))
+                    fails.append("pad %s: launch one move apart: lost entry move (burst loss, resend did not arrive): client ts=%s server ts=%s, VeloxMoveGap ts=%s dt=%s" % (pad, ekey, sv[0].get("ts"), g.get("ts"), g.get("dt")))
+                elif ekey in cpos and ekey in spos:
+                    off = math.dist(cpos[ekey], spos[ekey])
+                    if off > 0.1:
+                        fails.append("pad %s: launch one move apart: sub-threshold offset flipped the trigger (A31/B2): client ts=%s server ts=%s, offset %.2f cm at the entry" % (pad, ekey, sv[0].get("ts"), off))
+                    else:
+                        fails.append("pad %s: launch one move apart: overlap ordering regression: client ts=%s server ts=%s, offset %.3f cm, no VeloxMoveGap at the entry" % (pad, ekey, sv[0].get("ts"), off))
                 else:
-                    fails.append("pad %s: overlap ordering regression: client ts=%s server ts=%s, no VeloxMoveGap at the entry" % (pad, lv[0].get("ts"), sv[0].get("ts")))
+                    fails.append("pad %s: launch one move apart, no VeloxMoveGap at the entry: client ts=%s server ts=%s; sub-threshold offset (A31/B2) or overlap ordering regression (position logs absent: VELOX_NETTEST_EXEC='log LogNetPlayerMovement VeryVerbose' separates them)" % (pad, ekey, sv[0].get("ts")))
         if len(sv) == 1:
             per_replay = {}
             for d in rep_lines.get(pad, []):
@@ -436,19 +485,28 @@ if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun"):
     if y > 5.0:
         fails.append("mean correction %.2f cm > 5" % y)
 
-# A28(iv)/A30(iv): with 2 % loss each way the server must see merged moves. moves counts client moves; ground moves are
-# combined in pairs, so >= 1000 moves is >= 500 RPCs.
-if not gaps and moves >= 1000:
-    fails.append("loss simulation inactive: no VeloxMoveGap on the server over %d client moves (>= 500 RPCs)" % moves)
+# A34(ii): with 2 % loss each way the server must see lost RPCs: repaired by the next RPC's OldMove (A32) or, for burst
+# loss, merged into a longer move. RPCs are counted from the client's VeloxResend/VeloxSend lines (LogVeloxNet Verbose).
+nrpc = len(rpc_lines)
+if nrpc == 0:
+    fails.append("no VeloxResend/VeloxSend lines on the client (binary older than ADR 0002 A32, or LogVeloxNet not Verbose)")
+elif nrpc >= 500 and not gaps and not repaired:
+    fails.append("loss simulation inactive: no VeloxMoveRepaired and no VeloxMoveGap on the server over %d RPCs" % nrpc)
+# Before the first ack there is no LastAckedMove and nothing to resend (one RTT); count from the first resend on.
+first_resend = next((i for i, d in enumerate(rpc_lines) if "old" in d), None)
+nrpc_acked = nrpc - first_resend if first_resend is not None else nrpc
+if nrpc and len(resends) < 0.9 * nrpc_acked:
+    fails.append("resent=%d < 90 %% of the %d RPCs after the first ack: the OldMove does not ride along (A32)" % (len(resends), nrpc_acked))
 
 # Summary over non-echo corrections (echoes counted separately, A24).
 ncorr = len(nonecho)
 nx = [c[1] for c in nonecho]
 cmax = max(nx) if nx else 0.0
 cmean = sum(nx) / len(nx) if nx else 0.0
-detail.append("replays=%d acks_ignored=%d" % (len(replays), acks_ignored))
-row = "%-18s moves=%-5d C=%-3d echoes=%-3d gaps=%-3d max=%-6.2f mean=%-5.2f %s  %s  %s" % (
-    script, moves, ncorr, len(echoes), len(gaps), cmax, cmean, "FAIL" if fails else "PASS", " ".join(detail), ("; ".join(notes)))
+strays_le = sum(1 for c in nonecho if c[1] <= 2.5)   # A34(v): A31-class strays at merged moves during speed changes
+detail.append("replays=%d acks_ignored=%d rpcs=%d" % (len(replays), acks_ignored, nrpc))
+row = "%-18s moves=%-5d C=%-3d echoes=%-3d gaps=%-3d repaired=%-3d resent=%-5d strays_le_2_5=%-2d max=%-6.2f mean=%-5.2f %s  %s  %s" % (
+    script, moves, ncorr, len(echoes), len(gaps), len(repaired), len(resends), strays_le, cmax, cmean, "FAIL" if fails else "PASS", " ".join(detail), ("; ".join(notes)))
 with open(result_path, "w") as out:
     out.write(row + "\n")
     for fl in fails:

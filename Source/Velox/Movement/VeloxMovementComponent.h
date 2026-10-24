@@ -130,6 +130,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Velox|Movement|Net")
 	void ResetCorrectionStats();
 
+	/** Owning client: RPCs that carried a resent OldMove (A32), and all ServerMovePacked RPCs sent. */
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement|Net")
+	int32 GetNumResentMoves() const { return NumResentMoves; }
+
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement|Net")
+	int32 GetNumServerMoveRPCs() const { return NumServerMoveRPCs; }
+
 	/** The `showdebug VeloxMovement` block (non-shipping; empty in shipping). */
 	void DisplayVeloxDebug(class UCanvas* Canvas, float& YL, float& YPos) const;
 
@@ -178,8 +185,24 @@ protected:
 	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
 	virtual void OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData, float TimeStamp, FVector NewLocation, FVector NewVelocity, FMovementBaseInterfaceData* NewMovementBaseInterfaceData, FName NewBaseBoneName, bool bHasBase, bool bBaseRelativePosition, uint8 ServerMovementMode, FVector ServerGravityDirection) override;
 
-	/** Captures the move's ClientTimeStamp (server and client replay) and logs merged server moves (A28(iv), non-shipping). */
+	/**
+	 * Captures the move's ClientTimeStamp (server and client replay); non-shipping on the authority: logs merged server
+	 * moves (VeloxMoveGap, A28(iv)/A34(i)) and old moves that filled a gap (VeloxMoveRepaired, A32).
+	 */
 	virtual void MoveAutonomous(float ClientTimeStamp, float DeltaTime, uint8 CompressedFlags, const FVector& NewAccel) override;
+
+	/**
+	 * A31: PhysWalking calls this right after "make velocity reflect actual move" (and at the top/end of every iteration);
+	 * restores the end velocity of the ground update after the engine integrated the mean velocity.
+	 */
+	virtual void MaintainHorizontalGroundVelocity() override;
+
+	/**
+	 * A32 (Quake cl_packetdup 1): replaces the engine's OldMove by FSavedMove_Velox::ChooseOldMove before sending, so the
+	 * previous RPC's move (or an unacked event move) rides along with every RPC and a single lost RPC is repaired in its
+	 * original move partition. Non-shipping: logs VeloxResend / VeloxSend (LogVeloxNet) per RPC.
+	 */
+	virtual void CallServerMovePacked(const FSavedMove_Character* NewMove, const FSavedMove_Character* PendingMove, const FSavedMove_Character* OldMove) override;
 	//~End of UCharacterMovementComponent interface
 
 	// The deprecated UPrimitiveComponent overload forwards to the one above.
@@ -192,11 +215,25 @@ protected:
 	void ConsumePendingKnockback();
 
 	/**
+	 * A31 Fix D: ends the mean-velocity window opened by the ground branch of CalcVelocity. If the engine's velocity is
+	 * still the mean (the move was not clipped: PhysWalking set Velocity = displacement / dt == Mean), the end velocity of
+	 * the ground update is put back; otherwise the engine's clipped velocity is kept (walls, steps; A13/A23 unchanged).
+	 * Returns whether the window was open.
+	 */
+	bool RestoreGroundEndVelocity();
+
+	/** The ground update's end velocity while the A31 mean-velocity window is open, else Velocity. */
+	const FVector& GetGroundEndVelocity() const { return bGroundMeanVelocityActive ? GroundEndVelocity : Velocity; }
+
+	/**
 	 * Vertical speed with which the pawn leaves a ramp with floor normal ImpactNormal at the current horizontal velocity:
 	 * the climb rate of the engine's ramp movement (ComputeGroundMovementDelta, bMaintainHorizontalGroundVelocity),
 	 * -(V_xy . N) / N.z. Zero for floors flatter than RampExitMinAngle and for descending motion.
 	 */
 	float ComputeRampExitVelocityZ(const FVector& FloorImpactNormal, const FVector& FloorContactNormal) const;
+
+	/** ComputeRampExitVelocityZ for a given horizontal velocity (A31: ShouldCatchAir decides on the end velocity). */
+	float ComputeRampExitVelocityZ(const FVector& FloorImpactNormal, const FVector& FloorContactNormal, const FVector& InVelocity) const;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Velox|Movement")
 	TObjectPtr<const UVeloxMovementSettings> MovementSettings;
@@ -240,6 +277,18 @@ protected:
 	uint8 bInClientReplay : 1;
 
 	/**
+	 * A31: CalcVelocity (MOVE_Walking) has set Velocity to GroundMeanVelocity for the engine's displacement
+	 * Delta = Velocity * dt; RestoreGroundEndVelocity puts GroundEndVelocity back. Never open across a move.
+	 */
+	uint8 bGroundMeanVelocityActive : 1;
+
+	/** A31: end velocity of the last ground velocity update (VeloxMoveSim::GroundMove). */
+	FVector GroundEndVelocity = FVector::ZeroVector;
+
+	/** A31: substep-trapezoid mean velocity of the last ground velocity update. */
+	FVector GroundMeanVelocity = FVector::ZeroVector;
+
+	/**
 	 * Ramp vertical speed handed from HandleWalkingOffLedge to StartFalling within one call chain of PhysWalking.
 	 * Never survives a move (cleared at move start, by StartFalling and on mode changes), so it needs no saved-move slot.
 	 */
@@ -270,6 +319,10 @@ protected:
 
 	/** TimeStamp of the last correction received (owning client); the replay must start at the move after it (A25). */
 	float PendingCorrectionTimeStamp = -1.f;
+
+	/** Owning client: RPCs sent with an OldMove (A32 resend), and RPCs sent in total. Net soak / debugging. */
+	int32 NumResentMoves = 0;
+	int32 NumServerMoveRPCs = 0;
 
 private:
 	/** Persistent storage installed via SetNetworkMoveDataContainer in the constructor. */

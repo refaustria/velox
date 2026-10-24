@@ -74,15 +74,22 @@ namespace VeloxMoveSim
 
 	FVector GroundMove(const FVector& V, const FVeloxMoveInput& In, float Dt, float KnockbackGrace, const FVeloxMoveParams& P)
 	{
+		return GroundMove(V, In, Dt, KnockbackGrace, P, nullptr);
+	}
+
+	FVector GroundMove(const FVector& V, const FVeloxMoveInput& In, float Dt, float KnockbackGrace, const FVeloxMoveParams& P, FVector* OutMeanVelocity)
+	{
 		const int32 N = NumSubsteps(Dt, P);
 		const float H = Dt / static_cast<float>(N);
 		const FVector WishDir = SanitizeWishDir(In.WishDir);
 		const float WishSpeed = FMath::Clamp(In.WishSpeed, 0.f, P.MaxGroundSpeed);
 
 		FVector Result = V;
+		FVector Displacement = FVector::ZeroVector;   // A31: trapezoid sum over the substeps
 		float Grace = KnockbackGrace;
-		auto SubstepBody = [&Result, &WishDir, WishSpeed, &P](float StepDt, bool bInGrace)
+		auto SubstepBody = [&Result, &Displacement, &WishDir, WishSpeed, &P](float StepDt, bool bInGrace)
 		{
+			const FVector Start = Result;
 			// Q3 PM_WalkMove under PMF_TIME_KNOCKBACK: no friction and pm_airaccelerate instead of pm_accelerate.
 			if (!bInGrace)
 			{
@@ -92,6 +99,7 @@ namespace VeloxMoveSim
 			{
 				Result = Accelerate(Result, WishDir, WishSpeed, bInGrace ? P.AirAcceleration : P.GroundAcceleration, StepDt);
 			}
+			Displacement += 0.5 * (Start + Result) * static_cast<double>(StepDt);
 		};
 		for (int32 i = 0; i < N; ++i)
 		{
@@ -107,6 +115,10 @@ namespace VeloxMoveSim
 				SubstepBody(H, Grace > GraceEpsilon);
 			}
 			Grace -= H;
+		}
+		if (OutMeanVelocity)
+		{
+			*OutMeanVelocity = Dt > 0.f ? Displacement / static_cast<double>(Dt) : Result;
 		}
 		return Result;
 	}

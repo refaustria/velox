@@ -509,4 +509,92 @@ bool FVeloxMovementGracePartitionInvarianceTest::RunTest(const FString& Paramete
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFrictionPartitionInvarianceTest, "Velox.Movement.Sim.FrictionPartitionInvariance", VeloxMoveSimTest::Flags)
+bool FVeloxMovementFrictionPartitionInvarianceTest::RunTest(const FString& Parameters)
+{
+	// ADR 0002 A31: the server merges lost client moves into one longer move, so the ground velocity update *and* the
+	// displacement of a move must not depend on how the same 50 ms are partitioned into moves. The displacement of a move
+	// is Mean * dt (trapezoid over the substeps, what the CMC hands to PhysWalking since Fix D); the engine's rectangle
+	// rule End * dt is evaluated alongside to document the pre-fix error (it must exceed the tolerance by far, otherwise
+	// this test would not detect a regression to the rectangle rule).
+	// Tolerances: A31 asks for 0.1 % (speed) and 0.05 % (displacement). Both are below the accepted substep residual of A1
+	// that remains with the trapezoid: FixedStep 8 ms gives substeps of 4.17 ms (1/120 move) to 8 ms, and the velocity
+	// update differs between them to second order (worst pair 1x50ms vs 6x1/120, wish 800 from 250 cm/s: 0.42 % speed,
+	// 0.29 % = 0.057 cm displacement; friction only 0.28 %, as in GracePartitionInvariance). The bounds are therefore
+	// 0.5 % and 0.1 cm absolute (cm is what the 1.73 cm correction threshold sees); the rectangle rule is 4.1-6.4 cm.
+	const FVeloxMoveParams P = DefaultParams();
+	const float Partitions[][6] = {
+		{ 0.05f },
+		{ 0.025f, 0.025f },
+		{ 1.f / 60.f, 1.f / 60.f, 1.f / 60.f },
+		{ 1.f / 120.f, 1.f / 120.f, 1.f / 120.f, 1.f / 120.f, 1.f / 120.f, 1.f / 120.f },
+		{ 1.f / 60.f, 1.f / 120.f, 0.025f },
+	};
+	const int32 NumSteps[] = { 1, 2, 3, 6, 3 };
+	const TCHAR* Names[] = { TEXT("1x50ms"), TEXT("25+25ms"), TEXT("3x1/60"), TEXT("6x1/120"), TEXT("1/60+1/120+25ms") };
+	// Around StopSpeed (250) on purpose: the Q3 control = max(speed, StopSpeed) regime switch must not break invariance.
+	const float Speeds[] = { 100.f, 200.f, 240.f, 250.f, 260.f, 300.f, 600.f, 1000.f, 1200.f };
+	const float WishSpeeds[] = { 0.f, 800.f };
+	constexpr double MaxSpeedDelta = 0.005;    // 0.5 %, see above
+	constexpr double MaxDispCm = 0.1;          // see above
+	constexpr int32 NumPartitions = UE_ARRAY_COUNT(Partitions);
+
+	struct FResult { FVector End; double Trapezoid = 0.0; double Rectangle = 0.0; };
+	auto Integrate = [&](const FVeloxMoveInput& In, float Speed0, int32 k)
+	{
+		FResult R;
+		R.End = FVector(Speed0, 0.0, 0.0);
+		for (int32 i = 0; i < NumSteps[k]; ++i)
+		{
+			FVector Mean;
+			R.End = VeloxMoveSim::GroundMove(R.End, In, Partitions[k][i], 0.f, P, &Mean);
+			R.Trapezoid += Mean.X * Partitions[k][i];
+			R.Rectangle += R.End.X * Partitions[k][i];
+		}
+		return R;
+	};
+
+	double WorstSpeed = 0.0, WorstDisp = 0.0, WorstRectCm = 0.0, WorstTrapCm = 0.0;
+	for (const float WishSpeed : WishSpeeds)
+	{
+		const FVeloxMoveInput In = Wish(FVector::ForwardVector, WishSpeed, WishSpeed > 0.f, false);
+		for (const float Speed0 : Speeds)
+		{
+			FResult R[NumPartitions];
+			for (int32 k = 0; k < NumPartitions; ++k)
+			{
+				R[k] = Integrate(In, Speed0, k);
+			}
+			for (int32 a = 0; a < NumPartitions; ++a)
+			{
+				for (int32 b = a + 1; b < NumPartitions; ++b)
+				{
+					const double Sa = Speed2D(R[a].End), Sb = Speed2D(R[b].End);
+					const double SpeedDelta = FMath::Abs(Sa - Sb) / FMath::Max3(Sa, Sb, 1.0);
+					const double DispCm = FMath::Abs(R[a].Trapezoid - R[b].Trapezoid);
+					const double DispDelta = DispCm / FMath::Max3(R[a].Trapezoid, R[b].Trapezoid, 1e-3);
+					WorstSpeed = FMath::Max(WorstSpeed, SpeedDelta);
+					WorstDisp = FMath::Max(WorstDisp, DispDelta);
+					WorstTrapCm = FMath::Max(WorstTrapCm, DispCm);
+					WorstRectCm = FMath::Max(WorstRectCm, FMath::Abs(R[a].Rectangle - R[b].Rectangle));
+					if (SpeedDelta > MaxSpeedDelta || DispCm > MaxDispCm)
+					{
+						AddError(FString::Printf(TEXT("v0 %.0f wish %.0f: %s v=%.4f d=%.4f vs %s v=%.4f d=%.4f (speed %.4f %%, displacement %.4f %% = %.4f cm)"),
+							Speed0, WishSpeed, Names[a], Sa, R[a].Trapezoid, Names[b], Sb, R[b].Trapezoid, 100.0 * SpeedDelta, 100.0 * DispDelta, DispCm));
+					}
+				}
+			}
+			if (Speed0 == 1000.f && WishSpeed == 0.f)
+			{
+				AddInfo(FString::Printf(TEXT("v0 1000 friction only, 1x50ms vs 3x1/60: trapezoid %.4f vs %.4f cm, rectangle (pre-A31) %.4f vs %.4f cm (delta %.3f cm)"),
+					R[0].Trapezoid, R[2].Trapezoid, R[0].Rectangle, R[2].Rectangle, FMath::Abs(R[0].Rectangle - R[2].Rectangle)));
+			}
+		}
+	}
+	AddInfo(FString::Printf(TEXT("worst pairwise: end speed %.4f %%, displacement %.4f %% (%.4f cm); rectangle rule (pre-A31) worst %.3f cm"),
+		100.0 * WorstSpeed, 100.0 * WorstDisp, WorstTrapCm, WorstRectCm));
+	TestTrue(TEXT("the rectangle rule (pre-A31) is detected by this test (worst delta > 1 cm)"), WorstRectCm > 1.0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

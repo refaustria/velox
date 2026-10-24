@@ -657,4 +657,123 @@ bool FVeloxScriptedKnockbackTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Move partition invariance through the real component (ADR 0002 A27(iv), A31)
+
+namespace VeloxScriptedTest
+{
+	/** Calls the protected MoveAutonomous, the server's per-move entry point (same path as a ServerMove RPC). */
+	struct FMoveAutonomousAccess : public UVeloxMovementComponent
+	{
+		static void Call(UVeloxMovementComponent& Movement, float ClientTimeStamp, float DeltaTime, uint8 Flags, const FVector& Accel)
+		{
+			(Movement.*(&FMoveAutonomousAccess::MoveAutonomous))(ClientTimeStamp, DeltaTime, Flags, Accel);
+		}
+	};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxFTMovePartitionInvariance, "Velox.Functional.FT_MovePartitionInvariance",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FVeloxFTMovePartitionInvariance::RunTest(const FString& Parameters)
+{
+	using namespace VeloxScriptedTest;
+	FNoOverrides NoOverrides;
+
+	// Two pawns on the same floor run the same 50 ms through MoveAutonomous: one as three 1/60 s client moves, one as the
+	// single 50 ms move a server makes of them when two RPCs were lost (GetServerMoveDeltaTime). Before Fix D (A31,
+	// rectangle-rule PhysWalking displacement) the positions differed by 5.5 cm (from rest) and 5.2 cm (from 1250 cm/s).
+	// Checks: (1) each pawn moved exactly the sim's trapezoid displacement sum(Mean_i * dt_i) (Fix D in the real
+	// component, 0.01 cm); (2) the two partitions agree. A31 asks for 0.3 % / 0.05 cm in (2); the sim's own substep
+	// residual (A1: 3 substeps of 5.56 ms vs 7 of 7.14 ms) is 0.79 % / 0.105 cm from rest and 0.15 % / 0.035 cm from
+	// 1250 cm/s, identical in the component and in VeloxMoveSim, so the bounds are 1 % and 0.15 cm.
+	FTestWorld TW;
+	if (!TestTrue(TEXT("test world created"), TW.IsValid()))
+	{
+		return false;
+	}
+	TW.BuildFloorAndCorridor();
+
+	struct FCase
+	{
+		const TCHAR* Name;
+		float StartSpeed;
+		bool bInput;
+	};
+	const FCase Cases[] = { { TEXT("from rest, forward input"), 0.f, true }, { TEXT("from 1250 cm/s, no input"), 1250.f, false } };
+	constexpr double MaxSpeedDelta = 0.01;    // 1 %, see above
+	constexpr double MaxPositionCm = 0.15;    // see above
+	constexpr double MaxSimDeviationCm = 0.01;
+
+	for (int32 CaseIndex = 0; CaseIndex < UE_ARRAY_COUNT(Cases); ++CaseIndex)
+	{
+		const FCase& Case = Cases[CaseIndex];
+		AVeloxCharacter* Split = TW.SpawnPawn(FVector(1000, -300 + 400 * CaseIndex, 100), 0.f);
+		AVeloxCharacter* Merged = TW.SpawnPawn(FVector(1000, -100 + 400 * CaseIndex, 100), 0.f);
+		if (!TestNotNull(TEXT("pawns spawned"), Split) || !TestNotNull(TEXT("pawns spawned"), Merged))
+		{
+			return false;
+		}
+		UVeloxMovementComponent* SplitMove = Split->GetVeloxMovementComponent();
+		UVeloxMovementComponent* MergedMove = Merged->GetVeloxMovementComponent();
+		if (!Settle(TW, *Split) || !Settle(TW, *Merged) || !SplitMove || !MergedMove)
+		{
+			AddError(FString::Printf(TEXT("%s: pawns did not settle on the ground"), Case.Name));
+			continue;
+		}
+
+		const float GroundSpeed = SplitMove->GetSimParams().MaxGroundSpeed;
+		const FVector Accel = Case.bInput ? FVector(GroundSpeed, 0.0, 0.0) : FVector::ZeroVector;
+		const uint8 Flags = Case.bInput ? FSavedMove_Velox::FLAG_HasForwardInput : 0;
+		SplitMove->Velocity = FVector(Case.StartSpeed, 0.0, 0.0);
+		MergedMove->Velocity = SplitMove->Velocity;
+		const FVector SplitStart = Split->GetActorLocation();
+		const FVector MergedStart = Merged->GetActorLocation();
+
+		constexpr float TimeStamp0 = 10.f;
+		for (int32 I = 1; I <= 3; ++I)
+		{
+			FMoveAutonomousAccess::Call(*SplitMove, TimeStamp0 + I / 60.f, 1.f / 60.f, Flags, Accel);
+		}
+		FMoveAutonomousAccess::Call(*MergedMove, TimeStamp0 + 0.05f, 0.05f, Flags, Accel);
+
+		// The sim's prediction of each pawn's displacement (A31 trapezoid), from the same params and input.
+		FVeloxMoveInput Input;
+		Input.WishDir = Accel.GetSafeNormal2D();
+		Input.WishSpeed = static_cast<float>(Accel.Size2D());
+		Input.bHasForwardInput = Case.bInput;
+		auto SimDisplacement = [&](int32 NumMoves, float MoveDt)
+		{
+			FVector V(Case.StartSpeed, 0.0, 0.0);
+			double Distance = 0.0;
+			for (int32 I = 0; I < NumMoves; ++I)
+			{
+				FVector Mean;
+				V = VeloxMoveSim::GroundMove(V, Input, MoveDt, 0.f, SplitMove->GetSimParams(), &Mean);
+				Distance += Mean.X * MoveDt;
+			}
+			return Distance;
+		};
+		const double SplitSim = SimDisplacement(3, 1.f / 60.f);
+		const double MergedSim = SimDisplacement(1, 0.05f);
+
+		const FVector SplitDelta = Split->GetActorLocation() - SplitStart;
+		const FVector MergedDelta = Merged->GetActorLocation() - MergedStart;
+		const double SplitSpeed = SplitMove->Velocity.Size2D();
+		const double MergedSpeed = MergedMove->Velocity.Size2D();
+		const double SpeedDelta = FMath::Abs(SplitSpeed - MergedSpeed) / FMath::Max3(SplitSpeed, MergedSpeed, 1.0);
+		const double PositionCm = (SplitDelta - MergedDelta).Size();
+		AddInfo(FString::Printf(TEXT("%s: 3x1/60 speed %.3f moved %.4f cm, 1x50ms speed %.3f moved %.4f cm: speed delta %.4f %%, position delta %.4f cm"),
+			Case.Name, SplitSpeed, SplitDelta.Size2D(), MergedSpeed, MergedDelta.Size2D(), 100.0 * SpeedDelta, PositionCm));
+		TestTrue(FString::Printf(TEXT("%s: both still walking"), Case.Name), SplitMove->IsOnGround() && MergedMove->IsOnGround());
+		TestTrue(FString::Printf(TEXT("%s: the pawns moved"), Case.Name), SplitDelta.Size2D() > 1.0 && MergedDelta.Size2D() > 1.0);
+		AddInfo(FString::Printf(TEXT("%s: sim trapezoid displacement 3x1/60 %.4f cm, 1x50ms %.4f cm"), Case.Name, SplitSim, MergedSim));
+		TestTrue(FString::Printf(TEXT("%s: 3x1/60 moved the sim's trapezoid displacement (Fix D)"), Case.Name), FMath::Abs(SplitDelta.X - SplitSim) <= MaxSimDeviationCm);
+		TestTrue(FString::Printf(TEXT("%s: 1x50ms moved the sim's trapezoid displacement (Fix D)"), Case.Name), FMath::Abs(MergedDelta.X - MergedSim) <= MaxSimDeviationCm);
+		TestTrue(FString::Printf(TEXT("%s: end speeds within 1 %%"), Case.Name), SpeedDelta <= MaxSpeedDelta);
+		TestTrue(FString::Printf(TEXT("%s: positions within 0.15 cm"), Case.Name), PositionCm <= MaxPositionCm);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

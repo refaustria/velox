@@ -248,4 +248,103 @@ bool FVeloxMovementJumpLatchTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementChooseOldMoveTest, "Velox.Movement.SavedMove.ChooseOldMove", VeloxSavedMoveTest::Flags)
+bool FVeloxMovementChooseOldMoveTest::RunTest(const FString& Parameters)
+{
+	// ADR 0002 A32: which saved move rides along as OldMove with an RPC.
+	struct FMoves
+	{
+		TArray<FSavedMovePtr> Saved;
+		FSavedMovePtr LastAcked;
+
+		/** Appends a move with the given time stamp (and event flag) to the saved moves, oldest first. */
+		const FSavedMove_Character* Add(float TimeStamp, bool bEnteredTrigger = false, bool bJumpedHeld = false, bool bBeforeReset = false)
+		{
+			TSharedPtr<FSavedMove_Velox> Move = MakeShared<FSavedMove_Velox>();
+			Move->Clear();
+			Move->TimeStamp = TimeStamp;
+			Move->bSavedEnteredTrigger = bEnteredTrigger;
+			Move->bSavedJumpedHeld = bJumpedHeld;
+			Move->bOldTimeStampBeforeReset = bBeforeReset;
+			Saved.Add(Move);
+			return Move.Get();
+		}
+	};
+	auto MakeAcked = [](float TimeStamp)
+	{
+		TSharedPtr<FSavedMove_Velox> Move = MakeShared<FSavedMove_Velox>();
+		Move->Clear();
+		Move->TimeStamp = TimeStamp;
+		return FSavedMovePtr(Move);
+	};
+
+	{
+		// Single-move RPC: the previous RPC's move.
+		FMoves M;
+		M.LastAcked = MakeAcked(1.0f);
+		M.Add(1.0166f);
+		const FSavedMove_Character* Previous = M.Add(1.0333f);
+		const FSavedMove_Character* New = M.Add(1.05f);
+		bool bEvent = true;
+		TestTrue(TEXT("single-move RPC -> previous move"), FSavedMove_Velox::ChooseOldMove(M.Saved, M.LastAcked, New, nullptr, nullptr, &bEvent) == Previous);
+		TestFalse(TEXT("single-move RPC: not an event move"), bEvent);
+	}
+	{
+		// Dual RPC: the move before the pending one; the pending move itself travels in the RPC.
+		FMoves M;
+		M.LastAcked = MakeAcked(1.0f);
+		const FSavedMove_Character* Previous = M.Add(1.0166f);
+		const FSavedMove_Character* Pending = M.Add(1.025f, /*bEnteredTrigger*/ true);
+		const FSavedMove_Character* New = M.Add(1.0333f);
+		TestTrue(TEXT("dual RPC -> the move before the pending one (an event pending move is never returned)"),
+			FSavedMove_Velox::ChooseOldMove(M.Saved, M.LastAcked, New, Pending, nullptr) == Previous);
+	}
+	{
+		// An unacked event move two RPCs back wins over the previous move; the newest event move wins.
+		FMoves M;
+		M.LastAcked = MakeAcked(1.0f);
+		M.Add(1.0083f, false, /*bJumpedHeld*/ true);
+		const FSavedMove_Character* Entry = M.Add(1.0166f, /*bEnteredTrigger*/ true);
+		M.Add(1.0333f);
+		const FSavedMove_Character* New = M.Add(1.05f);
+		bool bEvent = false;
+		TestTrue(TEXT("event move two RPCs back wins over the previous move"), FSavedMove_Velox::ChooseOldMove(M.Saved, M.LastAcked, New, nullptr, nullptr, &bEvent) == Entry);
+		TestTrue(TEXT("event move reported"), bEvent);
+	}
+	{
+		// Acked and reset-flagged moves are skipped (an acked event move too).
+		FMoves M;
+		M.LastAcked = MakeAcked(1.02f);
+		M.Add(1.01f, /*bEnteredTrigger*/ true);
+		M.Add(1.02f);
+		const FSavedMove_Character* Valid = M.Add(1.03f);
+		M.Add(1.04f, /*bEnteredTrigger*/ true, false, /*bBeforeReset*/ true);
+		const FSavedMove_Character* New = M.Add(1.05f);
+		TestTrue(TEXT("acked and reset-flagged moves skipped"), FSavedMove_Velox::ChooseOldMove(M.Saved, M.LastAcked, New, nullptr, nullptr) == Valid);
+	}
+	{
+		// Nothing eligible: the engine's choice (here: none, and some move), also without any acked move.
+		FMoves M;
+		M.LastAcked = MakeAcked(1.0f);
+		M.Add(0.99f, false, false, /*bBeforeReset*/ true);
+		const FSavedMove_Character* New = M.Add(1.05f);
+		TestTrue(TEXT("nothing eligible -> engine's choice (null)"), FSavedMove_Velox::ChooseOldMove(M.Saved, M.LastAcked, New, nullptr, nullptr) == nullptr);
+		const FSavedMove_Character* EngineChoice = M.Saved[0].Get();
+		TestTrue(TEXT("nothing eligible -> engine's choice (kept)"), FSavedMove_Velox::ChooseOldMove(M.Saved, M.LastAcked, New, nullptr, EngineChoice) == EngineChoice);
+		FMoves NoAck;
+		NoAck.Add(1.0166f);
+		const FSavedMove_Character* NoAckNew = NoAck.Add(1.0333f);
+		TestTrue(TEXT("no acked move yet -> engine's choice"), FSavedMove_Velox::ChooseOldMove(NoAck.Saved, NoAck.LastAcked, NoAckNew, nullptr, nullptr) == nullptr);
+	}
+	{
+		// NewMove / PendingMove are never returned, even as the only (event) moves.
+		FMoves M;
+		M.LastAcked = MakeAcked(1.0f);
+		const FSavedMove_Character* Pending = M.Add(1.0083f, /*bEnteredTrigger*/ true);
+		const FSavedMove_Character* New = M.Add(1.0166f, false, /*bJumpedHeld*/ true);
+		TestTrue(TEXT("NewMove/PendingMove never returned"), FSavedMove_Velox::ChooseOldMove(M.Saved, M.LastAcked, New, Pending, nullptr) == nullptr);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
