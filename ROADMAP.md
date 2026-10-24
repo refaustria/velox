@@ -13,8 +13,8 @@ Acceptance criteria:
 - [ ] Linux toolchain installed: clang, cmake, build-essential, git-lfs, dotnet (needed by UnrealBuildTool on 5.x), plus the UE Linux prerequisites.
 - [ ] Git LFS configured; `.gitattributes` tracks `*.uasset *.umap *.fbx *.png *.wav *.blend *.psd *.tga *.ogg *.mp4` (and other binaries agreed in ADR 0001); `.gitignore` for UE (`Binaries/`, `Intermediate/`, `DerivedDataCache/`, `Saved/`, `.vs`, `*.xcworkspace`, …).
 - [ ] UE 5.8 Linux editor installed under a documented path, `UE_ROOT` recorded in `infra/env.example`.
-- [ ] `Velox.uproject` with C++ modules per ADR 0001; compiles for `VeloxEditor`, `Velox` (Client) and `VeloxServer` on Linux (`Development` config).
-- [ ] `infra/ci/build.sh` builds all three targets and runs the automation tests headlessly (`-nullrhi`); exits non-zero on failure. `infra/ci/build-mac.sh` does the equivalent on macOS.
+- [ ] `Velox.uproject` with C++ module per ADR 0001; compiles for `VeloxEditor` and `Velox` (Game) on Linux and macOS (`Development` config). `VeloxServer`/`VeloxClient` targets exist and compile once a source-built engine is available (installed/Launcher engines cannot build Server/Client targets; until then the dedicated server is `Velox -server`). CI reports them as SKIPPED on an installed engine, never as passed.
+- [ ] `infra/ci/build.sh` builds all available targets and runs the automation tests headlessly (`-nullrhi`), parsing the JSON report; exits non-zero on failure. `infra/ci/build-mac.sh` does the equivalent on macOS.
 - [ ] One trivial automation test exists and passes (proves the test harness works).
 - [ ] nginx vhost `games.inceptum.at` serves a placeholder landing page over HTTPS (Let's Encrypt), HTTP redirects to HTTPS. Config checked into `infra/nginx/`.
 - [ ] Everything merged to `main`; `STATUS.md` updated.
