@@ -20,7 +20,7 @@
 - [ ] Targets: always `VeloxEditor` and `Velox`; `VeloxServer` and `VeloxClient` only if the engine is a source build (no `InstalledBuild.txt`), otherwise print `SKIPPED (installed engine cannot build Server/Client targets)`. Config `Development` default, overridable via `--config`. Platform `Linux` / `Mac` respectively.
 - [ ] Tests: run `UnrealEditor-Cmd` with the exact ADR §4 command (`-ExecCmds="Automation RunTests Velox; Quit"`, `-nullrhi -unattended -nopause -nosplash -log -TestExit="Automation Test Queue Empty" -ReportExportPath=<dir>`), then parse `index.json` in the report dir (python3 one-liner or jq) and fail if any test state is not `Success`. Do not trust the editor exit code alone. Print a summary table of tests.
 - [ ] Flags: `--no-tests`, `--tests-only`, `--targets a,b`, `--config X`, `--clean`. `-h` prints usage.
-- [ ] Log files land in `Saved/CI/<timestamp>/`; the scripts print the paths on failure.
+- [ ] Log files land in `Saved/CI/<timestamp>-<pid>/`; the scripts print the paths on failure.
 - [ ] `build-mac.sh` uses `Engine/Build/BatchFiles/Mac/Build.sh` and `Engine/Binaries/Mac/UnrealEditor-Cmd` (app bundle path handled: `UnrealEditor-Cmd` may live inside `UnrealEditor.app/Contents/MacOS/`); default `UE_ROOT` candidates `/Users/Shared/Epic Games/UE_5.8` are probed if the env var is unset.
 - [ ] `infra/ci/README.md`: how to run on each OS, what SKIPPED means, how to add tests.
 - [ ] `bash -n` passes for all scripts; `shellcheck` (install via apt if missing) reports no errors (warnings allowed, document any you suppress).
