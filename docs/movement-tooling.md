@@ -61,3 +61,13 @@ python3 Tools/analyze_run.py Saved/Runs/strafe.csv --min-peak-factor 1.4
 - `Velox.Movement.Scripted.Stairs` (A13), `.WallSlide` (A13), `.RampExit` (A9), `.JumpLatch` (A12, VQ3 vs auto-hop on `LatchRun`), `.Knockback` (`KnockbackRun`).
 
 Why not `L_MovementTest` / PIE: during automation runs the map is already loaded as the editor world, PIE ticks in real time (not deterministic), and the map's ramps are currently built rolled instead of pitched (see below). Test-world ticking needs `++GFrameCounter` per tick (the tick manager runs each tick function once per engine frame).
+
+## Net soak (`infra/ci/nettest.sh`, `build.sh --net-soak`)
+
+Dedicated server plus one scripted client with 100 ms / 2 % loss each way (see `infra/ci/README.md`). The client logs, besides `VeloxNetSoak: script=.. peak2d=.. peak_t=..`:
+
+- `VeloxCorrection t= cm= st= air= grace= latch= speed2d= vz=` per observed correction (state right after the replay, `t` = client world time) and `VeloxCorrectionResponse t= ts= grace= latch=` (what the server's response container delivered, logged by the CMC before the replay),
+- `VeloxNetSoak event=knockback|land|post_correction_sample|info` (land: `jumped`, `vz`, `speed_before/after`),
+- `VeloxJumpPad: pad= role= t= launch=` on client and server for every pad launch.
+
+`nettest.sh` evaluates the windows from these lines (stray correction = at most one correction of <= 5 cm in the window). Known property of the setup: a server-side knockback is not predicted by the client, so every client move already in flight when the first correction is sent is also rejected by the server and answered with another (0 cm after the client replay) correction; see STATUS.md for the measured numbers.

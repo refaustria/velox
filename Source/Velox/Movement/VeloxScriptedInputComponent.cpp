@@ -330,6 +330,10 @@ bool UVeloxScriptedInputComponent::StartScript()
 	LastSeenCorrections = Movement->GetNumCorrections();
 	TimeStarted = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 	bRunning = true;
+	bHavePrev = false;
+	PostCorrectionSampleAt = -1.0;
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=info script=%s ground_speed=%.1f jump_velocity=%.1f gravity_z=%.1f"), *Script.Name,
+		Movement->GetSimParams().MaxGroundSpeed, Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ());
 
 	// Tick order: component ticks run after their owner's tick, which waits for the movement component, so the input of
 	// frame N is consumed by the move of frame N + 1 (a constant one-frame latency, the same as hardware input). A
@@ -381,7 +385,45 @@ void UVeloxScriptedInputComponent::StepScript(float DeltaTime)
 		Result.SumCorrectionCm += Cm;
 		Result.MaxCorrectionCm = FMath::Max(Result.MaxCorrectionCm, Cm);
 		LastSeenCorrections = NumCorrections;
-		UE_LOG(LogVeloxNet, Log, TEXT("VeloxCorrection t=%.3f cm=%.2f st=%.3f"), Movement->GetLastCorrectionTime(), Cm, ScriptTime);
+		UE_LOG(LogVeloxNet, Log, TEXT("VeloxCorrection t=%.3f cm=%.2f st=%.3f air=%d grace=%.3f latch=%d speed2d=%.1f vz=%.1f"), Movement->GetLastCorrectionTime(), Cm, ScriptTime,
+			!Movement->IsOnGround(), Movement->GetKnockbackGrace(), Movement->IsJumpLatched(), Movement->GetSpeed2D(), Movement->Velocity.Z);
+		if (PostCorrectionSampleAt < 0.0) // keep the first correction's sample; a burst of corrections must not push it out
+		{
+			PostCorrectionSampleAt = Movement->GetLastCorrectionTime() + 0.15;
+		}
+		bHavePrev = false; // the replay rewrote the state, so this tick is no landing observation
+	}
+
+	// Soak instrumentation: peak speed, landings (jumped or not), samples after a correction.
+	{
+		const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		const bool bOnGround = Movement->IsOnGround();
+		const float Speed2D = Movement->GetSpeed2D();
+		const float Vz = Movement->Velocity.Z;
+		if (Speed2D > Result.PeakSpeed2D)
+		{
+			Result.PeakSpeed2D = Speed2D;
+			Result.PeakTime = Now;
+		}
+		if (PostCorrectionSampleAt >= 0.0 && Now >= PostCorrectionSampleAt)
+		{
+			UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=post_correction_sample t=%.3f air=%d grace=%.3f speed2d=%.1f vz=%.1f"), Now, !bOnGround, Movement->GetKnockbackGrace(), Speed2D, Vz);
+			PostCorrectionSampleAt = -1.0;
+		}
+		if (bHavePrev && !bPrevOnGround && PrevVz < 0.f)
+		{
+			const float JumpVelocity = Movement->GetSimParams().JumpVelocity;
+			const bool bLandedNoJump = bOnGround;
+			const bool bLandedJumped = !bOnGround && Vz > 0.5f * JumpVelocity;
+			if (bLandedNoJump || bLandedJumped)
+			{
+				UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=land t=%.3f st=%.3f jumped=%d vz=%.1f speed_before=%.1f speed_after=%.1f latch=%d"), Now, ScriptTime, bLandedJumped, Vz, PrevSpeed2D, Speed2D, Movement->IsJumpLatched());
+			}
+		}
+		bHavePrev = true;
+		bPrevOnGround = bOnGround;
+		PrevVz = Vz;
+		PrevSpeed2D = Speed2D;
 	}
 
 	// Row selection and row-enter events (a long frame may skip several rows). An "until" row whose condition holds
@@ -553,8 +595,8 @@ void UVeloxScriptedInputComponent::Finish(const TCHAR* Reason)
 	Result.bPassed = Result.Reason.IsEmpty();
 
 	const float Mean = Result.NumCorrections > 0 ? Result.SumCorrectionCm / Result.NumCorrections : 0.f;
-	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak: script=%s moves=%d corrections=%d max=%.2f mean=%.2f checks=%d/%d result=%s reason=%s"),
-		*Script.Name, Result.Ticks, Result.NumCorrections, Result.MaxCorrectionCm, Mean, Result.ChecksRun - Result.ChecksFailed, Result.ChecksRun,
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak: script=%s moves=%d corrections=%d max=%.2f mean=%.2f checks=%d/%d peak2d=%.1f peak_t=%.3f result=%s reason=%s"),
+		*Script.Name, Result.Ticks, Result.NumCorrections, Result.MaxCorrectionCm, Mean, Result.ChecksRun - Result.ChecksFailed, Result.ChecksRun, Result.PeakSpeed2D, Result.PeakTime,
 		Result.bPassed ? TEXT("PASS") : TEXT("FAIL"), Result.Reason.IsEmpty() ? TEXT("-") : *Result.Reason);
 
 #if !UE_BUILD_SHIPPING

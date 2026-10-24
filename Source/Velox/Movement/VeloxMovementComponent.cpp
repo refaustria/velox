@@ -459,6 +459,10 @@ void UVeloxMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_
 	KnockbackGrace = Response.KnockbackGrace;
 	bJumpLatched = Response.bJumpLatched;
 	PendingKnockback = Response.PendingKnockback;
+#if !UE_BUILD_SHIPPING
+	// Net soak (infra/ci/nettest.sh): what the server's response container delivered, before the replay consumes it.
+	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxCorrectionResponse t=%.3f ts=%.3f grace=%.3f latch=%d"), LastCorrectionTime, TimeStamp, KnockbackGrace, bJumpLatched ? 1 : 0);
+#endif
 
 	// ClientAdjustPosition teleports the pawn after this call; its overlaps must not queue knockback (A19).
 	bApplyingCorrection = true;

@@ -77,6 +77,8 @@ struct FVeloxScriptResult
 	int32 ChecksRun = 0;
 	int32 ChecksFailed = 0;
 	FString Reason;
+	float PeakSpeed2D = 0.f;   // cm/s, max GetSpeed2D() seen at a script tick
+	double PeakTime = -1.0;    // world time of the peak
 };
 
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
@@ -165,4 +167,11 @@ private:
 	int32 CurrentRow = INDEX_NONE;
 	int32 LastSeenCorrections = 0;
 	double TimeStarted = 0.0;
+
+	// Soak instrumentation (see docs/movement-tooling.md, net soak): landing detection and post-correction samples.
+	bool bHavePrev = false;
+	bool bPrevOnGround = false;
+	float PrevVz = 0.f;
+	float PrevSpeed2D = 0.f;
+	double PostCorrectionSampleAt = -1.0;
 };

@@ -22,6 +22,7 @@ Options:
   --no-tests       Build only
   --tests-only     Run tests only, no build
   --clean          Clean the selected targets before building
+  --net-soak       After build/tests run infra/ci/nettest.sh (dedicated server + scripted client, 100 ms / 2 % loss; Linux only)
   --dry-run        Print commands without running them (no engine required)
   -h, --help       Show this help
 
@@ -82,7 +83,7 @@ run_logged() {
 
 ci_parse_args() {
   CONFIG="${VELOX_CONFIG:-Development}"
-  TARGETS_ARG=""; DO_BUILD=1; DO_TESTS=1; DO_CLEAN=0; DRY_RUN=0
+  TARGETS_ARG=""; DO_BUILD=1; DO_TESTS=1; DO_CLEAN=0; DRY_RUN=0; DO_NETSOAK=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --config)   [[ $# -ge 2 ]] || die "--config needs a value"; CONFIG="$2"; shift 2 ;;
@@ -90,6 +91,7 @@ ci_parse_args() {
       --no-tests) DO_TESTS=0; shift ;;
       --tests-only) DO_BUILD=0; shift ;;
       --clean)    DO_CLEAN=1; shift ;;
+      --net-soak) DO_NETSOAK=1; shift ;;
       --dry-run)  DRY_RUN=1; shift ;;
       -h|--help)  usage; exit 0 ;;
       *) usage >&2; die "unknown option: $1" ;;
@@ -99,7 +101,10 @@ ci_parse_args() {
     Debug|DebugGame|Development|Test|Shipping) ;;
     *) die "invalid --config '$CONFIG' (valid: Debug|DebugGame|Development|Test|Shipping)" ;;
   esac
-  if [[ "$DO_BUILD" == 0 && "$DO_TESTS" == 0 ]]; then
+  if [[ "$DO_NETSOAK" == 1 && "$CI_PLATFORM" != Linux ]]; then
+    die "--net-soak is only supported on Linux"
+  fi
+  if [[ "$DO_BUILD" == 0 && "$DO_TESTS" == 0 && "$DO_NETSOAK" == 0 ]]; then
     die "--no-tests and --tests-only together leave nothing to do"
   fi
 }
@@ -231,6 +236,14 @@ ci_main() {
       echo "WARNING: --targets omits VeloxEditor; tests need an editor binary. Skipping tests (use --no-tests to build only)." >&2
       TESTS_FAILED=1
     elif [[ "$BUILD_FAILED" == 1 ]]; then info "Skipping tests because the build failed"; else ci_tests; fi
+  fi
+  if [[ "$DO_NETSOAK" == 1 ]]; then
+    if [[ "$BUILD_FAILED" == 1 ]]; then info "Skipping net soak because the build failed"
+    else
+      info "Running net soak (infra/ci/nettest.sh)"
+      if [[ "$DRY_RUN" == 1 ]]; then info "dry-run: would run $CI_LIB_DIR/nettest.sh with logs in $LOG_DIR/nettest"
+      elif ! VELOX_CI_LOG_DIR="$LOG_DIR" "$CI_LIB_DIR/nettest.sh"; then echo "FAILED: net soak (logs: $LOG_DIR/nettest)" >&2; TESTS_FAILED=1; fi
+    fi
   fi
   if [[ "$BUILD_FAILED" == 1 || "$TESTS_FAILED" == 1 ]]; then
     echo "CI FAILED. Logs: $LOG_DIR" >&2; exit 1

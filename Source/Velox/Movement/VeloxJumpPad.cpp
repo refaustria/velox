@@ -7,6 +7,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/VeloxLog.h"
+#include "Engine/World.h"
 #include "GameFramework/Character.h"
 #include "Movement/VeloxMoveSim.h"
 #include "Movement/VeloxMovementComponent.h"
@@ -165,6 +166,10 @@ void AVeloxJumpPad::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedCompone
 	}
 
 	UE_LOG(LogVeloxMovement, Verbose, TEXT("%s: launch %s (%s) %s"), *GetName(), *Launch.ToString(), bOverrideVelocity ? TEXT("set") : TEXT("add"), *GetNameSafe(Character));
+#if !UE_BUILD_SHIPPING
+	// One line per predicted/authoritative launch; infra/ci/nettest.sh counts them per pad (client and server).
+	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxJumpPad: pad=%s role=%s t=%.3f launch=%s"), *GetName(), Character->GetLocalRole() == ROLE_Authority ? TEXT("authority") : TEXT("autonomous"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, *Launch.ToCompactString());
+#endif
 	MoveComp->AddKnockback(Launch, bOverrideVelocity);
 }
 
