@@ -96,7 +96,14 @@ namespace VeloxMoveSim
 	 * counts down per substep, and a substep in which it expires is split at the expiry (grace part, then ground part;
 	 * ADR 0002 A27), so friction starts at the same simulated time for every move partition (the server merges lost
 	 * moves into one longer move). The caller passes the grace remaining at the start of Dt.
+	 * OutMeanVelocity (optional, ADR 0002 A31): the mean velocity over Dt by the trapezoid rule over the substeps,
+	 * sum(0.5 * (V_{i-1} + V_i) * H_i) / Dt with V_0 = V (a split substep contributes both parts). Mean * Dt is the
+	 * displacement of the move; unlike End * Dt (the engine's PhysWalking rectangle rule) it is the same for every move
+	 * partition up to second order. Returns the end velocity.
 	 */
+	VELOX_API FVector GroundMove(const FVector& V, const FVeloxMoveInput& In, float Dt, float KnockbackGrace, const FVeloxMoveParams& P, FVector* OutMeanVelocity);
+
+	/** GroundMove without the mean velocity. */
 	VELOX_API FVector GroundMove(const FVector& V, const FVeloxMoveInput& In, float Dt, float KnockbackGrace, const FVeloxMoveParams& P);
 
 	/** Air velocity update (vanilla or CPM), substepped, no gravity. Z untouched. */

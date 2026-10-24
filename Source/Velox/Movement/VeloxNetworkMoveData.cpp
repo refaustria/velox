@@ -167,6 +167,49 @@ bool FSavedMove_Velox::IsImportantMove(const FSavedMovePtr& LastAckedMove) const
 	return Super::IsImportantMove(LastAckedMove);
 }
 
+const FSavedMove_Character* FSavedMove_Velox::ChooseOldMove(const TArray<FSavedMovePtr>& SavedMoves, const FSavedMovePtr& LastAckedMove,
+	const FSavedMove_Character* NewMove, const FSavedMove_Character* PendingMove, const FSavedMove_Character* EngineOldMove, bool* bOutIsEventMove)
+{
+	const FSavedMove_Character* Newest = nullptr;
+	const FSavedMove_Character* Result = EngineOldMove;
+	bool bEvent = false;
+	if (LastAckedMove.IsValid())
+	{
+		// Newest first: the first event move found is the newest one; the first candidate at all is the previous RPC's move.
+		for (int32 Index = SavedMoves.Num() - 1; Index >= 0; --Index)
+		{
+			const FSavedMove_Character* Move = SavedMoves[Index].Get();
+			if (!Move || Move == NewMove || Move == PendingMove || Move->bOldTimeStampBeforeReset || Move->TimeStamp <= LastAckedMove->TimeStamp)
+			{
+				continue;
+			}
+			if (static_cast<const FSavedMove_Velox*>(Move)->IsEventMove())
+			{
+				Newest = Move;
+				bEvent = true;
+				break;
+			}
+			if (!Newest)
+			{
+				Newest = Move;
+			}
+		}
+	}
+	if (Newest)
+	{
+		Result = Newest;
+	}
+	else if (EngineOldMove)
+	{
+		bEvent = static_cast<const FSavedMove_Velox*>(EngineOldMove)->IsEventMove();
+	}
+	if (bOutIsEventMove)
+	{
+		*bOutIsEventMove = bEvent;
+	}
+	return Result;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // FVeloxNetworkMoveData
 

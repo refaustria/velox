@@ -120,6 +120,20 @@ public:
 
 	/** A jump happened in this move with jump held, e.g. the held-jump landing jump (A29). Recorded in PostUpdate_Record. */
 	uint8 bSavedJumpedHeld : 1;
+
+	/** A28/A29 event move: a lost one costs 10-15 cm, anything else <= 2 cm, so it wins the single OldMove slot (A32). */
+	bool IsEventMove() const { return bSavedEnteredTrigger || bSavedJumpedHeld; }
+
+	/**
+	 * A32 (Quake cl_packetdup 1): the OldMove to send with an RPC carrying NewMove (and PendingMove, may be null).
+	 * Candidates are the saved moves that are neither NewMove nor PendingMove, newer than LastAckedMove and not from before
+	 * a time stamp reset (bOldTimeStampBeforeReset). Returns (1) the newest candidate that is an event move, else (2) the
+	 * newest candidate (the previous RPC's NewMove), else (3) EngineOldMove. Without a LastAckedMove (nothing acked yet)
+	 * the engine's choice is kept, as the engine does. Every saved move must be an FSavedMove_Velox. Pure, no world.
+	 */
+	static const FSavedMove_Character* ChooseOldMove(const TArray<FSavedMovePtr>& SavedMoves, const FSavedMovePtr& LastAckedMove,
+		const FSavedMove_Character* NewMove, const FSavedMove_Character* PendingMove, const FSavedMove_Character* EngineOldMove,
+		bool* bOutIsEventMove = nullptr);
 };
 
 /**

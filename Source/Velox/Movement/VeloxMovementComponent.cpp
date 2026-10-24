@@ -47,6 +47,7 @@ UVeloxMovementComponent::UVeloxMovementComponent(const FObjectInitializer& Objec
 	bApplyingCorrection = false;
 	bJumpedThisMove = false;
 	bInClientReplay = false;
+	bGroundMeanVelocityActive = false;
 
 	// FPS rotation: yaw comes from the controller via the character (bUseControllerRotationYaw), never from movement.
 	bOrientRotationToMovement = false;
@@ -176,8 +177,16 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 	ConsumePendingKnockback();
 	MoveStartKnockbackGrace = KnockbackGrace;
 	MoveElapsedTime = 0.f;
+	bGroundMeanVelocityActive = false;
 
 	Super::PerformMovement(DeltaSeconds);
+
+	// A31 safety net: PhysWalking always ends the mean-velocity window through one of the hooks; a move must never end
+	// with the mean velocity (saved moves, HUD, server error check and responses all expect the end velocity).
+	const bool bMeanWindowWasOpen = RestoreGroundEndVelocity();
+#if !UE_BUILD_SHIPPING
+	ensureMsgf(!bMeanWindowWasOpen, TEXT("%s: A31 mean-velocity window still open at the end of PerformMovement (mode %s)"), *GetPathNameSafe(this), *GetMovementName());
+#endif
 
 	KnockbackGrace = FMath::Max(0.f, KnockbackGrace - DeltaSeconds);
 
@@ -256,11 +265,22 @@ void UVeloxMovementComponent::MoveAutonomous(float ClientTimeStamp, float DeltaT
 {
 	LastMoveAutonomousTimeStamp = ClientTimeStamp;
 #if !UE_BUILD_SHIPPING
-	// A28(iv): the longest regular client move is 25 ms; a longer server move filled in the time of lost RPCs.
-	constexpr float MoveGapLogThreshold = 0.030f;
-	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority && DeltaTime > MoveGapLogThreshold)
+	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority)
 	{
-		UE_LOG(LogVeloxNet, Log, TEXT("VeloxMoveGap ts=%.6f dt=%.6f"), ClientTimeStamp, DeltaTime);
+		// A34(i): regular client moves are 1/120 or 1/60 s; a server move longer than 20 ms (catches the 25 ms merge of a
+		// 1/60 + 1/120 pair) filled in the time of lost RPCs. A slow client frame can also produce one: diagnostic only.
+		constexpr float MoveGapLogThreshold = 0.020f;
+		if (DeltaTime > MoveGapLogThreshold)
+		{
+			UE_LOG(LogVeloxNet, Log, TEXT("VeloxMoveGap ts=%.6f dt=%.6f"), ClientTimeStamp, DeltaTime);
+		}
+		// A32: an old move that passed VerifyClientTimeStamp (MoveAutonomous only runs then) was lost in its own RPC and is
+		// now simulated in its original partition.
+		const FCharacterNetworkMoveData* MoveData = GetCurrentNetworkMoveData();
+		if (MoveData && MoveData->NetworkMoveType == FCharacterNetworkMoveData::ENetworkMoveType::OldMove)
+		{
+			UE_LOG(LogVeloxNet, Log, TEXT("VeloxMoveRepaired ts=%.6f dt=%.6f"), ClientTimeStamp, DeltaTime);
+		}
 	}
 #endif
 	Super::MoveAutonomous(ClientTimeStamp, DeltaTime, CompressedFlags, NewAccel);
@@ -301,11 +321,52 @@ void UVeloxMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool
 	// A27: the grace remaining at the start of this iteration, not of the move. GetSimulationTimeStep splits moves longer
 	// than MaxSimulationTimeStep (a server move that merged lost client moves) into several PhysWalking iterations.
 	const float GraceNow = FMath::Max(0.f, MoveStartKnockbackGrace - MoveElapsedTime);
-	Velocity = bOnGround
-		? VeloxMoveSim::GroundMove(Velocity, Input, DeltaTime, GraceNow, SimParams)
-		: VeloxMoveSim::AirMove(Velocity, Input, DeltaTime, SimParams);
+	if (!bOnGround)
+	{
+		// PhysFalling integrates the trapezoid 0.5 * (OldVelocity + Velocity) * dt itself.
+		Velocity = VeloxMoveSim::AirMove(Velocity, Input, DeltaTime, SimParams);
+	}
+	else if (MovementMode == MOVE_Walking)
+	{
+		// A31 Fix D: PhysWalking moves Velocity * dt (rectangle rule, first-order partition-dependent). Hand it the
+		// substep-trapezoid mean for the displacement; the hooks that follow (MaintainHorizontalGroundVelocity after
+		// "reflect actual move", HandleWalkingOffLedge, StartFalling, OnMovementModeChanged) put the end velocity back.
+		FVector Mean;
+		GroundEndVelocity = VeloxMoveSim::GroundMove(Velocity, Input, DeltaTime, GraceNow, SimParams, &Mean);
+		GroundMeanVelocity = Mean;
+		Velocity = Mean;
+		bGroundMeanVelocityActive = true;
+	}
+	else
+	{
+		// NavWalking has no restore hook after its move (no "reflect actual move"): keep the end velocity.
+		Velocity = VeloxMoveSim::GroundMove(Velocity, Input, DeltaTime, GraceNow, SimParams);
+	}
 	// The grace counts down regardless of the mode.
 	MoveElapsedTime += DeltaTime;
+}
+
+bool UVeloxMovementComponent::RestoreGroundEndVelocity()
+{
+	if (!bGroundMeanVelocityActive)
+	{
+		return false;
+	}
+	bGroundMeanVelocityActive = false;
+	// Tolerance: Velocity = (NewLocation - OldLocation) / dt is Mean up to double -> float noise when nothing clipped the
+	// move (horizontal part; MaintainHorizontalGroundVelocity has already removed the ramp's vertical part).
+	constexpr float MeanVelocityTolerance = 0.05f;   // cm/s
+	if (Velocity.Equals(GroundMeanVelocity, MeanVelocityTolerance))
+	{
+		Velocity = GroundEndVelocity;
+	}
+	return true;
+}
+
+void UVeloxMovementComponent::MaintainHorizontalGroundVelocity()
+{
+	Super::MaintainHorizontalGroundVelocity();
+	RestoreGroundEndVelocity();
 }
 
 FVector UVeloxMovementComponent::GetFallingLateralAcceleration(float DeltaTime)
@@ -412,13 +473,18 @@ bool UVeloxMovementComponent::DoJump(bool bReplayingMoves, float DeltaTime)
 
 float UVeloxMovementComponent::ComputeRampExitVelocityZ(const FVector& FloorImpactNormal, const FVector& FloorContactNormal) const
 {
+	return ComputeRampExitVelocityZ(FloorImpactNormal, FloorContactNormal, Velocity);
+}
+
+float UVeloxMovementComponent::ComputeRampExitVelocityZ(const FVector& FloorImpactNormal, const FVector& FloorContactNormal, const FVector& InVelocity) const
+{
 	// Same conditions under which ComputeGroundMovementDelta moves along the ramp plane.
 	const float RampMaxNormalZ = FMath::Cos(FMath::DegreesToRadians(SimParams.RampExitMinAngle));
 	if (FloorImpactNormal.Z >= RampMaxNormalZ || FloorImpactNormal.Z <= UE_KINDA_SMALL_NUMBER || FloorContactNormal.Z <= UE_KINDA_SMALL_NUMBER)
 	{
 		return 0.f;
 	}
-	const FVector HorizontalVelocity(Velocity.X, Velocity.Y, 0.0);
+	const FVector HorizontalVelocity(InVelocity.X, InVelocity.Y, 0.0);
 	const float ClimbRate = -(HorizontalVelocity | FloorImpactNormal) / FloorImpactNormal.Z;
 	return FMath::Max(ClimbRate, 0.f);
 }
@@ -438,17 +504,22 @@ bool UVeloxMovementComponent::ShouldCatchAir(const FFindFloorResult& OldFloor, c
 	{
 		return false;
 	}
-	const float ClimbRate = ComputeRampExitVelocityZ(OldFloor.HitResult.ImpactNormal, OldFloor.HitResult.Normal);
+	// A31: decided on the end velocity of the ground update, as before Fix D (the engine has not restored it yet here).
+	const FVector& EndVelocity = GetGroundEndVelocity();
+	const float ClimbRate = ComputeRampExitVelocityZ(OldFloor.HitResult.ImpactNormal, OldFloor.HitResult.Normal, EndVelocity);
 	if (ClimbRate <= 0.f)
 	{
 		return false;
 	}
-	const FVector RampVelocity(Velocity.X, Velocity.Y, ClimbRate);
+	const FVector RampVelocity(EndVelocity.X, EndVelocity.Y, ClimbRate);
 	return (RampVelocity | NewFloor.HitResult.ImpactNormal) > SimParams.RampSlideMinNormalSpeed;
 }
 
 void UVeloxMovementComponent::HandleWalkingOffLedge(const FVector& PreviousFloorImpactNormal, const FVector& PreviousFloorContactNormal, const FVector& PreviousLocation, float TimeDelta)
 {
+	// A31: the fall paths leave PhysWalking before "reflect actual move"; the ramp exit reads the end velocity.
+	RestoreGroundEndVelocity();
+
 	Super::HandleWalkingOffLedge(PreviousFloorImpactNormal, PreviousFloorContactNormal, PreviousLocation, TimeDelta);
 
 	// Both PhysWalking fall paths (ShouldCatchAir and CheckFall) call this right before StartFalling. Velocity is still
@@ -460,6 +531,9 @@ void UVeloxMovementComponent::HandleWalkingOffLedge(const FVector& PreviousFloor
 
 void UVeloxMovementComponent::StartFalling(int32 Iterations, float remainingTime, float timeTick, const FVector& Delta, const FVector& subLoc)
 {
+	// A31: normally already restored by HandleWalkingOffLedge (both engine call sites call it first).
+	RestoreGroundEndVelocity();
+
 	// Carry the ramp's vertical speed into PhysFalling (Q3 keeps the ground-plane-clipped velocity).
 	if (RampExitVelocityZ > 0.f)
 	{
@@ -472,6 +546,9 @@ void UVeloxMovementComponent::StartFalling(int32 Iterations, float remainingTime
 
 void UVeloxMovementComponent::OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode)
 {
+	// A31: a mode change inside PhysWalking (step-up-and-over, root motion) leaves before "reflect actual move".
+	RestoreGroundEndVelocity();
+
 	Super::OnMovementModeChanged(PreviousMovementMode, PreviousCustomMode);
 
 	RampExitVelocityZ = 0.f;
@@ -560,6 +637,48 @@ bool UVeloxMovementComponent::ClientUpdatePositionAfterServerUpdate()
 	return bResult;
 }
 
+void UVeloxMovementComponent::CallServerMovePacked(const FSavedMove_Character* NewMove, const FSavedMove_Character* PendingMove, const FSavedMove_Character* OldMove)
+{
+	// A32: the server processes OldMove before PendingMove and NewMove (ServerMove_HandleMoveData). Sending the previous
+	// RPC's move every time means a single lost RPC is simulated in its original partition by the next one (no merged
+	// move, no partition-dependent integration, no trigger crossing shifted by one move); an unacked event move (pad
+	// entry, held-jump landing) takes precedence. A duplicate is rejected by VerifyClientTimeStamp (Log-level line).
+	const FSavedMove_Character* ChosenOldMove = OldMove;
+	bool bEventMove = false;
+	if (const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character())
+	{
+		ChosenOldMove = FSavedMove_Velox::ChooseOldMove(ClientData->SavedMoves, ClientData->LastAckedMove, NewMove, PendingMove, OldMove, &bEventMove);
+	}
+
+	++NumServerMoveRPCs;
+	if (ChosenOldMove)
+	{
+		++NumResentMoves;
+	}
+#if !UE_BUILD_SHIPPING
+	// Net soak (A34): one line per RPC. Event resends at Log (the per-pad proof), the rest at Verbose.
+	const double NewStamp = NewMove ? NewMove->TimeStamp : -1.0;
+	const double PendingStamp = PendingMove ? PendingMove->TimeStamp : -1.0;
+	if (ChosenOldMove)
+	{
+		if (bEventMove)
+		{
+			UE_LOG(LogVeloxNet, Log, TEXT("VeloxResend old=%.6f new=%.6f pending=%.6f event=1"), ChosenOldMove->TimeStamp, NewStamp, PendingStamp);
+		}
+		else
+		{
+			UE_LOG(LogVeloxNet, Verbose, TEXT("VeloxResend old=%.6f new=%.6f pending=%.6f event=0"), ChosenOldMove->TimeStamp, NewStamp, PendingStamp);
+		}
+	}
+	else
+	{
+		UE_LOG(LogVeloxNet, Verbose, TEXT("VeloxSend new=%.6f pending=%.6f"), NewStamp, PendingStamp);
+	}
+#endif
+
+	Super::CallServerMovePacked(NewMove, PendingMove, ChosenOldMove);
+}
+
 void UVeloxMovementComponent::ClientAckGoodMove_Implementation(float TimeStamp)
 {
 	// A25: a correction received earlier in this frame's net receive has not been replayed yet. Acking now would remove
@@ -604,6 +723,8 @@ void UVeloxMovementComponent::ResetCorrectionStats()
 	SumCorrectionCm = 0.f;
 	LastCorrectionCm = 0.f;
 	LastCorrectionTime = -1.0;
+	NumResentMoves = 0;
+	NumServerMoveRPCs = 0;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
