@@ -3,6 +3,8 @@
 _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 merged), M1 work on `m1-movement`._
 
 ## Done
+- **M1-05a** debug tooling (`velox.move.*` cvars, HUD block, `showdebug VeloxMovement`, CSV recorder + `Tools/analyze_run.py`), scripted input component with test RPCs, four move scripts, `FT_MovementDeterminism` (bit-identical), scripted regression tests (stairs 100 %, ramp exit Vz = v·tanθ, latch, knockback). 21 tests green. Map defects fixed (ramps, pad C, PlayerStart). ADR A23 corrects the wall-slide expectation (Q3 wall-hug ≈ 943 cm/s).
+- **M1-05b** `infra/ci/nettest.sh` + `build.sh --net-soak`: headless dedicated server + client soak with packet simulation.
 - **M1-04** saved-move fields + combine rules, move-response container with per-timestamp server snapshot, `AddKnockback` flow, jump latch (chained through replay), `AVeloxJumpPad` (AimAtTarget/FixedVelocity, MaxLaunchSpeed validation, map check), pads placed in `L_MovementTest`; architect-reviewed (A17–A22), D1–D6 fixed. 15 tests green.
 - **M1-02** Quake physics in `UVeloxMovementComponent` (CalcVelocity via sim, auto-hop, ramp slide/exit, knockback consume hook, settings as single writer of engine fields), character geometry from pawn data; architect-reviewed (A9–A16), follow-ups applied. 12 tests green, `L_MovementTest -game -nullrhi` clean.
 - **M1-01** `FVeloxMoveSim` (world-free Q3/CPM sim, fixed 8 ms substeps), full `UVeloxMovementSettings` table (29 fields), 11 movement unit tests; architect-reviewed, two fidelity fixes applied; ADR 0002 amendments A1–A8.
@@ -23,7 +25,16 @@ _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M1-05a** debug tooling (HUD block, `velox.move.*` cvars, CSV recorder, scripted input component, four move scripts, FT_MovementDeterminism, scripted regression checks) — running (dev). Then **M1-05b** `infra/ci/nettest.sh` headless net soak (dedicated server + nullrhi client, 100 ms / 2 % loss, pass criteria in the task file) → M1-06 human playtest on the Mac.
+- **M1-05b** net soak analysis: architect root-causing two findings from `infra/ci/nettest.sh` (100 ms / 2 % loss both ways, server 60 Hz, client 120 Hz):
+
+  | Script | Moves | Corrections | max / mean cm | Result |
+  |---|---|---|---|---|
+  | StrafeRun | 437 | 0 | 0 / 0 | PASS (peak 1430 cm/s = 1.79×) |
+  | PadRun | 2819 | 0–3 | ≤ 1.8 | PASS |
+  | KnockbackRun | 300 | 4 | 23.0 / 5.8 | FAIL: 3–5 zero-cm "echo" corrections after the intended one (unpredicted server knockback → in-flight moves mismatch) |
+  | LatchRun | 420 | 5 | 5.0 / 1.0 | flaky 1/4: one 32 cm correction, server leads by exactly 1/30 s at 800 cm/s |
+
+  Then fixes → final CI → merge → M1-06 human playtest on the Mac.
 
 ## Blocked
 - (none)
