@@ -17,7 +17,7 @@
 namespace VeloxSavedMoveTest
 {
 	constexpr EAutomationTestFlags Flags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter;
-	constexpr float Dt = 1.f / 125.f;
+	constexpr float SavedMoveDt = 1.f / 125.f;
 	constexpr float MaxCombineDelta = 0.125f;
 
 	/** A ground move that the engine rules allow to combine with another one built the same way. */
@@ -25,7 +25,7 @@ namespace VeloxSavedMoveTest
 	{
 		TSharedPtr<FSavedMove_Velox> Move = MakeShared<FSavedMove_Velox>();
 		Move->Clear();
-		Move->DeltaTime = Dt;
+		Move->DeltaTime = SavedMoveDt;
 		Move->MaxSpeed = 800.f;
 		Move->StartVelocity = FVector(800.0, 0.0, 0.0);
 		Move->Acceleration = FVector(800.0, 0.0, 0.0);
@@ -240,9 +240,9 @@ bool FVeloxMovementJumpLatchTest::RunTest(const FString& Parameters)
 	S.bOnGround = true;
 	FVeloxMoveInput In;
 	In.bJumpHeld = true;
-	VeloxMoveSim::StepFrame(S, In, Dt, P);
+	VeloxMoveSim::StepFrame(S, In, SavedMoveDt, P);
 	TestEqual(TEXT("landing jump keeps XY"), FVector(S.Velocity.X, S.Velocity.Y, 0.0), FVector(1000.0, 0.0, 0.0));
-	TestTrue(TEXT("landing jump Z = JumpVelocity + GravityZ * dt"), FMath::IsNearlyEqual(S.Velocity.Z, static_cast<double>(P.JumpVelocity + P.GravityZ * Dt), 1e-3));
+	TestTrue(TEXT("landing jump Z = JumpVelocity + GravityZ * dt"), FMath::IsNearlyEqual(S.Velocity.Z, static_cast<double>(P.JumpVelocity + P.GravityZ * SavedMoveDt), 1e-3));
 	TestFalse(TEXT("airborne after the landing jump"), S.bOnGround);
 
 	return true;
