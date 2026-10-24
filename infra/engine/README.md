@@ -142,3 +142,13 @@ platforms positively (`Win64, Win32, Windows, Mac, Android, IOS, TVOS, VisionOS,
 (also `!IsInPlatformGroup(Unix)`), or (b) is a lone identifier declared `bool X = false;` in that file and never reassigned there
 (a flag only platform subclasses flip, e.g. `bUseXbl` guarding `OnlineSubsystemGDK` in `Party.Build.cs`). Any positive Linux/Unix mention,
 a negated non-Linux platform, or an unrecognised condition counts as active (conservative).
+
+## UAT script-module records vs deleted platforms (2026-10-24)
+
+Symptom: `RunUAT.sh ...` (even `-List`) dies with `Script module ".../Platforms/VisionOS/.../VisionOS.Automation.dll" not found for record ".../Engine/Intermediate/ScriptModules/VisionOS.Automation.json"`.
+
+Root cause: on an installed build UAT (`CompileScriptModules.cs`, `ErrorOnMissingTarget`) loads every `Engine/Intermediate/ScriptModules/*.Automation.json` build record and throws if its `TargetPath` dll is missing. The VisionOS record points at `Engine/Platforms/VisionOS/...`, which trimming deleted. Android/IOS/TVOS records are fine because their dlls live under `Engine/Binaries/DotNET/AutomationTool/AutomationScripts/Platforms/<X>/` (not deleted). Records for AutomatedPerfTesting and ICVFX have missing csprojs but existing dlls: harmless.
+
+Fix (applied): backup in `/home/bojan/uat-bak/ScriptModules/`, then delete `Engine/Intermediate/ScriptModules/VisionOS.Automation.json`. Verified `RunUAT.sh -List` and a no-op `BuildCookRun -skipcook -skipbuild -skipstage` succeed.
+
+Prevention: after any `--apply` that removes `Engine/Platforms/<X>`, run `trim-plugins.py --check-uat` (exit 1 lists stale records; delete those json files after backing up). Anything else that deletes platform dirs must do the same.

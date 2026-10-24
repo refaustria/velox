@@ -33,3 +33,5 @@ build-essential, clang, lld, cmake, ninja-build, git-lfs, unzip, p7zip-full, rsy
 - Swapfile 4 GB at `/swapfile` added 2026-10-24.
 
 - Engine trim (2026-10-24): UE 5.8.4 plugins pruned (564 dirs) plus Android/LinuxArm64/foreign-Vulkan/dotnet-arm64 binaries; disk free 7.9 GB -> 25 GB. Restore list: /home/bojan/ue-trim-restore-20261024-1432.txt. See infra/engine/TRIM-REPORT.md "Applied".
+
+- UAT fix (2026-10-24): trimming `Engine/Platforms/VisionOS` left a stale `Engine/Intermediate/ScriptModules/VisionOS.Automation.json` that made every `RunUAT.sh` call fail ("Script module ... not found"). Record removed (backup `/home/bojan/uat-bak/ScriptModules/`). Check with `infra/engine/trim-plugins.py --check-uat`. See `infra/engine/README.md`.

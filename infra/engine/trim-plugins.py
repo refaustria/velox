@@ -7,6 +7,7 @@ Default mode is READ-ONLY: scans, writes a markdown report, never deletes.
   trim-plugins.py --apply --yes --restore-list deleted.txt   # actually deletes the SAFE list
   trim-plugins.py --prune-platforms Android,IOS,VisionOS,TVOS  # also mark Engine/Platforms/<X> (deleted only with --apply --yes)
   trim-plugins.py --verify-deps [--manifest DIR]  # plugin deps + Build.cs module refs + readelf NEEDED of kept .so (exit 1 on violations)
+  trim-plugins.py --check-uat       # stale UAT script-module records (missing dlls); exit 1 if any
   trim-plugins.py --check-orphans   # platform-extension plugins without parent; exit 1 if any (also run after --apply)
 Platform-extension plugins (Engine/Platforms/<P>/Plugins/**/<Name>_<P>.uplugin) are deleted together with
 their parent plugin; UBT aborts otherwise ("Unable to find parent plugin ...").
@@ -201,6 +202,30 @@ def find_orphans(ue):
     plugs = scan(ue)
     return [e for e in scan_platform_ext(ue, set(plugs))
             if e["name"].endswith("_" + e["platform"]) and not e["parent_exists"]]
+
+def check_uat(ue):
+    """UAT (installed-build mode) throws if any Engine/Intermediate/ScriptModules/*.Automation.json record
+    points at a target dll that does not exist. Records whose csproj lives in a deleted platform dir are
+    stale. Report records whose csproj is missing AND whose target dll is missing (fatal), and
+    csproj-missing-but-dll-present (harmless)."""
+    d = os.path.join(ue, "Engine", "Intermediate", "ScriptModules")
+    bad = []
+    if not os.path.isdir(d):
+        print("check-uat: no ScriptModules dir"); return bad
+    for f in sorted(os.listdir(d)):
+        if not f.endswith(".Automation.json"): continue
+        try: rec = json.load(open(os.path.join(d, f)))
+        except Exception as e:
+            print(f"  {f}: unreadable ({e})"); continue
+        proj = os.path.normpath(os.path.join(d, rec.get("ProjectPath", "")))
+        tgt = os.path.normpath(os.path.join(os.path.dirname(proj), rec.get("TargetPath", "")))
+        if not os.path.exists(tgt):
+            bad.append(f)
+            print(f"  STALE {f}: target dll missing ({tgt}); csproj {'present' if os.path.exists(proj) else 'missing'}")
+    print(f"check-uat: {len(bad)} script-module record(s) with missing target" if bad else "check-uat: all script-module targets exist")
+    if bad:
+        print("  fix: back up Engine/Intermediate/ScriptModules, then delete the listed .json records")
+    return bad
 
 def report_orphans(ue):
     orph = find_orphans(ue)
@@ -558,6 +583,9 @@ def main():
                          "(never Linux). Only marks; deleting still needs --apply --yes")
     ap.add_argument("--check-orphans", action="store_true",
                     help="only check for platform-extension plugins whose parent is missing; exit 1 if any")
+    ap.add_argument("--check-uat", action="store_true",
+                    help="check UAT script-module records (Engine/Intermediate/ScriptModules) for missing target dlls "
+                         "(e.g. after deleting Engine/Platforms/VisionOS); exit 1 if any")
     ap.add_argument("--verify-deps", action="store_true",
                     help="check every remaining plugin's hard deps exist (current tree and planned post-state); exit 1 on violations")
     ap.add_argument("--manifest", default="/home/bojan/ue-5.8.4-uplugin-manifest",
@@ -570,6 +598,8 @@ def main():
     ue = a.ue_root
     global IGNORE_PARSE_ERRORS
     IGNORE_PARSE_ERRORS = a.ignore_parse_errors
+    if a.check_uat:
+        sys.exit(1 if check_uat(ue) else 0)
     if a.check_orphans:
         sys.exit(1 if report_orphans(ue) else 0)
     prune = [x.strip() for x in a.prune_platforms.split(",") if x.strip()]
