@@ -2,7 +2,7 @@
 
 **Milestone:** M0 Infrastructure
 **Agent:** dev
-**Status:** in progress
+**Status:** done
 **Depends on:** —
 
 ## Goal
@@ -32,3 +32,4 @@ The machine is inventoried, every Linux package Unreal Engine 5.8 needs for head
 
 ## Report back
 Standard format. Include the apt commands run and the disk verdict verbatim.
+Done 2026-10-24 by dev. Disk verdict: ~41 GB free, UE 5.8 Linux needs ~75 GB peak → ~34 GB missing; swap 479 MiB nearly full. Escalated to STATUS.md open questions.
