@@ -67,6 +67,7 @@ bool FVeloxMovementSettingsDefaultsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("StopSpeed = 100 u"), P.StopSpeed, 100.f * P.UnitScale);
 	TestEqual(TEXT("AirStrafeMaxWishSpeed = 30 u"), P.AirStrafeMaxWishSpeed, 30.f * P.UnitScale);
 	TestEqual(TEXT("JumpVelocity = 270 u"), P.JumpVelocity, 270.f * P.UnitScale);
+	TestEqual(TEXT("AirControlScale = 32 u"), P.AirControlScale, 32.f * P.UnitScale);
 	TestEqual(TEXT("GravityZ = -800 u"), P.GravityZ, -800.f * P.UnitScale);
 	TestEqual(TEXT("StepHeight = 18 u"), P.StepHeight, 18.f * P.UnitScale);
 	TestEqual(TEXT("RampSlideMinNormalSpeed = 10 u"), P.RampSlideMinNormalSpeed, 10.f * P.UnitScale);
@@ -333,6 +334,24 @@ bool FVeloxMovementKnockbackTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Grace expired after 25 ticks"), S.KnockbackGrace, 0.f);
 	VeloxMoveSim::StepFrame(S, FVeloxMoveInput(), Dt, P);
 	TestTrue(TEXT("Tick 26: friction resumes"), FMath::IsNearlyEqual(S.Velocity.X, 1250.0 * (1.0 - P.GroundFriction * Dt), 1e-3));
+
+	// ADR 0002 A6: during grace the ground move accelerates with AirAcceleration (Q3 PMF_TIME_KNOCKBACK).
+	{
+		const FVector V0(1250.0, 0.0, 0.0);
+		const FVeloxMoveInput Side = Wish(FVector(0.0, 1.0, 0.0), P.MaxGroundSpeed, false, true);
+		const FVector InGrace = VeloxMoveSim::GroundMove(V0, Side, Dt, 0.2f, P);
+		TestTrue(*FString::Printf(TEXT("Grace: X untouched (%.6f)"), InGrace.X), InGrace.X == 1250.0);
+		const double ExpectedAirY = static_cast<double>(P.AirAcceleration) * Dt * P.MaxGroundSpeed;
+		TestTrue(*FString::Printf(TEXT("Grace: Y gain = AirAcceleration*dt*MaxGroundSpeed (%.6f vs %.6f)"), InGrace.Y, ExpectedAirY),
+			FMath::IsNearlyEqual(InGrace.Y, ExpectedAirY, 1e-3));
+		const FVector NoGrace = VeloxMoveSim::GroundMove(V0, Side, Dt, 0.f, P);
+		TestTrue(*FString::Printf(TEXT("No grace: X has friction drop (%.6f)"), NoGrace.X),
+			FMath::IsNearlyEqual(NoGrace.X, 1250.0 * (1.0 - P.GroundFriction * Dt), 1e-3));
+		const double ExpectedGroundY = static_cast<double>(P.GroundAcceleration) * Dt * P.MaxGroundSpeed;
+		TestTrue(*FString::Printf(TEXT("No grace: Y gain = GroundAcceleration*dt*MaxGroundSpeed (%.6f vs %.6f)"), NoGrace.Y, ExpectedGroundY),
+			FMath::IsNearlyEqual(NoGrace.Y, ExpectedGroundY, 1e-3));
+		TestTrue(TEXT("Grace accel is weaker than ground accel"), InGrace.Y < NoGrace.Y);
+	}
 
 	const FVector V(100.0, 0.0, 0.0), Up(0.0, 0.0, 500.0);
 	TestTrue(TEXT("Override sets velocity"), VeloxMoveSim::ApplyKnockback(V, Up, true) == Up);

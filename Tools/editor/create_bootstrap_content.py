@@ -147,7 +147,7 @@ def build_data(actions):
             "air_strafe_acceleration": 70.0,
             "air_strafe_max_wish_speed": 75.0,
             "air_control": 150.0,
-            "air_control_scale": 32.0,
+            "air_control_scale": 80.0,
             "jump_velocity": 675.0,
             "auto_hop": True,
             "gravity_z": -2000.0,

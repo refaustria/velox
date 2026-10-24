@@ -90,7 +90,10 @@ namespace VeloxMoveSim
 	/** CPM air control: turns the XY velocity towards WishDir without changing its length. Caller gates on input. */
 	VELOX_API FVector AirControl(const FVector& V, const FVector& WishDir, float Dt, const FVeloxMoveParams& P);
 
-	/** Ground velocity update (friction unless KnockbackGrace > 0, then accelerate), substepped. Z untouched. */
+	/**
+	 * Ground velocity update, substepped, Z untouched. Per substep: friction + accelerate with GroundAcceleration; while
+	 * KnockbackGrace > 0 (Q3 PMF_TIME_KNOCKBACK) no friction and accelerate with AirAcceleration instead.
+	 */
 	VELOX_API FVector GroundMove(const FVector& V, const FVeloxMoveInput& In, float Dt, float KnockbackGrace, const FVeloxMoveParams& P);
 
 	/** Air velocity update (vanilla or CPM), substepped, no gravity. Z untouched. */

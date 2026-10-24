@@ -92,9 +92,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Air|CPM", Meta = (ClampMin = "0.0"))
 	float AirControl = 150.0f;
 
-	/** CPM: air control constant k (32). */
+	/** CPM: air control constant k (cm/s; CPM k 32 in Q3 units * UnitScale; a speed added to v_unit*speed). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Air|CPM", Meta = (ClampMin = "0.0"))
-	float AirControlScale = 32.0f;
+	float AirControlScale = 80.0f;
 
 	// --- Jump / gravity ---
 

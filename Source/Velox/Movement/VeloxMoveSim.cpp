@@ -83,13 +83,15 @@ namespace VeloxMoveSim
 		float Grace = KnockbackGrace;
 		for (int32 i = 0; i < N; ++i)
 		{
-			if (Grace <= GraceEpsilon)
+			// Q3 PM_WalkMove under PMF_TIME_KNOCKBACK: no friction and pm_airaccelerate instead of pm_accelerate.
+			const bool bInGrace = Grace > GraceEpsilon;
+			if (!bInGrace)
 			{
 				Result = ApplyFriction(Result, H, P);
 			}
 			if (WishSpeed > 0.f)
 			{
-				Result = Accelerate(Result, WishDir, WishSpeed, P.GroundAcceleration, H);
+				Result = Accelerate(Result, WishDir, WishSpeed, bInGrace ? P.AirAcceleration : P.GroundAcceleration, H);
 			}
 			Grace -= H;
 		}
