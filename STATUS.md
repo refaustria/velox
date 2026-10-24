@@ -17,10 +17,11 @@ _Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **Build RED after the trim (round 2).** `trim-plugins.py` treated the `Enabled: false` entries in `Velox.uproject` (HairStrands, ModelingToolsEditorMode, from the ADR 0001 disable list) as cuts in the dependency graph and therefore missed hard dependencies: default-on `Interchange` links `HairStrandsCore/Editor`, `SkeletalMeshModelingTools` links `ModelingToolsEditorMode`, `IKRig` links `UAF`. Binary-level scan (readelf NEEDED over 1579 .so) confirms exactly these three plugins must come back: `Engine/Plugins/Runtime/HairStrands`, `Engine/Plugins/Editor/ModelingToolsEditorMode`, `Engine/Plugins/Experimental/UAF/UAF`. Restore = targeted extraction from the engine zip → needs a **fresh signed download URL from the human** (question 9). Trim script fixed: closure ignores project disables, hard deps verified before/after apply, parse errors abort. The two wrong disables were removed from `Velox.uproject`.
+- **M0-04** content bootstrap (`L_Empty`, IMC/IA assets, pawn/movement data assets) via headless editor Python — running.
+- Engine trim finished: after four targeted re-extractions (HairStrands, ModelingToolsEditorMode, UAF/UAFAnimGraph and their deps) the build and tests are **green** again on the trimmed engine (45 GB, 34 GB free). `trim-plugins.py` now builds its keep-closure over .uplugin, Build.cs and readelf edges and verifies all three before/after apply.
 
 ## Blocked
-- **M0-04** content bootstrap (`L_Empty`, input assets, data assets): waits for the engine trim to finish (editor must not run while plugins are deleted).
+- (none)
 - Mac client build: human has Xcode but no UE 5.8 yet (Epic Games Launcher install needed, ~40 GB).
 
 ## Next
@@ -35,5 +36,5 @@ _Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-
 5. **Renderer decision (veto window).** ADR 0001 picks forward renderer + MSAA + baked static lighting (Q3-style readability, max fps). This shapes all M5 art. Veto now if you prefer deferred + TAA.
 6. **Scale.** Netcode defaults assume ≤ 16 players per server until M6. Confirm.
 7. ~~Delete `Engine/Platforms/{Android,IOS,VisionOS}`~~ — approved and done 2026-10-24.
-9. **Fresh UE 5.8 Linux download link needed** (the old one expired): same page https://www.unrealengine.com/en-US/linux, right-click the 5.8 download → copy link, paste it in chat. I will stream only three plugin folders (~400 MB) out of the 39.8 GB zip, nothing is stored on disk.
+9. ~~Fresh download link~~ — provided and used 2026-10-24 (four targeted extractions).
 8. ~~ADR 0002 defaults~~ — approved 2026-10-24 as written (vanilla Q3, CPM air control off, ground accel 10, unit scale 2.5, auto-hop on).
