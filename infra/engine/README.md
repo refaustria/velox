@@ -120,3 +120,25 @@ Plugin-level checks are not enough: a kept plugin's `*.Build.cs` (also lowercase
 `/home/bojan/ue-5.8.4-uplugin-manifest`, the original `.uplugin` files) says a now-deleted plugin provided it; otherwise it is informational
 ("pre-existing/unknown"). Names in `ALLOWLIST` (top of the check section: GRDK, DiaSDK, Catch2, uLangCore, uLangJSON, LinuxTargetPlatformSettings) are
 always informational-silent. Limitation: Build.cs parsing is textual, platform-conditional references (`if (Target.Platform == ...)`) are included. `--apply` is refused on any violation.
+
+### Keep-closure over a unified dependency graph (computed, not only verified)
+
+The deletion set is the complement of a keep-closure computed over three edge types, iterated to a fixed point from the roots
+(EnabledByDefault + uproject-enabled + `EXTRA_ROOTS`/`PROTECTED_OPTIONAL` + plugins referenced from the project's Build.cs):
+
+1. `uplugin`: `.uplugin` hard dependency (`Enabled:true`, not `Optional`).
+2. `build.cs`: a module of plugin A lists module M in `Public/PrivateDependencyModuleNames`, `DynamicallyLoadedModuleNames` or
+   `Public/PrivateIncludePathModuleNames`; M's owner is the plugin whose directory contains `M.Build.cs` (fallback: the `--manifest` provider).
+   Modules defined only in `Engine/Source` create no edge.
+3. `readelf`: a `.so` of plugin A has `NEEDED libUnrealEditor-M.so`; edge to the owner of M.
+
+The report section "Why each non-root plugin is kept" lists, per kept plugin, the edge types and examples
+(e.g. `UAF kept: IKRig/IKRigUAF.build.cs -> UAF`), and which plugins are kept only via build.cs/readelf edges. The aggressive (denylist)
+blockers use the same graph. The verification layers above remain the final guard before `--apply`.
+
+Platform-conditional heuristic: a Build.cs reference is ignored (reported as "platform-conditional (ignored)", not a violation and not an edge) when it
+sits inside an `if (...)` block (braced or single statement; else-branches are treated as active) whose condition (a) mentions only non-Linux
+platforms positively (`Win64, Win32, Windows, Mac, Android, IOS, TVOS, VisionOS, Apple, Microsoft, Switch, PS4, PS5, Sony, Xbox*, GDK, ...`) or `!= Linux`
+(also `!IsInPlatformGroup(Unix)`), or (b) is a lone identifier declared `bool X = false;` in that file and never reassigned there
+(a flag only platform subclasses flip, e.g. `bUseXbl` guarding `OnlineSubsystemGDK` in `Party.Build.cs`). Any positive Linux/Unix mention,
+a negated non-Linux platform, or an unrecognised condition counts as active (conservative).

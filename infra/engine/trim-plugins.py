@@ -280,24 +280,84 @@ def strip_cs_comments(t):
         i += 1
     return "".join(out)
 
-def parse_build_cs(path):
-    """Referenced module names from the dependency lists of one Build.cs (comments stripped, calls paren-balanced)."""
+_LINUX_RE = re.compile(r"\b(?:Linux|LinuxArm64|LinuxX64|Unix)\b")
+_OTHER_PLAT_RE = re.compile(r"\b(?:Win64|Win32|Windows|Mac|Android|IOS|TVOS|VisionOS|Apple|Microsoft|Switch|PS4|PS5|Sony|"
+                            r"XboxOne|Xbox|GDK|HoloLens|Lumin|Quail)\b")
+_NEG_RE = re.compile(r"(?:!=\s*(?:Unreal(?:TargetPlatform|PlatformGroup)\s*\.\s*)?|!\s*[\w\.]*IsInPlatformGroup\s*\(\s*"
+                     r"(?:UnrealPlatformGroup\s*\.\s*)?)$")
+
+def _match_close(t, i, open_c, close_c):
+    """t[i-1] is open_c; return index just after the matching close_c (strings respected)."""
+    depth, instr, j = 1, False, i
+    while j < len(t) and depth:
+        c = t[j]
+        if instr:
+            if c == "\\": j += 1
+            elif c == '"': instr = False
+        elif c == '"': instr = True
+        elif c == open_c: depth += 1
+        elif c == close_c: depth -= 1
+        j += 1
+    return j
+
+def platform_condition_kind(cond):
+    """Heuristic for the condition of an `if (...)` in a Build.cs: 'other' if the guarded block is for non-Linux
+    platforms only (positive mention of Win64/Mac/Android/GDK/... without a positive Linux/Unix mention, or `!= Linux`),
+    else 'active'. Mixed or unrecognised conditions are 'active' (conservative: the reference counts)."""
+    pos_lin = neg_lin = pos_oth = neg_oth = False
+    for rx, is_lin in ((_LINUX_RE, True), (_OTHER_PLAT_RE, False)):
+        for m in rx.finditer(cond):
+            neg = bool(_NEG_RE.search(cond[:m.start()]))
+            if is_lin: neg_lin |= neg; pos_lin |= not neg
+            else: neg_oth |= neg; pos_oth |= not neg
+    if pos_lin or neg_oth: return "active"
+    if neg_lin or pos_oth: return "other"
+    return "active"
+
+def _if_blocks(t):
+    """[(cond, body_start, body_end)] for every `if (cond) {...}` / `if (cond) stmt;` in comment-stripped text."""
+    out = []
+    for m in re.finditer(r"\bif\s*\(", t):
+        ce = _match_close(t, m.end(), "(", ")")
+        cond = t[m.end():ce - 1]
+        k = ce
+        while k < len(t) and t[k].isspace(): k += 1
+        if k < len(t) and t[k] == "{": end = _match_close(t, k + 1, "{", "}")
+        else:
+            end = t.find(";", k); end = len(t) if end < 0 else end + 1
+        out.append((cond, k, end))
+    return out
+
+_BCS_CACHE = {}
+
+def parse_build_cs_ex(path):
+    """{referenced module: None if referenced unconditionally (or inside a Linux-relevant condition), else the
+    platform-conditional `if` condition text}. Comments stripped, calls paren-balanced."""
+    if path in _BCS_CACHE: return _BCS_CACHE[path]
     t = strip_cs_comments(open(path, encoding="utf-8-sig", errors="replace").read())
-    refs = set()
+    ifs = _if_blocks(t)
+    # flags declared `bool X = false;` and never assigned again in this file (only a platform subclass could set them)
+    dead = {n for n in re.findall(r"\bbool\s+(\w+)\s*=\s*false\s*;", t)
+            if len(re.findall(r"\b" + n + r"\s*=(?!=)", t)) == 1}
+    refs = {}
     for m in _DEP_RE.finditer(t):
-        i, depth, instr = m.end(), 1, False
-        j = i
-        while j < len(t) and depth:
-            c = t[j]
-            if instr:
-                if c == "\\": j += 1
-                elif c == '"': instr = False
-            elif c == '"': instr = True
-            elif c == "(": depth += 1
-            elif c == ")": depth -= 1
-            j += 1
-        refs.update(_STR_RE.findall(t[i:j]))
+        i = m.end()
+        j = _match_close(t, i, "(", ")")
+        cond = None
+        for c, bs, be in ifs:
+            if not (bs <= m.start() < be): continue
+            cs = c.strip()
+            if cs in dead: cond = f"{cs} [constant-false flag]"; break
+            if platform_condition_kind(c) == "other": cond = " ".join(c.split()); break
+        for r in _STR_RE.findall(t[i:j]):
+            if r not in refs: refs[r] = cond
+            elif cond is None: refs[r] = None   # any unconditional occurrence makes the reference count
+    _BCS_CACHE[path] = refs
     return refs
+
+def parse_build_cs(path):
+    """Referenced module names that count for Linux (platform-conditional references excluded)."""
+    return {r for r, c in parse_build_cs_ex(path).items() if c is None}
 
 def fs_index(ue):
     """One walk: all *.build.cs (case-insensitive) under Engine/Source, Plugins, Platforms and all *.so under
@@ -346,38 +406,122 @@ def verify_modules(ue, plug_dirs, deleted_dirs, manifest, existing):
     bcs = [b for b in bcs if not _under(b, deleted_dirs)]
     defined = {os.path.basename(b)[:-9].lower() for b in bcs}
     pd = sorted(plug_dirs.items(), key=lambda kv: -len(kv[1]))
-    viol, unk = [], []
+    viol, unk, cond = [], [], []
     for b in bcs:
         owner = next((n for n, d in pd if b.startswith(d + os.sep)), None)
         if owner is None: continue  # engine Source modules: not checked (not removable by this script)
         mod = os.path.basename(b)[:-9]
-        for ref in sorted(parse_build_cs(b)):
+        for ref, c in sorted(parse_build_cs_ex(b).items()):
             if ref.lower() in defined: continue
+            if c is not None:
+                if classify(ref, manifest, existing)[0] != "allow": cond.append((f"{owner}/{mod}", ref, c))
+                continue
             kind, prov = classify(ref, manifest, existing)
             row = (f"{owner}/{mod}", ref, prov)
             if kind == "violation": viol.append(row)
             elif kind == "unknown": unk.append(row)
-    return sorted(viol), sorted(unk)
+    return sorted(viol), sorted(unk), sorted(cond)
 
-def verify_binaries(ue, deleted_dirs, manifest, existing):
-    """NEEDED libUnrealEditor-*.so not present in the kept set. Returns (violations, unknown) of (so, needed, providers)."""
+_NEEDED_CACHE = {}
+
+def needed_map(ue):
+    """{so path: set of NEEDED libUnrealEditor-<Module>.so names} for every indexed .so (readelf, cached)."""
+    if ue in _NEEDED_CACHE: return _NEEDED_CACHE[ue]
     _, sos = fs_index(ue)
-    sos = [s for s in sos if not _under(s, deleted_dirs)]
-    have = {os.path.basename(s) for s in sos}
-    viol, unk = [], []
+    res = {s_: set() for s_ in sos}
     for i in range(0, len(sos), 150):
         cur = None
         p = subprocess.run(["readelf", "-d", "-W", *sos[i:i+150]], capture_output=True, text=True, errors="replace")
         for line in p.stdout.splitlines():
             if line.startswith("File: "): cur = line[6:].strip(); continue
-            m = re.search(r"\(NEEDED\)\s+Shared library: \[(libUnrealEditor-([^\]]+)\.so)\]", line)
-            if m and cur and m.group(1) not in have:
-                mod = m.group(2)
-                kind, prov = classify(mod, manifest, existing)
-                row = (os.path.relpath(cur, ue), m.group(1), prov)
-                if kind == "violation": viol.append(row)
-                elif kind == "unknown": unk.append(row)
+            m = re.search(r"\(NEEDED\)\s+Shared library: \[(libUnrealEditor-[^\]]+\.so)\]", line)
+            if m and cur in res: res[cur].add(m.group(1))
+    _NEEDED_CACHE[ue] = res
+    return res
+
+def verify_binaries(ue, deleted_dirs, manifest, existing):
+    """NEEDED libUnrealEditor-*.so not present in the kept set. Returns (violations, unknown) of (so, needed, providers)."""
+    nm = needed_map(ue)
+    sos = [s_ for s_ in nm if not _under(s_, deleted_dirs)]
+    have = {os.path.basename(s_) for s_ in sos}
+    viol, unk = [], []
+    for so in sos:
+        for lib in sorted(nm[so]):
+            if lib in have: continue
+            kind, prov = classify(lib[len("libUnrealEditor-"):-3], manifest, existing)
+            row = (os.path.relpath(so, ue), lib, prov)
+            if kind == "violation": viol.append(row)
+            elif kind == "unknown": unk.append(row)
     return sorted(viol), sorted(unk)
+
+# ---- unified dependency graph (keep-closure) -----------------------------------------------------
+def build_edges(ue, plugs, pext, manifest):
+    """edges[src] = list of (dst, type, detail), type in {'uplugin','build.cs','readelf'}; src/dst are plugin names in `plugs`.
+      uplugin : Enabled, non-Optional entry in src's .uplugin
+      build.cs: a module of src lists module M in a Dependency/DynamicallyLoaded/IncludePath list, M owned by plugin dst
+                (owner = plugin whose dir contains M.build.cs, else the manifest provider). References inside an `if` whose
+                condition is non-Linux-only are skipped and returned in `cond_ignored`.
+      readelf : a src .so NEEDs libUnrealEditor-M.so, M owned by dst
+    Returns (edges, cond_ignored)."""
+    dirs = {n: p["path"] for n, p in plugs.items()}
+    ext_parent = {e["name"]: e["parent"] for e in pext if e["parent"] in plugs}
+    dirs.update({e["name"]: e["path"] for e in pext})
+    pd = sorted(dirs.items(), key=lambda kv: -len(kv[1]))
+    def owner_of(path):
+        n = next((n for n, d in pd if path.startswith(d + os.sep)), None)
+        return ext_parent.get(n, n) if n else None
+    lc = {n.lower(): n for n in plugs}
+    modowner = {}                                   # module (lower) -> plugin
+    for n, p in plugs.items():
+        for m in p["modules"]:
+            if m[0]: modowner.setdefault(m[0].lower(), n)
+    bcs, _ = fs_index(ue)
+    engine_defs = set()
+    for b in bcs:
+        o = owner_of(b); mod = os.path.basename(b)[:-9].lower()
+        if o: modowner.setdefault(mod, o)
+        else: engine_defs.add(mod)
+    def owners(mod):
+        o = modowner.get(mod.lower())
+        if o: return [o]
+        if mod.lower() in engine_defs: return []
+        return [lc[x.lower()] for x in (manifest or {}).get(mod.lower(), []) if x.lower() in lc]
+    edges = {n: [] for n in plugs}
+    for n, p in plugs.items():
+        for dn, e, o in p["deps"]:
+            if e and not o and dn in plugs: edges[n].append((dn, "uplugin", f"{n}.uplugin lists {dn}"))
+    cond_ignored = []
+    for b in bcs:
+        src = owner_of(b)
+        if not src: continue
+        mod = os.path.basename(b)[:-9]
+        for ref, c in sorted(parse_build_cs_ex(b).items()):
+            for dst in owners(ref):
+                if dst == src: continue
+                if c is not None: cond_ignored.append((src, f"{src}/{mod}.build.cs", ref, dst, c))
+                else: edges[src].append((dst, "build.cs", f"{src}/{mod}.build.cs -> {ref}"))
+    for so, libs in needed_map(ue).items():
+        src = owner_of(so)
+        if not src: continue
+        for lib in sorted(libs):
+            mod = lib[len("libUnrealEditor-"):-3]
+            for dst in owners(mod):
+                if dst != src: edges[src].append((dst, "readelf", f"{os.path.basename(so)} NEEDS {lib}"))
+    return edges, cond_ignored
+
+def closure_graph(roots, plugs, edges):
+    """Fixed point over all edge types. Returns (keep, why): why[n] = list of (src, type, detail) from kept sources."""
+    seen, st = set(), [r for r in roots if r in plugs]
+    while st:
+        n = st.pop()
+        if n in seen: continue
+        seen.add(n)
+        st.extend(d for d, _, _ in edges.get(n, []) if d not in seen)
+    why = {n: [] for n in seen}
+    for n in seen:
+        for d, t, det in edges.get(n, []):
+            if d in why: why[d].append((n, t, det))
+    return seen, why
 
 def run_layer_checks(title, ue, plugs, pext, deleted_dirs, manifest, mdir):
     """Prints module-level and binary-level results; returns number of violations."""
@@ -386,9 +530,10 @@ def run_layer_checks(title, ue, plugs, pext, deleted_dirs, manifest, mdir):
     plug_dirs = {n: p["path"] for n, p in plugs.items()}
     plug_dirs.update({e["name"]: e["path"] for e in pext})
     existing = {n for n, d in plug_dirs.items() if not _under(d, deleted_dirs)}
-    mv, mu = verify_modules(ue, plug_dirs, deleted_dirs, manifest, existing)
+    mv, mu, mc = verify_modules(ue, plug_dirs, deleted_dirs, manifest, existing)
     print(f"verify-deps [{title}] module-level (Build.cs): {len(mv)} violation(s), {len(mu)} pre-existing/unknown (informational)")
     for o, r, pr in mv: print(f"  VIOLATION {o} -> {r} (provided by deleted plugin: {', '.join(pr)})")
+    for o, r, c in mc: print(f"  platform-conditional (ignored) {o} -> {r} [in if ({c[:80]})]")
     for o, r, pr in mu[:40]: print(f"  info {o} -> {r} (manifest: {', '.join(pr) or 'not in manifest'})")
     if len(mu) > 40: print(f"  info ... {len(mu) - 40} more")
     bv, bu = verify_binaries(ue, deleted_dirs, manifest, existing)
@@ -442,15 +587,17 @@ def main():
     roots = {n for n, p in plugs.items() if p["enabled_default"]} | en | EXTRA_ROOTS | modroots
     roots -= dis
     roots = {r for r in roots if r in plugs}
-    keep = closure(roots, plugs)
-    conflicts = sorted((n, dn) for n in keep for dn, e, o in plugs[n]["deps"] if e and not o and dn in dis)
+    manifest = load_manifest(a.manifest)
+    if manifest is None: print(f"warn: manifest {a.manifest!r} missing; module ownership limited to the current tree", file=sys.stderr)
+    edges, cond_ignored = build_edges(ue, plugs, pext, manifest)
+    keep, why = closure_graph(roots, plugs, edges)
+    conflicts = sorted({(n, dn) for n in keep for dn, t, _ in edges[n] if dn in dis})
     if conflicts:
         print(f"uproject conflicts: {len(conflicts)} plugin(s) disabled in the .uproject but hard-required by kept plugins (they are KEPT):")
         for n, dn in conflicts: print(f"  {dn} (Enabled:false in uproject) <- required by {n}")
     rdeps = {n: [] for n in plugs}
-    for n, p in plugs.items():
-        for dn, e, opt in p["deps"]:
-            if dn in rdeps: rdeps[dn].append((n, e, opt))
+    for n in plugs:
+        for dn in {d for d, _, _ in edges[n]}: rdeps[dn].append((n, True, False))
     unref = sorted(set(plugs) - keep)
     # nested plugin dirs: deleting a parent dir would delete children; only delete a plugin dir if
     # every plugin below it is also deleted.
@@ -519,6 +666,25 @@ def main():
     L.append(f"- Kept (roots + transitive hard deps): {len(keep)}; unreferenced (never loaded by this project): {len(unref)}")
     L.append(f"- **Safe deletion total: {hs(sum(sz(n) for n in top))}** ({len(top)} dirs: {hs(sum(sz(n) for n in top if n not in is_agg))} unreferenced + {hs(sum(sz(n) for n in top if n in is_agg))} aggressive)\n")
     L.append("Dependency note: only hard deps (`Enabled:true`, not `Optional`) count as blockers. Optional deps just degrade features, but the engine/editor modules of a kept plugin may still `#include` nothing from them at link time because optional modules are loaded dynamically.\n")
+    L.append("## Why each non-root plugin is kept (edge types: uplugin = .uplugin hard dep, build.cs = module dep, readelf = binary NEEDED)\n")
+    L.append("Keep-closure is computed over the union of all three edge types; reasons list kept sources only.\n")
+    nonuplugin_only = [n for n in keep if n not in roots and why[n] and not any(t == "uplugin" for _, t, _ in why[n])]
+    L.append(f"- Kept only through build.cs/readelf edges (invisible to the .uplugin graph): {len(nonuplugin_only)}: {', '.join(sorted(nonuplugin_only)) or 'none'}\n")
+    L.append("| Plugin | Edge types | Examples |\n|---|---|---|")
+    for n in sorted(keep - roots):
+        w = why[n]; ty = sorted({t for _, t, _ in w})
+        pri = {"build.cs": 0, "readelf": 1, "uplugin": 2}
+        ex = []
+        for t in ("build.cs", "readelf", "uplugin"):
+            ex += [d for _, tt, d in sorted(w) if tt == t][:2]
+        L.append(f"| {n} | {', '.join(ty)} | {'; '.join(ex[:4])}{' ...' if len(w) > 4 else ''} |")
+    L.append("\n## Platform-conditional references (ignored)\n")
+    L.append("Build.cs references inside an `if (...)` whose condition names only non-Linux platforms (heuristic, see README):\n")
+    if cond_ignored:
+        L.append("| Source plugin | Build.cs | Module | Provided by | Condition |\n|---|---|---|---|---|")
+        for sp, b_, r, dst, c in sorted(set(cond_ignored)): L.append(f"| {sp} | {b_} | {r} | {dst} | `{c[:90]}` |")
+    else: L.append("None.")
+    L.append("")
     L.append("## Top 40 plugins by size\n\n| Plugin | Size | Status | Path |\n|---|---|---|---|")
     def status(n):
         if n in top: return "SAFE-DELETE (aggressive)" if n in is_agg else "SAFE-DELETE (unreferenced)"
@@ -593,8 +759,7 @@ def main():
         print_violations("current tree", cur)
         print_violations("planned post-state (all - deletion set)", post)
         bad = post if a.apply else (cur or post)
-        manifest = load_manifest(a.manifest)
-        if a.verify_deps or a.apply:
+        if True:
             del_dirs = [plugs[n]["path"] for n in top] + [e["path"] for e in ext_removed] + prune_dirs
             nl_cur = run_layer_checks("current tree", ue, plugs, pext, [], manifest, a.manifest)
             nl_post = run_layer_checks("planned post-state", ue, plugs, pext, del_dirs, manifest, a.manifest)
