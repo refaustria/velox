@@ -3,6 +3,7 @@
 _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 merged), M1 work on `m1-movement`._
 
 ## Done
+- **M1-02** Quake physics in `UVeloxMovementComponent` (CalcVelocity via sim, auto-hop, ramp slide/exit, knockback consume hook, settings as single writer of engine fields), character geometry from pawn data; architect-reviewed (A9–A16), follow-ups applied. 12 tests green, `L_MovementTest -game -nullrhi` clean.
 - **M1-01** `FVeloxMoveSim` (world-free Q3/CPM sim, fixed 8 ms substeps), full `UVeloxMovementSettings` table (29 fields), 11 movement unit tests; architect-reviewed, two fidelity fixes applied; ADR 0002 amendments A1–A8.
 - **M1-03** `L_MovementTest` greybox map generator (5120 cm corridor with markers, ramps 10–50°, stairs, 3 pad placeholders, 3 gaps) + 12 unlit greybox materials; default map switched.
 - **M0 Infrastructure complete** (2026-10-24), merged to `main`. Final CI: `build.sh --clean` green (VeloxEditor, Velox, 2 tests, `L_Empty` loads). RunUAT repaired after the trim.
@@ -21,7 +22,7 @@ _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M1-02** Quake physics in `UVeloxMovementComponent` (dev-hard) — running. Then architect review → M1-04 (prediction/knockback/jump pads) → M1-05 (tooling, net soak) → M1-06 human playtest on the Mac.
+- **M1-04** prediction fields, knockback flow, jump latch, `AVeloxJumpPad` (dev-hard) — running. Then architect review → M1-05 (tooling, net soak) → M1-06 human playtest on the Mac.
 
 ## Blocked
 - (none)
