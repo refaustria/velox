@@ -1,0 +1,68 @@
+{
+ "name": "StrafeRun",
+ "note": "Corridor start (40,0,100): the PlayerStart at x=0 overlaps the back wall and spawns the pawn at x~38. Strafe-jump along the 5120 cm corridor; peak speed is the measurement (ADR 0002 section 5). Four full hops after the half hop keep the run inside the corridor (the end wall is at x=5120).",
+ "startYaw": 0,
+ "startLocation": [
+  40,
+  0,
+  100
+ ],
+ "rows": [
+  {
+   "duration": 0.3,
+   "forward": 1,
+   "right": 0,
+   "yawRate": 0,
+   "jump": false,
+   "label": "run-up"
+  },
+  {
+   "duration": 0.34,
+   "forward": 1,
+   "right": 1,
+   "yawRate": 33,
+   "jump": true,
+   "label": "strafe right (half)"
+  },
+  {
+   "duration": 0.675,
+   "forward": 1,
+   "right": -1,
+   "yawRate": -33,
+   "jump": true,
+   "label": "strafe left"
+  },
+  {
+   "duration": 0.675,
+   "forward": 1,
+   "right": 1,
+   "yawRate": 33,
+   "jump": true,
+   "label": "strafe right"
+  },
+  {
+   "duration": 0.675,
+   "forward": 1,
+   "right": -1,
+   "yawRate": -33,
+   "jump": true,
+   "label": "strafe left"
+  },
+  {
+   "duration": 0.675,
+   "forward": 1,
+   "right": 1,
+   "yawRate": 33,
+   "jump": true,
+   "label": "strafe right"
+  },
+  {
+   "duration": 0.3,
+   "forward": 0,
+   "right": 0,
+   "yawRate": 0,
+   "jump": false,
+   "label": "end"
+  }
+ ]
+}

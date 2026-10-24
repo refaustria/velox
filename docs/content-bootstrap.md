@@ -38,3 +38,7 @@ Same arguments, with the Launcher install's binary and your project path:
   -unattended -nopause -nosplash -stdout -FullStdOutLogOutput
 ```
 (`-nullrhi` is optional on the Mac.) Alternatively open the editor and run the script via Tools > Execute Python Script.
+
+## Re-running after settings changes
+
+The script is idempotent: existing data assets (e.g. `DA_MovementSettings_Default`) are loaded and every property value in the script is re-applied and saved, so after adding/renaming fields on `UVeloxMovementSettings` just update the value table in `build_data()` and re-run the script. Only the map (`L_Empty`) is skipped if it exists. Note: re-running also re-saves `IMC_Default.uasset`, which may show up as a modified binary in git.

@@ -1,0 +1,26 @@
+{
+ "name": "KnockbackRun",
+ "note": "PlayerStart_Corridor. Stand 1 s, server knockback (1250,0,600), wait 1.5 s (task 05 net soak, script 3).",
+ "startYaw": 0,
+ "startLocation": [
+  40,
+  0,
+  100
+ ],
+ "rows": [
+  {
+   "duration": 1.0,
+   "label": "stand"
+  },
+  {
+   "duration": 1.5,
+   "serverKnockback": [
+    1250,
+    0,
+    600
+   ],
+   "override": false,
+   "label": "knockback"
+  }
+ ]
+}

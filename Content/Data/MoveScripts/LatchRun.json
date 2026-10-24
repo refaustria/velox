@@ -1,0 +1,53 @@
+{
+ "name": "LatchRun",
+ "note": "PlayerStart_Corridor, run with `velox.move.Preset Q3` on server and client (VQ3: bAutoHop off, jump latch). Take-off, release, press again mid-air and hold; a server knockback (0,0,300) mid-air forces a correction with latch=false; first landing jumps (pre-press), second landing (jump held through the landing jump) does not.",
+ "startYaw": 0,
+ "startLocation": [
+  40,
+  0,
+  100
+ ],
+ "rows": [
+  {
+   "duration": 0.6,
+   "forward": 1,
+   "label": "run-up"
+  },
+  {
+   "duration": 0.05,
+   "forward": 1,
+   "jump": true,
+   "label": "take-off press"
+  },
+  {
+   "duration": 0.1,
+   "forward": 1,
+   "jump": false,
+   "label": "release"
+  },
+  {
+   "duration": 0.15,
+   "forward": 1,
+   "jump": true,
+   "label": "press again mid-air"
+  },
+  {
+   "duration": 2.0,
+   "forward": 1,
+   "jump": true,
+   "serverKnockback": [
+    0,
+    0,
+    300
+   ],
+   "override": false,
+   "label": "hold, mid-air knockback"
+  },
+  {
+   "duration": 0.6,
+   "forward": 1,
+   "jump": false,
+   "label": "release"
+  }
+ ]
+}

@@ -1,0 +1,143 @@
+{
+ "name": "PadRun",
+ "note": "PlayerStart_Pads (-300,-2500,100). Walk onto pad B and land on its target marker; walk back onto pad A and land on JumpPadA_Platform; drop off, then onto pad C and land on JumpPadC_Ledge. Legs are dead-reckoned (hold forward, coast to a stop); checkpoints are at the end of each landing. Pad C: JumpPadC_Target is a NoCollision marker at z 680; hold forward only 1.0 s after the launch (apex about 0.8 s) so the pawn lands on the ledge and stops there instead of walking off.",
+ "startYaw": 0,
+ "startLocation": [
+  -300,
+  -2500,
+  100
+ ],
+ "rows": [
+  {
+   "duration": 0.3,
+   "yaw": 0,
+   "label": "settle"
+  },
+  {
+   "duration": 1.2,
+   "forward": 1,
+   "yaw": 0,
+   "label": "to pad B"
+  },
+  {
+   "duration": 2.7,
+   "label": "to pad B coast",
+   "check": {
+    "name": "pad B landing",
+    "box": [
+     1900,
+     -2700,
+     2500,
+     -2300
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 0.55,
+   "forward": 1,
+   "yaw": 90,
+   "label": "north 1"
+  },
+  {
+   "duration": 0.45,
+   "label": "north 1 coast"
+  },
+  {
+   "duration": 3.05,
+   "forward": 1,
+   "yaw": 180,
+   "label": "west"
+  },
+  {
+   "duration": 0.45,
+   "label": "west coast"
+  },
+  {
+   "duration": 0.55,
+   "forward": 1,
+   "yaw": 90,
+   "label": "north 2"
+  },
+  {
+   "duration": 0.45,
+   "label": "north 2 coast"
+  },
+  {
+   "duration": 1.2,
+   "forward": 1,
+   "yaw": 0,
+   "label": "to pad A"
+  },
+  {
+   "duration": 2.7,
+   "label": "to pad A coast",
+   "check": {
+    "name": "pad A platform",
+    "box": [
+     1100,
+     -1700,
+     1500,
+     -1300
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 1.8,
+   "forward": 1,
+   "yaw": -90,
+   "label": "south off platform"
+  },
+  {
+   "duration": 0.45,
+   "label": "south off platform coast"
+  },
+  {
+   "duration": 2.1,
+   "forward": 1,
+   "yaw": 180,
+   "label": "west 2"
+  },
+  {
+   "duration": 0.45,
+   "label": "west 2 coast"
+  },
+  {
+   "duration": 0.55,
+   "forward": 1,
+   "yaw": -90,
+   "label": "south 2"
+  },
+  {
+   "duration": 0.45,
+   "label": "south 2 coast"
+  },
+  {
+   "duration": 3.0,
+   "forward": 1,
+   "yaw": 0,
+   "until": "airborne",
+   "label": "to pad C (until launched)"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "label": "pad C flight, forward onto the ledge"
+  },
+  {
+   "duration": 2.0,
+   "label": "pad C landing coast",
+   "check": {
+    "name": "pad C ledge",
+    "box": [
+     700,
+     -3700,
+     1100,
+     -3300
+    ],
+    "onGround": true
+   }
+  }
+ ]
+}

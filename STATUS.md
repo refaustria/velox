@@ -3,6 +3,13 @@
 _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 merged), M1 work on `m1-movement`._
 
 ## Done
+- **M1-06 checklist** `docs/playtests/m1-movement-checklist.md` written (Mac build, PIE setup with 100 ms / 2 %, 12-row table, recording, sign-off block). `build-mac.sh` got a `timeout` shim (macOS has no coreutils timeout).
+- **M1-05a** debug tooling (`velox.move.*` cvars, HUD block, `showdebug VeloxMovement`, CSV recorder + `Tools/analyze_run.py`), scripted input component with test RPCs, four move scripts, `FT_MovementDeterminism` (bit-identical), scripted regression tests (stairs 100 %, ramp exit Vz = v·tanθ, latch, knockback). 21 tests green. Map defects fixed (ramps, pad C, PlayerStart). ADR A23 corrects the wall-slide expectation (Q3 wall-hug ≈ 943 cm/s).
+- **M1-05b** `infra/ci/nettest.sh` + `build.sh --net-soak`: headless dedicated server + client soak with packet simulation.
+- **M1-04** saved-move fields + combine rules, move-response container with per-timestamp server snapshot, `AddKnockback` flow, jump latch (chained through replay), `AVeloxJumpPad` (AimAtTarget/FixedVelocity, MaxLaunchSpeed validation, map check), pads placed in `L_MovementTest`; architect-reviewed (A17–A22), D1–D6 fixed. 15 tests green.
+- **M1-02** Quake physics in `UVeloxMovementComponent` (CalcVelocity via sim, auto-hop, ramp slide/exit, knockback consume hook, settings as single writer of engine fields), character geometry from pawn data; architect-reviewed (A9–A16), follow-ups applied. 12 tests green, `L_MovementTest -game -nullrhi` clean.
+- **M1-01** `FVeloxMoveSim` (world-free Q3/CPM sim, fixed 8 ms substeps), full `UVeloxMovementSettings` table (29 fields), 11 movement unit tests; architect-reviewed, two fidelity fixes applied; ADR 0002 amendments A1–A8.
+- **M1-03** `L_MovementTest` greybox map generator (5120 cm corridor with markers, ramps 10–50°, stairs, 3 pad placeholders, 3 gaps) + 12 unlit greybox materials; default map switched.
 - **M0 Infrastructure complete** (2026-10-24), merged to `main`. Final CI: `build.sh --clean` green (VeloxEditor, Velox, 2 tests, `L_Empty` loads). RunUAT repaired after the trim.
 - Repo bootstrapped: `ROADMAP.md`, `STATUS.md`, `docs/tasks/TEMPLATE.md`, subagents `dev` / `dev-hard` / `architect` in `.claude/agents/`.
 - **ADR 0001** project & module structure (`docs/adr/0001-project-and-module-structure.md`): one `Velox` module with domain folders, four targets, GAS on PlayerState, CMC saved-move prediction, server-side lag-compensation subsystem, forward renderer + MSAA + static lighting, 60 Hz server tick, test strategy, build-host strategy (Linux headless, Mac client on the human's Mac).
@@ -19,7 +26,8 @@ _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M1 Movement** started: tasks 01 (move sim, dev-hard) and 03 (test map, dev) dispatched in parallel.
+- **M1-05 net soak, round 4.** After A25–A30: full list 4/5 rounds, PadRun 19/20, KnockbackGroundRun 19/20, StrafeRun/KnockbackRun/LatchRun 0 failures. Two residual ≈ 1-in-20 modes under architect root cause: (a) 2 cm stray late in the friction decay (speed ≈ 30 cm/s, a 33 ms merged move inside the window → StopSpeed-regime friction likely partition-dependent), (b) pad entry applied one 1/120 move later on the server without a logged gap (sub-threshold merge or important-move/overlap ordering). Neither blocks compiling/testing; M1 code merges to `main` after the final CI gate so the Mac build comes from `main`; fixes continue on `m1-movement`.
+- ~~Map follow-up (gap run-up)~~ done: runways 1200/2500/4500 cm, pit exit steps, PlayerStarts per runway.
 
 ## Blocked
 - (none)
@@ -30,6 +38,8 @@ _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
 
 ## Open questions for the human
+11. **Crouch out of M1** (architect, ADR 0002 A11): the engine's crouch resizes to class-default capsule geometry, not our pawn-data geometry; fixing it properly belongs to the M2 hitbox/lag-comp design (recommendation: Lyra-style class-default geometry). `bCanCrouch=false` for the M1 playtest. Veto if you want crouching in the movement playtest.
+10. **GitHub push blocked (403).** `gh` is logged in as refaustria with push permission on the repo, but `git push` over HTTPS is denied and no SSH key exists on the VM. Likely the stored token lacks the `repo` write scope. Fix options: run `gh auth refresh -h github.com -s repo` interactively (device-code flow), or add an SSH deploy key with write access. Nothing has been pushed yet; all work is local on `main`, `m0-infrastructure`, `m1-movement`.
 1. ~~Disk space~~ — resolved 2026-10-24: disk cannot be enlarged; freed instead: docker 19 GB, engine trim 17 GB + exclusions, caches/build artefacts 9.8 GB (approved). **35 GB free.** Budget rule from now on: keep ≥ 15 GB free; cooked builds go to `Saved/` and are pruned after upload.
 2. ~~UE 5.8 Linux download~~ — resolved 2026-10-24: human supplied the signed URL; UE 5.8.4 streamed into `/opt/UnrealEngine-5.8` via `bsdtar` (debug symbols, Templates, FeaturePacks, Samples, Documentation excluded to fit the disk).
 3. **Installed vs source engine.** Installed engines (Launcher, Linux zip) cannot build the `VeloxServer`/`VeloxClient` targets; the dedicated server is then `Velox -server`, which is fine until M6. A source build (needs EpicGames GitHub org linked to your Epic account, ~150 GB disk, hours of compile) is needed for M6 shipping. Recommendation: installed engine now, source build before M6. OK?

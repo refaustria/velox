@@ -30,7 +30,8 @@ public class Velox : ModuleRules
 			"Slate",
 			"SlateCore",
 			"PhysicsCore",
-			"DeveloperSettings"
+			"DeveloperSettings",
+			"Json"
 		});
 
 		// Empty in M0; add FunctionalTesting when the first functional test map lands.

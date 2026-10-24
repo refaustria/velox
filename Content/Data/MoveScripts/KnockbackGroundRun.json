@@ -1,0 +1,26 @@
+{
+ "name": "KnockbackGroundRun",
+ "note": "PlayerStart_Corridor. Stand 1 s, server knockback (1250,0,0): the pawn stays Walking (normal speed 0 < RampSlideMinNormalSpeed), so the replay must suppress ground friction for the grace (task 05 net soak, ADR 0002 A24).",
+ "startYaw": 0,
+ "startLocation": [
+  40,
+  0,
+  100
+ ],
+ "rows": [
+  {
+   "duration": 1.0,
+   "label": "stand"
+  },
+  {
+   "duration": 1.5,
+   "serverKnockback": [
+    1250,
+    0,
+    0
+   ],
+   "override": false,
+   "label": "knockback"
+  }
+ ]
+}
