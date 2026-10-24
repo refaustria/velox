@@ -24,7 +24,9 @@ Output is also logged to `$HOME/ue-install-<YYYY-MM-DD>.log`. If `pv` is install
 (`sudo apt-get install -y pv`, optional) it shows a progress bar; otherwise curl's bar is used.
 
 Flags: `--force` (wipe non-empty dest), `--full` (no exclusions), `--check-only` (only run the
-URL size check, exit 0 if it passes; useful to validate a link without touching disk).
+URL size check, exit 0 if it passes; useful to validate a link without touching disk),
+`--trim-plugins` (after extraction delete the plugin list under "Lessons" below),
+`--toolchain <name>` (clang toolchain dir; default `v26_clang-20.1.8-rockylinux8`).
 
 By default these are excluded from extraction: `*.debug`, `*.sym`, `Templates/`, `FeaturePacks/`,
 `Samples/` and `Engine/Documentation/` (at any depth). Use `--full` for a complete install.
@@ -44,7 +46,8 @@ infra/engine/install-ue-linux.sh --force '<new-url>'
 
 ## 4. After extraction
 The script flattens a single top-level directory, checks `Engine/Binaries/Linux/UnrealEditor`
-and `Engine/Build/BatchFiles/Linux/Build.sh`, fixes exec bits, prints `Build.version` and
+and `Engine/Build/BatchFiles/Linux/Build.sh`, restores exec bits (see below), ensures the clang
+toolchain exists, prints `Build.version` and
 whether `Engine/Build/InstalledBuild.txt` exists. Smoke check (no GPU):
 ```
 /opt/UnrealEngine-5.8/Engine/Binaries/Linux/UnrealEditor-Cmd Velox.uproject -nullrhi -unattended -nopause -run=...
@@ -53,3 +56,22 @@ Then `infra/ci/build.sh` with `UE_ROOT=/opt/UnrealEngine-5.8`.
 
 ## Disk
 Needs >= 45 GB free on the destination filesystem (52 GB with `--full`), checked. No temporary zip.
+
+## Lessons from the 2026-10-24 install
+- Actual zip: 39.8 GB. Installed size: 58 GB before trimming.
+- **Exec bits are lost.** Zip stores Unix modes in the central directory, which a stream cannot read,
+  so bsdtar extracts everything non-executable. The script afterwards runs `chmod +x` on all `*.sh`
+  under `Engine`, every ELF file (magic check, not `.so`/`.a`/`.dll`) under `Engine/Binaries` and
+  `Engine/Build`, and `Engine/Binaries/ThirdParty/DotNet/**/dotnet`.
+- **Never remove `Engine/Extras/ThirdPartyNotUE/`.** `SDKs/HostLinux/Linux_x64/<toolchain>` holds the
+  clang toolchain UnrealBuildTool requires (5.8: `v26_clang-20.1.8-rockylinux8`). The folder is
+  ~3.4 GB and required; UBT fails without it. The default exclusions do not touch it. If it is
+  missing after extraction, the script fetches Epic's public tarball
+  `https://cdn.unrealengine.com/Toolchain_Linux/native-linux-<toolchain>.tar.gz` (1.59 GB, no login)
+  and stream-extracts it there. The script tries to read the required name from the engine
+  (`grep` for `v<N>_clang-...` in UnrealBuildTool); if nothing is found it uses the default, or
+  pass `--toolchain <name>`.
+- **Plugins deleted for disk space** (`--trim-plugins` does exactly this, under `Engine/Plugins/`):
+  `MetaHuman`, `VirtualProduction`, `Media/PixelStreaming2`, `Experimental/TextToSpeech`,
+  `Experimental/ProceduralVegetationEditor`, `Runtime/USDCore`, `Runtime/GeoReferencing`.
+  Velox uses none of them; reason was purely disk. Re-extract with `--force` if one is ever needed.

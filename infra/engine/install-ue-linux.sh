@@ -1,26 +1,36 @@
 #!/usr/bin/env bash
 # Stream-install the prebuilt Unreal Engine 5.8 Linux editor without storing the zip.
-# Usage: install-ue-linux.sh [--force] [--full] [--check-only] <download-url> [dest=/opt/UnrealEngine-5.8]
-#   --full        extract everything (no default exclusions; needs ~52 GB free)
-#   --check-only  only run the URL size check, then exit 0 (aborts if < 5 GB)
+# Usage: install-ue-linux.sh [--force] [--full] [--check-only] [--trim-plugins] [--toolchain <name>] <download-url> [dest=/opt/UnrealEngine-5.8]
+#   --full           extract everything (no default exclusions; needs ~52 GB free)
+#   --check-only     only run the URL size check, then exit 0 (aborts if < 5 GB)
+#   --trim-plugins   after extraction delete a fixed list of big, unneeded plugins (disk)
+#   --toolchain <n>  clang toolchain dir name (default v26_clang-20.1.8-rockylinux8)
 set -euo pipefail
 
 MIN_ARCHIVE_GB=5
 FORCE=0
 FULL=0
 CHECK_ONLY=0
+TRIM_PLUGINS=0
+TOOLCHAIN=""
+DEFAULT_TOOLCHAIN="v26_clang-20.1.8-rockylinux8"
 ARGS=()
-for a in "$@"; do
-  case "$a" in
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     --force) FORCE=1 ;;
     --full) FULL=1 ;;
     --check-only) CHECK_ONLY=1 ;;
-    -h|--help) sed -n '2,5p' "$0"; exit 0 ;;
-    *) ARGS+=("$a") ;;
+    --trim-plugins) TRIM_PLUGINS=1 ;;
+    --toolchain)
+      [ "$#" -ge 2 ] || { echo "--toolchain needs a name" >&2; exit 2; }
+      TOOLCHAIN="$2"; shift ;;
+    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
+    *) ARGS+=("$1") ;;
   esac
+  shift
 done
 if [ "${#ARGS[@]}" -lt 1 ] || [ "${#ARGS[@]}" -gt 2 ]; then
-  echo "Usage: $0 [--force] [--full] [--check-only] <download-url> [dest=/opt/UnrealEngine-5.8]" >&2
+  echo "Usage: $0 [--force] [--full] [--check-only] [--trim-plugins] [--toolchain <name>] <download-url> [dest=/opt/UnrealEngine-5.8]" >&2
   exit 2
 fi
 URL="${ARGS[0]}"
@@ -114,10 +124,58 @@ EDITOR_BIN="$DEST/Engine/Binaries/Linux/UnrealEditor"
 BUILD_SH="$DEST/Engine/Build/BatchFiles/Linux/Build.sh"
 [ -e "$EDITOR_BIN" ] || die "missing $EDITOR_BIN"
 [ -e "$BUILD_SH" ] || die "missing $BUILD_SH"
-for f in "$EDITOR_BIN" "$DEST/Engine/Binaries/Linux/UnrealEditor-Cmd" "$BUILD_SH" \
-         "$DEST"/Engine/Build/BatchFiles/Linux/*.sh "$DEST/Engine/Binaries/ThirdParty/DotNet"/*/linux-x64/dotnet; do
-  [ -f "$f" ] && chmod +x "$f"
-done
+# bsdtar cannot read zip central-directory Unix modes from a stream, so exec bits are lost.
+# Restore them: all *.sh, every ELF executable under Engine/Binaries and Engine/Build
+# (not .so/.a/.dll), and the bundled dotnet.
+fix_exec_bits() {
+  root="$1"
+  echo "Restoring exec bits (*.sh, ELF executables, dotnet)..."
+  find "$root/Engine" -type f -name '*.sh' -exec chmod +x {} +
+  for d in "$root/Engine/Binaries" "$root/Engine/Build"; do
+    [ -d "$d" ] || continue
+    find "$d" -type f ! -name '*.so' ! -name '*.so.*' ! -name '*.a' ! -name '*.dll' ! -name '*.pdb' \
+      -exec sh -c 'for f in "$@"; do [ "$(head -c4 "$f")" = "$(printf "\177ELF")" ] && printf "%s\0" "$f"; done' _ {} + \
+      | xargs -0 -r chmod +x
+  done
+  if [ -d "$root/Engine/Binaries/ThirdParty/DotNet" ]; then
+    find "$root/Engine/Binaries/ThirdParty/DotNet" -type f -name dotnet -exec chmod +x {} +
+  fi
+}
+fix_exec_bits "$DEST"
+
+# --- Clang toolchain (REQUIRED by UnrealBuildTool; never exclude or delete) --
+if [ -z "$TOOLCHAIN" ]; then
+  # Try to read the required version from the engine; fall back to the default.
+  found=""
+  for src in "$DEST/Engine/Source/Programs/UnrealBuildTool" "$DEST/Engine/Binaries/DotNET/UnrealBuildTool"; do
+    [ -d "$src" ] || continue
+    found="$(grep -rahoE 'v[0-9]+_clang-[0-9.]+-[a-z0-9]+' "$src" 2>/dev/null | sort | uniq -c | sort -rn | awk 'NR==1{print $2}')"
+    [ -n "$found" ] && break
+  done
+  if [ -n "$found" ]; then TOOLCHAIN="$found"; echo "Toolchain required by engine: $TOOLCHAIN"
+  else TOOLCHAIN="$DEFAULT_TOOLCHAIN"; echo "Could not read toolchain version from engine; using default $TOOLCHAIN"; fi
+fi
+TC_DIR="$DEST/Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64"
+if [ ! -d "$TC_DIR/$TOOLCHAIN" ]; then
+  TC_URL="https://cdn.unrealengine.com/Toolchain_Linux/native-linux-${TOOLCHAIN}.tar.gz"
+  echo "Toolchain $TC_DIR/$TOOLCHAIN missing; fetching $TC_URL (~1.6 GB, no login)"
+  mkdir -p "$TC_DIR"
+  curl -fL --retry 5 --retry-delay 10 --progress-bar "$TC_URL" | bsdtar -xf - -C "$TC_DIR"
+  [ -d "$TC_DIR/$TOOLCHAIN" ] || die "toolchain archive did not produce $TC_DIR/$TOOLCHAIN"
+  find "$TC_DIR/$TOOLCHAIN" -type f -path '*/bin/*' -exec chmod +x {} +
+fi
+echo "Toolchain present: $TC_DIR/$TOOLCHAIN"
+
+# --- Optional plugin trim (disk) ---------------------------------------------
+if [ "$TRIM_PLUGINS" -eq 1 ]; then
+  for p in MetaHuman VirtualProduction Media/PixelStreaming2 Experimental/TextToSpeech \
+           Experimental/ProceduralVegetationEditor Runtime/USDCore Runtime/GeoReferencing; do
+    if [ -d "$DEST/Engine/Plugins/$p" ]; then
+      echo "Trimming Engine/Plugins/$p"; rm -rf -- "${DEST:?}/Engine/Plugins/$p"
+    fi
+  done
+fi
+
 
 echo "--- Engine/Build/Build.version"
 cat "$DEST/Engine/Build/Build.version" 2>/dev/null || echo "(missing)"

@@ -25,3 +25,9 @@ UE 5.8 Linux needs roughly 25 GB download plus ~50 GB installed (about 75 GB pea
 
 ## Packages installed for UE (apt)
 build-essential, clang, lld, cmake, ninja-build, git-lfs, unzip, p7zip-full, rsync, libsdl2-dev, libvulkan1, mesa-vulkan-drivers, vulkan-tools, libxcursor1, libxinerama1, libxrandr2, libxi6, libxss1, libgl1, libglu1-mesa, libssl-dev, libicu-dev, libatomic1, python3-pip. No dotnet (UE bundles its own).
+
+## Engine
+- Unreal Engine 5.8.4 (CL 58902052) at `/opt/UnrealEngine-5.8`, installed (prebuilt) build.
+- Trimmed: default exclusions plus plugins MetaHuman, VirtualProduction, PixelStreaming2, TextToSpeech, ProceduralVegetationEditor, USDCore, GeoReferencing (disk). See `infra/engine/README.md`.
+- Clang toolchain `v26_clang-20.1.8-rockylinux8` present under `Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/` (required, ~3.4 GB, do not delete).
+- Swapfile 4 GB at `/swapfile` added 2026-10-24.
