@@ -2,7 +2,7 @@
 
 **Milestone:** M1 Movement
 **Agent:** dev
-**Status:** todo
+**Status:** done (2026-10-25; Round 4 acceptance: full ×5 5/5, PadRun 20/20, KnockbackGroundRun 20/20, Σ strays 2)
 **Depends on:** 02, 04 (including the task-04 review fixes D1–D3, ADR 0002 A17–A19)
 
 ## Goal

@@ -1,8 +1,9 @@
 # Velox Status
 
-_Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 merged), M1 work on `m1-movement`._
+_Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main` (M0 + M1 code merged); M1 closes with the human playtest._
 
 ## Done
+- **M1-05 complete (2026-10-25).** Headless net soak at 100 ms / 2 % loss both ways passes acceptance after four fix rounds (A24–A34): full list ×5 5/5, PadRun 20/20, KnockbackGroundRun 20/20, StrafeRun+PadRun ×10 with Σ strays ≤ 2.5 cm = 2 (baseline 6). Fixes: ack/correction race guard, partition-invariant grace, important/event moves resent, trapezoid ground displacement, Velox OldMove selection. 25 automation tests green.
 - **M1-06 checklist** `docs/playtests/m1-movement-checklist.md` written (Mac build, PIE setup with 100 ms / 2 %, 12-row table, recording, sign-off block). `build-mac.sh` got a `timeout` shim (macOS has no coreutils timeout).
 - **M1-05a** debug tooling (`velox.move.*` cvars, HUD block, `showdebug VeloxMovement`, CSV recorder + `Tools/analyze_run.py`), scripted input component with test RPCs, four move scripts, `FT_MovementDeterminism` (bit-identical), scripted regression tests (stairs 100 %, ramp exit Vz = v·tanθ, latch, knockback). 21 tests green. Map defects fixed (ramps, pad C, PlayerStart). ADR A23 corrects the wall-slide expectation (Q3 wall-hug ≈ 943 cm/s).
 - **M1-05b** `infra/ci/nettest.sh` + `build.sh --net-soak`: headless dedicated server + client soak with packet simulation.
@@ -26,7 +27,7 @@ _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M1-05 net soak, round 4 acceptance running** (full list ×5, PadRun ×20, KnockbackGroundRun ×20, StrafeRun+PadRun ×10 with Σ strays ≤ 2). Round 4 fixes landed: trapezoid ground displacement (A31, merged-move position error 4–5 cm → 0.03–0.1 cm), Velox OldMove selection with event-move priority (A32, every pad entry provably resent), repair/resend instrumentation, 25 tests green. Open for architect: the implementer widened the A31 test tolerances to the A1 substep residual (sim 0.5 % / 0.1 cm, FT 1 % / 0.15 cm). Neither blocks compiling/testing; M1 code merges to `main` after the final CI gate so the Mac build comes from `main`; fixes continue on `m1-movement`.
+- **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`. Neither blocks compiling/testing; M1 code merges to `main` after the final CI gate so the Mac build comes from `main`; fixes continue on `m1-movement`.
 - ~~Map follow-up (gap run-up)~~ done: runways 1200/2500/4500 cm, pit exit steps, PlayerStarts per runway.
 
 ## Blocked
@@ -34,6 +35,9 @@ _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 
 - Mac client build: human has Xcode but no UE 5.8 yet (Epic Games Launcher install needed, ~40 GB).
 
 ## Next
+- M1-06 human playtest on the Mac → tuning pass from feedback → M1 sign-off.
+- Then M2 Combat: `architect` ADR 0003 (GAS structure for weapons/health/armor, lag compensation, hitboxes incl. the crouch/capsule decision A11, recorded self-knockback channel A17), then tasks.
+- Open for architect (minor): A31 test tolerances were widened to the A1 substep residual by the implementer; confirm or tighten via FixedStep.
 - M0-04 → full CI run → merge `m0-infrastructure` into `main` → M1 Movement: `architect` ADR 0002 (movement component design), then tasks.
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
 
