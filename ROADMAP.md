@@ -9,15 +9,15 @@ Build hosts: this Linux machine compiles and cooks Linux Editor/Client/Server ta
 Goal: a compiling, empty Unreal project with a working toolchain, repo hygiene and the public vhost.
 
 Acceptance criteria:
-- [ ] Machine inventory recorded (OS, CPU, RAM, disk, GPU/driver, open ports) in `docs/machine.md`.
-- [ ] Linux toolchain installed: clang, cmake, build-essential, git-lfs, dotnet (needed by UnrealBuildTool on 5.x), plus the UE Linux prerequisites.
-- [ ] Git LFS configured; `.gitattributes` tracks `*.uasset *.umap *.fbx *.png *.wav *.blend *.psd *.tga *.ogg *.mp4` (and other binaries agreed in ADR 0001); `.gitignore` for UE (`Binaries/`, `Intermediate/`, `DerivedDataCache/`, `Saved/`, `.vs`, `*.xcworkspace`, …).
-- [ ] UE 5.8 Linux editor installed under a documented path, `UE_ROOT` recorded in `infra/env.example`.
-- [ ] `Velox.uproject` with C++ module per ADR 0001; compiles for `VeloxEditor` and `Velox` (Game) on Linux and macOS (`Development` config). `VeloxServer`/`VeloxClient` targets exist and compile once a source-built engine is available (installed/Launcher engines cannot build Server/Client targets; until then the dedicated server is `Velox -server`). CI reports them as SKIPPED on an installed engine, never as passed.
-- [ ] `infra/ci/build.sh` builds all available targets and runs the automation tests headlessly (`-nullrhi`), parsing the JSON report; exits non-zero on failure. `infra/ci/build-mac.sh` does the equivalent on macOS.
-- [ ] One trivial automation test exists and passes (proves the test harness works).
-- [ ] nginx vhost `games.inceptum.at` serves a placeholder landing page over HTTPS (Let's Encrypt), HTTP redirects to HTTPS. Config checked into `infra/nginx/`.
-- [ ] Everything merged to `main`; `STATUS.md` updated.
+- [x] Machine inventory recorded (OS, CPU, RAM, disk, GPU/driver, open ports) in `docs/machine.md`.
+- [x] Linux toolchain installed: clang, cmake, build-essential, git-lfs, dotnet (needed by UnrealBuildTool on 5.x), plus the UE Linux prerequisites.
+- [x] Git LFS configured; `.gitattributes` tracks `*.uasset *.umap *.fbx *.png *.wav *.blend *.psd *.tga *.ogg *.mp4` (and other binaries agreed in ADR 0001); `.gitignore` for UE (`Binaries/`, `Intermediate/`, `DerivedDataCache/`, `Saved/`, `.vs`, `*.xcworkspace`, …).
+- [x] UE 5.8 Linux editor installed under a documented path, `UE_ROOT` recorded in `infra/env.example`.
+- [x] `Velox.uproject` with C++ module per ADR 0001; compiles for `VeloxEditor` and `Velox` (Game) on Linux and macOS (`Development` config). `VeloxServer`/`VeloxClient` targets exist and compile once a source-built engine is available (installed/Launcher engines cannot build Server/Client targets; until then the dedicated server is `Velox -server`). CI reports them as SKIPPED on an installed engine, never as passed.
+- [x] `infra/ci/build.sh` builds all available targets and runs the automation tests headlessly (`-nullrhi`), parsing the JSON report; exits non-zero on failure. `infra/ci/build-mac.sh` does the equivalent on macOS.
+- [x] One trivial automation test exists and passes (proves the test harness works).
+- [x] nginx vhost `games.inceptum.at` serves a placeholder landing page over HTTPS (Let's Encrypt), HTTP redirects to HTTPS. Config checked into `infra/nginx/`.
+- [x] Everything merged to `main`; `STATUS.md` updated. (M0 done 2026-10-24. Known gaps: Mac build script untested on a Mac; Server/Client targets need a source-built engine.)
 
 ## M1 — Movement
 

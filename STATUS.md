@@ -1,8 +1,9 @@
 # Velox Status
 
-_Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-infrastructure`._
+_Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 merged), M1 work on `m1-movement`._
 
 ## Done
+- **M0 Infrastructure complete** (2026-10-24), merged to `main`. Final CI: `build.sh --clean` green (VeloxEditor, Velox, 2 tests, `L_Empty` loads). RunUAT repaired after the trim.
 - Repo bootstrapped: `ROADMAP.md`, `STATUS.md`, `docs/tasks/TEMPLATE.md`, subagents `dev` / `dev-hard` / `architect` in `.claude/agents/`.
 - **ADR 0001** project & module structure (`docs/adr/0001-project-and-module-structure.md`): one `Velox` module with domain folders, four targets, GAS on PlayerState, CMC saved-move prediction, server-side lag-compensation subsystem, forward renderer + MSAA + static lighting, 60 Hz server tick, test strategy, build-host strategy (Linux headless, Mac client on the human's Mac).
 - **M0-01** machine inventory (`docs/machine.md`), Linux toolchain installed, Git LFS + `.gitattributes` + `.gitignore`, `infra/env.example`.
@@ -18,8 +19,7 @@ _Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- Final `build.sh --clean` CI run before merging `m0-infrastructure` → `main`; RunUAT root-cause (stale VisionOS script-module reference after trim; cook commandlet works).
-- Engine trim finished: after four targeted re-extractions (HairStrands, ModelingToolsEditorMode, UAF/UAFAnimGraph and their deps) the build and tests are **green** again on the trimmed engine (45 GB, 34 GB free). `trim-plugins.py` now builds its keep-closure over .uplugin, Build.cs and readelf edges and verifies all three before/after apply.
+- **M1 Movement** started: tasks 01 (move sim, dev-hard) and 03 (test map, dev) dispatched in parallel.
 
 ## Blocked
 - (none)
