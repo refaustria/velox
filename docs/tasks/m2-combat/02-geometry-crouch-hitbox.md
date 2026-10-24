@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (2026-10-25)
 **Depends on:** 01
 
 ## Goal

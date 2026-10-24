@@ -12,6 +12,7 @@ Implement ADR 0003 implementation-notes task **`08-fire-nettest`** (`docs/adr/00
 - `Content/Data/MoveScripts/FireRun.json`, `RocketJumpRun.json`, `Source/Velox/Movement/VeloxScriptedInputComponent.*` (fire/weapon-select events), `infra/ci/nettest.sh`, `infra/ci/README.md`
 
 ## Acceptance criteria
+- [ ] `CrouchRun` added to the default `nettest.sh` script list.
 - [ ] FireRun: ≥ 9/10 rail hits on a strafing dummy at 100 ms / 2 %, 0 rejected MG shots; RocketJumpRun: ≤ 1 non-echo correction ≤ 5 cm (A17 acceptance); 5/5 rounds.
 - [ ] `infra/ci/build.sh` green (all `Velox.*` tests); M1 soak unaffected where the ADR says so.
 
