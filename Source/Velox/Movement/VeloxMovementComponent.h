@@ -159,6 +159,13 @@ public:
 	/** The `showdebug VeloxMovement` block (non-shipping; empty in shipping). */
 	void DisplayVeloxDebug(class UCanvas* Canvas, float& YL, float& YPos) const;
 
+	/**
+	 * Simulated proxy: the server stamp of the pose currently drawn (Linear smoothing's SmoothingClientTimeStamp, in the
+	 * domain of GetServerLastTransformUpdateTimeStamp on the server). The lag-comp hint of ADR 0003 section 6. 0 when
+	 * the component has no client prediction data (server, before the first update).
+	 */
+	double GetRenderedServerStamp() const;
+
 	/** Server: Velox state snapshot for the correction queued by the last failed error check (A18). */
 	const FVeloxCorrectionState& GetServerCorrectionState() const { return ServerCorrectionState; }
 
@@ -169,6 +176,7 @@ public:
 	virtual float GetMaxBrakingDeceleration() const override;
 	virtual float GetGravityZ() const override;
 	virtual bool CanAttemptJump() const override;
+	virtual bool CanCrouchInCurrentState() const override;
 	virtual bool DoJump(bool bReplayingMoves, float DeltaTime) override;
 	virtual bool ClientUpdatePositionAfterServerUpdate() override;
 

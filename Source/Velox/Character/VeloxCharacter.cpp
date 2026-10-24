@@ -5,7 +5,10 @@
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxHealthComponent.h"
+#include "Combat/VeloxHitboxComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Core/VeloxCollisionChannels.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Core/VeloxLog.h"
 #include "Core/VeloxPawnData.h"
@@ -26,8 +29,25 @@
 AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UVeloxMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
-	// Crouch disabled in M1: engine crouch restores CDO capsule geometry, ours comes from pawn data (ADR 0002 A11).
-	GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = false;
+	// Pawn geometry as class defaults (ADR 0003 section 6, crouch decision (c) of ADR 0002 A11): the engine's crouch code
+	// restores and measures against the class default object, so this is the one source of geometry. A Blueprint
+	// subclass may override these and PawnData->PawnClass points at it. Q3 at UnitScale 2.5: box 30 x 30 x 56 u
+	// standing, crouch box -24..16 u (100 cm), viewheight 26 u standing (55 cm above the centre) and 12 u crouched (16 u
+	// = 40 cm above the crouched centre).
+	GetCapsuleComponent()->InitCapsuleSize(VeloxCharacterGeometry::CapsuleRadius, VeloxCharacterGeometry::CapsuleHalfHeight);
+	BaseEyeHeight = VeloxCharacterGeometry::EyeHeight;
+	GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = true;
+	// SetCrouchedHalfHeight would derive CrouchedEyeHeight (0.8 x half height) through the owner; set it explicitly after.
+	GetCharacterMovement()->SetCrouchedHalfHeight(VeloxCharacterGeometry::CrouchedHalfHeight);
+	CrouchedEyeHeight = VeloxCharacterGeometry::CrouchedEyeHeight;
+
+	// Hitscan never hits collision volumes of pawns: hits on pawns are resolved against UVeloxHitboxComponent poses by
+	// lag compensation (ADR 0003 section 6). World geometry blocks the Weapon channel.
+	GetCapsuleComponent()->SetCollisionResponseToChannel(Velox_TraceChannel_Weapon, ECR_Ignore);
+	if (USkeletalMeshComponent* MeshComponent = GetMesh())
+	{
+		MeshComponent->SetCollisionResponseToChannel(Velox_TraceChannel_Weapon, ECR_Ignore);
+	}
 
 	// FPS: the capsule takes the controller yaw; pitch and roll are view-only (ADR 0002 section 1).
 	bUseControllerRotationYaw = true;
@@ -49,6 +69,7 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 #endif
 
 	HealthComponent = CreateDefaultSubobject<UVeloxHealthComponent>(TEXT("HealthComponent"));
+	HitboxComponent = CreateDefaultSubobject<UVeloxHitboxComponent>(TEXT("HitboxComponent"));
 
 	// DefaultInputComponentClass stays EnhancedInputComponent (ADR 0001); Velox pawns use the tag-binding subclass.
 	OverrideInputComponentClass = UVeloxInputComponent::StaticClass();
@@ -89,7 +110,7 @@ const UVeloxPawnData* AVeloxCharacter::GetPawnData() const
 
 void AVeloxCharacter::PostInitializeComponents()
 {
-	// Runs identically on server and clients, so geometry and movement settings match on both ends of the prediction.
+	// Runs identically on server and clients, so movement settings match on both ends of the prediction.
 	if (!PawnData && !DefaultPawnData.IsNull())
 	{
 		PawnData = DefaultPawnData.LoadSynchronous();
@@ -98,9 +119,6 @@ void AVeloxCharacter::PostInitializeComponents()
 			UE_LOG(LogVelox, Warning, TEXT("%s: failed to load pawn data [%s]."), *GetName(), *DefaultPawnData.ToString());
 		}
 	}
-
-	// Before Super: ACharacter::PostInitializeComponents updates the nav agent from the capsule.
-	ApplyPawnGeometry();
 
 	Super::PostInitializeComponents();
 
@@ -124,28 +142,25 @@ void AVeloxCharacter::PostInitializeComponents()
 	}
 }
 
-void AVeloxCharacter::ApplyPawnGeometry()
+void AVeloxCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
-	if (!PawnData)
-	{
-		return;
-	}
-
-	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
-	{
-		Capsule->SetCapsuleSize(PawnData->CapsuleRadius, PawnData->CapsuleHalfHeight);
-	}
-	BaseEyeHeight = PawnData->EyeHeight;
+	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	LogCrouchState(TEXT("start"));
 }
 
-void AVeloxCharacter::RecalculateBaseEyeHeight()
+void AVeloxCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
-	if (PawnData && !IsCrouched())
-	{
-		BaseEyeHeight = PawnData->EyeHeight;
-		return;
-	}
-	Super::RecalculateBaseEyeHeight();
+	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	LogCrouchState(TEXT("end"));
+}
+
+void AVeloxCharacter::LogCrouchState(const TCHAR* Event) const
+{
+	const UCapsuleComponent* Capsule = GetCapsuleComponent();
+	const UCharacterMovementComponent* Movement = GetCharacterMovement();
+	UE_LOG(LogVelox, Log, TEXT("VeloxCrouch: %s pawn=%s role=%s half_height=%.2f eye=%.2f z=%.2f onGround=%d"), Event, *GetName(),
+		*UEnum::GetValueAsString(GetLocalRole()), Capsule ? Capsule->GetUnscaledCapsuleHalfHeight() : 0.f, BaseEyeHeight,
+		GetActorLocation().Z, Movement ? Movement->IsMovingOnGround() : 0);
 }
 
 void AVeloxCharacter::PossessedBy(AController* NewController)

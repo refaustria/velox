@@ -3,6 +3,7 @@
 #include "Movement/VeloxScriptedInputComponent.h"
 
 #include "Character/VeloxCharacter.h"
+#include "Components/CapsuleComponent.h"
 #include "Containers/Ticker.h"
 #include "Core/VeloxLog.h"
 #include "Dom/JsonObject.h"
@@ -259,6 +260,7 @@ bool UVeloxScriptedInputComponent::LoadScriptFromJson(const FString& Json, const
 		Row.Right = ReadNumber(Obj, TEXT("right"), 0.f);
 		Row.YawRate = ReadNumber(Obj, TEXT("yawRate"), 0.f);
 		Obj->TryGetBoolField(TEXT("jump"), Row.bJump);
+		Obj->TryGetBoolField(TEXT("crouch"), Row.bCrouch);
 		Obj->TryGetBoolField(TEXT("override"), Row.bKnockbackOverride);
 		Obj->TryGetStringField(TEXT("label"), Row.Label);
 		double YawValue;
@@ -300,6 +302,7 @@ bool UVeloxScriptedInputComponent::LoadScriptFromJson(const FString& Json, const
 				Check.bHasBox = true;
 			}
 			Check.bCheckOnGround = (*CheckObj)->TryGetBoolField(TEXT("onGround"), Check.bOnGround);
+			Check.bCheckCrouched = (*CheckObj)->TryGetBoolField(TEXT("crouched"), Check.bCrouched);
 			Row.Check = Check;
 		}
 		Parsed.Rows.Add(MoveTemp(Row));
@@ -327,6 +330,7 @@ bool UVeloxScriptedInputComponent::StartScript()
 	Yaw = Script.StartYaw;
 	CurrentRow = INDEX_NONE;
 	bJumpHeldByScript = false;
+	bCrouchHeldByScript = false;
 	LastSeenCorrections = Movement->GetNumCorrections();
 	TimeStarted = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 	bRunning = true;
@@ -531,6 +535,20 @@ void UVeloxScriptedInputComponent::ApplyRow(const FVeloxScriptRow& Row, float De
 		Character->StopJumping();
 	}
 	bJumpHeldByScript = Row.bJump;
+
+	// Same as Input_CrouchStarted / Input_CrouchCompleted.
+	if (Row.bCrouch != bCrouchHeldByScript)
+	{
+		if (Row.bCrouch)
+		{
+			Character->Crouch();
+		}
+		else
+		{
+			Character->UnCrouch();
+		}
+	}
+	bCrouchHeldByScript = Row.bCrouch;
 }
 
 void UVeloxScriptedInputComponent::EvaluateCheck(const FVeloxScriptRow& Row)
@@ -557,12 +575,17 @@ void UVeloxScriptedInputComponent::EvaluateCheck(const FVeloxScriptRow& Row)
 	{
 		bOk = false;
 	}
+	if (Check.bCheckCrouched && Character->bIsCrouched != Check.bCrouched)
+	{
+		bOk = false;
+	}
 	++Result.ChecksRun;
 	if (!bOk)
 	{
 		++Result.ChecksFailed;
 	}
-	UE_LOG(LogVeloxNet, Log, TEXT("VeloxScript: check '%s' %s st=%.3f pos=%s onGround=%d"), *Check.Name, bOk ? TEXT("PASS") : TEXT("FAIL"), ScriptTime, *Location.ToCompactString(), Movement->IsOnGround());
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxScript: check '%s' %s st=%.3f pos=%s onGround=%d crouched=%d half_height=%.2f eye=%.2f"), *Check.Name, bOk ? TEXT("PASS") : TEXT("FAIL"), ScriptTime,
+		*Location.ToCompactString(), Movement->IsOnGround(), Character->bIsCrouched ? 1 : 0, Character->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight(), Character->BaseEyeHeight);
 }
 
 void UVeloxScriptedInputComponent::ReleaseInput()
@@ -577,9 +600,14 @@ void UVeloxScriptedInputComponent::ReleaseInput()
 				Movement->SetJumpHeld(false);
 				Character->StopJumping();
 			}
+			if (bCrouchHeldByScript)
+			{
+				Character->UnCrouch();
+			}
 		}
 	}
 	bJumpHeldByScript = false;
+	bCrouchHeldByScript = false;
 }
 
 void UVeloxScriptedInputComponent::Finish(const TCHAR* Reason)

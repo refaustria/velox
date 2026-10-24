@@ -36,6 +36,8 @@ struct FVeloxScriptCheck
 	bool bHasBox = false;
 	bool bOnGround = false;
 	bool bCheckOnGround = false;
+	bool bCrouched = false;
+	bool bCheckCrouched = false;
 };
 
 struct FVeloxScriptRow
@@ -45,6 +47,8 @@ struct FVeloxScriptRow
 	float Right = 0.f;
 	float YawRate = 0.f;
 	bool bJump = false;
+	/** Crouch held (Character->Crouch/UnCrouch on change, as Input_Crouch*). */
+	bool bCrouch = false;
 	/** Row ends early (script time skips to its end) once the pawn is airborne / on the ground; Duration is the maximum. */
 	enum class EUntil : uint8 { None, Airborne, Ground };
 	EUntil Until = EUntil::None;
@@ -162,6 +166,7 @@ private:
 	bool bQuitOnFinish = false;
 	bool bDrivenExternally = false;
 	bool bJumpHeldByScript = false;
+	bool bCrouchHeldByScript = false;
 	float ScriptTime = 0.f;
 	float Yaw = 0.f;
 	int32 CurrentRow = INDEX_NONE;

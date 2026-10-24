@@ -5,6 +5,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/VeloxHitMath.h"
 
 /** Tunables of the damage math, built from UVeloxCombatSettings (cvar overrides applied there). */
 struct FVeloxCombatParams
@@ -126,16 +127,26 @@ struct FVeloxDamageMath
 		return FMath::TruncToInt32(static_cast<float>(Damage) * (1.f - FMath::Max(Dist, 0.f) / Radius));
 	}
 
-	/**
-	 * Distance from Origin to the surface of a vertical capsule (0 inside). The FVeloxHitShape overload of ADR 0003
-	 * section 2 arrives with FVeloxHitMath (task 02) and forwards here.
-	 */
+	/** Distance from Origin to the surface of a vertical capsule (0 inside). */
 	static float ClosestCapsuleDistance(const FVector& Origin, const FVector& Centre, float Radius, float HalfHeight)
 	{
 		const double SegmentHalf = FMath::Max(static_cast<double>(HalfHeight - Radius), 0.0);
 		const double Z = FMath::Clamp(Origin.Z, Centre.Z - SegmentHalf, Centre.Z + SegmentHalf);
 		const FVector Closest(Centre.X, Centre.Y, Z);
 		return FMath::Max(static_cast<float>(FVector::Dist(Origin, Closest)) - Radius, 0.f);
+	}
+
+	/**
+	 * ADR 0003 section 2: splash distance to a hit shape. M2 shapes are vertical capsules and forward to the overload
+	 * above; a tilted shape (M5 per-bone) uses the general segment distance of FVeloxHitMath.
+	 */
+	static float ClosestCapsuleDistance(const FVector& Origin, const FVeloxHitShape& Shape)
+	{
+		if (Shape.Axis.Equals(FVector::UpVector, 1e-4))
+		{
+			return ClosestCapsuleDistance(Origin, Shape.Centre, Shape.Radius, Shape.HalfHeight);
+		}
+		return static_cast<float>(FVeloxHitMath::PointShapeDistance(Origin, Shape));
 	}
 
 	/** Q3: dir = target - origin, dir.z += 24 u (ZOffset in cm), normalised. Zero if degenerate. */

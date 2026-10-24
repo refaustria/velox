@@ -69,6 +69,7 @@ def build_input():
         "IA_Move": make_action("IA_Move", VT.AXIS2D),
         "IA_Look": make_action("IA_Look", VT.AXIS2D),
         "IA_Jump": make_action("IA_Jump", VT.BOOLEAN),
+        "IA_Crouch": make_action("IA_Crouch", VT.BOOLEAN),
         "IA_Fire": make_action("IA_Fire", VT.BOOLEAN),
     }
     imc, _ = get_or_create("/Game/Input", "IMC_Default", unreal.InputMappingContext,
@@ -94,6 +95,7 @@ def build_input():
     # AVeloxCharacter applies AddControllerPitchInput(-Y) if its convention differs.
     imc.map_key(actions["IA_Look"], key("Mouse2D"))
     imc.map_key(actions["IA_Jump"], key("SpaceBar"))
+    imc.map_key(actions["IA_Crouch"], key("LeftControl"))
     imc.map_key(actions["IA_Fire"], key("LeftMouseButton"))
 
     dkm = imc.get_editor_property("default_key_mappings")
@@ -176,6 +178,7 @@ def build_data(actions):
             entry(actions["IA_Move"], "InputTag.Move"),
             entry(actions["IA_Look"], "InputTag.Look.Mouse"),
             entry(actions["IA_Jump"], "InputTag.Jump"),
+            entry(actions["IA_Crouch"], "InputTag.Crouch"),
         ])
         ic.set_editor_property("ability_input_actions", [entry(actions["IA_Fire"], "InputTag.Fire")])
         save(ic)
@@ -185,10 +188,7 @@ def build_data(actions):
         pd.set_editor_property("pawn_class", unreal.VeloxCharacter.static_class())
         pd.set_editor_property("movement_settings", ms)
         pd.set_editor_property("input_config", ic)
-        # ADR 0002 section 1 pawn geometry (cm): Q3 box 30 x 30 x 56 u, eye 50 u above the feet.
-        pd.set_editor_property("capsule_radius", 37.5)
-        pd.set_editor_property("capsule_half_height", 70.0)
-        pd.set_editor_property("eye_height", 55.0)
+        # Pawn geometry (capsule, crouch, eye heights) is a class default of the pawn class (ADR 0003 section 6).
         save(pd)
 
 

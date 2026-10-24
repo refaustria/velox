@@ -4,8 +4,8 @@
 
 ## Assets created
 - `/Game/Maps/L_Empty` - 100x100 m floor (static), `PlayerStart`, static `DirectionalLight` and `SkyLight`.
-- `/Game/Input/IA_Move` (Axis2D, WASD), `IA_Look` (Axis2D, Mouse2D, no modifiers), `IA_Jump` (bool, Space), `IA_Fire` (bool, LMB), `IMC_Default`.
-- `/Game/Data/DA_MovementSettings_Default` (ADR 0002 section 1 values for the fields that exist), `DA_InputConfig_Default` (IA_* to `InputTag.*`), `DA_PawnData_Default` (`AVeloxCharacter`, the two above).
+- `/Game/Input/IA_Move` (Axis2D, WASD), `IA_Look` (Axis2D, Mouse2D, no modifiers), `IA_Jump` (bool, Space), `IA_Crouch` (bool, Left Ctrl), `IA_Fire` (bool, LMB), `IMC_Default`.
+- `/Game/Data/DA_MovementSettings_Default` (ADR 0002 section 1 values for the fields that exist), `DA_InputConfig_Default` (IA_* to `InputTag.*`), `DA_PawnData_Default` (`AVeloxCharacter`, the two above; pawn geometry is a class default of the pawn class, ADR 0003 section 6).
 - `Config/DefaultGame.ini` points `DefaultMappingContext` and `DefaultPawnData` at them.
 
 ## Linux (this VM, no GPU)

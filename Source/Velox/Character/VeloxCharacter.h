@@ -13,10 +13,21 @@ class UAbilitySystemComponent;
 class UInputComponent;
 class UVeloxAbilitySystemComponent;
 class UVeloxHealthComponent;
+class UVeloxHitboxComponent;
 class UVeloxMovementComponent;
 class UVeloxScriptedInputComponent;
 class UVeloxPawnData;
 struct FInputActionValue;
+
+/** Class-default pawn geometry (cm), ADR 0003 section 6. Blueprint subclasses may override the resulting defaults. */
+namespace VeloxCharacterGeometry
+{
+	inline constexpr float CapsuleRadius = 37.5f;
+	inline constexpr float CapsuleHalfHeight = 70.f;
+	inline constexpr float EyeHeight = 55.f;
+	inline constexpr float CrouchedHalfHeight = 50.f;
+	inline constexpr float CrouchedEyeHeight = 40.f;
+}
 
 UCLASS(Config = Game)
 class VELOX_API AVeloxCharacter : public ACharacter, public IAbilitySystemInterface, public IGameplayCueInterface
@@ -43,6 +54,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Velox|Character")
 	UVeloxHealthComponent* GetHealthComponent() const { return HealthComponent; }
 
+	UFUNCTION(BlueprintPure, Category = "Velox|Character")
+	UVeloxHitboxComponent* GetHitboxComponent() const { return HitboxComponent; }
+
 	//~IGameplayCueInterface
 	/** Native cue handling (ADR 0003 section 5); M2 task 04 forwards to UVeloxCombatFeedbackComponent. */
 	virtual void HandleGameplayCue(UObject* Self, FGameplayTag GameplayCueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters) override;
@@ -55,9 +69,13 @@ public:
 	virtual void UnPossessed() override;
 	virtual void OnRep_PlayerState() override;
 	virtual void OnRep_Controller() override;
-	/** Standing eye height comes from pawn data (the engine would restore the class default on Restart/UnCrouch). */
-	virtual void RecalculateBaseEyeHeight() override;
 	//~End of APawn interface
+
+	//~ACharacter interface
+	/** Logs `VeloxCrouch: start|end` with half height and eye height (server, owning client and proxies). */
+	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	//~End of ACharacter interface
 
 	//~AActor interface
 	/** `showdebug VeloxMovement` forwards to UVeloxMovementComponent::DisplayVeloxDebug (ACharacter only does so for Physics). */
@@ -76,8 +94,7 @@ protected:
 	/** Server: PossessedBy. Owning client: OnRep_PlayerState. Owner = PlayerState, avatar = this pawn. */
 	void InitAbilityActorInfo();
 
-	/** Capsule size and eye height from pawn data; identical on server and clients. */
-	void ApplyPawnGeometry();
+	void LogCrouchState(const TCHAR* Event) const;
 
 	void Input_Move(const FInputActionValue& InputActionValue);
 	void Input_MoveCompleted(const FInputActionValue& InputActionValue);
@@ -98,6 +115,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
 	TObjectPtr<UVeloxHealthComponent> HealthComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
+	TObjectPtr<UVeloxHitboxComponent> HitboxComponent;
 
 private:
 	TArray<uint32> AbilityInputBindHandles;

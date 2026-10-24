@@ -1,0 +1,56 @@
+{
+ "name": "CrouchRun",
+ "note": "PlayerStart_Corridor. M2 task 02: ground crouch 70 -> 50 / eye 55 -> 40 and back; crouch pressed in the air is refused (ADR 0003 section 6).",
+ "startYaw": 0,
+ "startLocation": [
+  40,
+  0,
+  100
+ ],
+ "rows": [
+  {
+   "duration": 0.5,
+   "label": "stand",
+   "check": { "name": "standing", "onGround": true, "crouched": false }
+  },
+  {
+   "duration": 1.0,
+   "crouch": true,
+   "label": "crouch",
+   "check": { "name": "crouched_on_ground", "onGround": true, "crouched": true }
+  },
+  {
+   "duration": 0.3,
+   "crouch": true,
+   "forward": 1.0,
+   "label": "crouch_walk"
+  },
+  {
+   "duration": 0.7,
+   "label": "uncrouch",
+   "check": { "name": "uncrouched", "onGround": true, "crouched": false }
+  },
+  {
+   "duration": 0.5,
+   "jump": true,
+   "until": "airborne",
+   "label": "jump"
+  },
+  {
+   "duration": 0.25,
+   "crouch": true,
+   "label": "crouch_in_air",
+   "check": { "name": "air_crouch_refused", "onGround": false, "crouched": false }
+  },
+  {
+   "duration": 1.5,
+   "until": "ground",
+   "label": "land"
+  },
+  {
+   "duration": 0.5,
+   "label": "settle",
+   "check": { "name": "landed_standing", "onGround": true, "crouched": false }
+  }
+ ]
+}

@@ -63,6 +63,11 @@ UVeloxMovementComponent::UVeloxMovementComponent(const FObjectInitializer& Objec
 	NetworkSimulatedSmoothLocationTime = 0.1f;
 	bNetworkSkipProxyPredictionOnNetUpdate = true;
 
+	// ADR 0003 section 6: Linear smoothing draws simulated proxies on the server trajectory interpolated at
+	// SmoothingClientTimeStamp (in that pawn's stamp domain), so a client can name the pose it aimed at
+	// (GetRenderedServerStamp). The engine default (Exponential) has no such stamp.
+	NetworkSmoothingMode = ENetworkSmoothingMode::Linear;
+
 	SetNetworkMoveDataContainer(VeloxNetworkMoveDataContainer);
 	SetMoveResponseDataContainer(VeloxMoveResponseDataContainer);
 }
@@ -448,6 +453,24 @@ void UVeloxMovementComponent::ProcessLanded(const FHitResult& Hit, float remaini
 
 	// After a jump the rest of the tick runs as PhysFalling (air acceleration, no friction).
 	StartNewPhysics(remainingTime, Iterations);
+}
+
+bool UVeloxMovementComponent::CanCrouchInCurrentState() const
+{
+	// ADR 0003 section 6 (A11 option (c)): ground only. A mid-air capsule shrink would become a +20 cm crouch-jump that
+	// Q3 does not have (Q3's air duck is cosmetic). Leaving the ground while crouched uncrouches (engine,
+	// UpdateCharacterStateBeforeMovement) where there is room.
+	return Super::CanCrouchInCurrentState() && IsMovingOnGround();
+}
+
+double UVeloxMovementComponent::GetRenderedServerStamp() const
+{
+	if (!HasPredictionData_Client())
+	{
+		return 0.0;
+	}
+	const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character();
+	return ClientData ? ClientData->SmoothingClientTimeStamp : 0.0;
 }
 
 bool UVeloxMovementComponent::CanAttemptJump() const
