@@ -1,6 +1,6 @@
 # Velox Status
 
-_Last updated: 2026-10-24 (session 1, project lead). Branch: `m0-infrastructure`._
+_Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-infrastructure`._
 
 ## Done
 - Repo bootstrapped: `ROADMAP.md`, `STATUS.md`, `docs/tasks/TEMPLATE.md`, subagents `dev` / `dev-hard` / `architect` in `.claude/agents/`.
@@ -8,20 +8,24 @@ _Last updated: 2026-10-24 (session 1, project lead). Branch: `m0-infrastructure`
 - **M0-01** machine inventory (`docs/machine.md`), Linux toolchain installed, Git LFS + `.gitattributes` + `.gitignore`, `infra/env.example`.
 - **M0-02** `https://games.inceptum.at` live: nginx vhost, Let's Encrypt (valid to 2027-01-22, auto-renew), placeholder landing page, `/downloads/` and `/status/` locations prepared. Config in `infra/nginx/`.
 
+- **M0-03** Unreal project skeleton: all classes/targets/config from ADR 0001; two-reviewer static pass, then **compiled green on this VM** (VeloxEditor 62 s, Velox 67 s, Development). Review findings applied (incl. removal of the nonexistent `bUseIris` target setting).
+- **M0-05** CI scripts `infra/ci/build.sh` / `build-mac.sh` / `lib.sh`: real run green, automation report parsed, tests `Velox.Core.Smoke` and `Velox.Movement.SavedMoveFlags` pass.
+- **M0-06** UE 5.8.4 (CL 58902052, installed build) at `/opt/UnrealEngine-5.8`, streamed from Epic's S3 link without on-disk archive; clang toolchain v26 restored from Epic's public CDN; exec bits fixed; 4 GB swapfile. Installer hardened (`infra/engine/install-ue-linux.sh`: ranged-GET size check, anchored exclusions, exec-bit fix, toolchain fetch, sanity check, optional plugin trim).
+- Dependency-aware engine trim tooling (`infra/engine/trim-plugins.py`, `TRIM-REPORT.md`).
+
 ## In progress
-- **M0-03** Unreal project skeleton (dev-hard) — all classes/targets/config from ADR 0001; cannot be compiled on this VM (no engine), so it gets a two-reviewer static pass (ADR conformance + compile-error hunt) before commit.
-- **M0-05** CI scripts `infra/ci/build.sh` / `build-mac.sh` (dev) — verified via `--dry-run` against a fake engine tree.
+- Engine trim being applied (≈8.6 GB dependency-safe plugins + Android/ARM64 binaries ≈8 GB) with a verification build afterwards.
 
 ## Blocked
-- **M0-06** UE 5.8 install on this VM: needs ~100 GB free (41 GB available) and the Epic download — see open questions.
-- **M0-04** content bootstrap (`L_Empty`, input assets, data assets): needs a running editor (this VM after 06, or the Mac).
-- First real compile of the skeleton: needs UE 5.8 on the Mac or on this VM.
+- **M0-04** content bootstrap (`L_Empty`, input assets, data assets): waits for the engine trim to finish (editor must not run while plugins are deleted).
+- Mac client build: human has Xcode but no UE 5.8 yet (Epic Games Launcher install needed, ~40 GB).
 
 ## Next
-- Merge M0-03/05 once reviewed → human compiles on the Mac (`infra/ci/build-mac.sh`) → fix anything the real compiler finds → M0-04 → merge `main` → M1 (movement) ADR + tasks.
+- M0-04 → full CI run → merge `m0-infrastructure` into `main` → M1 Movement: `architect` ADR 0002 (movement component design), then tasks.
+- Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
 
 ## Open questions for the human
-1. ~~Disk space~~ — resolved 2026-10-24: freed 19 GB (docker build cache + unused volumes), 59 GB free before engine extraction. Swapfile approved by the human; created after extraction once the remaining space is known. Disk will still be tight for cooked builds; enlarging `vdb` at the hypervisor remains recommended.
+1. **Disk space (ongoing).** The disk cannot be enlarged (human, 2026-10-24). Freed so far: 19 GB docker, ~12 GB engine trimming before extraction, toolchain arm64 parts; engine trim in progress. Please say which of these I may delete: `~/.cache/ms-playwright` (3.5 GB, reinstallable), `~/.cache/pnpm` (0.5 GB), `gitref-v2` build dirs (4.1 GB), `rusuite` build dirs (1.8 GB).
 2. ~~UE 5.8 Linux download~~ — resolved 2026-10-24: human supplied the signed URL; UE 5.8.4 streamed into `/opt/UnrealEngine-5.8` via `bsdtar` (debug symbols, Templates, FeaturePacks, Samples, Documentation excluded to fit the disk).
 3. **Installed vs source engine.** Installed engines (Launcher, Linux zip) cannot build the `VeloxServer`/`VeloxClient` targets; the dedicated server is then `Velox -server`, which is fine until M6. A source build (needs EpicGames GitHub org linked to your Epic account, ~150 GB disk, hours of compile) is needed for M6 shipping. Recommendation: installed engine now, source build before M6. OK?
 4. **Mac toolchain.** Human has Xcode but not UE 5.8 yet. Action for the human when the Linux build is green: install the Epic Games Launcher on the Mac and UE 5.8 through it (~40 GB, default path `/Users/Shared/Epic Games/UE_5.8`), then run `infra/ci/build-mac.sh` from the repo root. Still needed: Apple Silicon or Intel.
