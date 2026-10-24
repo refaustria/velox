@@ -2,7 +2,7 @@
 
 **Milestone:** M1 Movement
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (2026-10-24)
 **Depends on:** ADR 0002
 
 ## Goal
