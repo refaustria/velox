@@ -16,5 +16,9 @@ Implement ADR 0003 implementation-notes task **`05-projectiles-selfknockback`** 
 - [ ] Recorded channel per A17/ADR 0003 §2; `Velox.Combat.ProjectileSim`, `KnockbackSeq` green; M1 `nettest.sh` unchanged; architect review.
 - [ ] `infra/ci/build.sh` green (all `Velox.*` tests); M1 soak unaffected where the ADR says so.
 
+## Review notes from task 01 (architect, 2026-10-25; ADR 0003 amendments B1–B9 are binding)
+- **B3:** the explosion applies damage to every registered pawn with `Dist < SplashRadius` and LOS even when `FVeloxDamageMath::RadiusPoints` returns 0 (Q3: 1 damage, no knockback at the edge). `Apply` handles `Damage == 0` after `01b`; do not skip zero-point victims in the projectile.
+- Self knockback on the server goes through the same `GE_Damage` path (`bSelf = true`, `bRadius = true`, direction from `RadiusKnockbackDir`) and therefore through `AddKnockback(Server)`; the client's fake uses `FVeloxDamageMath::Apply` + `AddKnockback(Predicted, ShotSeq)` directly — same math, two channels (ADR §3).
+
 ## Report back
 Standard format for the agent type; dev-hard includes a design summary for `architect` review.

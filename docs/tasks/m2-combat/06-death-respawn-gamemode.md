@@ -16,5 +16,12 @@ Implement ADR 0003 implementation-notes task **`06-death-respawn-gamemode`** (`d
 - [ ] Death GE/tag → no ragdoll, corpse 3 s, death camera on corpse; respawn on press after 1.7 s, forced at 20 s; spawn = farthest-half random by nearest-enemy distance, telefrag only if all occupied; spawn protection mechanism (default 0 s); `OnKill` delegate.
 - [ ] `infra/ci/build.sh` green (all `Velox.*` tests); M1 soak unaffected where the ADR says so.
 
+## Review notes from task 01 (architect, 2026-10-25; ADR 0003 amendments B1–B9 are binding)
+- **B8 (binding order in `HandleDeath`, server):** inside the `OnOutOfHealth` callback, synchronously: apply `GE_Dead` first (so a second damage GE in the same frame sees `Velox.State.Dead` and yields nothing), then `ASC->CancelAbilities()`, `ClearAbilityInput()`, `RemoveAllGameplayCues()`, then movement/collision/hitbox/corpse handling; `UnPossess` last. Do not defer any of this to a timer.
+- `UVeloxHealthComponent::StartDeath/FinishDeath` exist; `OnDeathStarted` → HUD/cue, `OnDeathFinished` → corpse destroyed. On clients, uninitialise the corpse's health component when the pawn stops being the avatar (so a corpse never shows the next life's values).
+- Respawn path is already in place: `AVeloxCharacter::PossessedBy` → `InitAbilityActorInfo` → `AVeloxPlayerState::OnPawnPossessed` (grant-once, `GE_SpawnInit`). Add `Inventory->ResetToLoadout()` (task 04) before `ApplySpawnInit`, then `GE_SpawnProtection` via `VeloxEffects::MakeDurationSpec` when `SpawnProtectionSeconds > 0`. `velox.combat.TestRespawn` (`Combat/VeloxCombatCheats.cpp`) exercises it headless.
+- Dead-input gate: `ProcessAbilityInput` returns early under `Velox.State.Dead` (01b); the controller's respawn request on fire/jump press is native input, not an ability.
+- `FellOutOfWorld` → `VeloxEffects::MakeDamageSpec(VictimASC, {Damage 1000, DamageTag Velox.Damage.Environment, bNoKnockback})` on the victim's own ASC with `bSelf = false` (the cheat command shows the pattern).
+
 ## Report back
 Standard format for the agent type; dev-hard includes a design summary for `architect` review.
