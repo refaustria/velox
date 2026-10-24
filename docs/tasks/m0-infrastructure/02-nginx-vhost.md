@@ -2,7 +2,7 @@
 
 **Milestone:** M0 Infrastructure
 **Agent:** dev
-**Status:** in progress
+**Status:** done
 **Depends on:** —
 
 ## Goal
@@ -33,3 +33,4 @@
 
 ## Report back
 Standard format. Include the certbot output tail and the curl results.
+Done 2026-10-24 by dev. Cert (ECDSA) valid until 2027-01-22, certbot.timer active. Repo conf is the post-certbot version as installed.
