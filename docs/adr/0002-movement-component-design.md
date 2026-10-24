@@ -1,6 +1,6 @@
 # ADR 0002 — Movement component design (M1)
 
-**Status:** Proposed (architect, 2026-10-24) → accepted by the lead when the M1 task files are written.
+**Status:** Accepted (2026-10-24, project lead) (architect, 2026-10-24) → accepted by the lead when the M1 task files are written.
 **Scope:** everything `dev-hard` needs to turn the M0 skeleton (`Source/Velox/Movement/*`, `Character/VeloxCharacter.*`) into Quake-feel, predicted, tunable movement. Builds on ADR 0001 §3 (saved-move path, `FVeloxMoveSim`, `AddKnockback`); does not replace the skeleton. Weapon knockback sources and self-knockback prediction are M2 (next ADR); bots are M4 but §8 fixes what they will drive.
 **Engine facts verified against UE 5.8.4 source** (`CharacterMovementComponent.{h,cpp}`, `Character.cpp`, `CharacterMovementReplication.h`, `GameNetworkManager.cpp`); line references below are to that cpp.
 
@@ -149,7 +149,7 @@ namespace VeloxMoveSim {
 
 `FVeloxNetworkMoveData`: **no new serialised fields in M1**. `Acceleration` (wishvel), `CompressedMoveFlags` and `ControlRotation` express every input; the move-data subclass stays for the day something does not fit (e.g. a per-move weapon-fire timestamp in M2).
 
-Server validation: the client never sends speed or position intent, only wishvel + flags; the server simulates, so no speed cap is needed beyond what the engine does (`MoveAutonomous` clamps `Acceleration` to `GetMaxAcceleration()`; `GetServerMoveDeltaTime` clamps dt to `MaxMoveDeltaTime × p.NetServerMaxMoveDeltaTimeScalar`). Enable the engine's time-discrepancy (speedhack) guard. `Config/DefaultEngine.ini` (the `GameNetworkManager` block from ADR 0001 is **missing** in the skeleton; add it):
+Server validation: the client never sends speed or position intent, only wishvel + flags; the server simulates, so no speed cap is needed beyond what the engine does (`MoveAutonomous` clamps `Acceleration` to `GetMaxAcceleration()`; `GetServerMoveDeltaTime` clamps dt to `MaxMoveDeltaTime × p.NetServerMaxMoveDeltaTimeScalar`). Enable the engine's time-discrepancy (speedhack) guard. `Config/DefaultGame.ini` (the `GameNetworkManager` block lives there because `AGameNetworkManager` is `config=Game`; extend it with the time-discrepancy settings below):
 ```ini
 [/Script/Engine.GameNetworkManager]
 ClientNetSendMoveDeltaTime=0.0166
