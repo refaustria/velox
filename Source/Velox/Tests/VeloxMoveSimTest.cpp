@@ -1,5 +1,5 @@
 // Velox - VeloxMoveSim unit tests (ADR 0002 section 7, ADR 0001 section 4). World-free; dt = 1/125 unless stated.
-// SavedMoveCombine and JumpPad belong to M1 task 04.
+// SavedMoveFlags/SavedMoveCombine/JumpLatch live in VeloxSavedMoveTest.cpp, JumpPad in VeloxJumpPadTest.cpp (task 04).
 
 #include "Misc/AutomationTest.h"
 

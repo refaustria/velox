@@ -49,7 +49,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Velox|Movement")
 	bool IsJumpLatched() const { return bJumpLatched; }
 
-	/** Saved-move restore (PrepMoveFor) and correction only. */
+	/** Correction only (A17: the latch chains through replays, PrepMoveFor never restores it). */
 	void SetJumpLatched(bool bLatched) { bJumpLatched = bLatched; }
 
 	/** A12: the latch at the start of a move (cleared by a move without jump held). Shared with the JumpLatch test. */
@@ -68,26 +68,20 @@ public:
 	bool HasForwardInput() const { return bHasForwardInput; }
 	bool HasSideInput() const { return bHasSideInput; }
 
-	/** Saved-move restore (PrepMoveFor) only; game code uses SetLocalMoveInput. */
-	void SetMoveInputPresence(bool bForward, bool bSide)
-	{
-		bHasForwardInput = bForward;
-		bHasSideInput = bSide;
-	}
-
 	/**
 	 * Queues a velocity change for the start of the next move (ADR 0002 section 4): rockets, jump pads, console tests.
 	 * Adds Impulse to the velocity, or replaces the velocity when bOverrideVelocity (jump pads, Q3 trigger_push). Several
 	 * calls before the next move accumulate (an override replaces everything queued before it). Sets a knockback grace
 	 * (no ground friction) of KnockbackGraceFor(Impulse). Callable on the authority and the owning client (predicted
-	 * sources such as jump pads call it on both); ignored on simulated proxies, which never run moves.
+	 * sources such as jump pads call it on both); ignored on simulated proxies, which never run moves, and on the owning
+	 * client while it applies a correction teleport (A19: the server's response already holds every entry it saw).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Velox|Movement")
 	void AddKnockback(FVector Impulse, bool bOverrideVelocity = false);
 
 	const FVeloxPendingKnockback& GetPendingKnockback() const { return PendingKnockback; }
 
-	/** Saved-move restore (PrepMoveFor, by assignment) and correction only; game code uses AddKnockback. */
+	/** Correction only (A17: the pending knockback chains through replays); game code uses AddKnockback. */
 	void SetPendingKnockback(const FVeloxPendingKnockback& InPendingKnockback) { PendingKnockback = InPendingKnockback; }
 
 	/** Remaining ground-friction-free time after a knockback (s). */
@@ -121,6 +115,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Velox|Movement|Net")
 	void ResetCorrectionStats();
 
+	/** Server: Velox state snapshot for the correction queued by the last failed error check (A18). */
+	const FVeloxCorrectionState& GetServerCorrectionState() const { return ServerCorrectionState; }
+
 	//~UCharacterMovementComponent interface
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
 	virtual float GetMaxSpeed() const override;
@@ -130,10 +127,14 @@ public:
 	virtual bool CanAttemptJump() const override;
 	virtual bool DoJump(bool bReplayingMoves, float DeltaTime) override;
 	virtual bool ClientUpdatePositionAfterServerUpdate() override;
+	virtual void ServerMoveHandleClientError(float ClientTimeStamp, float DeltaTime, const FVector& Accel, const FVector& RelativeClientLocation, FMovementBaseInterfaceData* ClientMovementBaseInterfaceData, FName ClientBaseBoneName, uint8 ClientMovementMode) override;
 	//~End of UCharacterMovementComponent interface
 
 	// The single-argument DoJump is deprecated in the engine and forwards to the two-argument one.
 	using Super::DoJump;
+
+	// The deprecated UPrimitiveComponent overload forwards to the FMovementBaseInterfaceData one above.
+	using Super::ServerMoveHandleClientError;
 
 protected:
 	//~UCharacterMovementComponent interface
@@ -202,6 +203,16 @@ protected:
 
 	/** Velocity change to apply at the start of the next move. */
 	FVeloxPendingKnockback PendingKnockback;
+
+	/**
+	 * Owning client: set in OnClientCorrectionReceived, before ClientAdjustPosition teleports the pawn; cleared at the
+	 * start of ClientUpdatePositionAfterServerUpdate and of PerformMovement. While set, AddKnockback drops impulses so the
+	 * teleport's pad BeginOverlap cannot launch on top of the server's state (A19).
+	 */
+	uint8 bApplyingCorrection : 1;
+
+	/** Server: Velox state at the error check that queued the pending correction (A18). */
+	FVeloxCorrectionState ServerCorrectionState;
 
 	/** FVeloxMoveParams of the current move: built in SetMovementSettings and at the start of every PerformMovement (A8). */
 	FVeloxMoveParams SimParams;

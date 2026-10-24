@@ -43,6 +43,7 @@ UVeloxMovementComponent::UVeloxMovementComponent(const FObjectInitializer& Objec
 	bHasForwardInput = false;
 	bHasSideInput = false;
 	bJumpLatched = false;
+	bApplyingCorrection = false;
 
 	// FPS rotation: yaw comes from the controller via the character (bUseControllerRotationYaw), never from movement.
 	bOrientRotationToMovement = false;
@@ -156,6 +157,9 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 		return;
 	}
 
+	// Defensive (A19): any correction teleport is over once a move runs.
+	bApplyingCorrection = false;
+
 	// One params build per move, reused by every CalcVelocity of this move (A8).
 	SimParams = MovementSettings->BuildSimParams();
 	RampExitVelocityZ = 0.f;
@@ -201,6 +205,13 @@ void UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVeloci
 	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy)
 	{
 		// Simulated proxies never run moves; the result arrives through replication.
+		return;
+	}
+	if (bApplyingCorrection && CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_AutonomousProxy)
+	{
+		// The correction teleport fired an overlap (A19). The server's state already contains every entry it saw, consumed
+		// into the corrected velocity or pending in the response; the replay re-fires overlaps the server has not seen yet.
+		UE_LOG(LogVeloxMovement, Verbose, TEXT("%s: AddKnockback %s (override %d) ignored during correction teleport"), *GetPathNameSafe(this), *Impulse.ToString(), bOverrideVelocity ? 1 : 0);
 		return;
 	}
 	PendingKnockback.Add(Impulse, bOverrideVelocity);
@@ -443,25 +454,24 @@ void UVeloxMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_
 		return;
 	}
 
-	// Derived state chains from here through the replayed moves (A14).
+	// Derived state chains from here through the replayed moves, like Velocity (A17); PrepMoveFor restores none of it.
 	KnockbackGrace = Response.KnockbackGrace;
 	bJumpLatched = Response.bJumpLatched;
 	PendingKnockback = Response.PendingKnockback;
 
-	// PrepMoveFor restores the latch and assigns the pending knockback from each replayed move. The first unacked move
-	// starts where the server's acked move ended, so it gets the server's values; later moves keep their own.
-	if (ClientData.SavedMoves.Num() > 0)
-	{
-		FSavedMove_Velox* FirstMove = static_cast<FSavedMove_Velox*>(ClientData.SavedMoves[0].Get());
-		FirstMove->bSavedJumpLatched = Response.bJumpLatched;
-		FirstMove->SavedPendingKnockback = Response.PendingKnockback;
-	}
+	// ClientAdjustPosition teleports the pawn after this call; its overlaps must not queue knockback (A19).
+	bApplyingCorrection = true;
 }
 
 bool UVeloxMovementComponent::ClientUpdatePositionAfterServerUpdate()
 {
-	// The replay restores each saved move's inputs (PrepMoveFor); give the live inputs back afterwards, like the engine
-	// does for bPressedJump and bWantsToCrouch. Input events between the last saved move and now would otherwise be lost.
+	// The correction teleport is over; overlaps during the replay must fire again (A19).
+	bApplyingCorrection = false;
+
+	// The replay sets each saved move's inputs (MoveAutonomous -> UpdateFromCompressedFlags); give the live inputs back
+	// afterwards, like the engine does for bPressedJump and bWantsToCrouch. Input events between the last saved move and
+	// now would otherwise be lost. Derived state (grace, latch, pending knockback) is not restored: the values at the end
+	// of the replay are the correct live ones (A17).
 	const bool bRealJumpHeld = bWantsJumpHeld;
 	const bool bRealForwardInput = bHasForwardInput;
 	const bool bRealSideInput = bHasSideInput;
@@ -472,6 +482,22 @@ bool UVeloxMovementComponent::ClientUpdatePositionAfterServerUpdate()
 	bHasForwardInput = bRealForwardInput;
 	bHasSideInput = bRealSideInput;
 	return bResult;
+}
+
+void UVeloxMovementComponent::ServerMoveHandleClientError(float ClientTimeStamp, float DeltaTime, const FVector& Accel, const FVector& RelativeClientLocation, FMovementBaseInterfaceData* ClientMovementBaseInterfaceData, FName ClientBaseBoneName, uint8 ClientMovementMode)
+{
+	Super::ServerMoveHandleClientError(ClientTimeStamp, DeltaTime, Accel, RelativeClientLocation, ClientMovementBaseInterfaceData, ClientBaseBoneName, ClientMovementMode);
+
+	// The engine snapshots NewLoc/NewVel/MovementMode into PendingAdjustment here but serialises it at replication time,
+	// after any later ServerMove RPC of the frame. Snapshot the Velox state alongside it (A18).
+	const FNetworkPredictionData_Server_Character* ServerData = GetPredictionData_Server_Character();
+	if (ServerData && !ServerData->PendingAdjustment.bAckGoodMove && ServerData->PendingAdjustment.TimeStamp == ClientTimeStamp)
+	{
+		ServerCorrectionState.TimeStamp = ClientTimeStamp;
+		ServerCorrectionState.KnockbackGrace = KnockbackGrace;
+		ServerCorrectionState.bJumpLatched = bJumpLatched;
+		ServerCorrectionState.PendingKnockback = PendingKnockback;
+	}
 }
 
 void UVeloxMovementComponent::ResetCorrectionStats()

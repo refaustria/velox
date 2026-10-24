@@ -51,8 +51,9 @@ public:
 
 	/**
 	 * Where the launch ends for nav-link generation (M4), with the same trigger-centre approximation: AimAtTarget returns
-	 * the target location; FixedVelocity the point where the arc comes back down to the launch height (the trigger
-	 * centre if it never does). Bots trace down from it.
+	 * the target location, which is the capsule-centre *apex* of the arc, not the landing (the pawn lands beyond it,
+	 * ADR 0002 A21; M4 computes the descending-branch landing point or renames this method); FixedVelocity the point where
+	 * the arc comes back down to the launch height (the trigger centre if it never does). Bots trace down from it.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Velox|JumpPad")
 	FVector GetLandingPoint(float GravityZ) const;

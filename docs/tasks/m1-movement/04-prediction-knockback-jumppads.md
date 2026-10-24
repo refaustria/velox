@@ -2,7 +2,7 @@
 
 **Milestone:** M1 Movement
 **Agent:** dev-hard
-**Status:** review: fix-needed (architect, 2026-10-24) — apply D1–D3 below, rebuild, then done
+**Status:** done (2026-10-24, architect-reviewed, D1–D6 fixed)
 **Depends on:** 02, 03
 
 ## Goal

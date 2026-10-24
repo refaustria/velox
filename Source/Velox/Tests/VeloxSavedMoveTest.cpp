@@ -1,4 +1,9 @@
-// Velox - saved-move flag plumbing, CanCombineWith rules and jump latch (ADR 0002 sections 5 and 7, A12). World-free.
+// Velox - saved-move flag plumbing, CanCombineWith rules and jump latch (ADR 0002 sections 5 and 7, A12, A17). World-free.
+//
+// Replay model (A17): FSavedMove_Velox::PrepMoveFor is Super only. The jump latch, KnockbackGrace and the pending
+// knockback are derived state that chains from the correction through the replayed moves; the saved copies are read by
+// CanCombineWith only. The replay itself needs a world and is covered by the task-05 net soak (LatchRun, PadRun scripts).
+
 
 #include "Misc/AutomationTest.h"
 
@@ -61,12 +66,16 @@ bool FVeloxMovementSavedMoveFlagsTest::RunTest(const FString& Parameters)
 	Move.bSavedHasSideInput = true;
 	TestTrue(TEXT("Side input sets FLAG_HasSideInput"), (Move.GetCompressedFlags() & FSavedMove_Velox::FLAG_HasSideInput) != 0);
 
-	// Latch, knockback and grace are not flags: the server derives them.
+	// A17: latch, pending knockback and grace are derived state, never sent and never restored on replay. The server
+	// derives them from the flag stream and its own overlaps; the client chains them from the correction. So a saved move
+	// with all three set must look exactly like an empty move on the wire. (PrepMoveFor is Super only; no world-free test
+	// of the replay is possible, the task-05 net soak's LatchRun/PadRun scripts cover it.)
 	Move.Clear();
 	Move.bSavedJumpLatched = true;
 	Move.SavedKnockbackGrace = 0.1f;
 	Move.SavedPendingKnockback.Add(FVector(0.0, 0.0, 1000.0), true);
-	TestEqual(TEXT("Latch/knockback/grace add no flags"), static_cast<int32>(Move.GetCompressedFlags()), 0);
+	TestEqual(TEXT("A17: latch/knockback/grace add no flags"), static_cast<int32>(Move.GetCompressedFlags()), 0);
+	TestTrue(TEXT("A17: the saved copies stay readable for CanCombineWith"), Move.bSavedJumpLatched && Move.SavedPendingKnockback.IsPending());
 
 	Move.bSavedJumpHeld = true;
 	Move.bSavedHasForwardInput = true;
@@ -144,7 +153,9 @@ bool FVeloxMovementSavedMoveCombineTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("engine bForceNoCombine"), Combines(Old, New));
 	}
 
-	// Pending knockback accumulation (AddKnockback semantics).
+	// Pending knockback accumulation (AddKnockback semantics). With the A17 chaining model a replayed pad overlap re-fires
+	// on the chained state: the response's pending value (if the server had not consumed it) plus nothing else, because
+	// the correction teleport's overlap is dropped (A19). An override re-fired in the same move stays idempotent.
 	FVeloxPendingKnockback Pending;
 	TestFalse(TEXT("empty pending"), Pending.IsPending());
 	Pending.Add(FVector(100.0, 0.0, 0.0), false);
@@ -169,6 +180,8 @@ bool FVeloxMovementJumpLatchTest::RunTest(const FString& Parameters)
 {
 	// The A12 latch rules on a hand-built VQ3 move sequence (bAutoHop off), with VeloxMoveSim for the landing frame. The
 	// same rules drive UVeloxMovementComponent::PerformMovement/ProcessLanded; the CMC-level check is FT_MovementDeterminism.
+	// The latch chains move to move (latch_n = (latch_n-1 && held_n) || jumped_n), which is exactly what a replay computes
+	// from the correction's value (A17); nothing is restored per move.
 	using namespace VeloxSavedMoveTest;
 	FVeloxMoveParams P = GetDefault<UVeloxMovementSettings>()->BuildSimParams();
 	P.bAutoHop = false;
@@ -193,6 +206,33 @@ bool FVeloxMovementJumpLatchTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("VQ3: pressed exactly on the landing move after a release jumps"), LandingJumps({ { false } }, true));
 	TestTrue(TEXT("CPM auto-hop: held through the landing jumps"), UVeloxMovementComponent::WantsLandingJump(true, true, true));
 	TestFalse(TEXT("no jump without jump held"), UVeloxMovementComponent::WantsLandingJump(false, true, false));
+
+	// A17 chaining: a replay starts from the correction's latch and recomputes it per move from the flags and the replayed
+	// ground contact, exactly like the server. Case (b) of A17: the client predicted a landing jump the server never made
+	// (missed ledge); the server's latch is false and the real landing comes three moves later with jump still held.
+	{
+		struct FReplayMove { bool bHeld; bool bLands; };
+		auto ReplayJumps = [&P](bool bStartLatch, const TArray<FReplayMove>& Moves)
+		{
+			TArray<bool> Jumps;
+			bool bLatched = bStartLatch;
+			for (const FReplayMove& Move : Moves)
+			{
+				bLatched = UVeloxMovementComponent::JumpLatchAtMoveStart(bLatched, Move.bHeld);
+				const bool bJumped = Move.bLands && UVeloxMovementComponent::WantsLandingJump(Move.bHeld, P.bAutoHop, bLatched);
+				bLatched = bLatched || bJumped; // DoJump sets the latch
+				Jumps.Add(bJumped);
+			}
+			return Jumps;
+		};
+		const TArray<FReplayMove> ServerMoves = { { true, false }, { true, false }, { true, true } };
+		// Server and chained client replay run the same recurrence from the same start value (the correction's latch).
+		const TArray<bool> ChainedReplay = ReplayJumps(false, ServerMoves);
+		TestTrue(TEXT("A17: chained replay jumps on the real landing, like the server"), ChainedReplay == TArray<bool>({ false, false, true }));
+		// The superseded restore model would have forced the recorded (mispredicted) latch true onto the landing move.
+		const bool bRestoredLatch = UVeloxMovementComponent::JumpLatchAtMoveStart(true, true);
+		TestFalse(TEXT("A17: restoring the recorded latch would eat the server's landing jump"), UVeloxMovementComponent::WantsLandingJump(true, P.bAutoHop, bRestoredLatch));
+	}
 
 	// The landing move that jumps: XY unchanged, Z = JumpVelocity + gravity for the rest of the frame.
 	FVeloxMoveState S;

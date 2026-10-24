@@ -1,5 +1,5 @@
 // Velox - saved move, network move data, move response data and client prediction data for UVeloxMovementComponent
-// (ADR 0001 section 3, ADR 0002 sections 4 and 5, amendments A12 and A14).
+// (ADR 0001 section 3, ADR 0002 sections 4 and 5, amendments A12, A17 and A18).
 // All Velox movement input reaches the server through these types; never through ad-hoc RPCs.
 
 #pragma once
@@ -12,7 +12,8 @@ class UVeloxMovementComponent;
 
 /**
  * External velocity change waiting to be applied at the start of the next PerformMovement (ADR 0002 section 4).
- * Filled by UVeloxMovementComponent::AddKnockback; saved per move, assigned on replay and sent in corrections.
+ * Filled by UVeloxMovementComponent::AddKnockback; consumed at move start, chained through replays (A17), saved per move
+ * for CanCombineWith only, and sent in corrections.
  */
 struct FVeloxPendingKnockback
 {
@@ -54,8 +55,11 @@ struct FVeloxPendingKnockback
  *   FLAG_Custom_2 = side input present (CPM rules)
  *   FLAG_Custom_3 = reserved
  *
- * Replay rule (A14): PrepMoveFor restores inputs only (flags, pending knockback by assignment, jump latch). Derived state
- * (Velocity, KnockbackGrace) chains from the correction through the replayed moves.
+ * Replay rule (A17, supersedes A12/A14 restore clauses): PrepMoveFor restores nothing Velox-specific (it is Super only).
+ * Inputs reach the replay through the compressed flags (MoveAutonomous -> UpdateFromCompressedFlags). KnockbackGrace,
+ * the jump latch and the pending knockback are derived state: they chain from the correction
+ * (UVeloxMovementComponent::OnClientCorrectionReceived) through the replayed moves exactly like Velocity, and replayed pad
+ * overlaps re-fire on their own. The saved copies below exist for CanCombineWith/bForceNoCombine and debugging.
  */
 class VELOX_API FSavedMove_Velox : public FSavedMove_Character
 {
@@ -82,10 +86,13 @@ public:
 	 */
 	bool CanCombineVeloxState(const FSavedMove_Velox& NewMove, bool bCombineAirMoves) const;
 
-	/** Knockback that the move consumes at its start (captured in SetMoveFor before PerformMovement). Input-like. */
+	/**
+	 * Knockback that the move consumes at its start (captured in SetMoveFor before PerformMovement). CanCombineWith,
+	 * bForceNoCombine and debugging only; never restored on replay (A17).
+	 */
 	FVeloxPendingKnockback SavedPendingKnockback;
 
-	/** KnockbackGrace at the start of the move. CanCombineWith and debugging only; never restored (A14). */
+	/** KnockbackGrace at the start of the move. CanCombineWith and debugging only; never restored (A14, A17). */
 	float SavedKnockbackGrace = 0.f;
 
 	/** Jump button held during this move. */
@@ -97,7 +104,7 @@ public:
 	/** Side input present during this move. */
 	uint8 bSavedHasSideInput : 1;
 
-	/** Jump latch at the start of the move (A12); restored in PrepMoveFor. */
+	/** Jump latch at the start of the move (A12). CanCombineWith and debugging only; never restored (A17). */
 	uint8 bSavedJumpLatched : 1;
 };
 
@@ -129,9 +136,25 @@ private:
 };
 
 /**
+ * Server-side snapshot of the Velox state a correction must carry, taken in
+ * UVeloxMovementComponent::ServerMoveHandleClientError when the error check queues a correction (A18). The response is
+ * serialised later, at replication time, after further ServerMove RPCs of the frame may have changed the live state.
+ */
+struct FVeloxCorrectionState
+{
+	/** Client time stamp of the move whose check queued the correction (FClientAdjustment::TimeStamp); 0 = none. */
+	float TimeStamp = 0.f;
+	float KnockbackGrace = 0.f;
+	bool bJumpLatched = false;
+	FVeloxPendingKnockback PendingKnockback;
+};
+
+/**
  * Server -> owning client move response with the Velox state a replay needs (ADR 0002 section 4): the server's
- * KnockbackGrace and jump latch after the acked move, and any knockback the server has not consumed yet. Only
- * corrections carry it; each field costs one bit when zero/false. Applied in UVeloxMovementComponent::OnClientCorrectionReceived.
+ * KnockbackGrace and jump latch after the acked move, and any knockback the server has not consumed yet. Values are the
+ * server's state at the time of the error check (snapshot), see UVeloxMovementComponent::GetServerCorrectionState (A18).
+ * Only corrections carry it; each field costs one bit when zero/false. Applied in
+ * UVeloxMovementComponent::OnClientCorrectionReceived.
  */
 struct VELOX_API FVeloxMoveResponseDataContainer : public FCharacterMoveResponseDataContainer
 {

@@ -131,17 +131,11 @@ void FSavedMove_Velox::SetMoveFor(ACharacter* C, float InDeltaTime, FVector cons
 
 void FSavedMove_Velox::PrepMoveFor(ACharacter* C)
 {
+	// Nothing Velox-specific is restored (A17). The input flags reach the replay through MoveAutonomous ->
+	// UpdateFromCompressedFlags; KnockbackGrace, the jump latch and the pending knockback chain from the correction like
+	// Velocity (restoring recorded predictions would re-inject mispredicted history). Kept as an explicit override so the
+	// rule has one place to live; M2's recorded knockback channel (A17) will be assigned here.
 	Super::PrepMoveFor(C);
-
-	// Inputs only (A14). KnockbackGrace is not restored: it chains from the correction like Velocity.
-	if (UVeloxMovementComponent* MoveComp = Cast<UVeloxMovementComponent>(C->GetCharacterMovement()))
-	{
-		MoveComp->SetJumpHeld(bSavedJumpHeld);
-		MoveComp->SetMoveInputPresence(bSavedHasForwardInput, bSavedHasSideInput);
-		MoveComp->SetJumpLatched(bSavedJumpLatched);
-		// Assignment, never accumulation: a pad overlap re-fired during the replay stays idempotent.
-		MoveComp->SetPendingKnockback(SavedPendingKnockback);
-	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -185,12 +179,24 @@ void FVeloxMoveResponseDataContainer::ServerFillResponseData(const UCharacterMov
 	bJumpLatched = false;
 	PendingKnockback.Reset();
 
-	// Server state after the acked move: what the client must start its replay from.
+	// Server state after the acked move: what the client must start its replay from. The adjustment was queued in
+	// ServerMoveHandleClientError, possibly before further moves of this frame ran, so read the snapshot taken there (A18).
 	if (const UVeloxMovementComponent* MoveComp = Cast<UVeloxMovementComponent>(&CharacterMovement))
 	{
-		KnockbackGrace = MoveComp->GetKnockbackGrace();
-		bJumpLatched = MoveComp->IsJumpLatched();
-		PendingKnockback = MoveComp->GetPendingKnockback();
+		const FVeloxCorrectionState& Snapshot = MoveComp->GetServerCorrectionState();
+		if (!PendingAdjustment.bAckGoodMove && Snapshot.TimeStamp == PendingAdjustment.TimeStamp)
+		{
+			KnockbackGrace = Snapshot.KnockbackGrace;
+			bJumpLatched = Snapshot.bJumpLatched;
+			PendingKnockback = Snapshot.PendingKnockback;
+		}
+		else
+		{
+			// Defensive fallback (no snapshot for this adjustment): the live values.
+			KnockbackGrace = MoveComp->GetKnockbackGrace();
+			bJumpLatched = MoveComp->IsJumpLatched();
+			PendingKnockback = MoveComp->GetPendingKnockback();
+		}
 	}
 }
 
