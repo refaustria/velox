@@ -332,8 +332,9 @@ bool UVeloxScriptedInputComponent::StartScript()
 	bRunning = true;
 	bHavePrev = false;
 	PostCorrectionSampleAt = -1.0;
-	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=info script=%s ground_speed=%.1f jump_velocity=%.1f gravity_z=%.1f knockback_grace_max=%.3f"), *Script.Name,
-		Movement->GetSimParams().MaxGroundSpeed, Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), Movement->GetSimParams().KnockbackGraceMax);
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=info script=%s ground_speed=%.1f jump_velocity=%.1f gravity_z=%.1f knockback_grace_max=%.3f ground_friction=%.3f stop_speed=%.1f"), *Script.Name,
+		Movement->GetSimParams().MaxGroundSpeed, Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), Movement->GetSimParams().KnockbackGraceMax,
+		Movement->GetSimParams().GroundFriction, Movement->GetSimParams().StopSpeed);
 
 	// Tick order: component ticks run after their owner's tick, which waits for the movement component, so the input of
 	// frame N is consumed by the move of frame N + 1 (a constant one-frame latency, the same as hardware input). A

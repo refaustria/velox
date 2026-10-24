@@ -11,7 +11,9 @@ Layout (X forward, floor top at Z=0):
   ramp bank        y 1000..3800, lanes 10/20/30/45/50 deg, 1600 cm slope -> 400 cm platform
   stairs           y 4700/5300/5900, 12 steps, risers 20/40/60 cm
   jump pads        y -1500/-2500/-3500: AVeloxJumpPad (AimAtTarget) + ATargetPoint + landing marker discs
-  bunny-hop gaps   y 7600/8400/9200, gaps 500/700/900 cm over a 100 cm drop
+  bunny-hop gaps   y 7600/8400/9200, gaps 500/700/900 cm over a 100 cm drop; walled floor-height runways behind
+                   the start platforms (run-up 1200/2500/4500 cm to x -1600/-2900/-4900, markers every 512 cm,
+                   PlayerStart_Gap<n> at each runway start); pit-exit steps beside each start platform
 """
 import math
 import unreal
@@ -245,15 +247,56 @@ def check_pads():
             fail(f"{a.get_actor_label()}: launch speed {speed:.0f} outside (0, {PAD_MAX_LAUNCH_SPEED:.0f}]")
 
 
+# Runway length before each gap (cm, behind the 800 cm start platform): ADR 0002 strafe gain reaches 1.4x (1120 cm/s)
+# after ~2048 cm and 1.79x by 4096 cm; required take-off speeds are ~740 / 1040 / 1330 cm/s.
+GAP_RUNWAYS = {500: 1200.0, 700: 2500.0, 900: 4500.0}
+GAP_LANE_Y = {500: 7600.0, 700: 8400.0, 900: 9200.0}
+# Pit-exit steps: (y of the start platform edge they climb to, +1/-1 = direction they extend away from that edge).
+PIT_STEPS = {500: (7800.0, 1), 700: (8600.0, 1), 900: (9400.0, 1)}
+RUNWAY_WALL_H = 250.0
+GAP_STARTS = []
+
+
 def build_gaps():
     # Pit floor 100 cm below the platforms; start platform x -400..400, landing platform after the gap.
     box("pit", "GapPit", (1600, 8400, -150), (4400, 3000, 100), "Pit", folder="Gaps")
-    for i, gap in enumerate((500, 700, 900)):
-        y = 7600.0 + i * 800.0
+    for gap in (500, 700, 900):
+        y = GAP_LANE_Y[gap]
         box("gapplat", f"GapStart_{gap}", (0, y, -50), (800, 400, 100), "Gap", folder="Gaps")
         land_start = 400.0 + gap
         box("gapplat", f"GapLand_{gap}", (land_start + 400, y, -50), (800, 400, 100), "Platform", folder="Gaps")
         text(f"GapText_{gap}", (-300, y, 140), f"gap {gap} cm", folder="Gaps")
+
+        # Straight runway at floor height, ending where the start platform begins (x=-400), walled on both sides.
+        L = GAP_RUNWAYS[gap]
+        x0 = -400.0 - L
+        box("runway", f"GapRunway_{gap}", (x0 + L / 2, y, -50), (L, 400, 100), "Floor", folder="Gaps")
+        for side, dy in (("L", -210.0), ("R", 210.0)):
+            box("gapwall", f"GapRunwayWall_{gap}_{side}", (x0 + L / 2, y + dy, RUNWAY_WALL_H / 2),
+                (L, 20, RUNWAY_WALL_H), "Wall", folder="Gaps")
+        box("gapwall", f"GapRunwayWall_{gap}_Back", (x0 - 10, y, RUNWAY_WALL_H / 2), (20, 440, RUNWAY_WALL_H),
+            "Wall", folder="Gaps")
+        text(f"GapRunwayText_{gap}", (x0 + 100, y - 150, 140), f"gap {gap} cm: run-up {L:.0f} cm",
+             size=30.0, folder="Gaps")
+        i = 0
+        while x0 + i * 512.0 <= -400.0:
+            x = x0 + i * 512.0
+            box("gapmarker", f"GapMarker_{gap}_{i:02d}", (x, y, 0.5), (20, 400, 1), "MarkerA" if i % 2 == 0 else "MarkerB",
+                collide=False, folder="Markers")
+            text(f"GapMarkerText_{gap}_{i:02d}", (x, y - 150, 140), f"{i * 512} cm", size=30.0, folder="Markers")
+            i += 1
+        ps = EAS.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(x0 + 120.0, y, 100))
+        ps.set_actor_label(f"PlayerStart_Gap{gap}")
+        count("playerstart")
+
+        # Pit exit: four 20 cm steps (100 cm treads) in the free pit strip beside the start platform, rising from the
+        # pit floor (Z=-100) to the platform edge, so a player who fell can walk back up onto the start platform.
+        edge_y, d = PIT_STEPS[gap]
+        for k in range(4):
+            top = -20.0 - 20.0 * k
+            h = top + 100.0
+            box("pitstep", f"GapExit_{gap}_{k}", (0, edge_y + d * (50.0 + 100.0 * k), -100.0 + h / 2), (800, 100, h),
+                "Stairs", folder="Gaps")
 
 
 def build_lighting_and_starts():
@@ -274,10 +317,11 @@ def build_lighting_and_starts():
 
 
 EXPECTED = {
-    "ground": 1, "wall": 4, "marker": 11, "text": 11 + 5 + 3 + 3 + 3,
+    "ground": 1, "wall": 4, "marker": 11, "text": 11 + 5 + 3 + 3 + 3 + 3 + 17,
     "ramp": 5, "platform": 5 + 2,  # 5 ramp tops + pad A platform + pad C ledge
     "step": 36, "jumppad": 3, "targetpoint": 3, "target": 3, "pit": 1, "gapplat": 6,
-    "playerstart": 2, "light": 2,
+    "runway": 3, "gapwall": 9, "gapmarker": 17, "pitstep": 12,
+    "playerstart": 5, "light": 2,
 }
 
 
@@ -323,9 +367,9 @@ def build_map():
     exp_sm = sum(v for k, v in EXPECTED.items() if k not in ("text", "playerstart", "light", "jumppad", "targetpoint"))
     n_pads = sum(1 for a in level_actors if isinstance(a, unreal.VeloxJumpPad))
     n_tp = sum(1 for a in level_actors if isinstance(a, unreal.TargetPoint))
-    log(f"StaticMeshActors={n_sm} (expected {exp_sm}) PlayerStarts={n_ps} (expected 2) "
+    log(f"StaticMeshActors={n_sm} (expected {exp_sm}) PlayerStarts={n_ps} (expected 5) "
         f"VeloxJumpPads={n_pads} (expected 3) TargetPoints={n_tp} (expected 3)")
-    if n_sm != exp_sm or n_ps != 2 or n_pads != 3 or n_tp != 3:
+    if n_sm != exp_sm or n_ps != 5 or n_pads != 3 or n_tp != 3:
         fail("level actor class counts mismatch")
     # Map check runs AVeloxJumpPad::CheckForErrors (launch speed validation); the log shows its summary line.
     unreal.SystemLibrary.execute_console_command(EAS.get_editor_world() if hasattr(EAS, "get_editor_world")
