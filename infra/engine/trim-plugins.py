@@ -6,6 +6,7 @@ Default mode is READ-ONLY: scans, writes a markdown report, never deletes.
                   [--report infra/engine/TRIM-REPORT.md]
   trim-plugins.py --apply --yes --restore-list deleted.txt   # actually deletes the SAFE list
   trim-plugins.py --prune-platforms Android,IOS,VisionOS,TVOS  # also mark Engine/Platforms/<X> (deleted only with --apply --yes)
+  trim-plugins.py --verify-deps [--manifest DIR]  # plugin deps + Build.cs module refs + readelf NEEDED of kept .so (exit 1 on violations)
   trim-plugins.py --check-orphans   # platform-extension plugins without parent; exit 1 if any (also run after --apply)
 Platform-extension plugins (Engine/Platforms/<P>/Plugins/**/<Name>_<P>.uplugin) are deleted together with
 their parent plugin; UBT aborts otherwise ("Unable to find parent plugin ...").
@@ -19,7 +20,7 @@ Categories:
   AGGRESSIVE-BLOCKED  matches DENYLIST but kept plugins depend on it (list shown); to remove it you
                 must delete/disable the dependants too (or accept it)
 """
-import argparse, json, os, re, shutil, sys
+import argparse, json, os, re, shutil, subprocess, sys
 
 # ---- EDIT ME -------------------------------------------------------------------------------
 # Regexes matched (re.search) against plugin name for EnabledByDefault-but-irrelevant plugins.
@@ -250,6 +251,153 @@ def print_violations(title, v):
     print(f"verify-deps [{title}]: {len(v)} violation(s)")
     for n, dn in v: print(f"  {n} -> {dn} (hard dependency missing)")
 
+# ---- module-level (Build.cs) and binary-level (readelf) verification --------------------------
+# Module/library names that are legitimately undefined in an installed Linux build (platform-only, stripped,
+# or absent from the installed build from the start). Matched case-insensitively. Extend as evidence arises.
+ALLOWLIST = {
+    "GRDK", "DiaSDK", "Catch2", "uLangCore", "uLangJSON", "LinuxTargetPlatformSettings",
+}
+DEP_FIELDS = r"(?:Public|Private)DependencyModuleNames|DynamicallyLoadedModuleNames|(?:Public|Private)IncludePathModuleNames"
+_DEP_RE = re.compile(r"\b(" + DEP_FIELDS + r")\s*\.\s*(AddRange|Add)\s*\(")
+_STR_RE = re.compile(r'"([A-Za-z0-9_\-\.]+)"')
+_FS_CACHE = {}
+
+def strip_cs_comments(t):
+    out, i, n, instr = [], 0, len(t), False
+    while i < n:
+        c = t[i]
+        if instr:
+            out.append(c)
+            if c == "\\" and i + 1 < n: out.append(t[i+1]); i += 1
+            elif c == '"': instr = False
+        elif c == '"': instr = True; out.append(c)
+        elif t.startswith("//", i):
+            while i < n and t[i] != "\n": i += 1
+            continue
+        elif t.startswith("/*", i):
+            j = t.find("*/", i + 2); i = n if j < 0 else j + 2; continue
+        else: out.append(c)
+        i += 1
+    return "".join(out)
+
+def parse_build_cs(path):
+    """Referenced module names from the dependency lists of one Build.cs (comments stripped, calls paren-balanced)."""
+    t = strip_cs_comments(open(path, encoding="utf-8-sig", errors="replace").read())
+    refs = set()
+    for m in _DEP_RE.finditer(t):
+        i, depth, instr = m.end(), 1, False
+        j = i
+        while j < len(t) and depth:
+            c = t[j]
+            if instr:
+                if c == "\\": j += 1
+                elif c == '"': instr = False
+            elif c == '"': instr = True
+            elif c == "(": depth += 1
+            elif c == ")": depth -= 1
+            j += 1
+        refs.update(_STR_RE.findall(t[i:j]))
+    return refs
+
+def fs_index(ue):
+    """One walk: all *.build.cs (case-insensitive) under Engine/Source, Plugins, Platforms and all *.so under
+    Engine/Binaries/Linux and Engine/Plugins/**/Binaries/Linux (also Platforms/**). Cached per ue root."""
+    if ue in _FS_CACHE: return _FS_CACHE[ue]
+    bcs, sos = [], []
+    for sub in ("Source", "Plugins", "Platforms"):
+        for r, ds, fs in os.walk(os.path.join(ue, "Engine", sub)):
+            for f in fs:
+                lf = f.lower()
+                if lf.endswith(".build.cs"): bcs.append(os.path.join(r, f))
+                elif lf.endswith(".so") and (os.sep + "Binaries" + os.sep + "Linux") in r + os.sep and sub != "Source":
+                    sos.append(os.path.join(r, f))
+    for r, ds, fs in os.walk(os.path.join(ue, "Engine", "Binaries", "Linux")):
+        sos += [os.path.join(r, f) for f in fs if f.endswith(".so")]
+    _FS_CACHE[ue] = (bcs, sorted(set(sos)))
+    return _FS_CACHE[ue]
+
+def load_manifest(mdir):
+    """module (lowercase) -> sorted plugin names, from the original .uplugin files."""
+    m = {}
+    if not mdir or not os.path.isdir(mdir): return None
+    for r, _, fs in os.walk(mdir):
+        for f in fs:
+            if not f.endswith(".uplugin"): continue
+            try: d = load_json(os.path.join(r, f))
+            except Exception as e:
+                print(f"warn: manifest {f}: {e}", file=sys.stderr); continue
+            for mod in d.get("Modules", []):
+                m.setdefault(mod.get("Name", "").lower(), set()).add(f[:-8])
+    return {k: sorted(v) for k, v in m.items()}
+
+def _under(p, dirs): return any(p == d or p.startswith(d + os.sep) for d in dirs)
+
+def classify(mod, manifest, existing):
+    """('violation', providers) if a now-deleted plugin provided the module; ('allow', ..) ; else ('unknown', ..)."""
+    prov = (manifest or {}).get(mod.lower(), [])
+    if any(p not in existing for p in prov): return "violation", prov
+    if mod.lower() in {x.lower() for x in ALLOWLIST}: return "allow", prov
+    return "unknown", prov
+
+def verify_modules(ue, plug_dirs, deleted_dirs, manifest, existing):
+    """plug_dirs: {plugin_name: dir} for all plugins incl. platform extensions. Returns (violations, unknown) lists of
+    (owner/module, missing, providers)."""
+    bcs, _ = fs_index(ue)
+    bcs = [b for b in bcs if not _under(b, deleted_dirs)]
+    defined = {os.path.basename(b)[:-9].lower() for b in bcs}
+    pd = sorted(plug_dirs.items(), key=lambda kv: -len(kv[1]))
+    viol, unk = [], []
+    for b in bcs:
+        owner = next((n for n, d in pd if b.startswith(d + os.sep)), None)
+        if owner is None: continue  # engine Source modules: not checked (not removable by this script)
+        mod = os.path.basename(b)[:-9]
+        for ref in sorted(parse_build_cs(b)):
+            if ref.lower() in defined: continue
+            kind, prov = classify(ref, manifest, existing)
+            row = (f"{owner}/{mod}", ref, prov)
+            if kind == "violation": viol.append(row)
+            elif kind == "unknown": unk.append(row)
+    return sorted(viol), sorted(unk)
+
+def verify_binaries(ue, deleted_dirs, manifest, existing):
+    """NEEDED libUnrealEditor-*.so not present in the kept set. Returns (violations, unknown) of (so, needed, providers)."""
+    _, sos = fs_index(ue)
+    sos = [s for s in sos if not _under(s, deleted_dirs)]
+    have = {os.path.basename(s) for s in sos}
+    viol, unk = [], []
+    for i in range(0, len(sos), 150):
+        cur = None
+        p = subprocess.run(["readelf", "-d", "-W", *sos[i:i+150]], capture_output=True, text=True, errors="replace")
+        for line in p.stdout.splitlines():
+            if line.startswith("File: "): cur = line[6:].strip(); continue
+            m = re.search(r"\(NEEDED\)\s+Shared library: \[(libUnrealEditor-([^\]]+)\.so)\]", line)
+            if m and cur and m.group(1) not in have:
+                mod = m.group(2)
+                kind, prov = classify(mod, manifest, existing)
+                row = (os.path.relpath(cur, ue), m.group(1), prov)
+                if kind == "violation": viol.append(row)
+                elif kind == "unknown": unk.append(row)
+    return sorted(viol), sorted(unk)
+
+def run_layer_checks(title, ue, plugs, pext, deleted_dirs, manifest, mdir):
+    """Prints module-level and binary-level results; returns number of violations."""
+    if manifest is None:
+        print(f"verify-deps [{title}]: manifest {mdir!r} missing; module/binary checks need --manifest"); return 1
+    plug_dirs = {n: p["path"] for n, p in plugs.items()}
+    plug_dirs.update({e["name"]: e["path"] for e in pext})
+    existing = {n for n, d in plug_dirs.items() if not _under(d, deleted_dirs)}
+    mv, mu = verify_modules(ue, plug_dirs, deleted_dirs, manifest, existing)
+    print(f"verify-deps [{title}] module-level (Build.cs): {len(mv)} violation(s), {len(mu)} pre-existing/unknown (informational)")
+    for o, r, pr in mv: print(f"  VIOLATION {o} -> {r} (provided by deleted plugin: {', '.join(pr)})")
+    for o, r, pr in mu[:40]: print(f"  info {o} -> {r} (manifest: {', '.join(pr) or 'not in manifest'})")
+    if len(mu) > 40: print(f"  info ... {len(mu) - 40} more")
+    bv, bu = verify_binaries(ue, deleted_dirs, manifest, existing)
+    print(f"verify-deps [{title}] binary-level (readelf NEEDED): {len(bv)} violation(s), {len(bu)} pre-existing/unknown (informational)")
+    for o, r, pr in bv: print(f"  VIOLATION {o} NEEDS {r} (provided by deleted plugin: {', '.join(pr)})")
+    for o, r, pr in bu[:40]: print(f"  info {o} needs {r} (manifest: {', '.join(pr) or 'not in manifest'})")
+    if len(bu) > 40: print(f"  info ... {len(bu) - 40} more")
+    return len(mv) + len(bv)
+
 def sz_(plugs, n): return plugs[n]["size"]
 
 def main():
@@ -267,6 +415,9 @@ def main():
                     help="only check for platform-extension plugins whose parent is missing; exit 1 if any")
     ap.add_argument("--verify-deps", action="store_true",
                     help="check every remaining plugin's hard deps exist (current tree and planned post-state); exit 1 on violations")
+    ap.add_argument("--manifest", default="/home/bojan/ue-5.8.4-uplugin-manifest",
+                    help="dir with the original .uplugin files (same relative layout); used by the Build.cs/readelf layers to name the "
+                         "plugin that provided a missing module")
     ap.add_argument("--ignore-parse-errors", action="store_true",
                     help="continue although some .uplugin files fail to parse (UNSAFE: those plugins are invisible)")
     ap.add_argument("--no-sizes-of-dirs", action="store_true", help="skip other-dir sizing")
@@ -442,6 +593,13 @@ def main():
         print_violations("current tree", cur)
         print_violations("planned post-state (all - deletion set)", post)
         bad = post if a.apply else (cur or post)
+        manifest = load_manifest(a.manifest)
+        if a.verify_deps or a.apply:
+            del_dirs = [plugs[n]["path"] for n in top] + [e["path"] for e in ext_removed] + prune_dirs
+            nl_cur = run_layer_checks("current tree", ue, plugs, pext, [], manifest, a.manifest)
+            nl_post = run_layer_checks("planned post-state", ue, plugs, pext, del_dirs, manifest, a.manifest)
+            layer_bad = nl_post if a.apply else (nl_cur or nl_post)
+            bad = bad or ([("module/binary layer", "see above")] if layer_bad else [])
     print(f"safe total {hs(sum(sz(n) for n in top))}; {len(top)} dirs; blocked {len(blocked)}")
     if a.verify_deps and bad and not a.apply: sys.exit(1)
     if a.apply:
@@ -458,7 +616,10 @@ def main():
         after = scan(ue)
         v = verify_deps(after, set(after))
         print_violations("after apply", v)
-        if report_orphans(ue) or v: sys.exit(1)
+        _FS_CACHE.clear()
+        after_pext = scan_platform_ext(ue, set(after))
+        nl = run_layer_checks("after apply", ue, after, after_pext, [], manifest, a.manifest)
+        if report_orphans(ue) or v or nl: sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -1400,3 +1400,12 @@ DENYLIST and `ModelingToolsEditorMode` is on `NEVER_DELETE`, so the aggressive-p
 
 **Required follow-up (not done here, outside scope).** Restore `Engine/Plugins/Runtime/HairStrands` and `Engine/Plugins/Editor/ModelingToolsEditorMode` (paths are in the restore list),
 remove the two `"Enabled": false` entries from `Velox.uproject`, then run `trim-plugins.py --verify-deps`; iterate until it exits 0.
+
+## Module- and binary-level verification (added 2026-10-24)
+Cause: UBT failed with `Could not find definition for module 'UAFAnimGraph' (referenced via VeloxEditor -> IKRigUAF.build.cs)` although plugin-level `--verify-deps` was clean:
+a kept plugin's module referenced a module of a deleted plugin. `trim-plugins.py --verify-deps` now also parses kept plugins' Build.cs dependency lists against all module
+definitions and checks `readelf` NEEDED of kept `.so` files; the offline manifest (`--manifest`) names the deleted provider plugin. Live-tree result (tree still changing):
+current tree: `IKRig/IKRigUAF -> UAFAnimGraph`, `ModelViewViewModel/ModelViewViewModelAssetSearch -> AssetSearch`, `OnlineFramework/Party -> OnlineSubsystemGDK` (deleted providers);
+binary layer 0 violations; 8 informational (Shaders, WinPixEventRuntime, Wintab, UEOpenAPV: not in manifest). Planned post-state additionally deletes `UAF`
+(IKRigUAF -> UAF and libUnrealEditor-IKRigUAF.so NEEDS libUnrealEditor-UAF.so), so `--apply` would be refused. Remedy: restore UAFAnimGraph, UAF, AssetSearch, OnlineSubsystemGDK
+(or drop the dependants IKRig/ModelViewViewModel/OnlineFramework from the kept set), then re-run until exit 0.

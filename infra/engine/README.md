@@ -109,3 +109,14 @@ Needs >= 45 GB free on the destination filesystem (52 GB with `--full`), checked
 post-state; exit 1 on violations. `--apply` refuses to run when the planned post-state has violations and re-verifies afterwards. `.uplugin` parsing is strict about failures
 (abort unless `--ignore-parse-errors`), name matching is case-insensitive, and a `"Enabled": false` in the `.uproject` never cuts a dependency edge (it is reported as an
 "uproject conflict"). Always run `--verify-deps` before and after any deletion. See `TRIM-REPORT.md` "Post-mortem 2026-10-24".
+
+### Module- and binary-level verification (`--verify-deps`, `--manifest DIR`)
+Plugin-level checks are not enough: a kept plugin's `*.Build.cs` (also lowercase `.build.cs`) may list a module of a deleted plugin
+(`IKRig/IKRigUAF -> UAFAnimGraph`), and precompiled `.so` files of kept plugins may `NEEDED` a `libUnrealEditor-<Module>.so` of a deleted plugin.
+`--verify-deps` therefore runs three layers on the current tree and the planned post-state (and after `--apply`):
+1. `.uplugin` hard dependencies; 2. dependency lists of kept plugins' Build.cs (`Public/PrivateDependencyModuleNames`, `DynamicallyLoadedModuleNames`,
+`Public/PrivateIncludePathModuleNames`; `Add`, `AddRange(new string[]/new[])`, multi-line, comments ignored) against all module definitions;
+3. `readelf -d` NEEDED of all kept `.so`. A missing module is a VIOLATION only if the manifest (`--manifest`, default
+`/home/bojan/ue-5.8.4-uplugin-manifest`, the original `.uplugin` files) says a now-deleted plugin provided it; otherwise it is informational
+("pre-existing/unknown"). Names in `ALLOWLIST` (top of the check section: GRDK, DiaSDK, Catch2, uLangCore, uLangJSON, LinuxTargetPlatformSettings) are
+always informational-silent. Limitation: Build.cs parsing is textual, platform-conditional references (`if (Target.Platform == ...)`) are included. `--apply` is refused on any violation.
