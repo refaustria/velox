@@ -81,17 +81,30 @@ namespace VeloxMoveSim
 
 		FVector Result = V;
 		float Grace = KnockbackGrace;
-		for (int32 i = 0; i < N; ++i)
+		auto SubstepBody = [&Result, &WishDir, WishSpeed, &P](float StepDt, bool bInGrace)
 		{
 			// Q3 PM_WalkMove under PMF_TIME_KNOCKBACK: no friction and pm_airaccelerate instead of pm_accelerate.
-			const bool bInGrace = Grace > GraceEpsilon;
 			if (!bInGrace)
 			{
-				Result = ApplyFriction(Result, H, P);
+				Result = ApplyFriction(Result, StepDt, P);
 			}
 			if (WishSpeed > 0.f)
 			{
-				Result = Accelerate(Result, WishDir, WishSpeed, bInGrace ? P.AirAcceleration : P.GroundAcceleration, H);
+				Result = Accelerate(Result, WishDir, WishSpeed, bInGrace ? P.AirAcceleration : P.GroundAcceleration, StepDt);
+			}
+		};
+		for (int32 i = 0; i < N; ++i)
+		{
+			if (Grace > GraceEpsilon && Grace < H - GraceEpsilon)
+			{
+				// A27: the grace expires inside this substep. Split it at the expiry so friction starts at the same
+				// simulated time for every move partition (a server move that merges lost client moves has other substeps).
+				SubstepBody(Grace, true);
+				SubstepBody(H - Grace, false);
+			}
+			else
+			{
+				SubstepBody(H, Grace > GraceEpsilon);
 			}
 			Grace -= H;
 		}

@@ -45,6 +45,8 @@ UVeloxMovementComponent::UVeloxMovementComponent(const FObjectInitializer& Objec
 	bHasSideInput = false;
 	bJumpLatched = false;
 	bApplyingCorrection = false;
+	bJumpedThisMove = false;
+	bInClientReplay = false;
 
 	// FPS rotation: yaw comes from the controller via the character (bUseControllerRotationYaw), never from movement.
 	bOrientRotationToMovement = false;
@@ -169,8 +171,11 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 	// derive the same value. A jump started by CheckJumpInput before this call has held = true and keeps the latch.
 	bJumpLatched = JumpLatchAtMoveStart(bJumpLatched, bWantsJumpHeld);
 
+	bJumpedThisMove = false;
+
 	ConsumePendingKnockback();
 	MoveStartKnockbackGrace = KnockbackGrace;
+	MoveElapsedTime = 0.f;
 
 	Super::PerformMovement(DeltaSeconds);
 
@@ -201,21 +206,64 @@ void UVeloxMovementComponent::ConsumePendingKnockback()
 	PendingKnockback.Reset();
 }
 
-void UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVelocity)
+bool UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVelocity)
 {
 	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy)
 	{
 		// Simulated proxies never run moves; the result arrives through replication.
-		return;
+		return false;
 	}
 	if (bApplyingCorrection && CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_AutonomousProxy)
 	{
 		// The correction teleport fired an overlap (A19). The server's state already contains every entry it saw, consumed
 		// into the corrected velocity or pending in the response; the replay re-fires overlaps the server has not seen yet.
 		UE_LOG(LogVeloxMovement, Verbose, TEXT("%s: AddKnockback %s (override %d) ignored during correction teleport"), *GetPathNameSafe(this), *Impulse.ToString(), bOverrideVelocity ? 1 : 0);
-		return;
+		return false;
 	}
 	PendingKnockback.Add(Impulse, bOverrideVelocity);
+	return true;
+}
+
+float UVeloxMovementComponent::GetCurrentMoveTimeStamp() const
+{
+	const bool bAuthority = CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority;
+	if (bAuthority || bInClientReplay)
+	{
+		return LastMoveAutonomousTimeStamp;
+	}
+	if (bApplyingCorrection)
+	{
+		return PendingCorrectionTimeStamp;
+	}
+	const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character();
+	return ClientData ? ClientData->CurrentTimeStamp : 0.f;
+}
+
+const TCHAR* UVeloxMovementComponent::GetMoveSourceName() const
+{
+	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority)
+	{
+		return TEXT("server");
+	}
+	if (bApplyingCorrection)
+	{
+		return TEXT("teleport");
+	}
+	return bInClientReplay ? TEXT("replay") : TEXT("live");
+}
+
+void UVeloxMovementComponent::MoveAutonomous(float ClientTimeStamp, float DeltaTime, uint8 CompressedFlags, const FVector& NewAccel)
+{
+	LastMoveAutonomousTimeStamp = ClientTimeStamp;
+#if !UE_BUILD_SHIPPING
+	// A28(iv): the longest regular client move is 25 ms; a longer server move filled in the time of lost RPCs.
+	constexpr float MoveGapLogThreshold = 0.030f;
+	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority && DeltaTime > MoveGapLogThreshold)
+	{
+		UE_LOG(LogVeloxNet, Log, TEXT("VeloxMoveGap ts=%.6f dt=%.6f"), ClientTimeStamp, DeltaTime);
+	}
+#endif
+	Super::MoveAutonomous(ClientTimeStamp, DeltaTime, CompressedFlags, NewAccel);
 }
 
 void UVeloxMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration)
@@ -250,9 +298,14 @@ void UVeloxMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool
 	Input.bHasSideInput = bHasSideInput;
 	Input.bJumpHeld = bWantsJumpHeld;
 
+	// A27: the grace remaining at the start of this iteration, not of the move. GetSimulationTimeStep splits moves longer
+	// than MaxSimulationTimeStep (a server move that merged lost client moves) into several PhysWalking iterations.
+	const float GraceNow = FMath::Max(0.f, MoveStartKnockbackGrace - MoveElapsedTime);
 	Velocity = bOnGround
-		? VeloxMoveSim::GroundMove(Velocity, Input, DeltaTime, MoveStartKnockbackGrace, SimParams)
+		? VeloxMoveSim::GroundMove(Velocity, Input, DeltaTime, GraceNow, SimParams)
 		: VeloxMoveSim::AirMove(Velocity, Input, DeltaTime, SimParams);
+	// The grace counts down regardless of the mode.
+	MoveElapsedTime += DeltaTime;
 }
 
 FVector UVeloxMovementComponent::GetFallingLateralAcceleration(float DeltaTime)
@@ -348,6 +401,7 @@ bool UVeloxMovementComponent::DoJump(bool bReplayingMoves, float DeltaTime)
 		Velocity = VeloxMoveSim::Jump(Velocity, SimParams);
 		SetMovementMode(MOVE_Falling);
 		bJumpLatched = true;
+		bJumpedThisMove = true;
 		return true;
 	}
 	return false;
@@ -496,7 +550,9 @@ bool UVeloxMovementComponent::ClientUpdatePositionAfterServerUpdate()
 	}
 #endif
 
+	bInClientReplay = true;
 	const bool bResult = Super::ClientUpdatePositionAfterServerUpdate();
+	bInClientReplay = false;
 
 	bWantsJumpHeld = bRealJumpHeld;
 	bHasForwardInput = bRealForwardInput;

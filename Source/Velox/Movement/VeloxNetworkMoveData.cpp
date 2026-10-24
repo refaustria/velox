@@ -14,6 +14,8 @@ FSavedMove_Velox::FSavedMove_Velox()
 	, bSavedHasForwardInput(false)
 	, bSavedHasSideInput(false)
 	, bSavedJumpLatched(false)
+	, bSavedEnteredTrigger(false)
+	, bSavedJumpedHeld(false)
 {
 }
 
@@ -27,6 +29,8 @@ void FSavedMove_Velox::Clear()
 	bSavedHasForwardInput = false;
 	bSavedHasSideInput = false;
 	bSavedJumpLatched = false;
+	bSavedEnteredTrigger = false;
+	bSavedJumpedHeld = false;
 }
 
 uint8 FSavedMove_Velox::GetCompressedFlags() const
@@ -136,6 +140,31 @@ void FSavedMove_Velox::PrepMoveFor(ACharacter* C)
 	// Velocity (restoring recorded predictions would re-inject mispredicted history). Kept as an explicit override so the
 	// rule has one place to live; M2's recorded knockback channel (A17) will be assigned here.
 	Super::PrepMoveFor(C);
+}
+
+void FSavedMove_Velox::PostUpdate(ACharacter* C, EPostUpdateMode PostUpdateMode)
+{
+	Super::PostUpdate(C, PostUpdateMode);
+
+	// Only when recording the live move: a replay must not change which moves the client resends.
+	if (PostUpdateMode == PostUpdate_Record)
+	{
+		if (const UVeloxMovementComponent* MoveComp = C ? Cast<UVeloxMovementComponent>(C->GetCharacterMovement()) : nullptr)
+		{
+			// The move's own end-of-scope overlap has already queued the knockback; the next move consumes it (A28).
+			bSavedEnteredTrigger = MoveComp->HasPendingKnockback();
+			bSavedJumpedHeld = MoveComp->JumpedThisMove() && bSavedJumpHeld;
+		}
+	}
+}
+
+bool FSavedMove_Velox::IsImportantMove(const FSavedMovePtr& LastAckedMove) const
+{
+	if (bSavedEnteredTrigger || bSavedJumpedHeld)
+	{
+		return true;
+	}
+	return Super::IsImportantMove(LastAckedMove);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

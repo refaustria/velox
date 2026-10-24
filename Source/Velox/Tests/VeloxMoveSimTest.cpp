@@ -433,4 +433,80 @@ bool FVeloxMovementDeterminismTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementGracePartitionInvarianceTest, "Velox.Movement.Sim.GracePartitionInvariance", VeloxMoveSimTest::Flags)
+bool FVeloxMovementGracePartitionInvarianceTest::RunTest(const FString& Parameters)
+{
+	// ADR 0002 A27(iv): the server fills a lost move's time into the next move, so friction must start at the same
+	// simulated time for every partition of the same 50 ms. Between calls the grace is decremented by the step and
+	// clamped at 0, as the CMC does per PhysWalking iteration (A27 fix 1).
+	// Tolerance: A27(iv) asks for 0.2 % between every pair of partitions. Without any grace the pair 1x50ms (7 friction
+	// substeps of 7.14 ms) vs 6x1/120 (12 of 4.17 ms) already differs by 0.28 %: the accepted FixedStep/2..FixedStep
+	// substep residual of A1, independent of the grace (it shrinks as the grace covers more of the 50 ms). The bound is
+	// therefore 0.3 %. Before the A27 fix the deltas reach 2.8 % (g = 16.65 ms, 1x50ms vs 3x1/60) and 3.4 % (g = 7.3 ms).
+	const FVeloxMoveParams P = DefaultParams();
+	const float Partitions[][6] = {
+		{ 0.05f },
+		{ 0.025f, 0.025f },
+		{ 1.f / 60.f, 1.f / 60.f, 1.f / 60.f },
+		{ 1.f / 120.f, 1.f / 120.f, 1.f / 120.f, 1.f / 120.f, 1.f / 120.f, 1.f / 120.f },
+		{ 1.f / 60.f, 1.f / 120.f, 0.025f },
+	};
+	const int32 NumSteps[] = { 1, 2, 3, 6, 3 };
+	const TCHAR* Names[] = { TEXT("1x50ms"), TEXT("25+25ms"), TEXT("3x1/60"), TEXT("6x1/120"), TEXT("1/60+1/120+25ms") };
+	const float Graces[] = { 1e-6f, 0.0005f, 0.0073f, 0.01665f, 0.0333f, 0.049f };
+	const float WishSpeeds[] = { 0.f, 800.f };
+	constexpr double MaxSpeedDelta = 0.003;   // 0.3 %, see above
+	constexpr double MaxAngleDeg = 0.1;
+	constexpr int32 NumPartitions = UE_ARRAY_COUNT(Partitions);
+
+	auto Integrate = [&](const FVeloxMoveInput& In, float Grace0, int32 k)
+	{
+		FVector V(1250.0, 0.0, 0.0);
+		float Grace = Grace0;
+		for (int32 i = 0; i < NumSteps[k]; ++i)
+		{
+			V = VeloxMoveSim::GroundMove(V, In, Partitions[k][i], Grace, P);
+			Grace = FMath::Max(0.f, Grace - Partitions[k][i]);
+		}
+		return V;
+	};
+
+	double WorstDelta = 0.0;
+	for (const float WishSpeed : WishSpeeds)
+	{
+		const FVeloxMoveInput In = Wish(FVector::ForwardVector, WishSpeed, WishSpeed > 0.f, false);
+		for (const float Grace0 : Graces)
+		{
+			FVector End[NumPartitions];
+			for (int32 k = 0; k < NumPartitions; ++k)
+			{
+				End[k] = Integrate(In, Grace0, k);
+			}
+			for (int32 a = 0; a < NumPartitions; ++a)
+			{
+				for (int32 b = a + 1; b < NumPartitions; ++b)
+				{
+					const double Sa = Speed2D(End[a]), Sb = Speed2D(End[b]);
+					const double Delta = FMath::Abs(Sa - Sb) / FMath::Max(Sa, Sb);
+					const double CosAngle = FMath::Clamp(End[a].GetSafeNormal2D() | End[b].GetSafeNormal2D(), -1.0, 1.0);
+					const double AngleDeg = FMath::RadiansToDegrees(FMath::Acos(CosAngle));
+					WorstDelta = FMath::Max(WorstDelta, Delta);
+					if (Delta > MaxSpeedDelta || AngleDeg > MaxAngleDeg)
+					{
+						AddError(FString::Printf(TEXT("wish %.0f grace %.6f: %s %.4f vs %s %.4f (%.3f %%, %.4f deg)"),
+							WishSpeed, Grace0, Names[a], Sa, Names[b], Sb, 100.0 * Delta, AngleDeg));
+					}
+				}
+			}
+			if (FMath::IsNearlyEqual(Grace0, 0.01665f))
+			{
+				const double S0 = Speed2D(End[0]), S2 = Speed2D(End[2]);
+				AddInfo(FString::Printf(TEXT("wish %.0f grace 16.65 ms: 1x50ms %.4f vs 3x1/60 %.4f (%.3f %%)"), WishSpeed, S0, S2, 100.0 * FMath::Abs(S0 - S2) / FMath::Max(S0, S2)));
+			}
+		}
+	}
+	AddInfo(FString::Printf(TEXT("worst pairwise end-speed delta %.4f %%"), 100.0 * WorstDelta));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

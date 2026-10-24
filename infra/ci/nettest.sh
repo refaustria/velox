@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Headless networked movement soak (M1 task 05, ADR 0002 section 5 and amendments A17-A26).
+# Headless networked movement soak (M1 task 05, ADR 0002 section 5 and amendments A17-A30).
 # Starts a dedicated server and one scripted -nullrhi client on this machine with 100 ms / 2 % packet simulation in both
 # directions, runs the soak scripts and applies the per-script pass criteria from
 # docs/tasks/m1-movement/05-debug-tooling-and-net-soak.md. See infra/ci/README.md.
@@ -116,7 +116,7 @@ run_one() {
   cleanup
 
   python3 -I - "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" <<'PY'
-import re, sys
+import math, re, sys
 
 script, slog, clog, crc, server_alive, result_path = sys.argv[1:7]
 crc = int(crc); server_alive = server_alive == "1"
@@ -173,6 +173,12 @@ ground_speed = num(info_line, "ground_speed", 800.0)
 jump_velocity = num(info_line, "jump_velocity", 0.0)
 gravity = abs(num(info_line, "gravity_z", 0.0))
 grace_max = num(info_line, "knockback_grace_max", 0.2)
+# A30(ii): GroundFriction / StopSpeed. The info line does not carry them yet (VeloxScriptedInputComponent); the defaults
+# of UVeloxMovementSettings (6.0 1/s, 250 cm/s) apply to every script except LatchRun (Preset Q3, which keeps both).
+ground_friction = num(info_line, "ground_friction", 6.0)
+stop_speed = num(info_line, "stop_speed", 250.0)
+# A28(iv): server moves longer than 30 ms (lost RPCs merged into the next move).
+gaps = [kv(l) for l in S if "VeloxMoveGap ts=" in l]
 responses = [kv(l) for l in C if "VeloxCorrectionResponse t=" in l]
 samples = [kv(l) for l in C if "event=post_correction_sample" in l]
 lands = [kv(l) for l in C if "event=land" in l and "VeloxNetSoak" in l]
@@ -284,6 +290,26 @@ def knockback_checks(airborne):
             if er is not None and num(er, "grace") > 0 and abs(num(er, "svel") - svel) > 0.01 * svel:
                 fails.append("server velocity %.1f at ts=%s (grace %.3f > 0) not within 1 %% of %.1f: friction during the grace" % (num(er, "svel"), er.get("ts"), num(er, "grace"), svel))
                 break
+        # A30(ii): the server's friction starts at the grace expiry t_exp = ts_c + grace_c, whatever its move partition
+        # (A27). Every burst response after the expiry (grace 0) must follow svel_c * exp(-GroundFriction * (ts - t_exp))
+        # within 3 % while that value exceeds 1.2 x StopSpeed (below it Q3 friction is linear, not exponential).
+        if resp is not None and svel > 0 and rgrace >= 0:
+            t_exp = num(resp, "ts") + rgrace
+            checked = 0
+            for c in corr:
+                if not (tc <= c[0] <= tc + 0.6):
+                    continue
+                r = response_for(c)
+                if r is None or num(r, "grace") > 0 or num(r, "ts") <= t_exp:
+                    continue
+                want = svel * math.exp(-ground_friction * (num(r, "ts") - t_exp))
+                if want <= 1.2 * stop_speed:
+                    continue
+                checked += 1
+                if abs(num(r, "svel") - want) > 0.03 * want:
+                    fails.append("friction start (A30): svel %.1f at ts=%s, want %.1f +- 3 %% (t_exp=%.6f, GroundFriction %.2f): server friction did not start at the grace expiry" % (num(r, "svel"), r.get("ts"), want, t_exp, ground_friction))
+                    break
+            detail.append("t_exp=%.6f friction_checks=%d" % (t_exp, checked))
     late = [c for c in in_window(tc + 0.05, tc + 0.6) if c is not intended]
     if late:
         fails.append("further non-echo correction in [t_corr+0.05, t_corr+0.6]: %s" % fmt(late))
@@ -298,23 +324,58 @@ if script == "StrafeRun":
         fails.append("correction > 5 cm within 0.5 s after the speed peak: %s" % fmt(bad))
 
 elif script == "PadRun":
-    def pads(lines):
-        out = {}
-        for l in lines:
-            if "VeloxJumpPad: pad=" in l:
-                d = kv(l); out.setdefault(d["pad"], []).append(num(d, "t"))
-        return out
-    cp, sp = pads(C), pads(S)
-    detail.append("pads=%s" % sorted(cp))
-    if len(cp) != 3:
-        fails.append("expected 3 distinct pads launched on the client, got %d: %s" % (len(cp), sorted(cp)))
-    for pad in sorted(set(cp) | set(sp)):
-        if len(cp.get(pad, [])) != 1:
-            fails.append("pad %s: %d client launch lines (want 1)" % (pad, len(cp.get(pad, []))))
-        if len(sp.get(pad, [])) != 1:
-            fails.append("pad %s: %d server launch lines (want 1)" % (pad, len(sp.get(pad, []))))
-    for pad, ts in sorted(cp.items()):
-        for t in ts:
+    # ADR 0002 A28(iii)/A30(iii): per pad exactly one client line src=live applied=1 and exactly one server line, with equal
+    # move time stamps ts (the launch is queued at the end of the same move on both ends). src=replay applied=1 lines (a
+    # replay re-entering the trigger) are allowed once per pad and replay and must carry the server's ts; applied=0 lines
+    # (A19 teleport overlaps) are ignored.
+    def pad_lines(lines):
+        return [kv(l) for l in lines if "VeloxJumpPad: pad=" in l]
+    cl, sl = pad_lines(C), pad_lines(S)
+    if any("src" not in d or "ts" not in d for d in cl + sl):
+        fails.append("pad launch line without ts=/src= (binary older than ADR 0002 A28(iii)?)")
+    live, srv, rep_lines = {}, {}, {}
+    for d in cl:
+        if d.get("applied") != "1":
+            continue
+        if d.get("src") == "live":
+            live.setdefault(d["pad"], []).append(d)
+        elif d.get("src") == "replay":
+            rep_lines.setdefault(d["pad"], []).append(d)
+    for d in sl:
+        srv.setdefault(d["pad"], []).append(d)
+    detail.append("pads=%s" % sorted(live))
+    if len(live) != 3:
+        fails.append("expected 3 distinct pads launched live on the client, got %d: %s" % (len(live), sorted(live)))
+    def gap_at(ts):
+        return next((g for g in gaps if num(g, "ts") - num(g, "dt") < ts + 1e-6 and ts <= num(g, "ts") + 1e-6), None)
+    for pad in sorted(set(live) | set(srv)):
+        lv, sv = live.get(pad, []), srv.get(pad, [])
+        if len(lv) != 1:
+            fails.append("pad %s: %d client src=live applied=1 lines (want 1)" % (pad, len(lv)))
+        if len(sv) != 1:
+            fails.append("pad %s: %d server launch lines (want 1)" % (pad, len(sv)))
+        if len(lv) == 1 and len(sv) == 1:
+            cts, sts = num(lv[0], "ts"), num(sv[0], "ts")
+            if abs(cts - sts) > 1e-6:
+                g = gap_at(cts)
+                if g is not None:
+                    fails.append("pad %s: launch one move apart (lost entry move): client ts=%s server ts=%s, VeloxMoveGap ts=%s dt=%s" % (pad, lv[0].get("ts"), sv[0].get("ts"), g.get("ts"), g.get("dt")))
+                else:
+                    fails.append("pad %s: overlap ordering regression: client ts=%s server ts=%s, no VeloxMoveGap at the entry" % (pad, lv[0].get("ts"), sv[0].get("ts")))
+        if len(sv) == 1:
+            per_replay = {}
+            for d in rep_lines.get(pad, []):
+                per_replay[d.get("t")] = per_replay.get(d.get("t"), 0) + 1
+                if abs(num(d, "ts") - num(sv[0], "ts")) > 1e-6:
+                    fails.append("pad %s: replayed launch at t=%s has ts=%s, server ts=%s" % (pad, d.get("t"), d.get("ts"), sv[0].get("ts")))
+                    break
+            if any(n > 1 for n in per_replay.values()):
+                fails.append("pad %s: more than one applied launch within one replay: %s" % (pad, per_replay))
+            if len(per_replay) > len(replays):
+                fails.append("pad %s: %d replayed launches but only %d replays" % (pad, len(per_replay), len(replays)))
+    for pad, ds in sorted(live.items()):
+        for d in ds:
+            t = num(d, "t")
             stray_only(t, t + 0.6, "pad %s launch" % pad)
     if final and "checks=3/3" not in final:
         fails.append("landing checkpoints: %s" % kv(final).get("checks"))
@@ -375,14 +436,19 @@ if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun"):
     if y > 5.0:
         fails.append("mean correction %.2f cm > 5" % y)
 
+# A28(iv)/A30(iv): with 2 % loss each way the server must see merged moves. moves counts client moves; ground moves are
+# combined in pairs, so >= 1000 moves is >= 500 RPCs.
+if not gaps and moves >= 1000:
+    fails.append("loss simulation inactive: no VeloxMoveGap on the server over %d client moves (>= 500 RPCs)" % moves)
+
 # Summary over non-echo corrections (echoes counted separately, A24).
 ncorr = len(nonecho)
 nx = [c[1] for c in nonecho]
 cmax = max(nx) if nx else 0.0
 cmean = sum(nx) / len(nx) if nx else 0.0
 detail.append("replays=%d acks_ignored=%d" % (len(replays), acks_ignored))
-row = "%-18s moves=%-5d C=%-3d echoes=%-3d max=%-6.2f mean=%-5.2f %s  %s  %s" % (
-    script, moves, ncorr, len(echoes), cmax, cmean, "FAIL" if fails else "PASS", " ".join(detail), ("; ".join(notes)))
+row = "%-18s moves=%-5d C=%-3d echoes=%-3d gaps=%-3d max=%-6.2f mean=%-5.2f %s  %s  %s" % (
+    script, moves, ncorr, len(echoes), len(gaps), cmax, cmean, "FAIL" if fails else "PASS", " ".join(detail), ("; ".join(notes)))
 with open(result_path, "w") as out:
     out.write(row + "\n")
     for fl in fails:

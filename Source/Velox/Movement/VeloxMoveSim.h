@@ -92,7 +92,10 @@ namespace VeloxMoveSim
 
 	/**
 	 * Ground velocity update, substepped, Z untouched. Per substep: friction + accelerate with GroundAcceleration; while
-	 * KnockbackGrace > 0 (Q3 PMF_TIME_KNOCKBACK) no friction and accelerate with AirAcceleration instead.
+	 * KnockbackGrace > 0 (Q3 PMF_TIME_KNOCKBACK) no friction and accelerate with AirAcceleration instead. KnockbackGrace
+	 * counts down per substep, and a substep in which it expires is split at the expiry (grace part, then ground part;
+	 * ADR 0002 A27), so friction starts at the same simulated time for every move partition (the server merges lost
+	 * moves into one longer move). The caller passes the grace remaining at the start of Dt.
 	 */
 	VELOX_API FVector GroundMove(const FVector& V, const FVeloxMoveInput& In, float Dt, float KnockbackGrace, const FVeloxMoveParams& P);
 

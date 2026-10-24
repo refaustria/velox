@@ -77,9 +77,24 @@ public:
 	 * client while it applies a correction teleport (A19: the server's response already holds every entry it saw).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Velox|Movement")
-	void AddKnockback(FVector Impulse, bool bOverrideVelocity = false);
+	bool AddKnockback(FVector Impulse, bool bOverrideVelocity = false);
 
 	const FVeloxPendingKnockback& GetPendingKnockback() const { return PendingKnockback; }
+
+	/** A knockback is queued for the start of the next move (A28: the move that queued it is an important move). */
+	bool HasPendingKnockback() const { return PendingKnockback.IsPending(); }
+
+	/** DoJump succeeded during the current/last PerformMovement (A29: a held-jump landing jump makes the move important). */
+	bool JumpedThisMove() const { return bJumpedThisMove; }
+
+	/**
+	 * Time stamp of the move being simulated (A28(iii) instrumentation): on the server and during a client replay the
+	 * ClientTimeStamp captured in MoveAutonomous, on the live owning client the prediction data's CurrentTimeStamp.
+	 */
+	float GetCurrentMoveTimeStamp() const;
+
+	/** Where the current move runs, for the pad launch log (A28(iii)): live, replay, teleport (A19) or server. */
+	const TCHAR* GetMoveSourceName() const;
 
 	/** Correction only (A17: the pending knockback chains through replays); game code uses AddKnockback. */
 	void SetPendingKnockback(const FVeloxPendingKnockback& InPendingKnockback) { PendingKnockback = InPendingKnockback; }
@@ -162,6 +177,9 @@ protected:
 	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
 	virtual void OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData, float TimeStamp, FVector NewLocation, FVector NewVelocity, FMovementBaseInterfaceData* NewMovementBaseInterfaceData, FName NewBaseBoneName, bool bHasBase, bool bBaseRelativePosition, uint8 ServerMovementMode, FVector ServerGravityDirection) override;
+
+	/** Captures the move's ClientTimeStamp (server and client replay) and logs merged server moves (A28(iv), non-shipping). */
+	virtual void MoveAutonomous(float ClientTimeStamp, float DeltaTime, uint8 CompressedFlags, const FVector& NewAccel) override;
 	//~End of UCharacterMovementComponent interface
 
 	// The deprecated UPrimitiveComponent overload forwards to the one above.
@@ -203,8 +221,23 @@ protected:
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Velox|Movement")
 	float KnockbackGrace = 0.f;
 
-	/** KnockbackGrace at the start of the current move; every CalcVelocity of the move uses it (ADR 0002 A7). */
+	/** KnockbackGrace at the start of the current move (ADR 0002 A7, A22). */
 	float MoveStartKnockbackGrace = 0.f;
+
+	/**
+	 * Simulated time of the current move consumed by earlier CalcVelocity calls (A27): reset in PerformMovement, advanced
+	 * after every CalcVelocity, so each PhysWalking iteration of a split move gets the grace remaining at its own start.
+	 */
+	float MoveElapsedTime = 0.f;
+
+	/** ClientTimeStamp of the last MoveAutonomous (server, client replay); A28(iii) instrumentation. */
+	float LastMoveAutonomousTimeStamp = 0.f;
+
+	/** DoJump succeeded in the current move; cleared at the start of PerformMovement (A29). */
+	uint8 bJumpedThisMove : 1;
+
+	/** Owning client: inside Super::ClientUpdatePositionAfterServerUpdate (the replay of saved moves); A28(iii). */
+	uint8 bInClientReplay : 1;
 
 	/**
 	 * Ramp vertical speed handed from HandleWalkingOffLedge to StartFalling within one call chain of PhysWalking.

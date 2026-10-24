@@ -78,6 +78,14 @@ public:
 	virtual bool CanCombineWith(const FSavedMovePtr& NewMove, ACharacter* InCharacter, float MaxDelta) const override;
 	virtual void SetMoveFor(ACharacter* C, float InDeltaTime, FVector const& NewAccel, FNetworkPredictionData_Client_Character& ClientData) override;
 	virtual void PrepMoveFor(ACharacter* C) override;
+	virtual void PostUpdate(ACharacter* C, EPostUpdateMode PostUpdateMode) override;
+
+	/**
+	 * Engine rule plus the Velox event moves (A28/A29): a move at whose end a pad overlap queued a knockback, and a move
+	 * with a held-jump landing jump. An important move is resent as OldMove until acked, so a lost event move is simulated
+	 * by the server in its original partition instead of being merged into the next move (which shifts the event).
+	 */
+	virtual bool IsImportantMove(const FSavedMovePtr& LastAckedMove) const override;
 	//~End of FSavedMove_Character interface
 
 	/**
@@ -106,6 +114,12 @@ public:
 
 	/** Jump latch at the start of the move (A12). CanCombineWith and debugging only; never restored (A17). */
 	uint8 bSavedJumpLatched : 1;
+
+	/** A knockback was queued during this move, e.g. a pad trigger entry (A28). Recorded in PostUpdate_Record. */
+	uint8 bSavedEnteredTrigger : 1;
+
+	/** A jump happened in this move with jump held, e.g. the held-jump landing jump (A29). Recorded in PostUpdate_Record. */
+	uint8 bSavedJumpedHeld : 1;
 };
 
 /**

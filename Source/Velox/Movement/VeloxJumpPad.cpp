@@ -166,11 +166,14 @@ void AVeloxJumpPad::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedCompone
 	}
 
 	UE_LOG(LogVeloxMovement, Verbose, TEXT("%s: launch %s (%s) %s"), *GetName(), *Launch.ToString(), bOverrideVelocity ? TEXT("set") : TEXT("add"), *GetNameSafe(Character));
+	const bool bApplied = MoveComp->AddKnockback(Launch, bOverrideVelocity);
 #if !UE_BUILD_SHIPPING
-	// One line per predicted/authoritative launch; infra/ci/nettest.sh counts them per pad (client and server).
-	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxJumpPad: pad=%s role=%s t=%.3f launch=%s"), *GetName(), Character->GetLocalRole() == ROLE_Authority ? TEXT("authority") : TEXT("autonomous"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, *Launch.ToCompactString());
+	// One line per overlap (A28(iii)); infra/ci/nettest.sh matches the client's live launch and the server's launch by the
+	// move time stamp ts (same move on both ends). src: live | replay | teleport (A19, applied=0) | server.
+	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxJumpPad: pad=%s role=%s t=%.3f ts=%.6f src=%s applied=%d launch=%s"), *GetName(),
+		Character->GetLocalRole() == ROLE_Authority ? TEXT("authority") : TEXT("autonomous"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0,
+		MoveComp->GetCurrentMoveTimeStamp(), MoveComp->GetMoveSourceName(), bApplied ? 1 : 0, *Launch.ToCompactString());
 #endif
-	MoveComp->AddKnockback(Launch, bOverrideVelocity);
 }
 
 #if WITH_EDITOR
