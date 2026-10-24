@@ -2,7 +2,7 @@
 
 **Milestone:** M0 Infrastructure
 **Agent:** dev
-**Status:** todo (blocked until an engine is installed on this VM or the Mac)
+**Status:** done (2026-10-24)
 **Depends on:** 03, ADR 0001, engine install (06)
 
 ## Goal
