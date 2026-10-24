@@ -13,8 +13,11 @@ _Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-
 - **M0-06** UE 5.8.4 (CL 58902052, installed build) at `/opt/UnrealEngine-5.8`, streamed from Epic's S3 link without on-disk archive; clang toolchain v26 restored from Epic's public CDN; exec bits fixed; 4 GB swapfile. Installer hardened (`infra/engine/install-ue-linux.sh`: ranged-GET size check, anchored exclusions, exec-bit fix, toolchain fetch, sanity check, optional plugin trim).
 - Dependency-aware engine trim tooling (`infra/engine/trim-plugins.py`, `TRIM-REPORT.md`).
 
+- **ADR 0002** movement component design (`docs/adr/0002-movement-component-design.md`, accepted) and M1 task files `docs/tasks/m1-movement/01–06`.
+- Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
+
 ## In progress
-- Engine trim being applied (≈8.6 GB dependency-safe plugins + Android/ARM64 binaries ≈8 GB) with a verification build afterwards.
+- **Build currently RED** after the trim: three orphaned platform-extension plugins under `Engine/Platforms/{Android,IOS,VisionOS}` (parents RigLogic/OpenXR deleted) stop UBT. Fix = delete those three dirs (143 MB); waiting for the human's OK (question 7), then verification build.
 
 ## Blocked
 - **M0-04** content bootstrap (`L_Empty`, input assets, data assets): waits for the engine trim to finish (editor must not run while plugins are deleted).
@@ -31,3 +34,5 @@ _Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-
 4. **Mac toolchain.** Human has Xcode but not UE 5.8 yet. Action for the human when the Linux build is green: install the Epic Games Launcher on the Mac and UE 5.8 through it (~40 GB, default path `/Users/Shared/Epic Games/UE_5.8`), then run `infra/ci/build-mac.sh` from the repo root. Still needed: Apple Silicon or Intel.
 5. **Renderer decision (veto window).** ADR 0001 picks forward renderer + MSAA + baked static lighting (Q3-style readability, max fps). This shapes all M5 art. Veto now if you prefer deferred + TAA.
 6. **Scale.** Netcode defaults assume ≤ 16 players per server until M6. Confirm.
+7. **Delete `Engine/Platforms/{Android,IOS,VisionOS}`** (143 MB, orphaned mobile/XR platform extensions) to make the build green again? A subagent was blocked by the permission check; I will not do it without your word.
+8. **ADR 0002 defaults (veto window, affects all later content):** (a) vanilla Q3 physics with CPM air control OFF by default (toggle exists); (b) ground accel 10; (c) unit scale 2.5 cm per Q3 unit → 140 cm pawn, maps in Q3 proportions; (d) auto-hop ON by default; (e) no combining of air moves raises upstream RPC rate at >60 fps (~5 KB/s at 240 fps). Say "ok" or name the item to change.
