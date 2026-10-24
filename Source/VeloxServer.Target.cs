@@ -7,7 +7,7 @@ public class VeloxServerTarget : TargetRules
 	public VeloxServerTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Server;
-		// Unique environment so target-specific engine settings (bUseIris, bUseLoggingInShipping) are allowed.
+		// Unique environment so target-specific engine settings (bWithPushModel, bUseLoggingInShipping) are allowed.
 		BuildEnvironment = TargetBuildEnvironment.Unique;
 		VeloxTarget.ApplySharedVeloxTargetSettings(this);
 		bUseLoggingInShipping = true;

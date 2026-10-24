@@ -7,7 +7,7 @@ public class VeloxClientTarget : TargetRules
 	public VeloxClientTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Client;
-		// Unique environment so target-specific engine settings (bUseIris) are allowed.
+		// Unique environment so target-specific engine settings (bWithPushModel) are allowed.
 		BuildEnvironment = TargetBuildEnvironment.Unique;
 		VeloxTarget.ApplySharedVeloxTargetSettings(this);
 	}

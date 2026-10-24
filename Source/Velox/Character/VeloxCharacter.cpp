@@ -6,6 +6,7 @@
 #include "Core/VeloxGameplayTags.h"
 #include "Core/VeloxLog.h"
 #include "Core/VeloxPawnData.h"
+#include "GameFramework/Controller.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Input/VeloxInputComponent.h"
 #include "Input/VeloxInputConfig.h"
@@ -19,6 +20,8 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UVeloxMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
 	GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = true;
+	// DefaultInputComponentClass stays EnhancedInputComponent (ADR 0001); Velox pawns use the tag-binding subclass.
+	OverrideInputComponentClass = UVeloxInputComponent::StaticClass();
 }
 
 UAbilitySystemComponent* AVeloxCharacter::GetAbilitySystemComponent() const
@@ -90,13 +93,6 @@ void AVeloxCharacter::InitAbilityActorInfo()
 		ASC->InitAbilityActorInfo(VeloxPS, this);
 	}
 	// TODO(M2): clear the avatar on death/unpossess and apply GE_SpawnInit on respawn.
-}
-
-UInputComponent* AVeloxCharacter::CreatePlayerInputComponent()
-{
-	// DefaultInputComponentClass stays EnhancedInputComponent (ADR 0001); Velox pawns use the tag-binding subclass.
-	static const FName InputComponentName(TEXT("PawnInputComponent0"));
-	return NewObject<UVeloxInputComponent>(this, UVeloxInputComponent::StaticClass(), InputComponentName);
 }
 
 void AVeloxCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

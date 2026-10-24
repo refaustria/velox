@@ -37,3 +37,5 @@
 
 ## Report back
 Standard dev-hard format incl. design summary and the explicit compile status.
+
+- Naming note: implementation follows the ADR names (`VeloxModule.cpp` + `Core/VeloxLog` instead of `Velox.h/.cpp`; `FNetworkPredictionData_Client_Velox` instead of `FVeloxNetworkPredictionData_Client`).

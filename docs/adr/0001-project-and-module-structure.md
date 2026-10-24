@@ -15,7 +15,7 @@ One fact dominates the build-host decision: **Client and Server targets cannot b
 
 **One runtime module, domain folders.** `Source/Velox/` is a single primary game module split into domain folders. Reasons: (a) one module keeps compile/link time and PCH count minimal and avoids `_API` export headaches across module boundaries while the code base is small; (b) boundaries are enforced by a layering rule and review, which is cheap for agents to follow; (c) splitting later is mechanical if every reflected class already carries `VELOX_API`. An optional `VeloxEditor` module (details customisations, asset validators) is added only when first needed, not in M0.
 
-Layering rule (lower layers never include from higher layers; checked in review):
+Layering rule (checked in review): `Movement/` depends on nothing above it (Core/Input only). `Character/` may include Movement and the Combat interfaces (it forwards `IAbilitySystemInterface` to the PlayerState ASC). `GameModes/` and `UI/` may include everything; nothing includes `GameModes/` or `UI/` except `UI/` itself. Intended dependency order:
 `Core/ , Input/  →  Movement/  →  Character/  →  Combat/  →  Net/  →  Weapons/  →  Items/  →  GameModes/  →  Bots/  →  UI/`. `Movement/` has **no GAS dependency**: bots and automation tests must drive it standalone. `Tests/` may include anything.
 
 ```
@@ -76,7 +76,7 @@ PublicDependencyModuleNames: Core, CoreUObject, Engine, InputCore, EnhancedInput
   NetCore, AIModule, NavigationSystem, UMG, Slate, SlateCore, PhysicsCore, DeveloperSettings
 PrivateDependencyModuleNames: (empty in M0; add FunctionalTesting when the first FT map lands)
 ```
-Targets: `DefaultBuildSettings = BuildSettingsVersion.Latest; IncludeOrderVersion = EngineIncludeOrderVersion.Latest; ExtraModuleNames.Add("Velox")`. Server target: `bUseLoggingInShipping = true`. All targets: `bUseIris = false` (stay on the classic replication system until M6 decides).
+Targets: `DefaultBuildSettings = BuildSettingsVersion.Latest; IncludeOrderVersion = EngineIncludeOrderVersion.Latest; ExtraModuleNames.Add("Velox")`. Server target: `bUseLoggingInShipping = true`. Classic replication (no Iris) until M6 decides. UE 5.8 has no `bUseIris` target setting (verified in `TargetRules.cs`; Iris is always compiled in), so Iris is disabled at runtime via `net.Iris.UseIrisReplication=0` in `DefaultEngine.ini`. Push model: `bWithPushModel = true` set explicitly on targets with `BuildEnvironment = Unique` (Server/Client; it requires a unique environment, and Editor has it always on), plus `net.IsPushModelEnabled=1`.
 
 **Enhanced Input.** `DefaultInput.ini`: `DefaultPlayerInputClass=EnhancedPlayerInput`, `DefaultInputComponentClass=EnhancedInputComponent`, `bEnableMouseSmoothing=False`, `bViewAccelerationEnabled=False`, `DefaultViewportMouseCaptureMode=CapturePermanently_IncludingInitialMouseDown`. Assets in `Content/Input/`: `IMC_Default`, `IA_Move` (Axis2D), `IA_Look` (Axis2D, raw mouse delta, no modifiers), `IA_Jump`, `IA_Crouch`, `IA_Fire`, `IA_Zoom`, `IA_WeaponNext`, `IA_WeaponPrev`, `IA_Weapon1..IA_Weapon9`, `IA_Scoreboard`. `UVeloxInputConfig` maps each to a tag: native actions (`InputTag.Move`, `InputTag.Look.Mouse`, `InputTag.Jump`, `InputTag.Crouch`) are bound in `AVeloxCharacter` directly; everything else is routed to the ASC by tag (`InputTag.Fire`, `InputTag.Weapon.Slot1..9`, `InputTag.Weapon.Next/Prev`, `InputTag.Zoom`) — Lyra's tag-driven ability input. Jump is handled by movement, never by an ability: the movement component needs the held state every tick for auto-hop.
 
@@ -202,7 +202,7 @@ Velox.Team.{Red, Blue}  (M7)
   Linux dedicated server (source engine): `-platform=Linux -server -serverplatform=Linux -noclient -serverconfig=Development -build -cook -stage -pak -archive -archivedirectory="$OUT/LinuxServer"`;
   Mac client: `-platform=Mac -clientconfig=Development -build -cook -stage -pak -archive -archivedirectory="$OUT/MacClient"`.
   Cooking needs no GPU (shader compilation is CPU via ShaderCompileWorker).
-- **`infra/ci/build.sh`** (Linux) and **`build-mac.sh`**: `source infra/env` (gitignored, from `env.example`); steps `build` (targets per availability), `test` (headless automation, §4), optional `package`; `set -euo pipefail`; non-zero exit on any build or test failure; `--targets` and `--skip-tests` flags; logs under `Saved/CI/`.
+- **`infra/ci/build.sh`** (Linux) and **`build-mac.sh`**: `infra/.env` (gitignored, from `env.example`, loaded by `lib.sh`); steps `build` (targets per availability), `test` (headless automation, §4), optional `package`; `set -euo pipefail`; non-zero exit on any build or test failure; `--targets` and `--no-tests` flags; logs under `Saved/CI/`.
 - **`.uproject` plugins.** Enabled: `GameplayAbilities`, `EnhancedInput`, `OnlineSubsystem`, `OnlineSubsystemNull`, `OnlineSubsystemUtils`, `PythonScriptPlugin` (editor; headless map creation), `EditorScriptingUtilities` (editor). Disabled (default-on plugins we do not want loading or cooking): `Bridge`, `Fab`, `ModelingToolsEditorMode`, `ChaosVehiclesPlugin`, `Paper2D`, `MovieRenderPipeline`, `DatasmithContent`, `HairStrands` — dev verifies each name exists under `$UE_ROOT/Engine/Plugins` in 5.8 and drops any that another enabled plugin depends on. Not enabled until their ADRs: `OnlineSubsystemSteam`/`OnlineSubsystemEOS`, `ReplicationGraph` (M6); `NetworkPrediction`, `Mover` never.
 
 ## Consequences
@@ -232,6 +232,9 @@ M0 skeleton checklist (`dev`; task files reference this list):
 3. `Config/DefaultEngine.ini`, `DefaultGame.ini`, `DefaultInput.ini`, `DefaultGameplayTags.ini`, `Tags/VeloxTags.ini`, `DefaultEditor.ini` — contents per §1/§2.
 4. `Content/Maps/L_Empty.umap` via `Tools/editor/create_empty_map.py` run with `UnrealEditor-Cmd "$P" -run=pythonscript -script=... -nullrhi -unattended` (fallback: the human saves an empty map on the Mac). `Content/Input/IMC_Default` + `IA_*` and `Content/Data/DA_PawnData_Default`, `DA_MovementSettings_Default` the same way (fallback identical).
 5. `infra/ci/build.sh`, `infra/ci/build-mac.sh`, `infra/env.example` (`UE_ROOT`, `VELOX_PROJECT`, `VELOX_OUT`).
-6. `.gitattributes`/`.gitignore` per task 01; add `*.xcworkspace`, `*.xcodeproj`, `Saved/`, `Intermediate/`, `Binaries/`, `DerivedDataCache/`, `.vscode/`, `infra/env`.
+6. `.gitattributes`/`.gitignore` per task 01; add `*.xcworkspace`, `*.xcodeproj`, `Saved/`, `Intermediate/`, `Binaries/`, `DerivedDataCache/`, `.vscode/`, `infra/.env`.
 
 M1 entry points (`dev-hard`): implement `FVeloxMoveSim` first (unit-tested, world-free), then `UVeloxMovementComponent::PhysWalking/PhysFalling/ProcessLanded/DoJump` on top of it, then saved-move flags and corrections, then `AVeloxJumpPad` and the debug `AVeloxHUD`, then `L_MovementTest`. Never bypass the saved-move path; report any ADR disagreement rather than deviating.
+
+---
+Changelog: sections 1 and 5 amended 2026-10-24 after implementation review (Iris/push-model target settings, layering rule, `infra/.env`, `--no-tests`).

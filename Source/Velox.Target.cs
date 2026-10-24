@@ -19,14 +19,13 @@ public class VeloxTarget : TargetRules
 		Target.IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
 		Target.ExtraModuleNames.Add("Velox");
 
-		// ADR 0001: stay on the classic replication system (no Iris) until M6.
-		// bUseIris requires a unique build environment. Installed engines (Launcher on the Mac,
-		// prebuilt Linux editor) only support the shared environment for Game/Editor targets, so
-		// overriding it there would fail the build. In shared environments Iris stays compiled in
-		// but is disabled at runtime via net.Iris.UseIrisReplication=0 in DefaultEngine.ini.
+		// ADR 0001: classic replication (no Iris) until M6, push model on. UE 5.8 has no bUseIris target
+		// setting (Iris is always compiled in), so Iris is disabled at runtime via
+		// net.Iris.UseIrisReplication=0 in DefaultEngine.ini. bWithPushModel requires a unique build
+		// environment (always on in Editor targets); Game targets on installed engines keep the default.
 		if (Target.BuildEnvironment == TargetBuildEnvironment.Unique)
 		{
-			Target.bUseIris = false;
+			Target.bWithPushModel = true;
 		}
 	}
 }

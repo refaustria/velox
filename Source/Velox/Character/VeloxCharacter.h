@@ -48,7 +48,6 @@ protected:
 	//~End of AActor interface
 
 	//~APawn interface
-	virtual UInputComponent* CreatePlayerInputComponent() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	//~End of APawn interface
 
