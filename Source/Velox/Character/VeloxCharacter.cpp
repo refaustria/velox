@@ -20,7 +20,8 @@
 AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UVeloxMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
-	GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = true;
+	// Crouch disabled in M1: engine crouch restores CDO capsule geometry, ours comes from pawn data (ADR 0002 A11).
+	GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = false;
 
 	// FPS: the capsule takes the controller yaw; pitch and roll are view-only (ADR 0002 section 1).
 	bUseControllerRotationYaw = true;

@@ -14,11 +14,19 @@ namespace VeloxMovementConstants
 	// Input presence threshold per axis for the CPM forward-only / side-only rules (ADR 0002 section 2).
 	constexpr float InputPresenceThreshold = 0.1f;
 
-	// ShouldCatchAir: the new floor must be flatter than the ramp by more than this (normal Z, ADR 0002 section 2).
-	constexpr float CatchAirNormalZMargin = 0.01f;
-
 	// Dev-only sanity bound: a speed above this multiple of MaxGroundSpeed means a sim bug (ADR 0002 section 5).
 	constexpr float SanityMaxSpeedFactor = 20.f;
+
+	// Modes driven by Velox physics; anything else (Flying noclip, Swimming, Custom) gets engine values (ADR 0002 A15).
+	FORCEINLINE bool IsVeloxMovementMode(const EMovementMode Mode)
+	{
+		return Mode == MOVE_Walking || Mode == MOVE_NavWalking || Mode == MOVE_Falling;
+	}
+
+	FORCEINLINE bool IsGroundMovementMode(const EMovementMode Mode)
+	{
+		return Mode == MOVE_Walking || Mode == MOVE_NavWalking;
+	}
 }
 
 UVeloxMovementComponent::UVeloxMovementComponent(const FObjectInitializer& ObjectInitializer)
@@ -97,9 +105,11 @@ FNetworkPredictionData_Client* UVeloxMovementComponent::GetPredictionData_Client
 
 float UVeloxMovementComponent::GetMaxSpeed() const
 {
-	if (HasVeloxPhysics() && (MovementMode == MOVE_Walking || MovementMode == MOVE_NavWalking || MovementMode == MOVE_Falling))
+	if (HasVeloxPhysics() && VeloxMovementConstants::IsVeloxMovementMode(MovementMode))
 	{
-		return SimParams.MaxGroundSpeed * (IsCrouching() ? SimParams.CrouchSpeedScale : 1.f);
+		// Crouch scale applies to ground wish speed only (Q3 PM_WalkMove, ADR 0002 A10).
+		const bool bCrouchScaled = IsCrouching() && VeloxMovementConstants::IsGroundMovementMode(MovementMode);
+		return SimParams.MaxGroundSpeed * (bCrouchScaled ? SimParams.CrouchSpeedScale : 1.f);
 	}
 	return Super::GetMaxSpeed();
 }
@@ -107,13 +117,17 @@ float UVeloxMovementComponent::GetMaxSpeed() const
 float UVeloxMovementComponent::GetMaxAcceleration() const
 {
 	// ScaleInputAcceleration multiplies the clamped input by this, so Acceleration == Q3 wishvel (cm/s).
-	return HasVeloxPhysics() ? SimParams.MaxGroundSpeed : Super::GetMaxAcceleration();
+	return (HasVeloxPhysics() && VeloxMovementConstants::IsVeloxMovementMode(MovementMode))
+		? SimParams.MaxGroundSpeed
+		: Super::GetMaxAcceleration();
 }
 
 float UVeloxMovementComponent::GetMaxBrakingDeceleration() const
 {
 	// Braking is never used: friction lives in VeloxMoveSim.
-	return HasVeloxPhysics() ? 0.f : Super::GetMaxBrakingDeceleration();
+	return (HasVeloxPhysics() && VeloxMovementConstants::IsVeloxMovementMode(MovementMode))
+		? 0.f
+		: Super::GetMaxBrakingDeceleration();
 }
 
 float UVeloxMovementComponent::GetGravityZ() const
@@ -325,13 +339,21 @@ bool UVeloxMovementComponent::ShouldCatchAir(const FFindFloorResult& OldFloor, c
 		return Super::ShouldCatchAir(OldFloor, NewFloor);
 	}
 
-	// Leave the ground at the top of a ramp (new floor flatter than the old ramp) instead of snapping down. The climb
-	// rate itself is recomputed by HandleWalkingOffLedge, which the engine calls next on this path.
-	const FVector& OldNormal = OldFloor.HitResult.ImpactNormal;
-	return SimParams.bRampExitCatchAir
-		&& !OldFloor.bLineTrace
-		&& ComputeRampExitVelocityZ(OldNormal, OldFloor.HitResult.Normal) > 0.f
-		&& NewFloor.HitResult.ImpactNormal.Z > OldNormal.Z + VeloxMovementConstants::CatchAirNormalZMargin;
+	// Leave the ground at the top of a ramp instead of snapping down: Q3 PM_GroundTrace kick-off rule, the same
+	// criterion as IsValidLandingSpot (ADR 0002 A9). The pawn moves at (V_xy, Zc) along the ramp; it stays on the new
+	// floor only if that velocity does not point away from it faster than RampSlideMinNormalSpeed. The climb rate itself
+	// is recomputed by HandleWalkingOffLedge, which the engine calls next on this path.
+	if (!SimParams.bRampExitCatchAir || OldFloor.bLineTrace)
+	{
+		return false;
+	}
+	const float ClimbRate = ComputeRampExitVelocityZ(OldFloor.HitResult.ImpactNormal, OldFloor.HitResult.Normal);
+	if (ClimbRate <= 0.f)
+	{
+		return false;
+	}
+	const FVector RampVelocity(Velocity.X, Velocity.Y, ClimbRate);
+	return (RampVelocity | NewFloor.HitResult.ImpactNormal) > SimParams.RampSlideMinNormalSpeed;
 }
 
 void UVeloxMovementComponent::HandleWalkingOffLedge(const FVector& PreviousFloorImpactNormal, const FVector& PreviousFloorContactNormal, const FVector& PreviousLocation, float TimeDelta)
@@ -355,17 +377,6 @@ void UVeloxMovementComponent::StartFalling(int32 Iterations, float remainingTime
 	RampExitVelocityZ = 0.f;
 
 	Super::StartFalling(Iterations, remainingTime, timeTick, Delta, subLoc);
-}
-
-bool UVeloxMovementComponent::StepUp(const FVector& GravDir, const FVector& Delta, const FHitResult& Hit, FStepDownResult* OutStepDownResult)
-{
-	const bool bSteppedUp = Super::StepUp(GravDir, Delta, Hit, OutStepDownResult);
-	if (bSteppedUp && HasVeloxPhysics())
-	{
-		// Skip PhysWalking's displacement-based velocity recompute: no speed loss on stairs.
-		bJustTeleported = true;
-	}
-	return bSteppedUp;
 }
 
 void UVeloxMovementComponent::OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode)
