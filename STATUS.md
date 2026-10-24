@@ -26,7 +26,7 @@ _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M1-05 net soak, round 4.** After A25–A30: full list 4/5 rounds, PadRun 19/20, KnockbackGroundRun 19/20, StrafeRun/KnockbackRun/LatchRun 0 failures. Two residual ≈ 1-in-20 modes under architect root cause: (a) 1.5–2.3 cm per merged ground move during speed changes: the engine's PhysWalking rectangle-rule displacement (v_end·dt) is partition-dependent (A31 → trapezoid mean velocity); (b) pad entry one move late: the engine never resends the newest move (A32 → Velox chooses the OldMove, Quake cl_packetdup) plus sub-threshold offsets from (a). Round 4 fix list in task 05. Neither blocks compiling/testing; M1 code merges to `main` after the final CI gate so the Mac build comes from `main`; fixes continue on `m1-movement`.
+- **M1-05 net soak, round 4 acceptance running** (full list ×5, PadRun ×20, KnockbackGroundRun ×20, StrafeRun+PadRun ×10 with Σ strays ≤ 2). Round 4 fixes landed: trapezoid ground displacement (A31, merged-move position error 4–5 cm → 0.03–0.1 cm), Velox OldMove selection with event-move priority (A32, every pad entry provably resent), repair/resend instrumentation, 25 tests green. Open for architect: the implementer widened the A31 test tolerances to the A1 substep residual (sim 0.5 % / 0.1 cm, FT 1 % / 0.15 cm). Neither blocks compiling/testing; M1 code merges to `main` after the final CI gate so the Mac build comes from `main`; fixes continue on `m1-movement`.
 - ~~Map follow-up (gap run-up)~~ done: runways 1200/2500/4500 cm, pit exit steps, PlayerStarts per runway.
 
 ## Blocked
