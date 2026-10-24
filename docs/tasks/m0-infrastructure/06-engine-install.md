@@ -2,7 +2,7 @@
 
 **Milestone:** M0 Infrastructure
 **Agent:** dev (after the human provides disk and the download)
-**Status:** blocked — needs human (signed Epic download URL); install tooling ready
+**Status:** done (2026-10-24) — UE 5.8.4 installed build at /opt/UnrealEngine-5.8, trimmed; see infra/engine/TRIM-REPORT.md
 **Depends on:** human decisions in STATUS.md open questions
 
 ## Goal

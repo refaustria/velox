@@ -12,12 +12,13 @@ _Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-
 - **M0-05** CI scripts `infra/ci/build.sh` / `build-mac.sh` / `lib.sh`: real run green, automation report parsed, tests `Velox.Core.Smoke` and `Velox.Movement.SavedMoveFlags` pass.
 - **M0-06** UE 5.8.4 (CL 58902052, installed build) at `/opt/UnrealEngine-5.8`, streamed from Epic's S3 link without on-disk archive; clang toolchain v26 restored from Epic's public CDN; exec bits fixed; 4 GB swapfile. Installer hardened (`infra/engine/install-ue-linux.sh`: ranged-GET size check, anchored exclusions, exec-bit fix, toolchain fetch, sanity check, optional plugin trim).
 - Dependency-aware engine trim tooling (`infra/engine/trim-plugins.py`, `TRIM-REPORT.md`).
+- **M0-04** `Tools/editor/create_bootstrap_content.py`: `L_Empty`, `IMC_Default` + `IA_Move/Look/Jump/Fire`, `DA_PawnData_Default`, `DA_MovementSettings_Default` (ADR 0002 values), `DA_InputConfig_Default`; idempotent, `-game -nullrhi` load clean, cook commandlet OK (414 packages). Assets in LFS (9 files).
 
 - **ADR 0002** movement component design (`docs/adr/0002-movement-component-design.md`, accepted) and M1 task files `docs/tasks/m1-movement/01–06`.
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M0-04** content bootstrap (`L_Empty`, IMC/IA assets, pawn/movement data assets) via headless editor Python — running.
+- Final `build.sh --clean` CI run before merging `m0-infrastructure` → `main`; RunUAT root-cause (stale VisionOS script-module reference after trim; cook commandlet works).
 - Engine trim finished: after four targeted re-extractions (HairStrands, ModelingToolsEditorMode, UAF/UAFAnimGraph and their deps) the build and tests are **green** again on the trimmed engine (45 GB, 34 GB free). `trim-plugins.py` now builds its keep-closure over .uplugin, Build.cs and readelf edges and verifies all three before/after apply.
 
 ## Blocked
