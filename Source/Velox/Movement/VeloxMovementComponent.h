@@ -15,6 +15,19 @@
 
 class UVeloxMovementSettings;
 
+/**
+ * Where a knockback comes from (ADR 0003 section 3, ADR 0002 A17). Overlap (pads) and Server (every server-side impulse:
+ * damage, the server's own self-knockback) accumulate into the chained PendingKnockback. Predicted (client self-knockback
+ * from a fake projectile) needs the recorded channel of task 05 and is rejected until then.
+ */
+UENUM(BlueprintType)
+enum class EVeloxKnockbackSource : uint8
+{
+	Overlap,
+	Server,
+	Predicted
+};
+
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxMovementComponent : public UCharacterMovementComponent
 {
@@ -77,7 +90,13 @@ public:
 	 * client while it applies a correction teleport (A19: the server's response already holds every entry it saw).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Velox|Movement")
-	bool AddKnockback(FVector Impulse, bool bOverrideVelocity = false);
+	bool AddKnockback(FVector Impulse, bool bOverrideVelocity = false, EVeloxKnockbackSource Source = EVeloxKnockbackSource::Overlap);
+
+	/**
+	 * ADR 0003 section 3: a replayed move re-applies its recorded predicted self-knockback only while the server has not
+	 * resolved that shot yet (wrap-aware uint8 compare: int8(Seq - Confirmed) > 0). Used by task 05's PrepMoveFor.
+	 */
+	static bool ShouldReplayPredictedKnockback(uint8 Seq, uint8 ConfirmedSeq) { return static_cast<int8>(static_cast<uint8>(Seq - ConfirmedSeq)) > 0; }
 
 	const FVeloxPendingKnockback& GetPendingKnockback() const { return PendingKnockback; }
 

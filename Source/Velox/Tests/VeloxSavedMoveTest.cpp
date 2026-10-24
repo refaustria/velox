@@ -55,14 +55,14 @@ bool FVeloxMovementSavedMoveFlagsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Cleared move carries no flags"), static_cast<int32>(Move.GetCompressedFlags()), 0);
 
 	Move.bSavedJumpHeld = true;
-	uint8 Flags = Move.GetCompressedFlags();
-	TestTrue(TEXT("Jump held sets FLAG_JumpHeld"), (Flags & FSavedMove_Velox::FLAG_JumpHeld) != 0);
-	TestTrue(TEXT("Jump held does not set FLAG_JumpPressed"), (Flags & FSavedMove_Character::FLAG_JumpPressed) == 0);
+	uint8 MoveFlags = Move.GetCompressedFlags();
+	TestTrue(TEXT("Jump held sets FLAG_JumpHeld"), (MoveFlags & FSavedMove_Velox::FLAG_JumpHeld) != 0);
+	TestTrue(TEXT("Jump held does not set FLAG_JumpPressed"), (MoveFlags & FSavedMove_Character::FLAG_JumpPressed) == 0);
 
 	Move.bSavedHasForwardInput = true;
-	Flags = Move.GetCompressedFlags();
-	TestTrue(TEXT("Forward input sets FLAG_HasForwardInput"), (Flags & FSavedMove_Velox::FLAG_HasForwardInput) != 0);
-	TestTrue(TEXT("Forward input does not set FLAG_HasSideInput"), (Flags & FSavedMove_Velox::FLAG_HasSideInput) == 0);
+	MoveFlags = Move.GetCompressedFlags();
+	TestTrue(TEXT("Forward input sets FLAG_HasForwardInput"), (MoveFlags & FSavedMove_Velox::FLAG_HasForwardInput) != 0);
+	TestTrue(TEXT("Forward input does not set FLAG_HasSideInput"), (MoveFlags & FSavedMove_Velox::FLAG_HasSideInput) == 0);
 	Move.bSavedHasSideInput = true;
 	TestTrue(TEXT("Side input sets FLAG_HasSideInput"), (Move.GetCompressedFlags() & FSavedMove_Velox::FLAG_HasSideInput) != 0);
 

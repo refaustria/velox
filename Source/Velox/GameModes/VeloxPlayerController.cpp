@@ -2,7 +2,9 @@
 
 #include "GameModes/VeloxPlayerController.h"
 
+#include "Combat/VeloxAbilitySystemComponent.h"
 #include "Core/VeloxLog.h"
+#include "GameModes/VeloxPlayerState.h"
 #include "Engine/LocalPlayer.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
@@ -33,4 +35,17 @@ void AVeloxPlayerController::SetupInputComponent()
 	}
 
 	InputSubsystem->AddMappingContext(MappingContext, DefaultMappingContextPriority);
+}
+
+void AVeloxPlayerController::PostProcessInput(const float DeltaTime, const bool bGamePaused)
+{
+	if (const AVeloxPlayerState* VeloxPS = GetPlayerState<AVeloxPlayerState>())
+	{
+		if (UVeloxAbilitySystemComponent* ASC = VeloxPS->GetVeloxAbilitySystemComponent())
+		{
+			ASC->ProcessAbilityInput(DeltaTime, bGamePaused);
+		}
+	}
+
+	Super::PostProcessInput(DeltaTime, bGamePaused);
 }

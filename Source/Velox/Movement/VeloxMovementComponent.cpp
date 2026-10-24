@@ -215,8 +215,20 @@ void UVeloxMovementComponent::ConsumePendingKnockback()
 	PendingKnockback.Reset();
 }
 
-bool UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVelocity)
+bool UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVelocity, EVeloxKnockbackSource Source)
 {
+	if (Source == EVeloxKnockbackSource::Predicted)
+	{
+		// The recorded channel (PendingPredictedKnockback, saved-move field, response seq) lands in M2 task 05.
+		UE_LOG(LogVeloxMovement, Warning, TEXT("%s: AddKnockback(Predicted) is not implemented yet; impulse %s dropped"), *GetPathNameSafe(this), *Impulse.ToString());
+		return false;
+	}
+	if (Source == EVeloxKnockbackSource::Server && CharacterOwner && CharacterOwner->GetLocalRole() != ROLE_Authority)
+	{
+		// Server impulses reach clients through the movement correction only; nothing reads client-side damage knockback.
+		UE_LOG(LogVeloxMovement, Warning, TEXT("%s: AddKnockback(Server) called without authority; impulse %s dropped"), *GetPathNameSafe(this), *Impulse.ToString());
+		return false;
+	}
 	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_SimulatedProxy)
 	{
 		// Simulated proxies never run moves; the result arrives through replication.

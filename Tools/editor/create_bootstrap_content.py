@@ -1,4 +1,4 @@
-"""Velox M0 bootstrap content: L_Empty map, Enhanced Input assets, pawn/movement/input data assets.
+"""Velox bootstrap content: L_Empty map, Enhanced Input assets, pawn/movement/input/combat data assets.
 
 Run headless (see docs/content-bootstrap.md):
   UnrealEditor-Cmd Velox.uproject -run=pythonscript -script=Tools/editor/create_bootstrap_content.py \
@@ -192,6 +192,49 @@ def build_data(actions):
         save(pd)
 
 
+def build_combat_settings():
+    """ADR 0003 section 1: DA_CombatSettings_Default. AmmoTypes keep the C++ defaults (six rows, cap 200, 100 bullets)."""
+    ensure_dir("/Game/Data")
+    cs, _ = get_or_create("/Game/Data", "DA_CombatSettings_Default", unreal.VeloxCombatSettings, None)
+    if cs is None:
+        return
+    values = {
+        "spawn_health": 125.0,
+        "max_health": 100.0,
+        "health_hard_cap": 200.0,
+        "spawn_armor": 0.0,
+        "max_armor": 200.0,
+        "armor_protection": 0.6667,
+        "self_damage_scale": 0.5,
+        "self_knockback_scale": 1.0,
+        "knockback_speed_per_damage": 12.5,
+        "max_knockback_damage": 200.0,
+        "radius_knockback_z_offset": 60.0,
+        "weapon_drop_time": 0.2,
+        "weapon_raise_time": 0.25,
+        "switch_waits_for_refire": True,
+        "max_rewind_seconds": 0.25,
+        "history_window_seconds": 1.0,
+        "max_origin_error_cm": 75.0,
+        "fire_rate_burst_allowance": 3.0,
+        "projectile_forward_prediction_max": 0.1,
+        "min_respawn_delay": 1.7,
+        "force_respawn_delay": 20.0,
+        "spawn_protection_seconds": 0.0,
+        "spawn_protection_ends_on_fire": True,
+        "corpse_lifetime": 3.0,
+        "spawn_avoid_radius_cm": 500.0,
+    }
+    for k, v in values.items():
+        try:
+            cs.set_editor_property(k, v)
+        except Exception as e:  # noqa: BLE001
+            fail(f"DA_CombatSettings_Default.{k}: {e}")
+    if len(cs.get_editor_property("ammo_types")) != 6:
+        fail("DA_CombatSettings_Default.ammo_types: expected the six C++ default rows")
+    save(cs)
+
+
 # ---------------------------------------------------------------- Map
 def build_map():
     ensure_dir("/Game/Maps")
@@ -232,6 +275,7 @@ def build_map():
 def main():
     actions, _imc = build_input()
     build_data(actions)
+    build_combat_settings()
     build_map()
     if ERRORS:
         raise RuntimeError("bootstrap failed: " + "; ".join(ERRORS))

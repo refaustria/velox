@@ -3,6 +3,8 @@
 #include "Character/VeloxCharacter.h"
 
 #include "Combat/VeloxAbilitySystemComponent.h"
+#include "Combat/VeloxCombatLog.h"
+#include "Combat/VeloxHealthComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Core/VeloxLog.h"
@@ -45,6 +47,8 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 	// Scripted input and the test knockback RPC (task 05). A default subobject so the RPC has a stable name on both ends.
 	ScriptedInput = CreateDefaultSubobject<UVeloxScriptedInputComponent>(TEXT("ScriptedInput"));
 #endif
+
+	HealthComponent = CreateDefaultSubobject<UVeloxHealthComponent>(TEXT("HealthComponent"));
 
 	// DefaultInputComponentClass stays EnhancedInputComponent (ADR 0001); Velox pawns use the tag-binding subclass.
 	OverrideInputComponentClass = UVeloxInputComponent::StaticClass();
@@ -149,6 +153,28 @@ void AVeloxCharacter::PossessedBy(AController* NewController)
 	Super::PossessedBy(NewController);
 
 	InitAbilityActorInfo();
+
+	if (AVeloxPlayerState* VeloxPS = GetPlayerState<AVeloxPlayerState>())
+	{
+		VeloxPS->OnPawnPossessed(PawnData);
+	}
+}
+
+void AVeloxCharacter::UnPossessed()
+{
+	// Before Super, which clears the PlayerState pointer.
+	AVeloxPlayerState* VeloxPS = GetPlayerState<AVeloxPlayerState>();
+	UVeloxAbilitySystemComponent* ASC = VeloxPS ? VeloxPS->GetVeloxAbilitySystemComponent() : nullptr;
+	if (ASC && ASC->GetAvatarActor() == this)
+	{
+		ASC->InitAbilityActorInfo(VeloxPS, nullptr);
+	}
+	if (HealthComponent)
+	{
+		HealthComponent->UninitializeFromAbilitySystem();
+	}
+
+	Super::UnPossessed();
 }
 
 void AVeloxCharacter::OnRep_PlayerState()
@@ -156,6 +182,17 @@ void AVeloxCharacter::OnRep_PlayerState()
 	Super::OnRep_PlayerState();
 
 	InitAbilityActorInfo();
+}
+
+void AVeloxCharacter::OnRep_Controller()
+{
+	Super::OnRep_Controller();
+
+	// The ASC caches the player controller in its actor info.
+	if (UVeloxAbilitySystemComponent* ASC = GetVeloxAbilitySystemComponent(); ASC && ASC->GetAvatarActor() == this)
+	{
+		ASC->RefreshAbilityActorInfo();
+	}
 }
 
 void AVeloxCharacter::InitAbilityActorInfo()
@@ -169,8 +206,17 @@ void AVeloxCharacter::InitAbilityActorInfo()
 	if (UVeloxAbilitySystemComponent* ASC = VeloxPS->GetVeloxAbilitySystemComponent())
 	{
 		ASC->InitAbilityActorInfo(VeloxPS, this);
+		if (HealthComponent)
+		{
+			HealthComponent->InitializeWithAbilitySystem(ASC);
+		}
 	}
-	// TODO(M2): clear the avatar on death/unpossess and apply GE_SpawnInit on respawn.
+}
+
+void AVeloxCharacter::HandleGameplayCue(UObject* Self, FGameplayTag GameplayCueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters)
+{
+	UE_LOG(LogVeloxCombat, Verbose, TEXT("%s: gameplay cue %s event %d at %s"), *GetName(), *GameplayCueTag.ToString(), static_cast<int32>(EventType), *Parameters.Location.ToCompactString());
+	IGameplayCueInterface::HandleGameplayCue(Self, GameplayCueTag, EventType, Parameters);
 }
 
 void AVeloxCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

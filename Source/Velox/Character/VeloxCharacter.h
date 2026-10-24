@@ -4,6 +4,7 @@
 
 #include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
+#include "GameplayCueInterface.h"
 #include "GameplayTagContainer.h"
 
 #include "VeloxCharacter.generated.h"
@@ -11,13 +12,14 @@
 class UAbilitySystemComponent;
 class UInputComponent;
 class UVeloxAbilitySystemComponent;
+class UVeloxHealthComponent;
 class UVeloxMovementComponent;
 class UVeloxScriptedInputComponent;
 class UVeloxPawnData;
 struct FInputActionValue;
 
 UCLASS(Config = Game)
-class VELOX_API AVeloxCharacter : public ACharacter, public IAbilitySystemInterface
+class VELOX_API AVeloxCharacter : public ACharacter, public IAbilitySystemInterface, public IGameplayCueInterface
 {
 	GENERATED_BODY()
 
@@ -38,9 +40,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Velox|Character")
 	const UVeloxPawnData* GetPawnData() const;
 
+	UFUNCTION(BlueprintPure, Category = "Velox|Character")
+	UVeloxHealthComponent* GetHealthComponent() const { return HealthComponent; }
+
+	//~IGameplayCueInterface
+	/** Native cue handling (ADR 0003 section 5); M2 task 04 forwards to UVeloxCombatFeedbackComponent. */
+	virtual void HandleGameplayCue(UObject* Self, FGameplayTag GameplayCueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters) override;
+	//~End of IGameplayCueInterface
+
 	//~APawn interface
+	/** Server: InitAbilityActorInfo, then the PlayerState grants its default ability sets once and applies GE_SpawnInit. */
 	virtual void PossessedBy(AController* NewController) override;
+	/** Server: the pawn stops being the ASC avatar (a corpse is never an avatar). */
+	virtual void UnPossessed() override;
 	virtual void OnRep_PlayerState() override;
+	virtual void OnRep_Controller() override;
 	/** Standing eye height comes from pawn data (the engine would restore the class default on Restart/UnCrouch). */
 	virtual void RecalculateBaseEyeHeight() override;
 	//~End of APawn interface
@@ -81,6 +95,9 @@ protected:
 
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Velox|Pawn")
 	TObjectPtr<const UVeloxPawnData> PawnData;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
+	TObjectPtr<UVeloxHealthComponent> HealthComponent;
 
 private:
 	TArray<uint32> AbilityInputBindHandles;
