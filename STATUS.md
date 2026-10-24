@@ -26,7 +26,7 @@ _Last updated: 2026-10-24 evening (session 1, project lead). Branch: `main` (M0 
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M1-05 net soak, round 4.** After A25–A30: full list 4/5 rounds, PadRun 19/20, KnockbackGroundRun 19/20, StrafeRun/KnockbackRun/LatchRun 0 failures. Two residual ≈ 1-in-20 modes under architect root cause: (a) 2 cm stray late in the friction decay (speed ≈ 30 cm/s, a 33 ms merged move inside the window → StopSpeed-regime friction likely partition-dependent), (b) pad entry applied one 1/120 move later on the server without a logged gap (sub-threshold merge or important-move/overlap ordering). Neither blocks compiling/testing; M1 code merges to `main` after the final CI gate so the Mac build comes from `main`; fixes continue on `m1-movement`.
+- **M1-05 net soak, round 4.** After A25–A30: full list 4/5 rounds, PadRun 19/20, KnockbackGroundRun 19/20, StrafeRun/KnockbackRun/LatchRun 0 failures. Two residual ≈ 1-in-20 modes under architect root cause: (a) 1.5–2.3 cm per merged ground move during speed changes: the engine's PhysWalking rectangle-rule displacement (v_end·dt) is partition-dependent (A31 → trapezoid mean velocity); (b) pad entry one move late: the engine never resends the newest move (A32 → Velox chooses the OldMove, Quake cl_packetdup) plus sub-threshold offsets from (a). Round 4 fix list in task 05. Neither blocks compiling/testing; M1 code merges to `main` after the final CI gate so the Mac build comes from `main`; fixes continue on `m1-movement`.
 - ~~Map follow-up (gap run-up)~~ done: runways 1200/2500/4500 cm, pit exit steps, PlayerStarts per runway.
 
 ## Blocked
