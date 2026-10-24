@@ -3,6 +3,8 @@
 _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main` (M0 + M1 code merged); M1 closes with the human playtest._
 
 ## Done
+- **M2-01** GAS foundation: `UVeloxHealthSet`/`UVeloxAmmoSet`, world-free `FVeloxDamageMath` (Q3 armor 2/3, self ×0.5 after knockback), damage/decay executions, 7 C++ gameplay effects, health component, ability base with Lyra-style input routing, grant-once + `GE_SpawnInit` per possession, `velox.combat.TestDamage`. 29 tests green; M1 soak unchanged.
+- **M2-07** `L_CombatTest` arena generator, `AVeloxDummyController` strafing dummies via the movement component, spawner actor.
 - **M1-05 complete (2026-10-25).** Headless net soak at 100 ms / 2 % loss both ways passes acceptance after four fix rounds (A24–A34): full list ×5 5/5, PadRun 20/20, KnockbackGroundRun 20/20, StrafeRun+PadRun ×10 with Σ strays ≤ 2.5 cm = 2 (baseline 6). Fixes: ack/correction race guard, partition-invariant grace, important/event moves resent, trapezoid ground displacement, Velox OldMove selection. 25 automation tests green.
 - **M1-06 checklist** `docs/playtests/m1-movement-checklist.md` written (Mac build, PIE setup with 100 ms / 2 %, 12-row table, recording, sign-off block). `build-mac.sh` got a `timeout` shim (macOS has no coreutils timeout).
 - **M1-05a** debug tooling (`velox.move.*` cvars, HUD block, `showdebug VeloxMovement`, CSV recorder + `Tools/analyze_run.py`), scripted input component with test RPCs, four move scripts, `FT_MovementDeterminism` (bit-identical), scripted regression tests (stairs 100 %, ramp exit Vz = v·tanθ, latch, knockback). 21 tests green. Map defects fixed (ramps, pad C, PlayerStart). ADR A23 corrects the wall-slide expectation (Q3 wall-hug ≈ 943 cm/s).
@@ -36,7 +38,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 
 ## Next
 - M1-06 human playtest on the Mac → tuning pass from feedback → M1 sign-off.
-- **M2 Combat started** (ADR 0003 accepted with defaults; tasks `docs/tasks/m2-combat/01–09`): 01 GAS foundation and 07 combat test map run in parallel; 02–05 sequential with architect reviews; 06/08/09 follow.
+- **M2 Combat** in progress on `m2-combat`: 01 GAS foundation done (29 tests), 07 combat test map + dummies done; architect review of 01 and task 02 (geometry/crouch/hitbox) running; then 03 lag compensation → 04 hitscan weapons → 05 projectiles → 06 death/respawn → 08 fire soak → 09 playtest.
 - Open for architect (minor): A31 test tolerances were widened to the A1 substep residual by the implementer; confirm or tighten via FixedStep.
 - M0-04 → full CI run → merge `m0-infrastructure` into `main` → M1 Movement: `architect` ADR 0002 (movement component design), then tasks.
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
