@@ -17,7 +17,7 @@ _Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **Build currently RED** after the trim: three orphaned platform-extension plugins under `Engine/Platforms/{Android,IOS,VisionOS}` (parents RigLogic/OpenXR deleted) stop UBT. Fix = delete those three dirs (143 MB); waiting for the human's OK (question 7), then verification build.
+- Verification build after the trim (orphaned platform extensions removed) running.
 
 ## Blocked
 - **M0-04** content bootstrap (`L_Empty`, input assets, data assets): waits for the engine trim to finish (editor must not run while plugins are deleted).
@@ -28,11 +28,11 @@ _Last updated: 2026-10-24 late afternoon (session 1, project lead). Branch: `m0-
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
 
 ## Open questions for the human
-1. **Disk space (ongoing).** The disk cannot be enlarged (human, 2026-10-24). Freed so far: 19 GB docker, ~12 GB engine trimming before extraction, toolchain arm64 parts; engine trim in progress. Please say which of these I may delete: `~/.cache/ms-playwright` (3.5 GB, reinstallable), `~/.cache/pnpm` (0.5 GB), `gitref-v2` build dirs (4.1 GB), `rusuite` build dirs (1.8 GB).
+1. ~~Disk space~~ — resolved 2026-10-24: disk cannot be enlarged; freed instead: docker 19 GB, engine trim 17 GB + exclusions, caches/build artefacts 9.8 GB (approved). **35 GB free.** Budget rule from now on: keep ≥ 15 GB free; cooked builds go to `Saved/` and are pruned after upload.
 2. ~~UE 5.8 Linux download~~ — resolved 2026-10-24: human supplied the signed URL; UE 5.8.4 streamed into `/opt/UnrealEngine-5.8` via `bsdtar` (debug symbols, Templates, FeaturePacks, Samples, Documentation excluded to fit the disk).
 3. **Installed vs source engine.** Installed engines (Launcher, Linux zip) cannot build the `VeloxServer`/`VeloxClient` targets; the dedicated server is then `Velox -server`, which is fine until M6. A source build (needs EpicGames GitHub org linked to your Epic account, ~150 GB disk, hours of compile) is needed for M6 shipping. Recommendation: installed engine now, source build before M6. OK?
 4. **Mac toolchain.** Human has Xcode but not UE 5.8 yet. Action for the human when the Linux build is green: install the Epic Games Launcher on the Mac and UE 5.8 through it (~40 GB, default path `/Users/Shared/Epic Games/UE_5.8`), then run `infra/ci/build-mac.sh` from the repo root. Still needed: Apple Silicon or Intel.
 5. **Renderer decision (veto window).** ADR 0001 picks forward renderer + MSAA + baked static lighting (Q3-style readability, max fps). This shapes all M5 art. Veto now if you prefer deferred + TAA.
 6. **Scale.** Netcode defaults assume ≤ 16 players per server until M6. Confirm.
-7. **Delete `Engine/Platforms/{Android,IOS,VisionOS}`** (143 MB, orphaned mobile/XR platform extensions) to make the build green again? A subagent was blocked by the permission check; I will not do it without your word.
-8. **ADR 0002 defaults (veto window, affects all later content):** (a) vanilla Q3 physics with CPM air control OFF by default (toggle exists); (b) ground accel 10; (c) unit scale 2.5 cm per Q3 unit → 140 cm pawn, maps in Q3 proportions; (d) auto-hop ON by default; (e) no combining of air moves raises upstream RPC rate at >60 fps (~5 KB/s at 240 fps). Say "ok" or name the item to change.
+7. ~~Delete `Engine/Platforms/{Android,IOS,VisionOS}`~~ — approved and done 2026-10-24.
+8. ~~ADR 0002 defaults~~ — approved 2026-10-24 as written (vanilla Q3, CPM air control off, ground accel 10, unit scale 2.5, auto-hop on).
