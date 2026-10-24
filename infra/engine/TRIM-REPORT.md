@@ -1350,3 +1350,11 @@ The engine is an *installed build*: UBT compiles Velox against prebuilt `Binarie
 | `Engine/Intermediate` | 5.1 GB | See above; Linux/x64 part must stay. | | M |
 | `Engine/DerivedDataCache/Compressed.ddp` | 1.1 GB | OPTIONAL. Pre-baked DDC for engine content; without it the editor/cook rebuilds shaders/textures on demand (slow first launches, more CPU, and local DDC growth on a disk that is already tight). Not needed for dedicated-server *runtime*. Keep unless desperate. | | M |
 | `Engine/Extras/ThirdPartyNotUE/SDKs` | 1.5 GB | KEEP: contains the Linux clang toolchain (`HostLinux/.../v*_clang-*`). | See commit b662a7f. | H |
+
+## Applied 2026-10-24 (PARTIAL: build currently red)
+
+- Added 30 `"Enabled": false` entries to `Velox.uproject` (all from the snippet above).
+- `trim-plugins.py --apply`: 564 plugin dirs deleted. df: 111G used / 7.9G free -> 102G / 17G (about 9 GB).
+- Non-plugin dirs deleted (about 7.9 GB): Engine/Binaries/Android (2.1G), Engine/Intermediate/Build/Android (2.6G), Engine/Binaries/LinuxArm64 (1.1G), Engine/Intermediate/Build/LinuxArm64 (1.3G), ThirdParty/DotNet/10.0/linux-arm64 (658M; host picks x64, GetDotnetPath logic only uses arm64 when uname -m == arm64), ThirdParty/Vulkan/{Android,Mac,Win64} (90M+13M+40M). df after: 94G used / 25G free.
+- Restore list: `/home/bojan/ue-trim-restore-20261024-1432.txt`.
+- Build: `infra/ci/build.sh` FAILS in UBT: "Unable to find parent plugin RigLogic for platform extension plugin Engine/Platforms/Android/Plugins/Animation/RigLogic/RigLogic_Android.uplugin". Orphaned platform-extension plugins (parent deleted): Engine/Platforms/Android/Plugins/Animation/RigLogic, Engine/Platforms/IOS/Plugins/Animation/RigLogic (52 B uplugin each), Engine/Platforms/VisionOS/Plugins/Runtime/OpenXRVisionOS (143 MB). Their removal was refused by the permission classifier (outside the approved list); pending lead approval. Script improvement: trim-plugins.py should also delete platform-extension plugins whose parent is deleted.

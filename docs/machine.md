@@ -31,3 +31,5 @@ build-essential, clang, lld, cmake, ninja-build, git-lfs, unzip, p7zip-full, rsy
 - Trimmed: default exclusions plus plugins MetaHuman, VirtualProduction, PixelStreaming2, TextToSpeech, ProceduralVegetationEditor, USDCore, GeoReferencing (disk). See `infra/engine/README.md`.
 - Clang toolchain `v26_clang-20.1.8-rockylinux8` present under `Engine/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/` (required, ~3.4 GB, do not delete).
 - Swapfile 4 GB at `/swapfile` added 2026-10-24.
+
+- Engine trim (2026-10-24): UE 5.8.4 plugins pruned (564 dirs) plus Android/LinuxArm64/foreign-Vulkan/dotnet-arm64 binaries; disk free 7.9 GB -> 25 GB. Restore list: /home/bojan/ue-trim-restore-20261024-1432.txt. See infra/engine/TRIM-REPORT.md "Applied".
