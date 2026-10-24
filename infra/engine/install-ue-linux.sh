@@ -37,8 +37,10 @@ URL="${ARGS[0]}"
 DEST="${ARGS[1]:-/opt/UnrealEngine-5.8}"
 
 # Default exclusions (debug symbols, templates, feature packs, samples, docs).
-EXCLUDES=('*.debug' '*.sym' 'Templates/*' '*/Templates/*' 'FeaturePacks/*' '*/FeaturePacks/*'
-          'Samples/*' '*/Samples/*' 'Engine/Documentation/*' '*/Engine/Documentation/*')
+# IMPORTANT: bsdtar patterns without a leading '^' match at ANY depth ('Templates/*' would also
+# remove Engine/Source/Runtime/Core/Public/Templates/ and break the build). The '^' anchors
+# the pattern to the start of the archive path. The archive has no wrapper directory.
+EXCLUDES=('*.debug' '*.sym' '^Templates/*' '^FeaturePacks/*' '^Samples/*' '^Engine/Documentation/*')
 if [ "$FULL" -eq 1 ]; then REQUIRED_GB=52; EXCLUDES=(); else REQUIRED_GB=45; fi
 TAR_EXCL=()
 for e in ${EXCLUDES[@]+"${EXCLUDES[@]}"}; do TAR_EXCL+=(--exclude "$e"); done
@@ -168,13 +170,30 @@ echo "Toolchain present: $TC_DIR/$TOOLCHAIN"
 
 # --- Optional plugin trim (disk) ---------------------------------------------
 if [ "$TRIM_PLUGINS" -eq 1 ]; then
-  for p in MetaHuman VirtualProduction Media/PixelStreaming2 Experimental/TextToSpeech \
+  for p in MetaHuman Media/PixelStreaming2 Experimental/TextToSpeech \
            Experimental/ProceduralVegetationEditor Runtime/USDCore Runtime/GeoReferencing; do
     if [ -d "$DEST/Engine/Plugins/$p" ]; then
       echo "Trimming Engine/Plugins/$p"; rm -rf -- "${DEST:?}/Engine/Plugins/$p"
     fi
   done
+  # VirtualProduction: delete every subfolder EXCEPT Takes. Other default-enabled plugins
+  # (LiveLink, NiagaraSimCaching, ChaosCaching) depend on VirtualProduction/Takes.
+  if [ -d "$DEST/Engine/Plugins/VirtualProduction" ]; then
+    for d in "$DEST"/Engine/Plugins/VirtualProduction/*/; do
+      [ -d "$d" ] || continue
+      [ "$(basename "$d")" = "Takes" ] && continue
+      echo "Trimming Engine/Plugins/VirtualProduction/$(basename "$d")"; rm -rf -- "${d:?}"
+    done
+  fi
 fi
+
+# --- Sanity check: files the build needs must exist (catches over-broad exclusions/trims) ---
+for f in Engine/Source/Runtime/Core/Public/Templates/SharedPointer.h \
+         Engine/Plugins/VirtualProduction/Takes/Takes.uplugin; do
+  [ -e "$DEST/$f" ] || die "sanity check failed: $DEST/$f is missing (over-broad exclusion or trim?)"
+done
+echo "Sanity check OK (SharedPointer.h, Takes.uplugin present)"
+
 
 
 echo "--- Engine/Build/Build.version"

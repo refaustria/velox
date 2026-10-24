@@ -29,7 +29,11 @@ URL size check, exit 0 if it passes; useful to validate a link without touching 
 `--toolchain <name>` (clang toolchain dir; default `v26_clang-20.1.8-rockylinux8`).
 
 By default these are excluded from extraction: `*.debug`, `*.sym`, `Templates/`, `FeaturePacks/`,
-`Samples/` and `Engine/Documentation/` (at any depth). Use `--full` for a complete install.
+`Samples/` and `Engine/Documentation/`, all anchored to the archive root with bsdtar's `^`
+(`^Templates/*` etc.; without `^` bsdtar matches at any depth and would delete
+`Engine/Source/Runtime/Core/Public/Templates/`). Use `--full` for a complete install.
+After extraction/trim the script fails loudly if `Engine/Source/Runtime/Core/Public/Templates/SharedPointer.h`
+or `Engine/Plugins/VirtualProduction/Takes/Takes.uplugin` is missing.
 
 Pre-flight checks: curl and bsdtar present, dest writable, >= 45 GB free on dest's
 filesystem (52 GB with `--full`), dest empty (else `--force`), ranged GET (`-r 0-0`) returns
@@ -72,6 +76,15 @@ Needs >= 45 GB free on the destination filesystem (52 GB with `--full`), checked
   (`grep` for `v<N>_clang-...` in UnrealBuildTool); if nothing is found it uses the default, or
   pass `--toolchain <name>`.
 - **Plugins deleted for disk space** (`--trim-plugins` does exactly this, under `Engine/Plugins/`):
-  `MetaHuman`, `VirtualProduction`, `Media/PixelStreaming2`, `Experimental/TextToSpeech`,
+  `MetaHuman`, `VirtualProduction/*` except `VirtualProduction/Takes`, `Media/PixelStreaming2`, `Experimental/TextToSpeech`,
   `Experimental/ProceduralVegetationEditor`, `Runtime/USDCore`, `Runtime/GeoReferencing`.
-  Velox uses none of them; reason was purely disk. Re-extract with `--force` if one is ever needed.
+  `VirtualProduction/Takes` is kept: LiveLink, NiagaraSimCaching and ChaosCaching (default-enabled) depend on it.
+  Velox uses none of the others; reason was purely disk. Re-extract with `--force` if one is ever needed.
+- **bsdtar exclusions are unanchored (2026-10-24 incident).** `--exclude 'Templates/*'` and
+  `'*/Templates/*'` matched `Engine/Source/Runtime/Core/Public/Templates/` (TSharedPtr etc.) and every
+  other directory named Templates/Samples in the engine, which broke the build. libarchive patterns
+  match at any depth unless prefixed with `^`; `*` also crosses `/`. Fixed with `^Templates/*`,
+  `^FeaturePacks/*`, `^Samples/*`, `^Engine/Documentation/*`. Verified on a test zip: only the
+  top-level dirs are dropped, `Engine/**/Templates` and `Engine/**/Samples` survive. The post-extraction
+  sanity check guards against a repeat. Also: trimming all of `VirtualProduction` removed `Takes`,
+  which other plugins need.
