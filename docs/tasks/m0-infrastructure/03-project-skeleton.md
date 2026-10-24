@@ -2,7 +2,7 @@
 
 **Milestone:** M0 Infrastructure
 **Agent:** dev-hard
-**Status:** in progress
+**Status:** done (static review passed; first real compile pending)
 **Depends on:** ADR 0001
 
 ## Goal

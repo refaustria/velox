@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "",
+	"Description": "Velox - fast arena FPS in the spirit of Quake 3 Arena.",
+	"Modules": [
+		{
+			"Name": "Velox",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{ "Name": "GameplayAbilities", "Enabled": true },
+		{ "Name": "EnhancedInput", "Enabled": true },
+		{ "Name": "OnlineSubsystem", "Enabled": true },
+		{ "Name": "OnlineSubsystemNull", "Enabled": true },
+		{ "Name": "OnlineSubsystemUtils", "Enabled": true },
+		{ "Name": "PythonScriptPlugin", "Enabled": true, "TargetAllowList": [ "Editor" ] },
+		{ "Name": "EditorScriptingUtilities", "Enabled": true, "TargetAllowList": [ "Editor" ] },
+		{ "Name": "Bridge", "Enabled": false },
+		{ "Name": "Fab", "Enabled": false },
+		{ "Name": "ModelingToolsEditorMode", "Enabled": false },
+		{ "Name": "ChaosVehiclesPlugin", "Enabled": false },
+		{ "Name": "Paper2D", "Enabled": false },
+		{ "Name": "MovieRenderPipeline", "Enabled": false },
+		{ "Name": "DatasmithContent", "Enabled": false },
+		{ "Name": "HairStrands", "Enabled": false }
+	]
+}
