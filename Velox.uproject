@@ -11,20 +11,75 @@
 		}
 	],
 	"Plugins": [
-		{ "Name": "GameplayAbilities", "Enabled": true },
-		{ "Name": "EnhancedInput", "Enabled": true },
-		{ "Name": "OnlineSubsystem", "Enabled": true },
-		{ "Name": "OnlineSubsystemNull", "Enabled": true },
-		{ "Name": "OnlineSubsystemUtils", "Enabled": true },
-		{ "Name": "PythonScriptPlugin", "Enabled": true, "TargetAllowList": [ "Editor" ] },
-		{ "Name": "EditorScriptingUtilities", "Enabled": true, "TargetAllowList": [ "Editor" ] },
-		{ "Name": "Bridge", "Enabled": false },
-		{ "Name": "Fab", "Enabled": false },
-		{ "Name": "ModelingToolsEditorMode", "Enabled": false },
-		{ "Name": "ChaosVehiclesPlugin", "Enabled": false },
-		{ "Name": "Paper2D", "Enabled": false },
-		{ "Name": "MovieRenderPipeline", "Enabled": false },
-		{ "Name": "DatasmithContent", "Enabled": false },
-		{ "Name": "HairStrands", "Enabled": false }
+		{
+			"Name": "GameplayAbilities",
+			"Enabled": true
+		},
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		},
+		{
+			"Name": "OnlineSubsystem",
+			"Enabled": true
+		},
+		{
+			"Name": "OnlineSubsystemNull",
+			"Enabled": true
+		},
+		{
+			"Name": "OnlineSubsystemUtils",
+			"Enabled": true
+		},
+		{
+			"Name": "PythonScriptPlugin",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "EditorScriptingUtilities",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "Bridge",
+			"Enabled": false
+		},
+		{
+			"Name": "Fab",
+			"Enabled": false
+		},
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": false
+		},
+		{
+			"Name": "ChaosVehiclesPlugin",
+			"Enabled": false
+		},
+		{
+			"Name": "Paper2D",
+			"Enabled": false
+		},
+		{
+			"Name": "MovieRenderPipeline",
+			"Enabled": false
+		},
+		{
+			"Name": "DatasmithContent",
+			"Enabled": false
+		},
+		{
+			"Name": "HairStrands",
+			"Enabled": false
+		},
+		{
+			"Name": "AndroidFileServer",
+			"Enabled": false
+		}
 	]
 }
