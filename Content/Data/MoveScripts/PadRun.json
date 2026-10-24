@@ -1,6 +1,6 @@
 {
  "name": "PadRun",
- "note": "PlayerStart_Pads (-300,-2500,100). Walk onto pad B and land on its target marker; walk back onto pad A and land on JumpPadA_Platform; drop off, then onto pad C and land on JumpPadC_Ledge. Legs are dead-reckoned (hold forward, coast to a stop); checkpoints are at the end of each landing. KNOWN MAP DEFECT: JumpPadC_Target (disc at z 640) blocks the pawn at runtime although the map script sets NO_COLLISION on it, so the pad C flight bumps its head at z 640 and the pad C checkpoint fails until the map is fixed (set the NoCollision profile).",
+ "note": "PlayerStart_Pads (-300,-2500,100). Walk onto pad B and land on its target marker; walk back onto pad A and land on JumpPadA_Platform; drop off, then onto pad C and land on JumpPadC_Ledge. Legs are dead-reckoned (hold forward, coast to a stop); checkpoints are at the end of each landing. Pad C: JumpPadC_Target is a NoCollision marker at z 680; hold forward only 1.0 s after the launch (apex about 0.8 s) so the pawn lands on the ledge and stops there instead of walking off.",
  "startYaw": 0,
  "startLocation": [
   -300,
@@ -121,9 +121,13 @@
    "label": "to pad C (until launched)"
   },
   {
-   "duration": 2.8,
+   "duration": 1.0,
    "forward": 1,
-   "label": "pad C flight, forward to the ledge",
+   "label": "pad C flight, forward onto the ledge"
+  },
+  {
+   "duration": 2.0,
+   "label": "pad C landing coast",
    "check": {
     "name": "pad C ledge",
     "box": [

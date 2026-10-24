@@ -106,6 +106,7 @@ def box(kind, label, center, size, mat, rot=None, collide=True, folder=None, mes
     c.set_mobility(STATIC)
     c.set_material(0, MATS[mat])
     if not collide:
+        c.set_collision_profile_name("NoCollision")
         c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
     if folder:
         a.set_folder_path(folder)
@@ -115,7 +116,7 @@ def box(kind, label, center, size, mat, rot=None, collide=True, folder=None, mes
 
 def text(label, loc, msg, size=40.0, folder="Markers"):
     # Yaw 180: text faces -X, i.e. readable for a player running down +X.
-    a = EAS.spawn_actor_from_class(unreal.TextRenderActor, unreal.Vector(*loc), unreal.Rotator(0, 180, 0))
+    a = EAS.spawn_actor_from_class(unreal.TextRenderActor, unreal.Vector(*loc), unreal.Rotator(0, 0, 180))  # (roll, pitch, yaw)
     a.set_actor_label(label)
     comp = a.text_render
     comp.set_editor_property("text", msg)
@@ -158,7 +159,7 @@ def build_ramps():
         # Ramp slab: top surface runs from (0, y, 0) to (run, y, h); centre offset by half thickness along -normal.
         cx = L / 2 * math.cos(th) + T / 2 * math.sin(th)
         cz = L / 2 * math.sin(th) - T / 2 * math.cos(th)
-        box("ramp", f"Ramp_{deg:02d}deg", (cx, y, cz), (L, WID, T), mat, rot=unreal.Rotator(deg, 0, 0), folder="Ramps")
+        box("ramp", f"Ramp_{deg:02d}deg", (cx, y, cz), (L, WID, T), mat, rot=unreal.Rotator(0, deg, 0), folder="Ramps")
         box("platform", f"RampPlatform_{deg:02d}deg", (run + PLAT / 2, y, h / 2), (PLAT, WID, h), "Platform",
             folder="Ramps")
         text(f"RampText_{deg:02d}", (-100, y, 140), f"{deg} deg" + ("" if deg <= 45 else " (not walkable)"),
@@ -229,10 +230,10 @@ def build_pads():
     target("B", 2100, -2500, 0)
     text("PadB_Text", (200, -2500, 140), "Pad B: flat 1600", folder="JumpPads")
     # C: vertical 640 cm (capsule centre rises 640 cm); ledge beside the pad, marker disc at the apex.
-    pad("C", 500, -3500, (500, -3500, PAD_LAUNCH_Z + 640))
+    pad("C", 500, -3500, (500, -3500, PAD_LAUNCH_Z + 680))
     box("platform", "JumpPadC_Ledge", (900, -3500, 320), (400, 400, 640), "Platform", folder="JumpPads")
-    target("C", 500, -3500, 640)
-    text("PadC_Text", (200, -3500, 140), "Pad C: vertical 640", folder="JumpPads")
+    target("C", 500, -3500, 680)
+    text("PadC_Text", (200, -3500, 140), "Pad C: vertical 680", folder="JumpPads")
 
 
 def check_pads():
@@ -256,7 +257,7 @@ def build_gaps():
 
 
 def build_lighting_and_starts():
-    ps = EAS.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(0, 0, 100))
+    ps = EAS.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(120, 0, 100))
     ps.set_actor_label("PlayerStart_Corridor")
     count("playerstart")
     ps2 = EAS.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(-300, -2500, 100))

@@ -19,7 +19,7 @@ Cvars are process-global: in PIE server and clients share them. On a real dedica
 | `velox.move.Preset Q3` | Clears overrides, then VQ3: Q3 numbers x UnitScale, `pm_accelerate 10`, no CPM air rules, **`bAutoHop` off** (jump only after a release, the PMF_JUMP_HELD latch). |
 | `velox.move.Preset CPM` | CPM: `pm_accelerate 15`, air stop 2.5, strafe accel 70 / wish cap 30 u, air control 150 / k 32 u, `bAutoHop` on. |
 | `velox.move.ClearOverrides` | Back to the asset. |
-| `velox.move.Probe X0 Y0 Z0 X1 Y1 Z1` | Sweeps the local pawn's capsule on the pawn channel and logs every hit (found the map defects below). |
+| `velox.move.Probe X0 Y0 Z0 X1 Y1 Z1` | Sweeps the local pawn's capsule on the pawn channel and logs every hit (found the map defects, now fixed). |
 | `velox.move.TestKnockback X Y Z [override]` | (task 04) Server-side knockback on the local pawn. |
 
 ## CSV recorder
