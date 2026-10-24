@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev
-**Status:** todo
+**Status:** done (2026-10-25)
 **Depends on:** ADR 0003 (parallel)
 
 ## Goal
