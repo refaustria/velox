@@ -9,7 +9,7 @@
 
 #include "VeloxWeaponDefinition.generated.h"
 
-class AActor;
+class AVeloxProjectile;
 class UVeloxGameplayAbility_Fire;
 
 UCLASS(BlueprintType, Const, Meta = (DisplayName = "Velox Weapon Definition"))
@@ -34,7 +34,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon")
 	FText DisplayName;
 
-	/** Granted by the inventory with SourceObject = this definition. Null: owned and selectable, cannot fire (RL/PG until task 05). */
+	/** Granted by the inventory with SourceObject = this definition. Null: owned and selectable, cannot fire. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon")
 	TSubclassOf<UVeloxGameplayAbility_Fire> FireAbility;
 
@@ -67,9 +67,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Fire")
 	bool bBeam = false;
 
-	/** Projectile weapons (task 05 narrows the class to AVeloxProjectile). */
+	/** Projectile weapons: the class the server spawns and the owning client fakes (UVeloxGameplayAbility_FireProjectile). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Projectile")
-	TSubclassOf<AActor> ProjectileClass;
+	TSubclassOf<AVeloxProjectile> ProjectileClass;
+
+	/** Collision sphere radius of the projectile (ADR 0003 section 7: 2 cm); also the self-splash match tolerance. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Projectile", Meta = (ClampMin = "0", Units = "cm"))
+	float ProjectileRadiusCm = 2.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Projectile", Meta = (ClampMin = "0", Units = "cm/s"))
 	float ProjectileSpeed = 0.f;

@@ -195,6 +195,13 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 
 	KnockbackGrace = FMath::Max(0.f, KnockbackGrace - DeltaSeconds);
 
+	// Move-timed events (projectile self splash): live owning-client moves and server moves only. A replay re-applies the
+	// recorded result instead (PrepMoveFor); a correction teleport is not a move.
+	if (!bInClientReplay && !bApplyingCorrection && MoveTimedEvents.Num() > 0 && CharacterOwner && CharacterOwner->GetLocalRole() != ROLE_SimulatedProxy)
+	{
+		RunDueMoveTimedEvents(GetCurrentMoveTimeStamp());
+	}
+
 #if !UE_BUILD_SHIPPING
 	ensureMsgf(Velocity.SizeSquared() < FMath::Square(VeloxMovementConstants::SanityMaxSpeedFactor * SimParams.MaxGroundSpeed),
 		TEXT("%s: velocity %s exceeds %.0f x MaxGroundSpeed, movement sim bug?"), *GetPathNameSafe(this), *Velocity.ToString(), VeloxMovementConstants::SanityMaxSpeedFactor);
@@ -203,13 +210,24 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 
 void UVeloxMovementComponent::ConsumePendingKnockback()
 {
-	if (!PendingKnockback.IsPending())
+	if (!PendingKnockback.IsPending() && !PendingPredictedKnockback.IsPending())
 	{
 		return;
 	}
 
-	Velocity = VeloxMoveSim::ApplyKnockback(Velocity, PendingKnockback.Velocity, PendingKnockback.bOverride);
-	KnockbackGrace = FMath::Max(KnockbackGrace, VeloxMoveSim::KnockbackGraceFor(PendingKnockback.Velocity, SimParams));
+	// ADR 0003 section 3: the recorded predicted channel first, then the chained one; both set the grace. On the server
+	// and in every client move without a prediction this is exactly the M1 single-channel computation.
+	if (PendingPredictedKnockback.IsPending())
+	{
+		Velocity = VeloxMoveSim::ApplyKnockback(Velocity, PendingPredictedKnockback.Velocity, false);
+		KnockbackGrace = FMath::Max(KnockbackGrace, VeloxMoveSim::KnockbackGraceFor(PendingPredictedKnockback.Velocity, SimParams));
+		PendingPredictedKnockback.Reset();
+	}
+	if (PendingKnockback.IsPending())
+	{
+		Velocity = VeloxMoveSim::ApplyKnockback(Velocity, PendingKnockback.Velocity, PendingKnockback.bOverride);
+		KnockbackGrace = FMath::Max(KnockbackGrace, VeloxMoveSim::KnockbackGraceFor(PendingKnockback.Velocity, SimParams));
+	}
 
 	// Lift off when pushed away from the floor; PhysWalking would otherwise flatten the velocity.
 	if (IsMovingOnGround() && (Velocity | CurrentFloor.HitResult.ImpactNormal) > SimParams.RampSlideMinNormalSpeed)
@@ -220,13 +238,12 @@ void UVeloxMovementComponent::ConsumePendingKnockback()
 	PendingKnockback.Reset();
 }
 
-bool UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVelocity, EVeloxKnockbackSource Source)
+bool UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVelocity, EVeloxKnockbackSource Source, uint8 PredictedSeq)
 {
 	if (Source == EVeloxKnockbackSource::Predicted)
 	{
-		// The recorded channel (PendingPredictedKnockback, saved-move field, response seq) lands in M2 task 05.
-		UE_LOG(LogVeloxMovement, Warning, TEXT("%s: AddKnockback(Predicted) is not implemented yet; impulse %s dropped"), *GetPathNameSafe(this), *Impulse.ToString());
-		return false;
+		// The recorded channel (ADR 0003 section 3); additive only.
+		return AddPredictedKnockback(Impulse, PredictedSeq);
 	}
 	if (Source == EVeloxKnockbackSource::Server && CharacterOwner && CharacterOwner->GetLocalRole() != ROLE_Authority)
 	{
@@ -248,6 +265,111 @@ bool UVeloxMovementComponent::AddKnockback(FVector Impulse, bool bOverrideVeloci
 	}
 	PendingKnockback.Add(Impulse, bOverrideVelocity);
 	return true;
+}
+
+bool UVeloxMovementComponent::AddPredictedKnockback(const FVector& Impulse, uint8 PredictedSeq)
+{
+	if (!CharacterOwner || CharacterOwner->GetLocalRole() != ROLE_AutonomousProxy)
+	{
+		// Authority resolves its own explosions through GE_Damage -> AddKnockback(Server); proxies never move.
+		UE_LOG(LogVeloxMovement, Verbose, TEXT("%s: predicted knockback %s (seq %u) ignored outside the autonomous proxy"), *GetPathNameSafe(this), *Impulse.ToString(), PredictedSeq);
+		return false;
+	}
+	if (Impulse.IsZero())
+	{
+		return false;
+	}
+	PendingPredictedKnockback.Add(Impulse, PredictedSeq);
+	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxPredictedKnockback t=%.3f ts=%.6f seq=%u impulse=%s"), GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0,
+		GetCurrentMoveTimeStamp(), PredictedSeq, *Impulse.ToCompactString());
+	return true;
+}
+
+void UVeloxMovementComponent::ServerBeginSelfKnockbackShot(uint8 Seq)
+{
+	if (ServerUnresolvedSelfKnockbackSeqs.IsEmpty())
+	{
+		ConfirmedSelfKnockbackSeq = static_cast<uint8>(Seq - 1);
+	}
+	ServerUnresolvedSelfKnockbackSeqs.Add(Seq);
+}
+
+void UVeloxMovementComponent::ServerResolveSelfKnockbackShot(uint8 Seq)
+{
+	ServerUnresolvedSelfKnockbackSeqs.RemoveSingle(Seq);
+	ConfirmedSelfKnockbackSeq = NewerShotSeq(ConfirmedSelfKnockbackSeq, Seq);
+}
+
+int32 UVeloxMovementComponent::AddMoveTimedEvent(float MoveTime, FVeloxMoveTimedCallback&& Callback)
+{
+	FMoveTimedEvent& Event = MoveTimedEvents.AddDefaulted_GetRef();
+	Event.Id = NextMoveTimedEventId++;
+	Event.MoveTime = MoveTime;
+	Event.Callback = MoveTemp(Callback);
+	return Event.Id;
+}
+
+bool UVeloxMovementComponent::RunMoveTimedEventNow(int32 EventId)
+{
+	const int32 Index = MoveTimedEvents.IndexOfByPredicate([EventId](const FMoveTimedEvent& E) { return E.Id == EventId; });
+	if (Index == INDEX_NONE)
+	{
+		return false;
+	}
+	FVeloxMoveTimedCallback Callback = MoveTemp(MoveTimedEvents[Index].Callback);
+	MoveTimedEvents.RemoveAt(Index);
+	if (Callback)
+	{
+		Callback(*this);
+	}
+	return true;
+}
+
+bool UVeloxMovementComponent::CancelMoveTimedEvent(int32 EventId)
+{
+	return MoveTimedEvents.RemoveAll([EventId](const FMoveTimedEvent& E) { return E.Id == EventId; }) > 0;
+}
+
+bool UVeloxMovementComponent::HasMoveTimedEvent(int32 EventId) const
+{
+	return MoveTimedEvents.ContainsByPredicate([EventId](const FMoveTimedEvent& E) { return E.Id == EventId; });
+}
+
+void UVeloxMovementComponent::RunDueMoveTimedEvents(float MoveTime)
+{
+	// Take the due callbacks out first: a callback may add or cancel events (or apply damage that ends the pawn's life).
+	TArray<FVeloxMoveTimedCallback, TInlineAllocator<2>> Due;
+	for (int32 Index = 0; Index < MoveTimedEvents.Num();)
+	{
+		if (IsMoveTimeDue(MoveTimedEvents[Index].MoveTime, MoveTime, MinTimeBetweenTimeStampResets))
+		{
+			Due.Add(MoveTemp(MoveTimedEvents[Index].Callback));
+			MoveTimedEvents.RemoveAt(Index);
+		}
+		else
+		{
+			++Index;
+		}
+	}
+	for (FVeloxMoveTimedCallback& Callback : Due)
+	{
+		if (Callback)
+		{
+			Callback(*this);
+		}
+	}
+}
+
+float UVeloxMovementComponent::GetClientMoveTimeStamp() const
+{
+	const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character();
+	return ClientData ? ClientData->CurrentTimeStamp : 0.f;
+}
+
+float UVeloxMovementComponent::GetServerClientMoveTimeStamp() const
+{
+	const FNetworkPredictionData_Server_Character* ServerData = GetPredictionData_Server_Character();
+	return ServerData ? ServerData->CurrentClientTimeStamp : 0.f;
 }
 
 float UVeloxMovementComponent::GetCurrentMoveTimeStamp() const
@@ -626,9 +748,12 @@ void UVeloxMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_
 	KnockbackGrace = Response.KnockbackGrace;
 	bJumpLatched = Response.bJumpLatched;
 	PendingKnockback = Response.PendingKnockback;
+	// The replay's PrepMoveFor drops recorded predictions the server has resolved (ADR 0003 section 3).
+	ConfirmedSelfKnockbackSeq = Response.ConfirmedSelfKnockbackSeq;
 #if !UE_BUILD_SHIPPING
 	// Net soak (infra/ci/nettest.sh): what the server's response container delivered, before the replay consumes it.
-	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxCorrectionResponse t=%.3f ts=%.6f grace=%.6f latch=%d svel=%.1f"), LastCorrectionTime, TimeStamp, KnockbackGrace, bJumpLatched ? 1 : 0, NewVelocity.Size());
+	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxCorrectionResponse t=%.3f ts=%.6f grace=%.6f latch=%d svel=%.1f kseq=%u"), LastCorrectionTime, TimeStamp, KnockbackGrace, bJumpLatched ? 1 : 0, NewVelocity.Size(),
+		ConfirmedSelfKnockbackSeq);
 #endif
 
 	// ClientAdjustPosition teleports the pawn after this call; its overlaps must not queue knockback (A19).
@@ -647,6 +772,11 @@ bool UVeloxMovementComponent::ClientUpdatePositionAfterServerUpdate()
 	const bool bRealJumpHeld = bWantsJumpHeld;
 	const bool bRealForwardInput = bHasForwardInput;
 	const bool bRealSideInput = bHasSideInput;
+
+	// A predicted impulse queued after the last saved move (a self detonation at the end of the last live move) belongs
+	// to the next live move, not to the replay; each replayed move gets its recorded one from PrepMoveFor.
+	const FVeloxPredictedKnockback LivePredictedKnockback = PendingPredictedKnockback;
+	PendingPredictedKnockback.Reset();
 
 #if !UE_BUILD_SHIPPING
 	// Net soak A25 regression check (infra/ci/nettest.sh): the replay must start at the move right after the correction.
@@ -669,6 +799,7 @@ bool UVeloxMovementComponent::ClientUpdatePositionAfterServerUpdate()
 	bWantsJumpHeld = bRealJumpHeld;
 	bHasForwardInput = bRealForwardInput;
 	bHasSideInput = bRealSideInput;
+	PendingPredictedKnockback = LivePredictedKnockback;
 	return bResult;
 }
 
@@ -741,6 +872,7 @@ void UVeloxMovementComponent::ServerMoveHandleClientError(float ClientTimeStamp,
 		ServerCorrectionState.KnockbackGrace = KnockbackGrace;
 		ServerCorrectionState.bJumpLatched = bJumpLatched;
 		ServerCorrectionState.PendingKnockback = PendingKnockback;
+		ServerCorrectionState.ConfirmedSelfKnockbackSeq = ConfirmedSelfKnockbackSeq;
 	}
 }
 

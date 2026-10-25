@@ -240,6 +240,35 @@ bool FVeloxCombatKnockbackSeqTest::RunTest(const FString& Parameters)
 	{
 		TestEqual(Case.Name, UVeloxMovementComponent::ShouldReplayPredictedKnockback(Case.Seq, Case.Confirmed), Case.bReplay);
 	}
+
+	// The PrepMoveFor rule on recorded moves (task 05): replay iff unresolved, nothing for an empty record.
+	FVeloxPredictedKnockback Saved;
+	Saved.Add(FVector(0.0, 0.0, 1100.0), 9);
+	TestTrue(TEXT("replay: unresolved shot re-applies its impulse"), FSavedMove_Velox::PredictedKnockbackForReplay(Saved, 8) == Saved);
+	TestFalse(TEXT("replay: resolved shot (confirmed == seq) applies nothing"), FSavedMove_Velox::PredictedKnockbackForReplay(Saved, 9).IsPending());
+	TestFalse(TEXT("replay: resolved by a newer confirmation"), FSavedMove_Velox::PredictedKnockbackForReplay(Saved, 12).IsPending());
+	TestFalse(TEXT("replay: an empty record stays empty"), FSavedMove_Velox::PredictedKnockbackForReplay(FVeloxPredictedKnockback(), 0).IsPending());
+
+	// Two predictions in one move: impulses add, the sequence is the newer one (wrap-aware).
+	FVeloxPredictedKnockback Two;
+	Two.Add(FVector(0.0, 0.0, 100.0), 254);
+	Two.Add(FVector(10.0, 0.0, 0.0), 1);
+	TestEqual(TEXT("accumulate: impulses add"), Two.Velocity, FVector(10.0, 0.0, 100.0));
+	TestEqual(TEXT("accumulate: newer seq across the wrap"), static_cast<int32>(Two.Seq), 1);
+	Two.Add(FVector::ZeroVector, 250);
+	TestEqual(TEXT("accumulate: an older seq does not replace"), static_cast<int32>(Two.Seq), 1);
+
+	// Server bookkeeping helpers.
+	TestEqual(TEXT("newer seq: plain"), static_cast<int32>(UVeloxMovementComponent::NewerShotSeq(4, 5)), 5);
+	TestEqual(TEXT("newer seq: older ignored"), static_cast<int32>(UVeloxMovementComponent::NewerShotSeq(5, 4)), 5);
+	TestEqual(TEXT("newer seq: wrap"), static_cast<int32>(UVeloxMovementComponent::NewerShotSeq(250, 3)), 3);
+
+	// Move-timed events: due at or after their time stamp, and across a time stamp reset (240 s period).
+	constexpr float ResetPeriod = 240.f;
+	TestTrue(TEXT("due: same stamp"), UVeloxMovementComponent::IsMoveTimeDue(10.f, 10.f, ResetPeriod));
+	TestTrue(TEXT("due: later move"), UVeloxMovementComponent::IsMoveTimeDue(10.f, 10.01f, ResetPeriod));
+	TestFalse(TEXT("not due: earlier move"), UVeloxMovementComponent::IsMoveTimeDue(10.f, 9.99f, ResetPeriod));
+	TestTrue(TEXT("due: the stamps were reset after scheduling"), UVeloxMovementComponent::IsMoveTimeDue(239.9f, 0.05f, ResetPeriod));
 	return true;
 }
 
