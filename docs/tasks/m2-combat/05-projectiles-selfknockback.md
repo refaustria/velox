@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged feae626; architect review pending)
 **Depends on:** 04
 
 ## Goal
