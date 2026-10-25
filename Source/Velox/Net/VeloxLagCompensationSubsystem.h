@@ -29,6 +29,8 @@ struct FVeloxHitboxSample
 	double WorldTime = 0.0;
 	float PawnStamp = 0.f;
 	FVeloxHitboxPose Pose;
+	/** The pawn jumped farther than HitboxTeleportDistanceCm since the previous point: never interpolate into this one. */
+	bool bDiscontinuity = false;
 };
 
 /**
@@ -51,7 +53,11 @@ public:
 
 	/** Slot for the next sample (overwrites the oldest when full); the caller fills all fields. */
 	FVeloxHitboxSample& Push();
-	void Push(double WorldTime, float PawnStamp, const FVeloxHitboxPose& Pose);
+	/** TeleportDistanceCm > 0 flags the sample as a discontinuity when it is farther than that from the previous one. */
+	void Push(double WorldTime, float PawnStamp, const FVeloxHitboxPose& Pose, float TeleportDistanceCm = 0.f);
+
+	/** True if the first shapes of Prev and Cur are farther apart than TeleportDistanceCm (<= 0: never). */
+	static bool IsDiscontinuity(const FVeloxHitboxPose& Prev, const FVeloxHitboxPose& Cur, float TeleportDistanceCm);
 
 	/**
 	 * Pose at world time T, linearly interpolated between the bracketing samples. Live (optional) is the current
@@ -69,8 +75,11 @@ public:
 	 */
 	bool PoseAtStamp(float Stamp, double MinWorldTime, const FVeloxHitboxSample* Live, FVeloxHitboxPose& OutPose, double& OutWorldTime) const;
 
-	/** Shape-wise lerp of centre, axis, radius and half height; differing shape counts take the nearer pose. */
-	static void LerpPose(const FVeloxHitboxPose& A, const FVeloxHitboxPose& B, double Alpha, FVeloxHitboxPose& OutPose);
+	/**
+	 * Shape-wise lerp of centre, axis, radius and half height; differing shape counts, or bDiscontinuity (a teleport
+	 * between A and B), take the nearer pose (Alpha < 0.5: A).
+	 */
+	static void LerpPose(const FVeloxHitboxPose& A, const FVeloxHitboxPose& B, double Alpha, FVeloxHitboxPose& OutPose, bool bDiscontinuity = false);
 
 private:
 	/** Number of points (samples plus Live) and point access in time order. */
@@ -98,7 +107,11 @@ struct FVeloxShotTiming
 	TWeakObjectPtr<AActor> HintTarget;
 	/** That proxy's GetRenderedServerStamp() (PawnStamp domain). */
 	float HintTargetStamp = 0.f;
-	/** Measured interpolation delay (s) and whether it came from proxies (false: ping fallback). Diagnostics. */
+	/**
+	 * Measured interpolation delay (s) and whether it came from proxies (false: fallback
+	 * NetworkSimulatedSmoothLocationTime + 0.5 / SampleRateHz, no ping term: the server-time estimate already lags by
+	 * the one-way latency, ADR 0003 B13). Diagnostics.
+	 */
 	float InterpolationDelay = 0.f;
 	bool bDelayFromProxies = false;
 };
@@ -152,11 +165,15 @@ struct FVeloxShotResult
 	/** Origin actually traced (the request's, or the snapped server eye). */
 	FVector Origin = FVector::ZeroVector;
 	bool bOriginSnapped = false;
+	/** Why: "distance", "occluded" (eye to client origin blocked on the Weapon channel) or "nan"; null if not snapped. */
+	const TCHAR* OriginSnapReason = nullptr;
 	/** One entry per pawn hit, nearest first. */
 	TArray<FVeloxShotHit, TInlineAllocator<4>> Hits;
-	TArray<FVeloxShotRay, TInlineAllocator<1>> Rays;
+	TArray<FVeloxShotRay, TInlineAllocator<12>> Rays; // a shotgun fires 11 pellets
 	/** Now - time of the pose used: the hinted pawn's when its stamp was used, else the clamped ViewServerTime's. */
 	float RewindMs = 0.f;
+	/** (Now - clamped ViewServerTime) in ms, the world-time estimate alone (0 without lag compensation); B17. */
+	float ViewMs = 0.f;
 	EVeloxRewindMode HintMode = EVeloxRewindMode::Current; // Stamp if the hint was honoured
 };
 
@@ -263,6 +280,7 @@ private:
 	static float GetPawnStamp(const AActor* Pawn, double WorldTime);
 
 	TArray<FEntry> Entries;
+	/** From the settings CDO, not the configured asset: it only has to cover MaxRewind plus slack. */
 	int32 HistoryCapacity = 60;
 	double NextSampleTime = -1.0;
 

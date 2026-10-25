@@ -216,6 +216,7 @@ def build_combat_settings():
         "max_rewind_seconds": 0.25,
         "history_window_seconds": 1.0,
         "max_origin_error_cm": 75.0,
+        "hitbox_teleport_distance_cm": 150.0,
         "fire_rate_burst_allowance": 3.0,
         "projectile_forward_prediction_max": 0.1,
         "min_respawn_delay": 1.7,

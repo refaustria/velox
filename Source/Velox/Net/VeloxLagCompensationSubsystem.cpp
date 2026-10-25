@@ -69,17 +69,26 @@ FVeloxHitboxSample& FVeloxHitboxHistory::Push()
 	return Slot;
 }
 
-void FVeloxHitboxHistory::Push(double WorldTime, float PawnStamp, const FVeloxHitboxPose& Pose)
+bool FVeloxHitboxHistory::IsDiscontinuity(const FVeloxHitboxPose& Prev, const FVeloxHitboxPose& Cur, float TeleportDistanceCm)
 {
+	return TeleportDistanceCm > 0.f && Prev.Shapes.Num() > 0 && Cur.Shapes.Num() > 0
+		&& FVector::DistSquared(Prev.Shapes[0].Centre, Cur.Shapes[0].Centre) > FMath::Square(static_cast<double>(TeleportDistanceCm));
+}
+
+void FVeloxHitboxHistory::Push(double WorldTime, float PawnStamp, const FVeloxHitboxPose& Pose, float TeleportDistanceCm)
+{
+	const FVeloxHitboxSample* Prev = Newest();
+	const bool bJump = Prev && IsDiscontinuity(Prev->Pose, Pose, TeleportDistanceCm);
 	FVeloxHitboxSample& Slot = Push();
 	Slot.WorldTime = WorldTime;
 	Slot.PawnStamp = PawnStamp;
 	Slot.Pose.Shapes = Pose.Shapes;
+	Slot.bDiscontinuity = bJump;
 }
 
-void FVeloxHitboxHistory::LerpPose(const FVeloxHitboxPose& A, const FVeloxHitboxPose& B, double Alpha, FVeloxHitboxPose& OutPose)
+void FVeloxHitboxHistory::LerpPose(const FVeloxHitboxPose& A, const FVeloxHitboxPose& B, double Alpha, FVeloxHitboxPose& OutPose, bool bDiscontinuity)
 {
-	if (A.Shapes.Num() != B.Shapes.Num())
+	if (bDiscontinuity || A.Shapes.Num() != B.Shapes.Num())
 	{
 		OutPose.Shapes = Alpha < 0.5 ? A.Shapes : B.Shapes;
 		return;
@@ -127,7 +136,7 @@ bool FVeloxHitboxHistory::PoseAtWorldTime(double T, const FVeloxHitboxSample* Li
 			const FVeloxHitboxSample& B = Point(Index + 1, Live);
 			const double Span = B.WorldTime - A.WorldTime;
 			const double Alpha = Span > UE_DOUBLE_SMALL_NUMBER ? (T - A.WorldTime) / Span : 1.0;
-			LerpPose(A.Pose, B.Pose, Alpha, OutPose);
+			LerpPose(A.Pose, B.Pose, Alpha, OutPose, B.bDiscontinuity);
 			OutWorldTime = T;
 			return true;
 		}
@@ -164,12 +173,13 @@ bool FVeloxHitboxHistory::PoseAtStamp(float Stamp, double MinWorldTime, const FV
 			const FVeloxHitboxSample& B = Point(Index + 1, Live);
 			const double Span = static_cast<double>(B.PawnStamp) - static_cast<double>(A.PawnStamp);
 			const double Alpha = Span > 0.0 ? (static_cast<double>(Stamp) - static_cast<double>(A.PawnStamp)) / Span : 0.0;
-			const double WorldTime = FMath::Lerp(A.WorldTime, B.WorldTime, Alpha);
+			// Across a teleport the returned pose is the nearer one; report its own time.
+			const double WorldTime = B.bDiscontinuity ? (Alpha < 0.5 ? A.WorldTime : B.WorldTime) : FMath::Lerp(A.WorldTime, B.WorldTime, Alpha);
 			if (WorldTime < MinWorldTime)
 			{
 				return false;
 			}
-			LerpPose(A.Pose, B.Pose, Alpha, OutPose);
+			LerpPose(A.Pose, B.Pose, Alpha, OutPose, B.bDiscontinuity);
 			OutWorldTime = WorldTime;
 			return true;
 		}
@@ -371,9 +381,9 @@ FVeloxShotTiming VeloxLagComp::BuildShotTiming(const APlayerController& PC, cons
 	else
 	{
 		// ADR 0003 section 6 fallback.
-		const APlayerState* PlayerState = PC.PlayerState;
-		const float HalfPing = PlayerState ? PlayerState->GetPingInMilliseconds() / 2000.f : 0.f;
-		Timing.InterpolationDelay = HalfPing + GetDefault<UVeloxMovementComponent>()->NetworkSimulatedSmoothLocationTime;
+		// ADR 0003 B13: GetServerWorldTimeSeconds() already lags true server time by the one-way latency, so no ping
+		// term: the Linear smoother's steady-state lag plus the expected age of the last update.
+		Timing.InterpolationDelay = GetDefault<UVeloxMovementComponent>()->NetworkSimulatedSmoothLocationTime + 0.5f / UVeloxLagCompensationSubsystem::SampleRateHz;
 	}
 	Timing.InterpolationDelay = FMath::Clamp(Timing.InterpolationDelay, 0.f, static_cast<float>(VeloxLagCompCVars::MaxInterpolationDelay));
 	Timing.ViewServerTime = ServerNow - Timing.InterpolationDelay;
@@ -514,6 +524,11 @@ bool UVeloxLagCompensationSubsystem::MakeLiveSample(const FEntry& Entry, double 
 		// Keep the history invariants for the virtual newest point.
 		OutLive.WorldTime = FMath::Max(OutLive.WorldTime, Newest->WorldTime);
 		OutLive.PawnStamp = FMath::Max(OutLive.PawnStamp, Newest->PawnStamp);
+		OutLive.bDiscontinuity = FVeloxHitboxHistory::IsDiscontinuity(Newest->Pose, OutLive.Pose, UVeloxCombatSettings::GetOrDefault(nullptr).GetHitboxTeleportDistanceCm());
+	}
+	else
+	{
+		OutLive.bDiscontinuity = false;
 	}
 	return OutLive.Pose.Shapes.Num() > 0;
 }
@@ -547,6 +562,7 @@ void UVeloxLagCompensationSubsystem::SampleAll()
 	}
 	const double Now = World->GetTimeSeconds();
 	const int32 DebugLevel = VeloxLagCompCVars::Debug();
+	const float TeleportDistance = UVeloxCombatSettings::GetOrDefault(nullptr).GetHitboxTeleportDistanceCm();
 	for (int32 Index = Entries.Num() - 1; Index >= 0; --Index)
 	{
 		FEntry& Entry = Entries[Index];
@@ -563,10 +579,15 @@ void UVeloxLagCompensationSubsystem::SampleAll()
 			continue; // already sampled this frame
 		}
 		const float Stamp = FMath::Max(GetPawnStamp(Pawn, Now), Newest ? Newest->PawnStamp : -FLT_MAX);
+		// Push() may recycle the oldest slot (the newest at capacity 2 at worst): read the previous centre first.
+		const bool bHadPrev = Newest && Newest->Pose.Shapes.Num() > 0;
+		const FVector PrevCentre = bHadPrev ? Newest->Pose.Shapes[0].Centre : FVector::ZeroVector;
 		FVeloxHitboxSample& Slot = Entry.History.Push();
 		Slot.WorldTime = Now;
 		Slot.PawnStamp = Stamp;
 		Hitbox->GetCurrentPose(Slot.Pose); // reuses the slot's inline storage: no allocation
+		Slot.bDiscontinuity = TeleportDistance > 0.f && bHadPrev && Slot.Pose.Shapes.Num() > 0
+			&& FVector::DistSquared(PrevCentre, Slot.Pose.Shapes[0].Centre) > FMath::Square(static_cast<double>(TeleportDistance));
 
 		if (DebugLevel >= 2 || (DebugLevel >= 1 && Now - Entry.LastDebugLogTime >= 1.0))
 		{
@@ -613,17 +634,45 @@ void UVeloxLagCompensationSubsystem::TraceShot(const FVeloxShotRequest& Request,
 	const AActor* Hint = Request.HintTarget.Get();
 	const int32 DebugLevel = VeloxLagCompCVars::Debug();
 
-	// Origin validation (ADR 0003 section 5): the fire RPC and the move RPC of one client frame may arrive in either order.
+	// Origin validation (ADR 0003 section 5, B15): the fire RPC and the move RPC of one client frame may arrive in
+	// either order, so the client origin is accepted within MaxOriginErrorCm of the server eye, provided nothing on
+	// the Weapon channel lies between the eye and it. A non-finite origin is always replaced.
 	OutResult.Origin = Request.Origin;
-	if (const APawn* ShooterPawn = Cast<APawn>(Shooter); ShooterPawn && Request.bValidateOrigin)
+	const bool bNanOrigin = Request.Origin.ContainsNaN();
+	if (const APawn* ShooterPawn = Cast<APawn>(Shooter); ShooterPawn && (Request.bValidateOrigin || bNanOrigin))
 	{
 		const FVector Eye = ShooterPawn->GetPawnViewLocation();
-		if (FVector::Dist(Request.Origin, Eye) > Request.MaxOriginErrorCm)
+		const TCHAR* SnapReason = nullptr;
+		if (bNanOrigin)
 		{
-			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f"), Request.ShotSeq, *GetNameSafe(Shooter), FVector::Dist(Request.Origin, Eye));
+			SnapReason = TEXT("nan");
+		}
+		else if (FVector::Dist(Request.Origin, Eye) > Request.MaxOriginErrorCm)
+		{
+			SnapReason = TEXT("distance");
+		}
+		else if (FVector::DistSquared(Request.Origin, Eye) > 1.0) // within 1 cm: nothing to check
+		{
+			FCollisionQueryParams OccParams(SCENE_QUERY_STAT(VeloxShotOrigin), true, Shooter);
+			FHitResult OccHit;
+			if (World->LineTraceSingleByChannel(OccHit, Eye, Request.Origin, Velox_TraceChannel_Weapon, OccParams))
+			{
+				SnapReason = TEXT("occluded");
+			}
+		}
+		if (SnapReason)
+		{
+			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s"), Request.ShotSeq, *GetNameSafe(Shooter),
+				bNanOrigin ? -1.0 : FVector::Dist(Request.Origin, Eye), SnapReason);
 			OutResult.Origin = Eye;
 			OutResult.bOriginSnapped = true;
+			OutResult.OriginSnapReason = SnapReason;
 		}
+	}
+	if (OutResult.Origin.ContainsNaN())
+	{
+		UE_LOG(LogVeloxCombat, Warning, TEXT("VeloxShotRejected seq=%u shooter=%s reason=nan_origin"), Request.ShotSeq, *GetNameSafe(Shooter));
+		return;
 	}
 	const FVector Origin = OutResult.Origin;
 
@@ -672,12 +721,20 @@ void UVeloxLagCompensationSubsystem::TraceShot(const FVeloxShotRequest& Request,
 		}
 	}
 	OutResult.RewindMs = static_cast<float>(RewindSeconds * 1000.0);
+	{
+		const double ViewSeconds = Query.bCompensate ? Now - ClampedViewTime : 0.0;
+		OutResult.ViewMs = FMath::IsFinite(ViewSeconds) ? static_cast<float>(ViewSeconds * 1000.0) : 0.f;
+	}
 
 	// Rays: world first (pawn capsules ignore the Weapon channel), then the rewound poses closer than the world.
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(VeloxShot), true, Shooter);
 	const double Range = FMath::Max(Request.RangeCm, 0.f);
 	for (const FVector& RawDir : Request.Dirs)
 	{
+		if (RawDir.ContainsNaN())
+		{
+			continue;
+		}
 		const FVector Dir = RawDir.GetSafeNormal();
 		if (Dir.IsZero())
 		{
@@ -703,7 +760,7 @@ void UVeloxLagCompensationSubsystem::TraceShot(const FVeloxShotRequest& Request,
 
 	const TCHAR* HintName = !Hint ? TEXT("none") : OutResult.HintMode == EVeloxRewindMode::Stamp ? TEXT("stamp") : TEXT("fallback");
 	const double DistCm = OutResult.Hits.Num() > 0 ? OutResult.Hits[0].Dist : (OutResult.Rays.Num() > 0 ? OutResult.Rays[0].WorldDist : 0.0);
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShot seq=%u shooter=%s hit=%s rewind_ms=%.1f hint=%s dist_cm=%.1f hits=%d rays=%d snap=%d"),
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShot seq=%u shooter=%s hit=%s rewind_ms=%.1f view_ms=%.1f hint=%s dist_cm=%.1f hits=%d rays=%d snap=%d"),
 		Request.ShotSeq, *GetNameSafe(Shooter), OutResult.Hits.Num() > 0 ? *GetNameSafe(OutResult.Hits[0].Pawn) : TEXT("none"),
-		OutResult.RewindMs, HintName, DistCm, OutResult.Hits.Num(), OutResult.Rays.Num(), OutResult.bOriginSnapped ? 1 : 0);
+		OutResult.RewindMs, OutResult.ViewMs, HintName, DistCm, OutResult.Hits.Num(), OutResult.Rays.Num(), OutResult.bOriginSnapped ? 1 : 0);
 }
