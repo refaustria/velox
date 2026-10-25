@@ -156,7 +156,8 @@ struct FVeloxHitMath
 	 * (Q3: crandom() * 700 at 8192 u). Deterministic for Seed (ADR 0003 section 5: ShotSeq ^ PlayerId), so the client's
 	 * tracers and the server's pellets agree.
 	 */
-	static void PelletDirections(const FVector& Dir, int32 Count, float SpreadAngleDeg, int32 Seed, TArray<FVector>& OutDirs)
+	template <typename AllocatorType>
+	static void PelletDirections(const FVector& Dir, int32 Count, float SpreadAngleDeg, int32 Seed, TArray<FVector, AllocatorType>& OutDirs)
 	{
 		FRandomStream Stream(Seed);
 		FVector Right, Up;

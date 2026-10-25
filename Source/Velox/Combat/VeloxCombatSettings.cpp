@@ -5,6 +5,8 @@
 #include "Combat/VeloxAmmoSet.h"
 #include "Core/VeloxGameplayTags.h"
 #include "HAL/IConsoleManager.h"
+#include "Weapons/VeloxWeaponDefinition.h"
+#include "Weapons/VeloxWeaponTable.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxCombatSettings)
 
@@ -33,15 +35,27 @@ namespace VeloxCombatCVars
 
 UVeloxCombatSettings::UVeloxCombatSettings()
 {
-	// Q3 defaults: every ammo type caps at 200; the spawn loadout is the machine gun with 100 bullets.
+	// Q3 defaults: every ammo type caps at 200. The spawn loadout (MG/100) references assets and lives in the asset.
 	for (const TPair<FGameplayTag, FGameplayAttribute>& Type : UVeloxAmmoSet::GetAmmoTypes())
 	{
 		FVeloxAmmoTypeInfo& Info = AmmoTypes.AddDefaulted_GetRef();
 		Info.Tag = Type.Key;
 		Info.Attribute = Type.Value;
 		Info.MaxAmount = 200;
-		Info.SpawnAmount = Type.Key == VeloxGameplayTags::Ammo_Bullets ? 100 : 0;
 	}
+}
+
+int32 UVeloxCombatSettings::GetSpawnAmmo(const FGameplayTag& AmmoTag) const
+{
+	int32 Sum = 0;
+	for (const FVeloxSpawnWeapon& Entry : SpawnLoadout)
+	{
+		if (Entry.Definition && Entry.Definition->AmmoTag == AmmoTag)
+		{
+			Sum += FMath::Max(Entry.Ammo, 0);
+		}
+	}
+	return Sum;
 }
 
 float UVeloxCombatSettings::GetHitboxTeleportDistanceCm() const

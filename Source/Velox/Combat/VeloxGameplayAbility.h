@@ -20,6 +20,17 @@ enum class EVeloxAbilityActivationPolicy : uint8
 	OnSpawn
 };
 
+/** What ProcessAbilityInput does with a press of an OnInputTriggered spec (UVeloxGameplayAbility::PrepareInputActivation). */
+enum class EVeloxInputActivation : uint8
+{
+	/** TryActivateAbility. */
+	Activate,
+	/** Activate with the prepared FGameplayEventData (sent to the server with the activation, e.g. the switch target). */
+	ActivateWithEvent,
+	/** Ignore this press. */
+	Skip
+};
+
 /** Defaults: InstancedPerActor, LocalPredicted, ReplicateNo, server ignores remote cancellation. */
 UCLASS(Abstract)
 class VELOX_API UVeloxGameplayAbility : public UGameplayAbility
@@ -33,6 +44,16 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Velox|Ability")
 	UVeloxAbilitySystemComponent* GetVeloxAbilitySystemComponentFromActorInfo() const;
+
+	/**
+	 * Called on the CDO by UVeloxAbilitySystemComponent::ProcessAbilityInput for a press of InputTag (the tag that matched
+	 * the spec's dynamic source tags). Abilities bound to several input tags (weapon switch) resolve the press here and
+	 * pass the result as event data, which LocalPredicted activation carries to the server.
+	 */
+	virtual EVeloxInputActivation PrepareInputActivation(const FGameplayTag& InputTag, const FGameplayAbilityActorInfo* ActorInfo, FGameplayEventData& OutEventData) const
+	{
+		return EVeloxInputActivation::Activate;
+	}
 
 	/** OnSpawn policy: activates on the side that owns the execution (local for predicted, server for server abilities). */
 	void TryActivateAbilityOnSpawn(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) const;

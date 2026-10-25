@@ -77,4 +77,18 @@ namespace VeloxGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Character_Damage, "GameplayCue.Character.Damage", "Character took damage.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Character_Death, "GameplayCue.Character.Death", "Character died.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Character_Spawn, "GameplayCue.Character.Spawn", "Character spawned.");
+
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_MachineGun_Fire, "GameplayCue.Weapon.MachineGun.Fire", "MachineGun: shot fired (tracer from the eye to the ray end).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_MachineGun_Impact, "GameplayCue.Weapon.MachineGun.Impact", "MachineGun: impact at the ray end / explosion.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_Shotgun_Fire, "GameplayCue.Weapon.Shotgun.Fire", "Shotgun: shot fired (tracer from the eye to the ray end).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_Shotgun_Impact, "GameplayCue.Weapon.Shotgun.Impact", "Shotgun: impact at the ray end / explosion.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_PlasmaGun_Fire, "GameplayCue.Weapon.PlasmaGun.Fire", "PlasmaGun: shot fired (tracer from the eye to the ray end).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_PlasmaGun_Impact, "GameplayCue.Weapon.PlasmaGun.Impact", "PlasmaGun: impact at the ray end / explosion.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_RocketLauncher_Fire, "GameplayCue.Weapon.RocketLauncher.Fire", "RocketLauncher: shot fired (tracer from the eye to the ray end).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_RocketLauncher_Impact, "GameplayCue.Weapon.RocketLauncher.Impact", "RocketLauncher: impact at the ray end / explosion.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_LightningGun_Fire, "GameplayCue.Weapon.LightningGun.Fire", "LightningGun: shot fired (tracer from the eye to the ray end).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_LightningGun_Impact, "GameplayCue.Weapon.LightningGun.Impact", "LightningGun: impact at the ray end / explosion.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_LightningGun_Beam, "GameplayCue.Weapon.LightningGun.Beam", "Lightning gun beam (WhileActive, server-driven, removed on release/switch/death).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_Railgun_Fire, "GameplayCue.Weapon.Railgun.Fire", "Railgun: shot fired (tracer from the eye to the ray end).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_Railgun_Impact, "GameplayCue.Weapon.Railgun.Impact", "Railgun: impact at the ray end / explosion.");
 }

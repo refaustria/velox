@@ -31,6 +31,7 @@
 #include "GameFramework/WorldSettings.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Movement/VeloxMovementComponent.h"
+#include "Weapons/VeloxWeaponDefinition.h"
 
 namespace VeloxCombatTest
 {
@@ -169,7 +170,23 @@ bool FVeloxCombatAmmoTest::RunTest(const FString& Parameters)
 		const FVeloxAmmoTypeInfo* Info = Settings.FindAmmoType(Type.Value);
 		TestTrue(FString::Printf(TEXT("%s cap 200"), *Type.Key.ToString()), Info && Info->MaxAmount == 200);
 	}
-	TestEqual(TEXT("spawn loadout: 100 bullets"), Settings.FindAmmoType(VeloxGameplayTags::Ammo_Bullets)->SpawnAmount, 100);
+	// ADR 0003 B5: spawn ammo is the sum of the spawn loadout's ammo per AmmoTag (the class default loadout is empty).
+	TestEqual(TEXT("class default loadout: no spawn ammo"), Settings.GetSpawnAmmo(VeloxGameplayTags::Ammo_Bullets), 0);
+	{
+		UVeloxCombatSettings* Custom = NewObject<UVeloxCombatSettings>(GetTransientPackage());
+		UVeloxWeaponDefinition* MG = NewObject<UVeloxWeaponDefinition>(GetTransientPackage());
+		MG->AmmoTag = VeloxGameplayTags::Ammo_Bullets;
+		UVeloxWeaponDefinition* RG = NewObject<UVeloxWeaponDefinition>(GetTransientPackage());
+		RG->AmmoTag = VeloxGameplayTags::Ammo_Slugs;
+		Custom->SpawnLoadout = { { MG, 100 }, { RG, 10 }, { MG, 20 } };
+		TestEqual(TEXT("loadout: bullets summed"), Custom->GetSpawnAmmo(VeloxGameplayTags::Ammo_Bullets), 120);
+		TestEqual(TEXT("loadout: slugs"), Custom->GetSpawnAmmo(VeloxGameplayTags::Ammo_Slugs), 10);
+		TestEqual(TEXT("loadout: no cells"), Custom->GetSpawnAmmo(VeloxGameplayTags::Ammo_Cells), 0);
+	}
+	if (const UVeloxCombatSettings* Asset = LoadObject<UVeloxCombatSettings>(nullptr, TEXT("/Game/Data/DA_CombatSettings_Default.DA_CombatSettings_Default")))
+	{
+		TestEqual(TEXT("DA_CombatSettings_Default: Q3 spawn with 100 bullets"), Asset->GetSpawnAmmo(VeloxGameplayTags::Ammo_Bullets), 100);
+	}
 	TestFalse(TEXT("unknown tag has no attribute"), UVeloxAmmoSet::GetAmmoAttribute(VeloxGameplayTags::Damage_Rail, Settings).IsValid());
 
 	// Cost check (CheckCost of the fire abilities): fails below AmmoPerShot.

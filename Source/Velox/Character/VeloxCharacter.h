@@ -12,6 +12,7 @@
 class UAbilitySystemComponent;
 class UInputComponent;
 class UVeloxAbilitySystemComponent;
+class UVeloxCombatFeedbackComponent;
 class UVeloxHealthComponent;
 class UVeloxHitboxComponent;
 class UVeloxMovementComponent;
@@ -57,8 +58,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Velox|Character")
 	UVeloxHitboxComponent* GetHitboxComponent() const { return HitboxComponent; }
 
+	UFUNCTION(BlueprintPure, Category = "Velox|Character")
+	UVeloxCombatFeedbackComponent* GetCombatFeedbackComponent() const { return CombatFeedbackComponent; }
+
 	//~IGameplayCueInterface
-	/** Native cue handling (ADR 0003 section 5); M2 task 04 forwards to UVeloxCombatFeedbackComponent. */
+	/** Native cue handling (ADR 0003 section 5): forwards to UVeloxCombatFeedbackComponent, then to the interface default. */
 	virtual void HandleGameplayCue(UObject* Self, FGameplayTag GameplayCueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters) override;
 	//~End of IGameplayCueInterface
 
@@ -118,6 +122,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
 	TObjectPtr<UVeloxHitboxComponent> HitboxComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
+	TObjectPtr<UVeloxCombatFeedbackComponent> CombatFeedbackComponent;
 
 private:
 	TArray<uint32> AbilityInputBindHandles;

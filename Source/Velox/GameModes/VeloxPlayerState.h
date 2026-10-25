@@ -14,6 +14,7 @@ class UVeloxAmmoSet;
 class UVeloxCombatSettings;
 class UVeloxHealthSet;
 class UVeloxPawnData;
+class UVeloxWeaponInventoryComponent;
 
 UCLASS(Config = Game)
 class VELOX_API AVeloxPlayerState : public APlayerState, public IAbilitySystemInterface
@@ -42,13 +43,16 @@ public:
 	const UVeloxHealthSet* GetHealthSet() const { return HealthSet; }
 	const UVeloxAmmoSet* GetAmmoSet() const { return AmmoSet; }
 
+	UFUNCTION(BlueprintPure, Category = "Velox|PlayerState")
+	UVeloxWeaponInventoryComponent* GetWeaponInventory() const { return WeaponInventory; }
+
 	/** Combat tunables (config asset, preloaded in PostInitializeComponents; lazy load as fallback); null if missing. */
 	const UVeloxCombatSettings* GetCombatSettings() const;
 
 	/**
 	 * Server, every possession (ADR 0003 section 1): grants PawnData's ability sets the first time only (abilities live on
-	 * the PlayerState and survive respawn), then applies GE_SpawnInit. Called by AVeloxCharacter::PossessedBy after
-	 * InitAbilityActorInfo.
+	 * the PlayerState and survive respawn), resets the weapon inventory to the spawn loadout (B5), then applies
+	 * GE_SpawnInit. Called by AVeloxCharacter::PossessedBy after InitAbilityActorInfo.
 	 */
 	void OnPawnPossessed(const UVeloxPawnData* PawnData);
 
@@ -85,6 +89,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UVeloxAmmoSet> AmmoSet;
+
+	UPROPERTY(VisibleAnywhere, Category = "Velox|PlayerState")
+	TObjectPtr<UVeloxWeaponInventoryComponent> WeaponInventory;
 
 	UPROPERTY(Transient)
 	mutable TObjectPtr<const UVeloxCombatSettings> CombatSettings;

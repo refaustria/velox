@@ -40,15 +40,18 @@ public:
 	virtual void AbilitySpecInputReleased(FGameplayAbilitySpec& Spec) override;
 	//~End of UAbilitySystemComponent interface
 
-protected:
 	/**
-	 * Input routing filter. Task 04: for InputTag.Fire only the spec whose SourceObject is the inventory's current weapon
-	 * definition passes, so six granted fire abilities cost one TryActivateAbility per frame.
+	 * Input routing filter (ADR 0003 section 1): for InputTag.Fire only the spec whose SourceObject is the inventory's
+	 * current weapon definition passes, so six granted fire abilities cost one TryActivateAbility per frame. Other
+	 * specs always pass. Public for tests.
 	 */
-	virtual bool CanRouteInputToSpec(const FGameplayAbilitySpec& Spec) const { return true; }
+	virtual bool CanRouteInputToSpec(const FGameplayAbilitySpec& Spec) const;
 
+protected:
 	/** Specs whose input was pressed / released this frame, and specs whose input is held. */
 	TArray<FGameplayAbilitySpecHandle> InputPressedSpecHandles;
+	/** The input tag of this frame's press per pressed spec (specs bound to several tags, e.g. the weapon switch). */
+	TMap<FGameplayAbilitySpecHandle, FGameplayTag> InputPressedTags;
 	TArray<FGameplayAbilitySpecHandle> InputReleasedSpecHandles;
 	TArray<FGameplayAbilitySpecHandle> InputHeldSpecHandles;
 };

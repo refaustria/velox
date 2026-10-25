@@ -3,6 +3,8 @@
 #include "GameModes/VeloxPlayerController.h"
 
 #include "Combat/VeloxAbilitySystemComponent.h"
+#include "Combat/VeloxCombatLog.h"
+#include "Weapons/VeloxCombatFeedbackComponent.h"
 #include "Core/VeloxLog.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Engine/LocalPlayer.h"
@@ -20,6 +22,18 @@ AVeloxPlayerController::AVeloxPlayerController(const FObjectInitializer& ObjectI
 FVeloxShotTiming AVeloxPlayerController::BuildShotTiming(const FVector& Origin, const FVector& Dir, float RangeCm) const
 {
 	return VeloxLagComp::BuildShotTiming(*this, Origin, Dir, RangeCm);
+}
+
+void AVeloxPlayerController::ClientConfirmHit_Implementation(uint8 ShotSeq, uint8 TotalDamage, uint8 Flags)
+{
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxHitConfirm seq=%u dmg=%u kill=%d pc=%s"), ShotSeq, TotalDamage, (Flags & EVeloxHitConfirmFlags::Kill) ? 1 : 0, *GetName());
+	if (const APawn* MyPawn = GetPawn())
+	{
+		if (UVeloxCombatFeedbackComponent* Feedback = MyPawn->FindComponentByClass<UVeloxCombatFeedbackComponent>())
+		{
+			Feedback->OnHitConfirmed(ShotSeq, TotalDamage, Flags);
+		}
+	}
 }
 
 void AVeloxPlayerController::SetupInputComponent()

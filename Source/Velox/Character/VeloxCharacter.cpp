@@ -20,6 +20,7 @@
 #include "Movement/VeloxMovementComponent.h"
 #include "Movement/VeloxMovementSettings.h"
 #include "Movement/VeloxScriptedInputComponent.h"
+#include "Weapons/VeloxCombatFeedbackComponent.h"
 
 #include "DisplayDebugHelpers.h"
 #include "Engine/Canvas.h"
@@ -70,6 +71,7 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 
 	HealthComponent = CreateDefaultSubobject<UVeloxHealthComponent>(TEXT("HealthComponent"));
 	HitboxComponent = CreateDefaultSubobject<UVeloxHitboxComponent>(TEXT("HitboxComponent"));
+	CombatFeedbackComponent = CreateDefaultSubobject<UVeloxCombatFeedbackComponent>(TEXT("CombatFeedbackComponent"));
 
 	// DefaultInputComponentClass stays EnhancedInputComponent (ADR 0001); Velox pawns use the tag-binding subclass.
 	OverrideInputComponentClass = UVeloxInputComponent::StaticClass();
@@ -230,7 +232,11 @@ void AVeloxCharacter::InitAbilityActorInfo()
 
 void AVeloxCharacter::HandleGameplayCue(UObject* Self, FGameplayTag GameplayCueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters)
 {
-	UE_LOG(LogVeloxCombat, Verbose, TEXT("%s: gameplay cue %s event %d at %s"), *GetName(), *GameplayCueTag.ToString(), static_cast<int32>(EventType), *Parameters.Location.ToCompactString());
+	UE_LOG(LogVeloxCombat, VeryVerbose, TEXT("%s: gameplay cue %s event %d at %s"), *GetName(), *GameplayCueTag.ToString(), static_cast<int32>(EventType), *Parameters.Location.ToCompactString());
+	if (CombatFeedbackComponent)
+	{
+		CombatFeedbackComponent->HandleCue(GameplayCueTag, EventType, Parameters);
+	}
 	IGameplayCueInterface::HandleGameplayCue(Self, GameplayCueTag, EventType, Parameters);
 }
 

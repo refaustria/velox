@@ -192,8 +192,8 @@ namespace VeloxEffects
 			Data->SetSetByCallerMagnitude(SetByCaller_Armor, Settings.SpawnArmor);
 			for (const TPair<FGameplayTag, FGameplayAttribute>& Type : UVeloxAmmoSet::GetAmmoTypes())
 			{
-				const FVeloxAmmoTypeInfo* Info = Settings.FindAmmoType(Type.Key);
-				Data->SetSetByCallerMagnitude(Type.Key, Info ? static_cast<float>(Info->SpawnAmount) : 0.f);
+				// ADR 0003 B5: one source of truth, the spawn loadout (clamped to the cap by UVeloxAmmoSet).
+				Data->SetSetByCallerMagnitude(Type.Key, static_cast<float>(Settings.GetSpawnAmmo(Type.Key)));
 			}
 		}
 		return Spec;

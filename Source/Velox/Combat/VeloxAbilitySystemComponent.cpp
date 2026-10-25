@@ -6,6 +6,8 @@
 #include "Combat/VeloxGameplayAbility.h"
 #include "Core/VeloxGameplayTags.h"
 #include "GameplayTagContainer.h"
+#include "Weapons/VeloxWeaponDefinition.h"
+#include "Weapons/VeloxWeaponInventoryComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxAbilitySystemComponent)
 
@@ -40,6 +42,7 @@ void UVeloxAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& In
 		{
 			InputPressedSpecHandles.AddUnique(Spec.Handle);
 			InputHeldSpecHandles.AddUnique(Spec.Handle);
+			InputPressedTags.Add(Spec.Handle, InputTag);
 		}
 	}
 }
@@ -71,6 +74,8 @@ void UVeloxAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGa
 
 	static TArray<FGameplayAbilitySpecHandle> AbilitiesToActivate;
 	AbilitiesToActivate.Reset();
+	static TArray<TPair<FGameplayAbilitySpecHandle, FGameplayEventData>> AbilitiesToActivateWithEvent;
+	AbilitiesToActivateWithEvent.Reset();
 
 	// Held: WhileInputActive specs that are not running (automatic fire re-tries every frame).
 	for (const FGameplayAbilitySpecHandle& Handle : InputHeldSpecHandles)
@@ -102,9 +107,26 @@ void UVeloxAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGa
 			continue;
 		}
 		const UVeloxGameplayAbility* AbilityCDO = Cast<UVeloxGameplayAbility>(Spec->Ability);
-		if (AbilityCDO && AbilityCDO->GetActivationPolicy() == EVeloxAbilityActivationPolicy::OnInputTriggered)
+		if (AbilityCDO && AbilityCDO->GetActivationPolicy() == EVeloxAbilityActivationPolicy::WhileInputActive)
 		{
+			// A tap pressed and released within one frame is no longer held: it still fires once.
 			AbilitiesToActivate.AddUnique(Handle);
+		}
+		else if (AbilityCDO && AbilityCDO->GetActivationPolicy() == EVeloxAbilityActivationPolicy::OnInputTriggered)
+		{
+			const FGameplayTag* PressedTag = InputPressedTags.Find(Handle);
+			FGameplayEventData EventData;
+			switch (AbilityCDO->PrepareInputActivation(PressedTag ? *PressedTag : FGameplayTag(), AbilityActorInfo.Get(), EventData))
+			{
+			case EVeloxInputActivation::Activate:
+				AbilitiesToActivate.AddUnique(Handle);
+				break;
+			case EVeloxInputActivation::ActivateWithEvent:
+				AbilitiesToActivateWithEvent.Emplace(Handle, MoveTemp(EventData));
+				break;
+			case EVeloxInputActivation::Skip:
+				break;
+			}
 		}
 	}
 
@@ -113,6 +135,12 @@ void UVeloxAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGa
 	{
 		TryActivateAbility(Handle);
 	}
+	// LocalPredicted activation with event data sends it to the server (ServerTryActivateAbilityWithEventData).
+	for (const TPair<FGameplayAbilitySpecHandle, FGameplayEventData>& Entry : AbilitiesToActivateWithEvent)
+	{
+		InternalTryActivateAbility(Entry.Key, FPredictionKey(), nullptr, nullptr, &Entry.Value);
+	}
+	AbilitiesToActivateWithEvent.Reset();
 
 	// Released this frame (filter not applied: a release must always reach a running ability).
 	for (const FGameplayAbilitySpecHandle& Handle : InputReleasedSpecHandles)
@@ -131,10 +159,23 @@ void UVeloxAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGa
 
 	InputPressedSpecHandles.Reset();
 	InputReleasedSpecHandles.Reset();
+	InputPressedTags.Reset();
+}
+
+bool UVeloxAbilitySystemComponent::CanRouteInputToSpec(const FGameplayAbilitySpec& Spec) const
+{
+	if (!Spec.GetDynamicSpecSourceTags().HasTagExact(VeloxGameplayTags::InputTag_Fire))
+	{
+		return true;
+	}
+	const UVeloxWeaponInventoryComponent* Inventory = UVeloxWeaponInventoryComponent::Find(GetOwner());
+	const UObject* Current = Inventory ? Inventory->GetCurrentDefinition() : nullptr;
+	return Current && Spec.SourceObject.Get() == Current;
 }
 
 void UVeloxAbilitySystemComponent::ClearAbilityInput()
 {
+	InputPressedTags.Reset();
 	InputPressedSpecHandles.Reset();
 	InputReleasedSpecHandles.Reset();
 	InputHeldSpecHandles.Reset();

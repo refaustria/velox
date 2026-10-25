@@ -1,4 +1,4 @@
-"""Velox bootstrap content: L_Empty map, Enhanced Input assets, pawn/movement/input/combat data assets.
+"""Velox bootstrap content: L_Empty map, Enhanced Input assets, pawn/movement/input/combat data assets, weapons.
 
 Run headless (see docs/content-bootstrap.md):
   UnrealEditor-Cmd Velox.uproject -run=pythonscript -script=Tools/editor/create_bootstrap_content.py \
@@ -7,6 +7,8 @@ Run headless (see docs/content-bootstrap.md):
 Idempotent: existing assets are loaded and their properties re-applied; the map is rebuilt only if missing.
 Fails (non-zero exit via exception) if anything could not be created or saved.
 """
+import math
+
 import unreal
 
 ATOOLS = unreal.AssetToolsHelpers.get_asset_tools()
@@ -72,6 +74,11 @@ def build_input():
         "IA_Crouch": make_action("IA_Crouch", VT.BOOLEAN),
         "IA_Fire": make_action("IA_Fire", VT.BOOLEAN),
     }
+    # ADR 0003 section 4: Q3 weapon select (keys 1-9 = slot, mouse wheel = weapnext/weapprev).
+    for slot in range(1, 10):
+        actions[f"IA_Weapon_Slot{slot}"] = make_action(f"IA_Weapon_Slot{slot}", VT.BOOLEAN)
+    actions["IA_Weapon_Next"] = make_action("IA_Weapon_Next", VT.BOOLEAN)
+    actions["IA_Weapon_Prev"] = make_action("IA_Weapon_Prev", VT.BOOLEAN)
     imc, _ = get_or_create("/Game/Input", "IMC_Default", unreal.InputMappingContext,
                            unreal.InputMappingContext_Factory() if hasattr(unreal, "InputMappingContext_Factory") else None)
     if imc is None or any(a is None for a in actions.values()):
@@ -97,6 +104,11 @@ def build_input():
     imc.map_key(actions["IA_Jump"], key("SpaceBar"))
     imc.map_key(actions["IA_Crouch"], key("LeftControl"))
     imc.map_key(actions["IA_Fire"], key("LeftMouseButton"))
+    slot_keys = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"]
+    for slot, key_name in enumerate(slot_keys, start=1):
+        imc.map_key(actions[f"IA_Weapon_Slot{slot}"], key(key_name))
+    imc.map_key(actions["IA_Weapon_Next"], key("MouseScrollUp"))
+    imc.map_key(actions["IA_Weapon_Prev"], key("MouseScrollDown"))
 
     dkm = imc.get_editor_property("default_key_mappings")
     mappings = list(dkm.get_editor_property("mappings"))
@@ -180,7 +192,11 @@ def build_data(actions):
             entry(actions["IA_Jump"], "InputTag.Jump"),
             entry(actions["IA_Crouch"], "InputTag.Crouch"),
         ])
-        ic.set_editor_property("ability_input_actions", [entry(actions["IA_Fire"], "InputTag.Fire")])
+        ability = [entry(actions["IA_Fire"], "InputTag.Fire")]
+        ability += [entry(actions[f"IA_Weapon_Slot{slot}"], f"InputTag.Weapon.Slot{slot}") for slot in range(1, 10)]
+        ability += [entry(actions["IA_Weapon_Next"], "InputTag.Weapon.Next"),
+                    entry(actions["IA_Weapon_Prev"], "InputTag.Weapon.Prev")]
+        ic.set_editor_property("ability_input_actions", ability)
         save(ic)
 
     pd, _ = get_or_create("/Game/Data", "DA_PawnData_Default", unreal.VeloxPawnData, None)
@@ -192,8 +208,87 @@ def build_data(actions):
         save(pd)
 
 
-def build_combat_settings():
-    """ADR 0003 section 1: DA_CombatSettings_Default. AmmoTypes keep the C++ defaults (six rows, cap 200, 100 bullets)."""
+# ---------------------------------------------------------------- Weapons (ADR 0003 section 4)
+Q3_UNIT_CM = 2.5
+
+
+def q3_spread_deg(spread_units):
+    """Q3 spreads are offsets at 8192 units: MACHINEGUN_SPREAD 200, DEFAULT_SHOTGUN_SPREAD 700."""
+    return math.degrees(math.atan(spread_units / 8192.0))
+
+
+# Q3 vanilla g_weapon.c / bg_misc.c numbers at UnitScale 2.5. Table order = slot order (MG 2, SG 3, RL 5, LG 6, RG 7, PG 8).
+# fire: hitscan ability class or None (RL/PG fire abilities are task 05). pickup = Q3 weapon pickup quantity.
+WEAPONS = [
+    dict(name="MachineGun", slot=2, fire="hitscan", interval=0.1, damage=7, pellets=1, spread=q3_spread_deg(200),
+         range_cm=8192 * Q3_UNIT_CM, ammo="Bullets", pickup=40, damage_tag="MachineGun"),
+    dict(name="Shotgun", slot=3, fire="hitscan", interval=1.0, damage=10, pellets=11, spread=q3_spread_deg(700),
+         range_cm=8192 * Q3_UNIT_CM, ammo="Shells", pickup=10, damage_tag="Shotgun"),
+    dict(name="RocketLauncher", slot=5, fire=None, interval=0.8, damage=100, speed=900 * Q3_UNIT_CM, lifetime=15.0,
+         splash=100, splash_radius=120 * Q3_UNIT_CM, ammo="Rockets", pickup=10, damage_tag="Rocket"),
+    dict(name="LightningGun", slot=6, fire="hitscan", interval=0.05, damage=8, range_cm=768 * Q3_UNIT_CM, beam=True,
+         ammo="Lightning", pickup=100, damage_tag="Lightning"),
+    dict(name="Railgun", slot=7, fire="hitscan", interval=1.5, damage=100, range_cm=8192 * Q3_UNIT_CM, penetrate=True,
+         max_pen=4, ammo="Slugs", pickup=10, damage_tag="Rail"),
+    dict(name="PlasmaGun", slot=8, fire=None, interval=0.1, damage=20, speed=2000 * Q3_UNIT_CM, lifetime=10.0,
+         splash=15, splash_radius=20 * Q3_UNIT_CM, ammo="Cells", pickup=50, damage_tag="Plasma"),
+]
+
+
+def build_weapons():
+    ensure_dir("/Game/Weapons")
+    defs = {}
+    for w in WEAPONS:
+        da, _ = get_or_create("/Game/Weapons", "DA_Weapon_" + w["name"], unreal.VeloxWeaponDefinition, None)
+        if da is None:
+            continue
+        cue = "GameplayCue.Weapon." + w["name"]
+        values = {
+            "weapon_tag": tag("Velox.Weapon." + w["name"]),
+            "slot": w["slot"],
+            "display_name": unreal.Text(w["name"]),
+            "fire_ability": unreal.VeloxGameplayAbility_FireHitscan.static_class() if w["fire"] == "hitscan" else None,
+            "fire_interval": w["interval"],
+            "damage": w["damage"],
+            "pellet_count": w.get("pellets", 1),
+            "spread_angle_deg": w.get("spread", 0.0),
+            "range_cm": w.get("range_cm", 8192 * Q3_UNIT_CM),
+            "penetrates_pawns": w.get("penetrate", False),
+            "max_penetrations": w.get("max_pen", 1),
+            "beam": w.get("beam", False),
+            "projectile_speed": w.get("speed", 0.0),
+            "projectile_lifetime": w.get("lifetime", 0.0),
+            "splash_damage": w.get("splash", 0),
+            "splash_radius_cm": w.get("splash_radius", 0.0),
+            "knockback_scale": 1.0,
+            "damage_tag": tag("Velox.Damage." + w["damage_tag"]),
+            "ammo_tag": tag("Velox.Ammo." + w["ammo"]),
+            "ammo_per_shot": 1,
+            "pickup_ammo": w["pickup"],
+            "fire_cue_tag": tag(cue + ".Fire"),
+            "impact_cue_tag": tag(cue + ".Impact"),
+            "beam_cue_tag": tag(cue + ".Beam") if w.get("beam") else unreal.GameplayTag(),
+        }
+        for k, v in values.items():
+            try:
+                da.set_editor_property(k, v)
+            except Exception as e:  # noqa: BLE001
+                fail(f"DA_Weapon_{w['name']}.{k}: {e}")
+        save(da)
+        defs[w["name"]] = da
+
+    table, _ = get_or_create("/Game/Weapons", "DA_WeaponTable", unreal.VeloxWeaponTable, None)
+    if table is not None:
+        if len(defs) != len(WEAPONS):
+            fail("weapon definitions missing, DA_WeaponTable not written")
+        else:
+            table.set_editor_property("weapons", [defs[w["name"]] for w in WEAPONS])
+            save(table)
+    return table, defs
+
+
+def build_combat_settings(table, defs):
+    """ADR 0003 section 1: DA_CombatSettings_Default. AmmoTypes keep the C++ defaults (six rows, cap 200)."""
     ensure_dir("/Game/Data")
     cs, _ = get_or_create("/Game/Data", "DA_CombatSettings_Default", unreal.VeloxCombatSettings, None)
     if cs is None:
@@ -233,6 +328,12 @@ def build_combat_settings():
             fail(f"DA_CombatSettings_Default.{k}: {e}")
     if len(cs.get_editor_property("ammo_types")) != 6:
         fail("DA_CombatSettings_Default.ammo_types: expected the six C++ default rows")
+    # ADR 0003 B5: the spawn loadout is the only source of spawn ammo (Q3: machine gun with 100 bullets).
+    if table is not None and "MachineGun" in defs:
+        cs.set_editor_property("weapon_table", table)
+        cs.set_editor_property("spawn_loadout", [unreal.VeloxSpawnWeapon(definition=defs["MachineGun"], ammo=100)])
+    else:
+        fail("DA_CombatSettings_Default: weapon table / machine gun missing")
     save(cs)
 
 
@@ -276,7 +377,8 @@ def build_map():
 def main():
     actions, _imc = build_input()
     build_data(actions)
-    build_combat_settings()
+    table, defs = build_weapons()
+    build_combat_settings(table, defs)
     build_map()
     if ERRORS:
         raise RuntimeError("bootstrap failed: " + "; ".join(ERRORS))

@@ -10,6 +10,9 @@
 
 #include "VeloxCombatSettings.generated.h"
 
+class UVeloxWeaponDefinition;
+class UVeloxWeaponTable;
+
 /** One ammo type: its tag (SetByCaller key and weapon reference), its attribute on UVeloxAmmoSet and its cap. */
 USTRUCT(BlueprintType)
 struct FVeloxAmmoTypeInfo
@@ -24,10 +27,19 @@ struct FVeloxAmmoTypeInfo
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Ammo", Meta = (ClampMin = "0"))
 	int32 MaxAmount = 200;
+};
 
-	/** Ammo given by GE_SpawnInit (the M2 spawn loadout; task 04/06 replaces it with UVeloxCombatSettings::SpawnLoadout). */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Ammo", Meta = (ClampMin = "0"))
-	int32 SpawnAmount = 0;
+/** One weapon of the spawn loadout and the ammo it comes with (ADR 0003 B5: the only source of spawn ammo). */
+USTRUCT(BlueprintType)
+struct FVeloxSpawnWeapon
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons")
+	TObjectPtr<const UVeloxWeaponDefinition> Definition;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons", Meta = (ClampMin = "0"))
+	int32 Ammo = 0;
 };
 
 UCLASS(BlueprintType, Const, Meta = (DisplayName = "Velox Combat Settings"))
@@ -44,6 +56,9 @@ public:
 	/** The ammo row for Tag or Attribute; null if unknown. */
 	const FVeloxAmmoTypeInfo* FindAmmoType(const FGameplayTag& Tag) const;
 	const FVeloxAmmoTypeInfo* FindAmmoType(const FGameplayAttribute& Attribute) const;
+
+	/** Spawn ammo of AmmoTag: the sum of SpawnLoadout[].Ammo over the entries whose definition uses AmmoTag (B5). */
+	int32 GetSpawnAmmo(const FGameplayTag& AmmoTag) const;
 
 	/** Asset if non-null, else the class defaults (identical to the ADR table), so world-free code always has values. */
 	static const UVeloxCombatSettings& GetOrDefault(const UVeloxCombatSettings* Settings);
@@ -144,9 +159,18 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn")
 	float SpawnAvoidRadiusCm = 500.f;
 
-	/** The six ammo types (attribute, cap, spawn amount). Filled with the Q3 defaults by the constructor. */
+	/** The six ammo types (attribute, cap). Filled with the Q3 defaults by the constructor. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Ammo")
 	TArray<FVeloxAmmoTypeInfo> AmmoTypes;
 
-	// TODO(task 04): TObjectPtr<UVeloxWeaponTable> WeaponTable; TArray<FVeloxSpawnWeapon> SpawnLoadout.
+	/** The weapon set; table index = weapon network id (ADR 0003 section 4). Class default: none (asset required). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons")
+	TObjectPtr<const UVeloxWeaponTable> WeaponTable;
+
+	/**
+	 * Weapons and ammo of every spawn (Q3: machine gun with 100 bullets; L_CombatTest's mode lists all six). The first
+	 * entry is selected. GE_SpawnInit sets the ammo, UVeloxWeaponInventoryComponent::ResetToLoadout the weapons.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons")
+	TArray<FVeloxSpawnWeapon> SpawnLoadout;
 };

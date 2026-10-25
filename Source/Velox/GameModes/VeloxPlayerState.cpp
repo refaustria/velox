@@ -9,6 +9,7 @@
 #include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxPawnData.h"
+#include "Weapons/VeloxWeaponInventoryComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxPlayerState)
 
@@ -21,6 +22,7 @@ AVeloxPlayerState::AVeloxPlayerState(const FObjectInitializer& ObjectInitializer
 
 	HealthSet = CreateDefaultSubobject<UVeloxHealthSet>(TEXT("HealthSet"));
 	AmmoSet = CreateDefaultSubobject<UVeloxAmmoSet>(TEXT("AmmoSet"));
+	WeaponInventory = CreateDefaultSubobject<UVeloxWeaponInventoryComponent>(TEXT("WeaponInventory"));
 }
 
 void AVeloxPlayerState::PostInitProperties()
@@ -72,6 +74,11 @@ void AVeloxPlayerState::OnPawnPossessed(const UVeloxPawnData* PawnData)
 		return;
 	}
 	GrantDefaultAbilitySets(PawnData);
+	// Q3 loses every weapon on death; the loadout's ammo is set by GE_SpawnInit right after (B5).
+	if (WeaponInventory)
+	{
+		WeaponInventory->ResetToLoadout();
+	}
 	ApplySpawnInit();
 }
 

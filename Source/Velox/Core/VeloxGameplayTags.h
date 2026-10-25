@@ -83,4 +83,19 @@ namespace VeloxGameplayTags
 	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Character_Damage);
 	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Character_Death);
 	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Character_Spawn);
+
+	// Weapon cues (ADR 0003 section 5): Fire/Impact are burst (executed) cues, the LG beam is the only looping cue.
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_MachineGun_Fire);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_MachineGun_Impact);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Shotgun_Fire);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Shotgun_Impact);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_PlasmaGun_Fire);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_PlasmaGun_Impact);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_RocketLauncher_Fire);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_RocketLauncher_Impact);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_LightningGun_Fire);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_LightningGun_Impact);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_LightningGun_Beam);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Railgun_Fire);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Railgun_Impact);
 }
