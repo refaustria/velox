@@ -23,10 +23,29 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/WorldSettings.h"
 #include "HAL/IConsoleManager.h"
+#include "Misc/OutputDevice.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
+
+#include <limits>
 
 namespace VeloxLagCompTest
 {
+	/** Collects log lines containing a marker while in scope. */
+	struct FLogCapture : public FOutputDevice
+	{
+		FString Marker;
+		TArray<FString> Lines;
+		explicit FLogCapture(const TCHAR* InMarker) : Marker(InMarker) { GLog->AddOutputDevice(this); }
+		virtual ~FLogCapture() override { GLog->RemoveOutputDevice(this); }
+		virtual void Serialize(const TCHAR* V, ELogVerbosity::Type, const FName&) override
+		{
+			if (FCString::Strstr(V, *Marker))
+			{
+				Lines.Add(V);
+			}
+		}
+	};
+
 	constexpr EAutomationTestFlags Flags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter;
 	constexpr double Tol = 1e-3;
 	constexpr double Rate = 60.0;
@@ -180,6 +199,60 @@ bool FVeloxCombatLagCompRewindTest::RunTest(const FString& Parameters)
 		}
 		TestTrue(TEXT("standing pawn: old stamp within MaxRewind"), S.PoseAtStamp(2.0f, 59.0 / Rate - 0.25, nullptr, Pose, PoseTime));
 		TestNearlyEqual(TEXT("standing pawn pose time is the newest"), PoseTime, 59.0 / Rate, 1e-9);
+	}
+
+	// Teleport discontinuity (B16): x = 100 t, except a 1000 cm jump between t = 0.5 and 0.5 + 1/60; a 40 cm step
+	// at t = 0.8 is ordinary movement and stays interpolated.
+	{
+		constexpr float Teleport = 150.f;
+		FVeloxHitboxHistory D;
+		D.Init(60);
+		for (int32 I = 0; I < 60; ++I)
+		{
+			const double T = I / Rate;
+			double Px = 100.0 * T;
+			if (T > 0.5 + 0.5 / Rate)
+			{
+				Px += 1000.0;
+			}
+			if (T > 0.8 + 0.5 / Rate)
+			{
+				Px += 40.0;
+			}
+			D.Push(T, static_cast<float>(StampOffset + T), PoseAt(Px), Teleport);
+		}
+		const double TJump = 30.0 / Rate; // last pre-jump sample
+		TestFalse(TEXT("ordinary sample is no discontinuity"), D.Get(10).bDiscontinuity);
+		TestTrue(TEXT("jump sample flagged"), D.Get(31).bDiscontinuity);
+		const double Pre = X(D.Get(30).Pose);
+		const double Post = X(D.Get(31).Pose);
+		TestTrue(TEXT("pre-jump sample is the jump's predecessor"), FMath::IsNearlyEqual(D.Get(30).WorldTime, TJump, 1e-9));
+		TestTrue(TEXT("pose at world time before the midpoint -> pre-jump pose"), D.PoseAtWorldTime(TJump + 0.4 / Rate, nullptr, Pose, PoseTime));
+		TestNearlyEqual(TEXT("pre-jump pose, not a lerp"), X(Pose), Pre, Tol);
+		D.PoseAtWorldTime(TJump + 0.6 / Rate, nullptr, Pose, PoseTime);
+		TestNearlyEqual(TEXT("post-jump pose, not a lerp"), X(Pose), Post, Tol);
+		TestTrue(TEXT("pose at stamp before the midpoint"), D.PoseAtStamp(static_cast<float>(StampOffset + TJump + 0.4 / Rate), -1e9, nullptr, Pose, PoseTime));
+		TestNearlyEqual(TEXT("pre-jump pose by stamp"), X(Pose), Pre, Tol);
+		D.PoseAtStamp(static_cast<float>(StampOffset + TJump + 0.6 / Rate), -1e9, nullptr, Pose, PoseTime);
+		TestNearlyEqual(TEXT("post-jump pose by stamp"), X(Pose), Post, Tol);
+		TestNearlyEqual(TEXT("stamp pose time is the nearer sample's"), PoseTime, D.Get(31).WorldTime, 1e-4);
+
+		// A 40 cm step (index 49: t = 0.8167 + ...) is flagged by nobody and interpolated linearly.
+		int32 Step = INDEX_NONE;
+		for (int32 I = 1; I < D.Num(); ++I)
+		{
+			if (I != 31 && X(D.Get(I).Pose) - X(D.Get(I - 1).Pose) > 30.0)
+			{
+				Step = I;
+			}
+		}
+		if (TestTrue(TEXT("found the 40 cm step"), Step != INDEX_NONE))
+		{
+			TestFalse(TEXT("40 cm step is no discontinuity"), D.Get(Step).bDiscontinuity);
+			const double T0 = D.Get(Step - 1).WorldTime;
+			D.PoseAtWorldTime(T0 + 0.5 / Rate, nullptr, Pose, PoseTime);
+			TestNearlyEqual(TEXT("40 cm step interpolated"), X(Pose), 0.5 * (X(D.Get(Step - 1).Pose) + X(D.Get(Step).Pose)), Tol);
+		}
 	}
 	return true;
 }
@@ -363,6 +436,43 @@ bool FVeloxCombatLagCompTraceTest::RunTest(const FString& Parameters)
 	LagComp->TraceShot(Request, Result);
 	TestFalse(TEXT("origin within 75 cm kept"), Result.bOriginSnapped);
 
+	// NaN origin and direction (B15 / defect 4), and the view_ms field of the log line (B17).
+	{
+		const double NaN = std::numeric_limits<double>::quiet_NaN();
+		VeloxLagCompTest::FLogCapture Capture(TEXT("VeloxShot seq="));
+		FVeloxShotRequest NanRequest = Request;
+		NanRequest.Origin = FVector(NaN, 0, 0);
+		NanRequest.ShotSeq = 20;
+		LagComp->TraceShot(NanRequest, Result);
+		TestTrue(TEXT("NaN origin snapped"), Result.bOriginSnapped);
+		TestTrue(TEXT("NaN origin snapped to the eye"), Result.Origin.Equals(Shooter->GetPawnViewLocation(), 1e-3));
+		TestTrue(TEXT("NaN origin reason"), Result.OriginSnapReason && FCString::Strcmp(Result.OriginSnapReason, TEXT("nan")) == 0);
+		TestFalse(TEXT("snapped origin is finite"), Result.Origin.ContainsNaN());
+
+		NanRequest = Request;
+		NanRequest.Dirs.Reset();
+		NanRequest.Dirs.Add(FVector(0, NaN, 0));
+		NanRequest.Dirs.Add(FVector(0, 1, 0));
+		NanRequest.ShotSeq = 21;
+		LagComp->TraceShot(NanRequest, Result);
+		TestEqual(TEXT("NaN direction skipped, the valid ray traced"), Result.Rays.Num(), 1);
+
+		NanRequest = Request;
+		NanRequest.ViewServerTime = NaN;
+		NanRequest.ShotSeq = 22;
+		LagComp->TraceShot(NanRequest, Result);
+		TestTrue(TEXT("NaN view time yields a finite view_ms"), FMath::IsFinite(Result.ViewMs) && FMath::IsFinite(Result.RewindMs));
+
+		GLog->FlushThreadedLogs();
+		TestTrue(TEXT("a VeloxShot line was logged"), Capture.Lines.Num() > 0);
+		bool bAllHaveViewMs = Capture.Lines.Num() > 0;
+		for (const FString& Line : Capture.Lines)
+		{
+			bAllHaveViewMs &= Line.Contains(TEXT("view_ms="));
+		}
+		TestTrue(TEXT("VeloxShot line contains view_ms="), bAllHaveViewMs);
+	}
+
 	// World geometry blocks on the Weapon channel (pawn capsules do not).
 	if (UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")))
 	{
@@ -377,6 +487,24 @@ bool FVeloxCombatLagCompTraceTest::RunTest(const FString& Parameters)
 		LagComp->TraceShot(Request, Result);
 		TestEqual(TEXT("wall blocks the rewound hit"), Result.Hits.Num(), 0);
 		TestTrue(TEXT("ray stopped by the world"), Result.Rays.Num() == 1 && Result.Rays[0].bHitWorld && Result.Rays[0].WorldDist < 500.0);
+
+		// B15: a client origin within tolerance but behind a thin wall between it and the server eye snaps.
+		AStaticMeshActor* Thin = World->SpawnActor<AStaticMeshActor>(Shooter->GetPawnViewLocation() + FVector(0, -25, 0), FRotator::ZeroRotator);
+		Thin->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
+		Thin->GetStaticMeshComponent()->SetStaticMesh(Cube);
+		Thin->SetActorScale3D(FVector(4.0, 0.1, 4.0)); // 10 cm thick, 400 cm wide
+		Request.bValidateOrigin = true;
+		Request.Origin = Shooter->GetPawnViewLocation() + FVector(0, -50, 0);
+		Request.ShotSeq = 7;
+		LagComp->TraceShot(Request, Result);
+		TestTrue(TEXT("origin behind a wall snapped"), Result.bOriginSnapped);
+		TestTrue(TEXT("occluded reason"), Result.OriginSnapReason && FCString::Strcmp(Result.OriginSnapReason, TEXT("occluded")) == 0);
+		TestTrue(TEXT("occluded snap -> eye"), Result.Origin.Equals(Shooter->GetPawnViewLocation(), 1e-3));
+		Request.Origin = Shooter->GetPawnViewLocation() + FVector(50, 0, 0);
+		Request.ShotSeq = 8;
+		LagComp->TraceShot(Request, Result);
+		TestFalse(TEXT("unobstructed origin 50 cm off is kept"), Result.bOriginSnapped);
+		Thin->Destroy();
 	}
 
 	Target->Destroy();

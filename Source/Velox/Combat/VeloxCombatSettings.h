@@ -107,6 +107,16 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
 	float MaxOriginErrorCm = 75.f;
 
+	/**
+	 * A hitbox moving farther than this between two history samples (cm) is a teleport / respawn: poses are not
+	 * interpolated across it, the nearer-in-time pose is used (ADR 0003 B16). Legit movement is <= ~42 cm per 60 Hz sample.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
+	float HitboxTeleportDistanceCm = 150.f;
+
+	/** HitboxTeleportDistanceCm with the non-shipping `velox.combat.HitboxTeleportDistanceCm` cvar applied. */
+	float GetHitboxTeleportDistanceCm() const;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
 	float FireRateBurstAllowance = 3.f;
 
