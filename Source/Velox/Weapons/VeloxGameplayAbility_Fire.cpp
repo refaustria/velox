@@ -5,6 +5,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Combat/VeloxAmmoSet.h"
+#include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxGameplayEffectContext.h"
 #include "Combat/VeloxGameplayEffects.h"
@@ -13,6 +14,7 @@
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
 #include "GameplayCueInterface.h"
+#include "Weapons/VeloxFireTiming.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
 
@@ -25,8 +27,8 @@ UVeloxGameplayAbility_Fire::UVeloxGameplayAbility_Fire(const FObjectInitializer&
 	FGameplayTagContainer AssetTags;
 	AssetTags.AddTag(VeloxGameplayTags::Ability_Weapon_Fire);
 	SetAssetTags(AssetTags);
+	// Not State_WeaponSwitching (B18): the replicated GE ends one RTT late on the client; CanActivateAbility gates instead.
 	ActivationBlockedTags.AddTag(VeloxGameplayTags::State_Dead);
-	ActivationBlockedTags.AddTag(VeloxGameplayTags::State_WeaponSwitching);
 	// Safety net: a server instance still waiting for target data never blocks the next activation.
 	bRetriggerInstancedAbility = true;
 }
@@ -44,6 +46,21 @@ const UVeloxWeaponDefinition* UVeloxGameplayAbility_Fire::GetCurrentDefinition()
 bool UVeloxGameplayAbility_Fire::IsServerForRemoteShooter(const FGameplayAbilityActorInfo* ActorInfo)
 {
 	return ActorInfo && ActorInfo->IsNetAuthority() && !ActorInfo->IsLocallyControlled();
+}
+
+double UVeloxGameplayAbility_Fire::GetSwitchRemaining(const UAbilitySystemComponent* ASC)
+{
+	if (!ASC || !ASC->HasMatchingGameplayTag(VeloxGameplayTags::State_WeaponSwitching))
+	{
+		return 0.0;
+	}
+	const FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(VeloxGameplayTags::State_WeaponSwitching));
+	double Remaining = 0.0;
+	for (const float Seconds : ASC->GetActiveEffectsTimeRemaining(Query))
+	{
+		Remaining = FMath::Max(Remaining, static_cast<double>(Seconds));
+	}
+	return Remaining;
 }
 
 APawn* UVeloxGameplayAbility_Fire::GetShooterPawn() const
@@ -85,21 +102,32 @@ bool UVeloxGameplayAbility_Fire::CanActivateAbility(const FGameplayAbilitySpecHa
 		return false;
 	}
 
+	const UWorld* World = ActorInfo->AvatarActor.IsValid() ? ActorInfo->AvatarActor->GetWorld() : nullptr;
+	if (!World)
+	{
+		return false;
+	}
+	const double Now = World->GetTimeSeconds();
 	const bool bRemote = IsServerForRemoteShooter(ActorInfo);
-	// The current weapon only; the server also accepts the target of a running switch (its timers run late, see above).
+
+	// B18: switch timing. Shooter's machine: its own switch end; server for a remote shooter: the GE with a tolerance.
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory->GetCombatSettings());
+	if (!VeloxFireTiming::IsSwitchFireAllowed(!bRemote, Now, Inventory->GetSwitchEndTime(), bRemote ? GetSwitchRemaining(ASC) : 0.0, Settings.GetSwitchTimingToleranceSeconds()))
+	{
+		if (OptionalRelevantTags)
+		{
+			OptionalRelevantTags->AddTag(UAbilitySystemGlobals::Get().ActivateFailTagsBlockedTag);
+		}
+		return false;
+	}
+	// The current weapon only; the server also accepts the target of a running switch within the tolerance above (the
+	// accepted shot finalises the switch, FinalisePendingSwitch).
 	if (Definition != Inventory->GetCurrentDefinition() && !(bRemote && Definition == Inventory->GetPendingDefinition()))
 	{
 		return false;
 	}
-	if (!bRemote)
-	{
-		const UWorld* World = ActorInfo->AvatarActor.IsValid() ? ActorInfo->AvatarActor->GetWorld() : nullptr;
-		if (!World || World->GetTimeSeconds() < NextFireTime)
-		{
-			return false;
-		}
-	}
-	return true;
+	// NextFireTime only on the shooter's machine; the server for a remote shooter has the bucket + spacing (B19).
+	return bRemote || Now >= NextFireTime;
 }
 
 bool UVeloxGameplayAbility_Fire::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags) const
@@ -125,37 +153,35 @@ bool UVeloxGameplayAbility_Fire::CheckCost(const FGameplayAbilitySpecHandle Hand
 	return bAfford;
 }
 
-bool UVeloxGameplayAbility_Fire::DoesAbilitySatisfyTagRequirements(const UAbilitySystemComponent& AbilitySystemComponent, const FGameplayTagContainer* SourceTags,
-	const FGameplayTagContainer* TargetTags, FGameplayTagContainer* OptionalRelevantTags) const
-{
-	const FGameplayAbilityActorInfo* ActorInfo = AbilitySystemComponent.AbilityActorInfo.Get();
-	if (!IsServerForRemoteShooter(ActorInfo) || !AbilitySystemComponent.HasMatchingGameplayTag(VeloxGameplayTags::State_WeaponSwitching))
-	{
-		return Super::DoesAbilitySatisfyTagRequirements(AbilitySystemComponent, SourceTags, TargetTags, OptionalRelevantTags);
-	}
-	// Server, remote shooter, switching: the same checks without the WeaponSwitching block.
-	FGameplayTagContainer Blocked = ActivationBlockedTags;
-	Blocked.RemoveTag(VeloxGameplayTags::State_WeaponSwitching);
-	const bool bBlocked = AbilitySystemComponent.AreAbilityTagsBlocked(GetAssetTags()) || AbilitySystemComponent.GetOwnedGameplayTags().HasAny(Blocked)
-		|| (!ActivationRequiredTags.IsEmpty() && !AbilitySystemComponent.GetOwnedGameplayTags().HasAll(ActivationRequiredTags));
-	if (bBlocked && OptionalRelevantTags)
-	{
-		OptionalRelevantTags->AddTag(UAbilitySystemGlobals::Get().ActivateFailTagsBlockedTag);
-	}
-	return !bBlocked;
-}
-
 void UVeloxGameplayAbility_Fire::AdvanceNextFireTime(double Now, float Interval)
 {
-	// Fired within one interval of the scheduled time: keep the schedule (exact long-term rate); otherwise restart.
-	NextFireTime = (Now - NextFireTime < Interval) ? NextFireTime + Interval : Now + Interval;
+	const UWorld* World = GetWorld();
+	NextFireTime = VeloxFireTiming::AdvanceNextFireTime(NextFireTime, Now, Interval, World ? World->GetDeltaSeconds() : 0.0);
 }
 
 bool UVeloxGameplayAbility_Fire::ConsumeServerFireToken(double Now, const UVeloxWeaponDefinition& Definition)
 {
 	const UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
-	return ServerBucket.TryConsume(Now, Definition.GetSafeFireInterval(), Settings.FireRateBurstAllowance);
+	const float Interval = Definition.GetSafeFireInterval();
+	return ServerBucket.TryConsume(Now, Interval, Settings.FireRateBurstAllowance, FVeloxFireRateBucket::MinSpacingFor(Interval, Settings.GetFireRateSpacingTolerance()));
+}
+
+EVeloxShotReject UVeloxGameplayAbility_Fire::ValidateServerShot(const FGameplayAbilityTargetData* Raw, double Now, const UVeloxWeaponDefinition& Definition, FVeloxValidatedShot& OutShot)
+{
+	const UVeloxWeaponInventoryComponent* Inventory = GetInventory();
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
+	return VeloxShotValidation::Validate(Raw, ServerBucket, Now, Definition.GetSafeFireInterval(), Settings.FireRateBurstAllowance, Settings.GetFireRateSpacingTolerance(), OutShot);
+}
+
+void UVeloxGameplayAbility_Fire::FinalisePendingSwitch(const UVeloxWeaponDefinition& Definition) const
+{
+	UVeloxWeaponInventoryComponent* Inventory = GetInventory();
+	if (Inventory && Inventory->GetPendingIndex() != INDEX_NONE && Inventory->GetPendingDefinition() == &Definition)
+	{
+		UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxWeaponSwitch finalised by a shot of %s"), *GetNameSafe(&Definition));
+		Inventory->SetCurrentIndex(Inventory->GetPendingIndex());
+	}
 }
 
 void UVeloxGameplayAbility_Fire::ApplyAmmoCost(const UVeloxWeaponDefinition& Definition) const

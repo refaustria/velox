@@ -291,6 +291,7 @@ void UVeloxWeaponInventoryComponent::ResetToLoadout()
 		}
 	}
 	OwnedMask = Desired;
+	SwitchEndTime = 0.0;
 	SetCurrentIndex(First);
 	UE_LOG(LogVeloxCombat, Log, TEXT("%s: ResetToLoadout owned=0x%04x current=%s (%d entries)"), *GetNameSafe(GetOwner()), OwnedMask, *GetNameSafe(GetDefinition(First)),
 		Settings.SpawnLoadout.Num());
@@ -324,7 +325,19 @@ void UVeloxWeaponInventoryComponent::KeepBeamAlive(const UVeloxWeaponDefinition&
 		ASC->AddGameplayCue(Definition.BeamCueTag, Parameters);
 	}
 	ActiveBeamCueTag = Definition.BeamCueTag;
-	World->GetTimerManager().SetTimer(BeamTimer, FTimerDelegate::CreateUObject(this, &ThisClass::StopBeam), 2.5f * Definition.GetSafeFireInterval(), false);
+	// B23: at least one interval, or held fire would drop the beam between two on-time shots.
+	const float KeepAlive = FMath::Max(UVeloxCombatSettings::GetOrDefault(GetCombatSettings()).GetBeamKeepAliveSeconds(), Definition.GetSafeFireInterval());
+	World->GetTimerManager().SetTimer(BeamTimer, FTimerDelegate::CreateUObject(this, &ThisClass::StopBeam), KeepAlive, false);
+}
+
+bool UVeloxWeaponInventoryComponent::ShouldLogRejectionAtLog(double Now)
+{
+	if (RejectLogWindowStart < 0.0 || Now - RejectLogWindowStart >= 1.0 || Now < RejectLogWindowStart)
+	{
+		RejectLogWindowStart = Now;
+		RejectLogCount = 0;
+	}
+	return ++RejectLogCount <= RejectLogLimitPerSecond;
 }
 
 void UVeloxWeaponInventoryComponent::StopBeam()

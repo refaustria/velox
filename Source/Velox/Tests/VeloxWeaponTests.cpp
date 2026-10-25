@@ -1,9 +1,15 @@
 // Velox - weapon tests (ADR 0003 sections 4, 5, 9; task 04).
-//   Velox.Combat.FireRateBucket      token bucket: exact rate, 2x rate, receive jitter (world-free).
-//   Velox.Combat.WeaponTable         slot lookup, weapnext/prev cycling; the DA_WeaponTable asset carries the Q3 numbers.
+//   Velox.Combat.FireRateBucket      token bucket + minimum spacing: exact rate, 2x rate, receive jitter, rail burst
+//                                    (world-free, B19).
+//   Velox.Combat.FireTiming          Q3 one-frame carry of NextFireTime (no banked double tap) and the switch gate (B18,
+//                                    B19; world-free).
+//   Velox.Combat.ShotValidation      every server reject reason from its input, a valid shot normalised (world-free).
+//   Velox.Combat.WeaponTable         slot lookup, weapnext/prev cycling; the DA_WeaponTable asset carries the Q3 numbers;
+//                                    DA_CombatSettings_Default carries the 04b timing fields.
 //   Velox.Combat.TargetDataSerialize FGameplayAbilityTargetData_VeloxShot NetSerialize round trip (struct and handle).
 //   Velox.Combat.Inventory           loadout, AddWeapon, fire routing to the current weapon, switch drop/raise timing
-//                                    and refire wait, through the ASC input path (private game world).
+//                                    and refire wait, the local SwitchEndTime gate (B18), through the ASC input path
+//                                    (private game world).
 //   Velox.Combat.HitscanDummy        RG / MG / SG / LG FireTest at a dummy (AVeloxDummyController) 10 m away: the
 //                                    Q3 damage reaches its health and armor through TraceShot and GE_Damage.
 
@@ -18,6 +24,7 @@
 #include "Combat/VeloxAmmoSet.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxDamageMath.h"
+#include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/Engine.h"
@@ -33,9 +40,11 @@
 #include "Serialization/BitWriter.h"
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 #include "Weapons/VeloxFireRateBucket.h"
+#include "Weapons/VeloxFireTiming.h"
 #include "Weapons/VeloxGameplayAbility_Fire.h"
 #include "Weapons/VeloxGameplayAbility_FireHitscan.h"
 #include "Weapons/VeloxShotTargetData.h"
+#include "Weapons/VeloxShotValidation.h"
 #include "Weapons/VeloxWeaponCheats.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
@@ -55,15 +64,24 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatFireRateBucketTest, "Velox.Combat.F
 
 bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 {
-	// Exact rate: LG 0.05 s for 60 s, MG 0.1 s, rail 1.5 s; none rejected.
+	// B19 spacing at the default tolerance 0.25: MG/LG 0 (bucket only), rail 1.25 s.
+	constexpr float SpacingTolerance = 0.25f;
+	TestEqual(TEXT("spacing LG 0"), FVeloxFireRateBucket::MinSpacingFor(0.05f, SpacingTolerance), 0.f);
+	TestEqual(TEXT("spacing MG 0"), FVeloxFireRateBucket::MinSpacingFor(0.1f, SpacingTolerance), 0.f);
+	TestEqual(TEXT("spacing SG 0.75"), FVeloxFireRateBucket::MinSpacingFor(1.0f, SpacingTolerance), 0.75f, 1e-6f);
+	TestEqual(TEXT("spacing RL 0.55"), FVeloxFireRateBucket::MinSpacingFor(0.8f, SpacingTolerance), 0.55f, 1e-6f);
+	TestEqual(TEXT("spacing RG 1.25"), FVeloxFireRateBucket::MinSpacingFor(1.5f, SpacingTolerance), 1.25f, 1e-6f);
+
+	// Exact rate: LG 0.05 s for 60 s, MG 0.1 s, rail 1.5 s (with its spacing); none rejected.
 	for (const float Interval : { 0.05f, 0.1f, 1.5f })
 	{
 		FVeloxFireRateBucket Bucket;
 		int32 Accepted = 0;
 		const int32 Shots = 1200;
+		const float MinSpacing = FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance);
 		for (int32 Index = 0; Index < Shots; ++Index)
 		{
-			Accepted += Bucket.TryConsume(100.0 + Index * static_cast<double>(Interval), Interval, 3.f) ? 1 : 0;
+			Accepted += Bucket.TryConsume(100.0 + Index * static_cast<double>(Interval), Interval, 3.f, MinSpacing) ? 1 : 0;
 		}
 		TestEqual(FString::Printf(TEXT("exact rate %.2f s: all accepted"), Interval), Accepted, Shots);
 	}
@@ -76,7 +94,7 @@ bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 		const int32 Shots = 400;
 		for (int32 Index = 0; Index < Shots; ++Index)
 		{
-			Accepted += Bucket.TryConsume(Index * 0.025, Interval, 3.f) ? 1 : 0;
+			Accepted += Bucket.TryConsume(Index * 0.025, Interval, 3.f, FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance)) ? 1 : 0;
 		}
 		const int32 Expected = 3 + FMath::FloorToInt32((Shots - 1) * 0.025 / Interval);
 		TestTrue(FString::Printf(TEXT("2x rate: %d accepted of %d (expected %d +- 1)"), Accepted, Shots, Expected), FMath::Abs(Accepted - Expected) <= 1);
@@ -93,20 +111,208 @@ bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 		{
 			const double Receive = FMath::Max(Index * 0.05 + Stream.FRandRange(0.0, 0.04), LastReceive);
 			LastReceive = Receive;
-			Accepted += Bucket.TryConsume(Receive, 0.05f, 3.f) ? 1 : 0;
+			Accepted += Bucket.TryConsume(Receive, 0.05f, 3.f, FVeloxFireRateBucket::MinSpacingFor(0.05f, SpacingTolerance)) ? 1 : 0;
 		}
 		TestEqual(TEXT("40 ms jitter at 50 ms: all accepted"), Accepted, Shots);
 	}
 
-	// A burst after a pause: capacity shots pass at once, the next is rejected (all over-rate shots are).
+	// The bucket alone (spacing 0): capacity shots pass at once after a pause, the next is rejected (all over-rate shots are).
 	{
 		FVeloxFireRateBucket Bucket;
-		TestTrue(TEXT("first shot"), Bucket.TryConsume(10.0, 1.0f, 3.f));
-		TestTrue(TEXT("burst 2"), Bucket.TryConsume(10.0, 1.0f, 3.f));
-		TestTrue(TEXT("burst 3"), Bucket.TryConsume(10.0, 1.0f, 3.f));
-		TestFalse(TEXT("over the burst"), Bucket.TryConsume(10.0, 1.0f, 3.f));
-		TestFalse(TEXT("still over at +0.5 s"), Bucket.TryConsume(10.5, 1.0f, 3.f));
-		TestTrue(TEXT("refilled at +1 s"), Bucket.TryConsume(11.0, 1.0f, 3.f));
+		TestTrue(TEXT("first shot"), Bucket.TryConsume(10.0, 1.0f, 3.f, 0.f));
+		TestTrue(TEXT("burst 2"), Bucket.TryConsume(10.0, 1.0f, 3.f, 0.f));
+		TestTrue(TEXT("burst 3"), Bucket.TryConsume(10.0, 1.0f, 3.f, 0.f));
+		TestTrue(TEXT("over the burst: rate"), Bucket.Consume(10.0, 1.0f, 3.f, 0.f) == EVeloxFireRateResult::Rate);
+		TestFalse(TEXT("still over at +0.5 s"), Bucket.TryConsume(10.5, 1.0f, 3.f, 0.f));
+		TestTrue(TEXT("refilled at +1 s"), Bucket.TryConsume(11.0, 1.0f, 3.f, 0.f));
+	}
+
+	// B19: with the spacing, three rails in one frame after a pause -> one accepted, two rejected as spacing (and free).
+	{
+		FVeloxFireRateBucket Bucket;
+		const float Interval = 1.5f;
+		const float MinSpacing = FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance);
+		const double T = 10.0;
+		TestTrue(TEXT("rail 1 at t accepted"), Bucket.Consume(T, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Accepted);
+		TestTrue(TEXT("rail 2 at t: spacing"), Bucket.Consume(T, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Spacing);
+		TestTrue(TEXT("rail 3 at t: spacing"), Bucket.Consume(T, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Spacing);
+		TestTrue(TEXT("rail at t + 1.2: spacing"), Bucket.Consume(T + 1.2, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Spacing);
+		TestTrue(TEXT("rail at t + 1.3 accepted (resend compression inside the tolerance)"), Bucket.Consume(T + 1.3, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Accepted);
+		TestTrue(TEXT("rail at t + 2.6 accepted"), Bucket.Consume(T + 2.6, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Accepted);
+	}
+
+	// Rails sent every 1.5 s, received with up to 0.25 s of jitter (resend compression): all accepted, long-term rate kept.
+	{
+		FVeloxFireRateBucket Bucket;
+		FRandomStream Stream(4321);
+		const float Interval = 1.5f;
+		const float MinSpacing = FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance);
+		int32 Accepted = 0;
+		const int32 Shots = 400;
+		double LastReceive = 0.0;
+		for (int32 Index = 0; Index < Shots; ++Index)
+		{
+			const double Receive = FMath::Max(Index * 1.5 + Stream.FRandRange(0.0, 0.2499), LastReceive);
+			LastReceive = Receive;
+			Accepted += Bucket.TryConsume(Receive, Interval, 3.f, MinSpacing) ? 1 : 0;
+		}
+		TestEqual(TEXT("0.25 s jitter at 1.5 s: all accepted"), Accepted, Shots);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatFireTimingTest, "Velox.Combat.FireTiming", VeloxWeaponTest::Flags)
+
+bool FVeloxCombatFireTimingTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxFireTiming;
+
+	// Held fire, one check per frame (the shooter's CanActivateAbility + AdvanceNextFireTime): 1200 shots span exactly
+	// 1199 intervals (within one frame), at 60 Hz and at a frame rate that does not divide the intervals (144 Hz).
+	for (const double FrameHz : { 60.0, 144.0 })
+	{
+		const double Dt = 1.0 / FrameHz;
+		for (const double Interval : { 0.05, 0.1, 1.5 })
+		{
+			double Next = -1.0e9;
+			double First = 0.0;
+			double Last = 0.0;
+			int32 Shots = 0;
+			for (int64 Frame = 0; Shots < 1200; ++Frame)
+			{
+				const double Now = 100.0 + static_cast<double>(Frame) * Dt;
+				if (Now >= Next)
+				{
+					First = Shots == 0 ? Now : First;
+					Last = Now;
+					Next = AdvanceNextFireTime(Next, Now, Interval, Dt);
+					++Shots;
+				}
+			}
+			const double Span = Last - First;
+			const double Exact = 1199.0 * Interval;
+			TestTrue(FString::Printf(TEXT("%.0f Hz, %.2f s: 1200 shots span %.4f s = 1199 intervals %.4f (+ <= 1 frame)"), FrameHz, Interval, Span, Exact),
+				Span >= Exact - 1e-6 && Span <= Exact + Dt + 1e-6);
+		}
+	}
+
+	// No bank: a 1.5 s rail fired 1.49 s after its schedule restarts; the following shot is a full interval later.
+	{
+		const double Next = AdvanceNextFireTime(10.0, 11.49, 1.5, 1.0 / 60.0);
+		TestEqual(TEXT("late shot restarts: Next = Now + 1.5"), Next, 11.49 + 1.5, 1e-9);
+		TestTrue(TEXT("no second rail 10 ms later"), 11.50 < Next);
+	}
+	// A shot inside the crossing frame keeps the schedule (Q3 weaponTime carry of < 1 frame).
+	TestEqual(TEXT("crossing frame carries: Next + Interval"), AdvanceNextFireTime(10.0, 10.004, 1.5, 1.0 / 60.0), 11.5, 1e-9);
+	TestEqual(TEXT("exactly one frame late still carries"), AdvanceNextFireTime(10.0, 10.0 + 1.0 / 60.0, 1.5, 1.0 / 60.0), 11.5, 1e-9);
+	TestEqual(TEXT("first shot (no schedule) starts from now"), AdvanceNextFireTime(-1.0e9, 5.0, 0.1, 1.0 / 60.0), 5.1, 1e-9);
+
+	// Switch gate (B18).
+	const double End = 20.0;
+	TestFalse(TEXT("local: blocked before SwitchEndTime"), IsSwitchFireAllowed(true, End - 1.0 / 60.0, End, 0.0, 0.25));
+	TestTrue(TEXT("local: allowed at SwitchEndTime"), IsSwitchFireAllowed(true, End, End, 0.0, 0.25));
+	TestTrue(TEXT("local: no switch (0) allowed"), IsSwitchFireAllowed(true, 1.0, 0.0, 0.0, 0.25));
+	TestTrue(TEXT("local: ignores the server-side remaining time"), IsSwitchFireAllowed(true, End, End, 5.0, 0.25));
+	TestTrue(TEXT("server: remaining 0.25 allowed"), IsSwitchFireAllowed(false, 0.0, 0.0, 0.25, 0.25));
+	TestFalse(TEXT("server: remaining 0.26 blocked"), IsSwitchFireAllowed(false, 0.0, 0.0, 0.26, 0.25));
+	TestTrue(TEXT("server: no GE (remaining 0) allowed"), IsSwitchFireAllowed(false, 0.0, 0.0, 0.0, 0.25));
+	TestTrue(TEXT("server: ignores the local switch end"), IsSwitchFireAllowed(false, 0.0, 1.0e9, 0.1, 0.25));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatShotValidationTest, "Velox.Combat.ShotValidation", VeloxWeaponTest::Flags)
+
+bool FVeloxCombatShotValidationTest::RunTest(const FString& Parameters)
+{
+	constexpr float Capacity = 3.f;
+	constexpr float Tolerance = 0.25f;
+	const double NaN = std::numeric_limits<double>::quiet_NaN();
+	const float FInf = std::numeric_limits<float>::infinity();
+	const float FNaN = std::numeric_limits<float>::quiet_NaN();
+
+	FGameplayAbilityTargetData_VeloxShot Good;
+	Good.Origin = FVector(100.0, 200.0, 64.0);
+	Good.Dir = FVector(3.0, 4.0, 0.0); // not normalised on purpose
+	Good.ViewServerTime = 12.5f;
+	Good.ShotSeq = 42;
+	Good.HintTargetStamp = 7.f; // no hint bit: dropped
+
+	// Each payload case with a fresh MG bucket (0.1 s, spacing 0): the reason comes from the payload alone.
+	auto Check = [&](const TCHAR* Name, const FGameplayAbilityTargetData* Raw, EVeloxShotReject Expected)
+	{
+		FVeloxFireRateBucket Bucket;
+		FVeloxValidatedShot Out;
+		const EVeloxShotReject Got = VeloxShotValidation::Validate(Raw, Bucket, 10.0, 0.1f, Capacity, Tolerance, Out);
+		TestEqual(FString::Printf(TEXT("%s -> %s (got %s)"), Name, LexToString(Expected), LexToString(Got)), static_cast<int32>(Got), static_cast<int32>(Expected));
+		return Out;
+	};
+
+	{
+		const FVeloxValidatedShot Out = Check(TEXT("valid"), &Good, EVeloxShotReject::None);
+		TestTrue(TEXT("valid: dir normalised"), Out.Dir.Equals(FVector(0.6, 0.8, 0.0), 1e-6));
+		TestTrue(TEXT("valid: origin"), Out.Origin.Equals(Good.Origin, 1e-6));
+		TestEqual(TEXT("valid: view time"), Out.ViewServerTime, 12.5);
+		TestEqual(TEXT("valid: seq"), static_cast<int32>(Out.ShotSeq), 42);
+		TestEqual(TEXT("valid: no hint, no stamp"), Out.HintTargetStamp, 0.f);
+	}
+	Check(TEXT("null data"), nullptr, EVeloxShotReject::Type);
+	{
+		FGameplayAbilityTargetData_SingleTargetHit Wrong;
+		Check(TEXT("wrong struct type"), &Wrong, EVeloxShotReject::Type);
+	}
+	{
+		FGameplayAbilityTargetData_VeloxShot Bad = Good;
+		Bad.Origin = FVector(NaN, 0.0, 0.0);
+		Check(TEXT("NaN origin"), &Bad, EVeloxShotReject::Origin);
+	}
+	{
+		FGameplayAbilityTargetData_VeloxShot Bad = Good;
+		Bad.Dir = FVector::ZeroVector;
+		Check(TEXT("zero dir"), &Bad, EVeloxShotReject::Dir);
+		Bad.Dir = FVector(0.0, NaN, 0.0);
+		Check(TEXT("NaN dir"), &Bad, EVeloxShotReject::Dir);
+	}
+	{
+		FGameplayAbilityTargetData_VeloxShot Bad = Good;
+		Bad.ViewServerTime = FInf;
+		Check(TEXT("+inf view time"), &Bad, EVeloxShotReject::Time);
+		Bad.ViewServerTime = -FInf;
+		Check(TEXT("-inf view time"), &Bad, EVeloxShotReject::Time);
+		Bad.ViewServerTime = FNaN;
+		Check(TEXT("NaN view time"), &Bad, EVeloxShotReject::Time);
+		Bad.ViewServerTime = 12.5f;
+		Bad.HintTargetStamp = FNaN;
+		Check(TEXT("NaN hint stamp"), &Bad, EVeloxShotReject::Time);
+	}
+
+	// Over-rate: MG (0.1 s, spacing 0) four shots in one frame -> the fourth is rate.
+	{
+		FVeloxFireRateBucket Bucket;
+		FVeloxValidatedShot Out;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			TestTrue(FString::Printf(TEXT("MG burst %d accepted"), Index + 1), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 0.1f, Capacity, Tolerance, Out) == EVeloxShotReject::None);
+		}
+		TestTrue(TEXT("MG fourth in one frame: rate"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 0.1f, Capacity, Tolerance, Out) == EVeloxShotReject::Rate);
+		TestEqual(TEXT("rejected shot still names its seq"), static_cast<int32>(Out.ShotSeq), 42);
+	}
+	// Under-spacing: two rails 1.0 s apart (spacing 1.25) -> spacing.
+	{
+		FVeloxFireRateBucket Bucket;
+		FVeloxValidatedShot Out;
+		TestTrue(TEXT("rail 1 accepted"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 1.5f, Capacity, Tolerance, Out) == EVeloxShotReject::None);
+		TestTrue(TEXT("rail 2 after 1.0 s: spacing"), VeloxShotValidation::Validate(&Good, Bucket, 11.0, 1.5f, Capacity, Tolerance, Out) == EVeloxShotReject::Spacing);
+	}
+	// The bucket is consumed before the payload: three malformed shots empty it, the valid fourth is rate.
+	{
+		FVeloxFireRateBucket Bucket;
+		FVeloxValidatedShot Out;
+		FGameplayAbilityTargetData_SingleTargetHit Wrong;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			TestTrue(FString::Printf(TEXT("wrong type %d: type"), Index + 1), VeloxShotValidation::Validate(&Wrong, Bucket, 10.0, 1.0f, Capacity, 1.0f, Out) == EVeloxShotReject::Type);
+		}
+		TestTrue(TEXT("valid shot after three malformed ones: rate (they cost tokens)"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 1.0f, Capacity, 1.0f, Out) == EVeloxShotReject::Rate);
 	}
 	return true;
 }
@@ -171,6 +377,15 @@ bool FVeloxCombatWeaponTableTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("RL splash 100 / 300 cm, 2250 cm/s"), FVector(Table->Get(2)->SplashDamage, Table->Get(2)->SplashRadiusCm, Table->Get(2)->ProjectileSpeed), FVector(100, 300, 2250));
 		TestEqual(TEXT("PG splash 15 / 50 cm, 5000 cm/s"), FVector(Table->Get(5)->SplashDamage, Table->Get(5)->SplashRadiusCm, Table->Get(5)->ProjectileSpeed), FVector(15, 50, 5000));
 		TestEqual(TEXT("slot 1 is empty"), Table->FindBySlot(1), INDEX_NONE);
+	}
+
+	// Task 04b fields (B18, B19, B23) in the bootstrap asset.
+	const UVeloxCombatSettings* Settings = LoadObject<UVeloxCombatSettings>(nullptr, TEXT("/Game/Data/DA_CombatSettings_Default.DA_CombatSettings_Default"));
+	if (TestNotNull(TEXT("DA_CombatSettings_Default"), Settings))
+	{
+		TestEqual(TEXT("SwitchTimingToleranceSeconds 0.25"), Settings->SwitchTimingToleranceSeconds, 0.25f);
+		TestEqual(TEXT("FireRateSpacingTolerance 0.25"), Settings->FireRateSpacingTolerance, 0.25f);
+		TestEqual(TEXT("BeamKeepAliveSeconds 0.25"), Settings->BeamKeepAliveSeconds, 0.25f);
 	}
 	return true;
 }
@@ -302,6 +517,24 @@ namespace VeloxWeaponTest
 			}
 		}
 
+		/** Ticks 60 Hz frames, then one partial frame, so the world time ends at Target (within float rounding, >= Target). */
+		void AdvanceTo(double Target)
+		{
+			constexpr float Dt = 1.f / 60.f;
+			while (World->GetTimeSeconds() + Dt < Target)
+			{
+				++GFrameCounter;
+				World->Tick(LEVELTICK_All, Dt);
+			}
+			// A partial frame (rounded up by 1 us so float rounding cannot leave the world time just short of Target).
+			const double Rest = Target - World->GetTimeSeconds();
+			if (Rest > 0.0)
+			{
+				++GFrameCounter;
+				World->Tick(LEVELTICK_All, static_cast<float>(Rest + 1e-6));
+			}
+		}
+
 		UWorld* World = nullptr;
 	};
 
@@ -366,7 +599,7 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("prev from MG -> RG (wraps)"), Inventory->ResolveSelectInput(InputTag_Weapon_Prev), RG);
 
 	// Fire the MG through the input path (WhileInputActive), then switch to RG by slot key: refire wait 0.1 s, drop
-	// 0.2 s (index changes), raise 0.25 s (fire blocked by Velox.State.WeaponSwitching).
+	// 0.2 s (index changes), raise 0.25 s (fire blocked by the local SwitchEndTime, B18; the tag is still granted).
 	W.Advance(0.1f);
 	const float BulletsBefore = PlayerState->GetAmmoSet()->GetBullets();
 	ASC->AbilityInputTagPressed(InputTag_Fire);
@@ -382,6 +615,8 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
 	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot7);
 	TestTrue(TEXT("switching tag at once"), ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+	const double SwitchEnd = Inventory->GetSwitchEndTime();
+	TestEqual(TEXT("SwitchEndTime = now + refire 0.1 + drop 0.2 + raise 0.25"), SwitchEnd, T0 + 0.55, 1e-3);
 	TestEqual(TEXT("still MG during refire wait + drop"), Inventory->GetCurrentIndex(), MG);
 	W.Advance(0.25f); // t = 0.25 < 0.1 + 0.2
 	TestEqual(TEXT("still MG at 0.25 s (refire 0.1 + drop 0.2)"), Inventory->GetCurrentIndex(), MG);
@@ -391,15 +626,37 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	ASC->AbilityInputTagPressed(InputTag_Fire);
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
 	TestEqual(TEXT("no rail during the raise"), PlayerState->GetAmmoSet()->GetSlugs(), 15.f);
-	W.Advance(0.25f); // t = 0.6 > 0.55
-	TestFalse(TEXT("raise done"), ASC->HasMatchingGameplayTag(State_WeaponSwitching));
-	ASC->ProcessAbilityInput(1.f / 60.f, false); // fire still held: WhileInputActive re-try
-	TestEqual(TEXT("held fire shoots the rail after the raise"), PlayerState->GetAmmoSet()->GetSlugs(), 14.f);
 	ASC->AbilityInputTagReleased(InputTag_Fire);
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
 
-	// Respawn semantics: the loadout again, RG/RL taken away.
+	// One frame before the local switch end: the press does not fire; the tag is still there (GE unchanged).
+	W.AdvanceTo(SwitchEnd - 1.0 / 60.0);
+	TestTrue(TEXT("tag still granted one frame before the switch end"), ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+	ASC->AbilityInputTagPressed(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	ASC->AbilityInputTagReleased(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	TestEqual(TEXT("no rail at SwitchEndTime - 1/60"), PlayerState->GetAmmoSet()->GetSlugs(), 15.f);
+
+	// At the switch end the press fires, independent of Velox.State.WeaponSwitching (a 5 s copy of the GE is granted
+	// first: the local gate is SwitchEndTime only).
+	W.AdvanceTo(SwitchEnd);
+	const FActiveGameplayEffectHandle ExtraSwitching = ASC->ApplyGameplayEffectSpecToSelf(*VeloxEffects::MakeDurationSpec(ASC, UVeloxGE_WeaponSwitching::StaticClass(), 5.f).Data.Get());
+	TestTrue(TEXT("tag present at the switch end (extra GE)"), ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+	ASC->AbilityInputTagPressed(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	TestEqual(TEXT("rail fires at SwitchEndTime despite the tag"), PlayerState->GetAmmoSet()->GetSlugs(), 14.f);
+	ASC->AbilityInputTagReleased(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	ASC->RemoveActiveGameplayEffect(ExtraSwitching);
+
+	// Respawn semantics: the loadout again, RG/RL taken away, a running switch's local end cleared.
+	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot2);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot2);
+	TestTrue(TEXT("switch back to MG running"), Inventory->GetSwitchEndTime() > W.World->GetTimeSeconds());
 	Inventory->ResetToLoadout();
+	TestEqual(TEXT("reset clears SwitchEndTime"), Inventory->GetSwitchEndTime(), 0.0);
 	TestEqual(TEXT("reset: MG only"), static_cast<int32>(Inventory->GetOwnedMask()), 1 << MG);
 	TestNull(TEXT("reset: RG spec removed"), Inventory->FindFireSpec(RG));
 	TestNotNull(TEXT("reset: MG spec kept"), Inventory->FindFireSpec(MG));
@@ -478,11 +735,15 @@ bool FVeloxCombatHitscanDummyTest::RunTest(const FString& Parameters)
 		}
 	}
 
-	// The LG (last case) keeps its looping beam cue alive on the server; with no further shot it stops after 2.5 intervals.
+	// The LG (last case) keeps its looping beam cue alive on the server; with no further shot it stops after
+	// BeamKeepAliveSeconds (B23): advance that plus one frame.
 	UVeloxAbilitySystemComponent* ShooterASC = PS(Shooter)->GetVeloxAbilitySystemComponent();
 	TestTrue(TEXT("LG beam cue active after the shot"), ShooterASC->IsGameplayCueActive(VeloxGameplayTags::GameplayCue_Weapon_LightningGun_Beam));
 	TestTrue(TEXT("beam reached the pawn's feedback component"), Shooter->GetCombatFeedbackComponent() && Shooter->GetCombatFeedbackComponent()->IsBeamActive());
-	W.Advance(0.2f);
+	const float KeepAlive = UVeloxCombatSettings::GetOrDefault(PS(Shooter)->GetCombatSettings()).GetBeamKeepAliveSeconds();
+	W.Advance(0.5f * KeepAlive);
+	TestTrue(TEXT("LG beam still alive at half the keep-alive"), ShooterASC->IsGameplayCueActive(VeloxGameplayTags::GameplayCue_Weapon_LightningGun_Beam));
+	W.Advance(0.5f * KeepAlive + 1.f / 60.f + 1e-3f);
 	TestFalse(TEXT("LG beam cue removed after release"), ShooterASC->IsGameplayCueActive(VeloxGameplayTags::GameplayCue_Weapon_LightningGun_Beam));
 	TestFalse(TEXT("feedback beam off"), Shooter->GetCombatFeedbackComponent() && Shooter->GetCombatFeedbackComponent()->IsBeamActive());
 

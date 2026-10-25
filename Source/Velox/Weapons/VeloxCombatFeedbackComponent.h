@@ -22,7 +22,7 @@ public:
 	void HandleCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters);
 
 	/** Server-confirmed hit of this player's shot ShotSeq (Q3: no predicted marker). */
-	void OnHitConfirmed(uint8 ShotSeq, uint8 TotalDamage, uint8 Flags);
+	void OnHitConfirmed(uint8 ShotSeq, uint8 TotalDamage, uint8 ConfirmFlags);
 
 	double GetLastHitConfirmTime() const { return LastHitConfirmTime; }
 	int32 GetNumHitConfirms() const { return NumHitConfirms; }

@@ -318,11 +318,14 @@ def build_combat_settings(table, defs):
         "weapon_drop_time": 0.2,
         "weapon_raise_time": 0.25,
         "switch_waits_for_refire": True,
+        "switch_timing_tolerance_seconds": 0.25,  # ADR 0003 B18
+        "beam_keep_alive_seconds": 0.25,  # B23
         "max_rewind_seconds": 0.25,
         "history_window_seconds": 1.0,
         "max_origin_error_cm": 75.0,
         "hitbox_teleport_distance_cm": 150.0,
         "fire_rate_burst_allowance": 3.0,
+        "fire_rate_spacing_tolerance": 0.25,  # B19
         "projectile_forward_prediction_max": 0.1,
         "min_respawn_delay": 1.7,
         "force_respawn_delay": 20.0,
