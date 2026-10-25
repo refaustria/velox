@@ -5,9 +5,9 @@ Read this after `CLAUDE.md`, `ROADMAP.md` and `STATUS.md`. It tells the lead whe
 ## State at the pause
 
 - `main`: M0 + M1 merged and green (M1-06 human playtest still open: needs UE 5.8 on the human's Mac).
-- `m2-combat`: tasks 01, 01b, 02, 03, 03b, 04, 07 done and committed; 04 architect-reviewed (ADR 0003 amendments B18–B24, `docs/reviews/m2-04-weapons-hitscan-review.md`).
-- The pause-day merges of 04b (review fixes), 05 (projectiles / self-knockback) and 06 (death / respawn / game mode) are recorded in the "Merged before the pause" section below; anything not listed there was **not** merged and its worktree branch may still exist (`git worktree list`, `git branch --list 'worktree-agent-*'`).
-- Last known CI state: see STATUS.md "Done"/"In progress" and the newest `Saved/CI/<timestamp>/` directory (`report.json` / `build.log`).
+- `m2-combat` head 3356731 + docs: tasks 01, 01b, 02, 03, 03b, 04, 04b, 05, 06, 07 done and merged; 04 architect-reviewed (ADR 0003 B18–B24); 05 and 06 **not yet reviewed**. Agent reports in `docs/tasks/m2-combat/notes/0{4,4b,5,6}-report.md`.
+- Last CI on the merged head: `infra/ci/build.sh` CI OK, 47 tests, 0 failures (`Saved/CI/20261025-033805-2754505`). No worktree is open, no agent is running.
+- Watch item: KnockbackRun soak failed once ("response container lost grace 0.150 < 0.167", `Saved/CI/20261025-034018-2760259/nettest`) and passed on rerun; see STATUS.md Blocked.
 - GitHub: `main`, `m0-infrastructure`, `m1-movement`, `m2-combat` pushed to `refaustria/velox` on 2026-10-25 (LFS objects included); the branches track `origin/*`. Push again after the pause-day merges.
 
 ## Environment facts that survive a reboot
@@ -21,14 +21,15 @@ Read this after `CLAUDE.md`, `ROADMAP.md` and `STATUS.md`. It tells the lead whe
 
 ## Next steps, in order
 
-1. **Sanity check**: `git status`, `git worktree list`, `infra/ci/build.sh` on `m2-combat` (expect ≥ 39 tests, 0 failures). If a worktree from the pause day is still there, read its task file status and either merge (`git merge --no-ff worktree-agent-…`) after its own build evidence, or re-dispatch the task.
-2. **Task 04c** `docs/tasks/m2-combat/04c-server-pattern-seed.md` (dev-hard): server chooses the pellet/MG seed, impact cues server-only/unkeyed, owner predicts only the fire cue. Must land before task 09.
-3. **Architect review of 05 and 06** in one pass (both touch GAS/netcode): projectile replication, fake projectiles, recorded self-knockback channel (A17), explosion cue unkeyed (B21), B8 death order, `Inventory->StopBeam()` after `RemoveAllGameplayCues()`. Follow-up fix task 05b/06b if must-fixes come back.
-4. **Task 08** `08-fire-nettest.md` (dev): FireRun / RocketJumpRun soak scripts with the addendum from the 04 review (5 s warm-up rule B24, switch sequence RG→MG→RG with 0 rejections, MG 40 shots 0 rejections, hit-confirm accounting, 250 ms repeat, `aim_err_cm`, CrouchRun in the default list).
-5. **Task 09** `09-human-playtest.md` (dev): combat playtest checklist for the Mac, including "switch feel at 100 ms" and "redirect a switch mid-drop".
-6. **Merge `m2-combat` → `main`** when Editor/Client/Server compile and all tests pass; then update ROADMAP.md (tick M2 items) and STATUS.md.
-7. **Mac**: human installs UE 5.8 via the Epic Games Launcher, runs `git lfs pull` and `infra/ci/build-mac.sh` from `main`, then the M1 checklist `docs/playtests/m1-movement-checklist.md` and the M2 checklist from task 09. Feed findings back as tuning tasks.
-8. **M3 Game loop**: dispatch `architect` for ADR 0004 (pickups/item timers, FFA/Duel, scoreboard, HUD, menu) before writing tasks.
+1. **Sanity check**: `git status`, `git worktree list` (expect only the main checkout), `infra/ci/build.sh` on `m2-combat` (expect 47 tests, 0 failures).
+2. **KnockbackRun decision** (dev): `infra/ci/nettest.sh --scripts KnockbackRun --repeat 10` (check the real flag names in `infra/ci/README.md`) on the merged head, and the same on commit 06df0fa (before 05) in a worktree. 10/10 on both = load flakiness, note and move on; failures only on the head = regression from 05's knockback channel → dev-hard with the logs, architect if a second attempt fails.
+3. **Task 04c** `docs/tasks/m2-combat/04c-server-pattern-seed.md` (dev-hard): server chooses the pellet/MG seed, impact cues server-only/unkeyed, owner predicts only the fire cue. Must land before task 09.
+4. **Architect review of 05 and 06** in one pass (both touch GAS/netcode). Rulings needed: move-timed owner self-splash via `FireMoveTimeStamp` (05 departure 1), B15 origin rules duplicated in the projectile ability, next-tick corpse/UnPossess vs B8 "UnPossess last", `SpawnAvoidRadiusCm` added to the farthest-half rule, AI auto-respawn at arbitrary starts, spawn protection 0 s, no cancel-all for move-timed events on death (projectile owner cancels, or Movement gets `CancelAllMoveTimedEvents`), `VeloxKill` victim/killer names empty or odd (cosmetic), projectile ability should adopt `ValidateServerShot` from 04b. Follow-up task 05b/06b if must-fixes come back.
+5. **Task 08** `08-fire-nettest.md` (dev): FireRun / RocketJumpRun soak scripts with the addendum from the 04 review (5 s warm-up rule B24, switch sequence RG→MG→RG with 0 rejections, MG 40 shots 0 rejections, hit-confirm accounting, 250 ms repeat, `aim_err_cm`, CrouchRun in the default list).
+6. **Task 09** `09-human-playtest.md` (dev): combat playtest checklist for the Mac, including "switch feel at 100 ms" and "redirect a switch mid-drop".
+7. **Merge `m2-combat` → `main`** when Editor/Client/Server compile and all tests pass; then update ROADMAP.md (tick M2 items) and STATUS.md.
+8. **Mac**: human installs UE 5.8 via the Epic Games Launcher, runs `git lfs pull` and `infra/ci/build-mac.sh` from `main`, then the M1 checklist `docs/playtests/m1-movement-checklist.md` and the M2 checklist from task 09. Feed findings back as tuning tasks.
+9. **M3 Game loop**: dispatch `architect` for ADR 0004 (pickups/item timers, FFA/Duel, scoreboard, HUD, menu) before writing tasks.
 
 ## Open questions for the human (also in STATUS.md)
 
@@ -45,4 +46,11 @@ If the agent types `dev`, `dev-hard`, `architect` are not offered in a fresh ses
 
 ## Merged before the pause
 
-(filled in by the lead as the last agents report back)
+| Task | Commit | Merge | Evidence |
+|---|---|---|---|
+| 04 weapons/hitscan | 12a5221 | direct | 39 tests, nettest 2/2 port 7795 |
+| 04b review fixes | 85e15b7 | 9d0cf5f | 41 tests, nettest 1/1 port 7807 |
+| 05 projectiles | feae626 | b9fed9a | 41 tests, nettest 1/1 port 7805, rocket jump 0 corrections |
+| 06 death/respawn | be0184d | 3356731 (conflict in `VeloxPlayerController.cpp` resolved, `VeloxMoveSimTest` using-directive scoped) | 43 tests in worktree; merged head 47 tests |
+
+Not merged / not started: 04c, 08, 09. Architect review of 05+06 outstanding.

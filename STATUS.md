@@ -3,6 +3,10 @@
 _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main` (M0 + M1 code merged); M1 closes with the human playtest._
 
 ## Done
+- **M2-06** death flow (B8 with next-tick corpse/UnPossess), corpse (no collision, lifetime), death camera, respawn (fire/jump request, min/force delay, AI auto-respawn), world-free `VeloxSpawnSelection` (farthest half, avoid radius, telefrag only when full), spawn protection (0 s default, ends on fire), `FellOutOfWorld` kill, `PlaceholderBody` + `M_PlayerBody` 8-colour palette, HUD hit marker + fragged overlay, cheats `KillTest`/`KillSelf`. 4 tests. Report: `docs/tasks/m2-combat/notes/06-report.md`.
+- **M2-05** `AVeloxProjectile` (initial-only replication, dormant, world-free `FVeloxProjectileSim`), owner fake projectile ended by the authoritative impact cue, server forward sim ≤ ping/2, Q3 splash on current pose with 3 LOS traces, explosion cue unkeyed (B21), predicted self-knockback `{Velocity, Seq}` + `ConfirmedSelfKnockbackSeq`, **move-timed owner self-splash** (`AddMoveTimedEvent`) → rocket jump at 100 ms / 2 % with 0 corrections (evidence `docs/adr/evidence/m2-05-*`). RL/PG fire. 2 tests. Report: `notes/05-report.md`.
+- **M2-04b** review fixes B18/B19/B23: one-frame fire-time carry, bucket min spacing, local `SwitchEndTime` + 0.25 s server tolerance, `BeamKeepAliveSeconds`, world-free `VeloxShotValidation`, rate-limited reject log. 2 tests. Report: `notes/04b-report.md`.
+- **Merged build of 04+04b+05+06** on `m2-combat` (3356731): `infra/ci/build.sh` CI OK, **47 tests, 0 failures** (`Saved/CI/20261025-033805-2754505`); nettest full list PASS on the second run (see watch item); death flow steps 1–5 verified headless.
 - **M2-04** weapons: 6 `UVeloxWeaponDefinition` assets + `DA_WeaponTable` (index = net id), `UVeloxWeaponInventoryComponent` on the PlayerState (owned mask, replicated index, predicted switch, loadout reset per possession; B5), `UVeloxGameplayAbility_FireHitscan` for MG/SG/LG/RG (client target data → server bucket + validation → `TraceShot` → damage spec per hit → `ClientConfirmHit`), `FVeloxFireRateBucket` (burst 3), weapon-switch ability (refire wait + drop + raise), native cues via `UVeloxGameplayCueManager`/`UVeloxCombatFeedbackComponent`, slot/next/prev input. 39 tests green, nettest 2/2. Report: `docs/tasks/m2-combat/notes/04-report.md`.
 - **M2-03b** lag-comp review fixes (B13 fallback delay, B15 eye-origin occlusion snap, B16 teleport discontinuity, NaN guards, view_ms).
 - **M2-02** class-default pawn geometry (37.5/70, crouched 50, eye 55/40), ground-only crouch, `UVeloxHitboxComponent` + world-free `VeloxHitMath`, linear smoothing, `IA_Crouch`, `CrouchRun` soak script.
@@ -33,18 +37,17 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`. Neither blocks compiling/testing; M1 code merges to `main` after the final CI gate so the Mac build comes from `main`; fixes continue on `m1-movement`.
-- ~~Map follow-up (gap run-up)~~ done: runways 1200/2500/4500 cm, pit exit steps, PlayerStarts per runway.
+- **Paused 2026-10-25** for server maintenance (human). Resume with `docs/RESUME.md`. No agent is running; no worktree is open.
+- **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`.
 
 ## Blocked
-- (watch item) one 5.14 cm StrafeRun correction in a post-merge soak round (`Saved/CI/20261025-022110-2542422/nettest/StrafeRun-*`); 10 follow-up rounds clean (0 corrections). Not a regression; logs kept for the next architect pass.
-- (none)
+- (watch item) **KnockbackRun grace loss**: after the 06 merge, one full-list soak failed KnockbackRun with "grace in the server's response 0.150 < 0.167: response container lost it" (`Saved/CI/20261025-034018-2760259/nettest`); the rerun passed, the 06 agent saw the same script fail once (90.6 cm, grace 0.133) and PadRun once (11.7 cm) under machine load, and KnockbackRun then passed 4/4. 06 did not touch Movement; 05 did (predicted-knockback channel, move-timed events). **First thing after the pause: 10-round soak of KnockbackRun on the merged head and on 06df0fa (pre-05 baseline) to decide regression vs load flakiness.**
+- (watch item) one 5.14 cm StrafeRun correction in a post-M1-merge soak round (`Saved/CI/20261025-022110-2542422/nettest/StrafeRun-*`); 10 follow-up rounds clean.
 - Mac client build: human has Xcode but no UE 5.8 yet (Epic Games Launcher install needed, ~40 GB).
 
 ## Next
 - M1-06 human playtest on the Mac → tuning pass from feedback → M1 sign-off.
-- **M2 Combat** on `m2-combat`: 01/01b, 02, 03/03b, 04, 07 done; 04 architect-reviewed (B18–B24: 4 must-fix on timing enforcement → 04b, server pattern seed → 04c). Running in parallel (2026-10-25): 04b review fixes (dev-hard, worktree, port 7807), 05 projectiles/self-knockback (dev-hard, worktree, nettest port 7805), 06 death/respawn/game mode (dev, worktree, port 7806). Then 08 fire soak (FireRun/RocketJumpRun, CrouchRun into default list, assertions on rewind_ms/view_ms/hint, `VeloxShotFired aim_err_cm`) → 09 combat playtest checklist → merge to `main` when CI green.
-- Rulings from the 04 review: server must honour switch timing with a local `SwitchEndTime` + 0.25 s tolerance (B18); fire-time carry ≤ one frame, bucket + min spacing (B19); MG spread 1.4° accepted (B20); server seeds pellet patterns, impact cues unkeyed (B21, task 04c); `view_ms=250 hint=fallback` after join is an engine warm-up transient, 08 gets a 5 s rule (B24). 04c must land before 09.
+- **M2 Combat** on `m2-combat`: 01/01b, 02, 03/03b, 04/04b, 05, 06, 07 done and merged (47 tests). Next in order (see `docs/RESUME.md`): KnockbackRun soak decision → 04c server pattern seed (dev-hard) → architect review of 05+06 in one pass (move-timed self-splash, next-tick UnPossess vs B8, `SpawnAvoidRadiusCm`, AI auto-respawn, cancel-all for move-timed events on death, `VeloxKill` name resolution) → 08 fire soak → 09 playtest checklist → merge to `main`.
 - Open for architect (minor): A31 test tolerances were widened to the A1 substep residual by the implementer; confirm or tighten via FixedStep.
 - M0-04 → full CI run → merge `m0-infrastructure` into `main` → M1 Movement: `architect` ADR 0002 (movement component design), then tasks.
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.

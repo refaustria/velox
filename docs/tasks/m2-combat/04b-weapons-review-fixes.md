@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev-hard
-**Status:** done (uncommitted in agent worktree, lead merges)
+**Status:** done (merged 85e15b7)
 **Depends on:** 04 (review `docs/reviews/m2-04-weapons-hitscan-review.md`, ADR 0003 Amendments B18–B20, B22–B23). Independent of 05/06/07; must be merged before 08. 04c (server pattern seed) is a separate task.
 
 ## Goal
