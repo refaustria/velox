@@ -3,6 +3,8 @@
 _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main` (M0 + M1 code merged); M1 closes with the human playtest._
 
 ## Done
+- **M2-04** weapons: 6 `UVeloxWeaponDefinition` assets + `DA_WeaponTable` (index = net id), `UVeloxWeaponInventoryComponent` on the PlayerState (owned mask, replicated index, predicted switch, loadout reset per possession; B5), `UVeloxGameplayAbility_FireHitscan` for MG/SG/LG/RG (client target data → server bucket + validation → `TraceShot` → damage spec per hit → `ClientConfirmHit`), `FVeloxFireRateBucket` (burst 3), weapon-switch ability (refire wait + drop + raise), native cues via `UVeloxGameplayCueManager`/`UVeloxCombatFeedbackComponent`, slot/next/prev input. 39 tests green, nettest 2/2. Report: `docs/tasks/m2-combat/notes/04-report.md`.
+- **M2-03b** lag-comp review fixes (B13 fallback delay, B15 eye-origin occlusion snap, B16 teleport discontinuity, NaN guards, view_ms).
 - **M2-02** class-default pawn geometry (37.5/70, crouched 50, eye 55/40), ground-only crouch, `UVeloxHitboxComponent` + world-free `VeloxHitMath`, linear smoothing, `IA_Crouch`, `CrouchRun` soak script.
 - **M2-03** `UVeloxLagCompensationSubsystem`: 60 Hz hitbox history (world time + pawn stamp), `TraceShot` with origin snap, pellet merge, rail penetration; client `BuildShotTiming` hint. 3 tests (rewind, hits, trace in world).
 - **M2-01** GAS foundation: `UVeloxHealthSet`/`UVeloxAmmoSet`, world-free `FVeloxDamageMath` (Q3 armor 2/3, self ×0.5 after knockback), damage/decay executions, 7 C++ gameplay effects, health component, ability base with Lyra-style input routing, grant-once + `GE_SpawnInit` per possession, `velox.combat.TestDamage`. 29 tests green; M1 soak unchanged.
@@ -41,7 +43,8 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 
 ## Next
 - M1-06 human playtest on the Mac → tuning pass from feedback → M1 sign-off.
-- **M2 Combat** on `m2-combat`: 01/01b GAS foundation (reviewed, Q3 armor 66 % exact), 02 geometry/crouch/hitbox, 03 lag compensation (34 tests) and 07 test map done; merged-build verification and architect review of 03 running; next 04 hitscan weapons → 05 projectiles → 06 death/respawn → 08 fire soak → 09 playtest.
+- **M2 Combat** on `m2-combat`: 01/01b, 02, 03/03b, 04, 07 done. Running in parallel (2026-10-25): architect review of 04 (→ 04b fixes if needed), 05 projectiles/self-knockback (dev-hard, worktree, nettest port 7805), 06 death/respawn/game mode (dev, worktree, port 7806). Then 08 fire soak (FireRun/RocketJumpRun, CrouchRun into default list, assertions on rewind_ms/view_ms/hint, `VeloxShotFired aim_err_cm`) → 09 combat playtest checklist → merge to `main` when CI green.
+- Architect rulings pending from 04 report: server ignores WeaponSwitching tag/NextFireTime for remote shooters (bucket only), MG spread 1.4° vs "one ray", shots ~1 s after join log `view_ms=250 hint=fallback` (time-sync convergence, 03/03b code).
 - Open for architect (minor): A31 test tolerances were widened to the A1 substep residual by the implementer; confirm or tighten via FixedStep.
 - M0-04 → full CI run → merge `m0-infrastructure` into `main` → M1 Movement: `architect` ADR 0002 (movement component design), then tasks.
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
