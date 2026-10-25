@@ -22,6 +22,7 @@ Implement ADR 0003 implementation-notes task **`06-death-respawn-gamemode`** (`d
 - Respawn path is already in place: `AVeloxCharacter::PossessedBy` → `InitAbilityActorInfo` → `AVeloxPlayerState::OnPawnPossessed` (grant-once, `GE_SpawnInit`). Add `Inventory->ResetToLoadout()` (task 04) before `ApplySpawnInit`, then `GE_SpawnProtection` via `VeloxEffects::MakeDurationSpec` when `SpawnProtectionSeconds > 0`. `velox.combat.TestRespawn` (`Combat/VeloxCombatCheats.cpp`) exercises it headless.
 - Dead-input gate: `ProcessAbilityInput` returns early under `Velox.State.Dead` (01b); the controller's respawn request on fire/jump press is native input, not an ability.
 - `FellOutOfWorld` → `VeloxEffects::MakeDamageSpec(VictimASC, {Damage 1000, DamageTag Velox.Damage.Environment, bNoKnockback})` on the victim's own ASC with `bSelf = false` (the cheat command shows the pattern).
+- **B17 (task 03 review):** `HandleDeath` calls `UVeloxLagCompensationSubsystem::Get(this)->UnregisterHitbox(Hitbox)` synchronously, in the B8 block before `UnPossess`; corpses are transparent to hitscan by design (not Q3's `CONTENTS_CORPSE`). Do not re-register a corpse. Respawn needs nothing: the new pawn's hitbox registers in `BeginPlay` (fresh history, B16).
 
 ## Report back
 Standard format for the agent type; dev-hard includes a design summary for `architect` review.
