@@ -18,8 +18,8 @@ public:
 
 	/**
 	 * Input routed by tag (Lyra three-list input processing). Press/release only mark the specs whose dynamic source tags
-	 * contain InputTag; ProcessAbilityInput (called from AVeloxPlayerController::PostProcessInput, from the bot
-	 * controller tick in M4) activates and forwards.
+	 * contain InputTag; ProcessAbilityInput (called from AVeloxPlayerController::PlayerTick after UpdateRotation, ADR 0003
+	 * B6; from the end of the bot controller tick in M4) activates and forwards.
 	 */
 	void AbilityInputTagPressed(const FGameplayTag& InputTag);
 	void AbilityInputTagReleased(const FGameplayTag& InputTag);
@@ -27,6 +27,7 @@ public:
 	/**
 	 * Once per frame: OnInputTriggered specs activate on the press, WhileInputActive specs re-try every frame while held,
 	 * active specs get InputPressed/InputReleased (and the replicated generic events for WaitInputPress/Release tasks).
+	 * While Velox.State.Dead is present all pending and held input is dropped and nothing activates.
 	 */
 	void ProcessAbilityInput(float DeltaTime, bool bGamePaused);
 

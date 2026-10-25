@@ -19,8 +19,11 @@ public:
 protected:
 	//~APlayerController interface
 	virtual void SetupInputComponent() override;
-	/** Runs after the pawn's input bindings fired: hands this frame's ability input to the ASC (ADR 0003 section 1). */
-	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override;
+	/**
+	 * Super runs the input stack and then UpdateRotation; afterwards this frame's ability input goes to the ASC, so a
+	 * fire ability reads the control rotation including this frame's mouse delta (ADR 0003 B6).
+	 */
+	virtual void PlayerTick(float DeltaTime) override;
 	//~End of APlayerController interface
 
 	/** Mapping context added for local players. Set in DefaultGame.ini or a Blueprint subclass. */

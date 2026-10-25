@@ -4,6 +4,7 @@
 
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxGameplayAbility.h"
+#include "Core/VeloxGameplayTags.h"
 #include "GameplayTagContainer.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxAbilitySystemComponent)
@@ -61,6 +62,13 @@ void UVeloxAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& I
 
 void UVeloxAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGamePaused)
 {
+	// Input-blocked gate (Lyra Gameplay.AbilityInputBlocked): dead players neither fire nor queue a press for the respawn.
+	if (HasMatchingGameplayTag(VeloxGameplayTags::State_Dead))
+	{
+		ClearAbilityInput();
+		return;
+	}
+
 	static TArray<FGameplayAbilitySpecHandle> AbilitiesToActivate;
 	AbilitiesToActivate.Reset();
 

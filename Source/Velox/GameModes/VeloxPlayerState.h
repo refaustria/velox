@@ -27,6 +27,11 @@ public:
 	virtual void PostInitProperties() override;
 	//~End of UObject interface
 
+	//~AActor interface
+	/** Preloads the combat settings on server and clients (ADR 0003 B1), before any replicated attribute is clamped. */
+	virtual void PostInitializeComponents() override;
+	//~End of AActor interface
+
 	//~IAbilitySystemInterface
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	//~End of IAbilitySystemInterface
@@ -37,7 +42,7 @@ public:
 	const UVeloxHealthSet* GetHealthSet() const { return HealthSet; }
 	const UVeloxAmmoSet* GetAmmoSet() const { return AmmoSet; }
 
-	/** Combat tunables (config asset, loaded on first use on server and clients); null if the asset is missing. */
+	/** Combat tunables (config asset, preloaded in PostInitializeComponents; lazy load as fallback); null if missing. */
 	const UVeloxCombatSettings* GetCombatSettings() const;
 
 	/**
@@ -47,7 +52,10 @@ public:
 	 */
 	void OnPawnPossessed(const UVeloxPawnData* PawnData);
 
-	/** Server: grants PawnData->AbilitySets once per PlayerState; later calls are no-ops. Returns true if it granted. */
+	/**
+	 * Server: grants PawnData->AbilitySets once per PlayerState; later calls with the same pawn data are no-ops. A
+	 * different pawn data (ADR 0003 B9) takes the previous grant away and grants the new one. Returns true if it granted.
+	 */
 	bool GrantDefaultAbilitySets(const UVeloxPawnData* PawnData);
 
 	bool HasGrantedDefaultAbilitySets() const { return bDefaultAbilitySetsGranted; }
@@ -81,8 +89,13 @@ private:
 	UPROPERTY(Transient)
 	mutable TObjectPtr<const UVeloxCombatSettings> CombatSettings;
 
-	/** What GrantDefaultAbilitySets granted (server). */
+	/** What GrantDefaultAbilitySets granted (server). UPROPERTY: holds TObjectPtr<UAttributeSet> (ADR 0003 B9). */
+	UPROPERTY()
 	FVeloxAbilitySet_GrantedHandles DefaultAbilitySetHandles;
+
+	/** The pawn data the default ability sets were granted from (server). */
+	UPROPERTY()
+	TObjectPtr<const UVeloxPawnData> GrantedPawnData;
 
 	bool bDefaultAbilitySetsGranted = false;
 };

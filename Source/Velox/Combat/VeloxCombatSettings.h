@@ -66,8 +66,9 @@ public:
 	float MaxArmor = 200.f;
 
 	// Damage math.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Damage", Meta = (ClampMin = "0", ClampMax = "1"))
-	float ArmorProtection = 0.6667f;
+	/** Q3 ARMOR_PROTECTION 0.66 as an integer percent (ADR 0003 B2): armor save = ceil(Damage x Pct / 100). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Damage", Meta = (ClampMin = "0", ClampMax = "100"))
+	int32 ArmorProtectionPercent = 66;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Damage")
 	float SelfDamageScale = 0.5f;

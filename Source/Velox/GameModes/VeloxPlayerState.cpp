@@ -34,6 +34,14 @@ void AVeloxPlayerState::PostInitProperties()
 	}
 }
 
+void AVeloxPlayerState::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+
+	// ADR 0003 B1: load now (both sides) rather than inside UVeloxHealthSet::ClampAttribute during net serialisation.
+	GetCombatSettings();
+}
+
 UAbilitySystemComponent* AVeloxPlayerState::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent;
@@ -75,11 +83,19 @@ bool AVeloxPlayerState::GrantDefaultAbilitySets(const UVeloxPawnData* PawnData)
 	}
 	if (bDefaultAbilitySetsGranted)
 	{
-		UE_LOG(LogVeloxCombat, Log, TEXT("%s: default ability sets already granted (%d abilities, %d effects); respawn re-inits actor info only."), *GetName(),
-			DefaultAbilitySetHandles.NumAbilities(), DefaultAbilitySetHandles.NumEffects());
-		return false;
+		if (GrantedPawnData == PawnData)
+		{
+			UE_LOG(LogVeloxCombat, Log, TEXT("%s: default ability sets already granted (%d abilities, %d effects); respawn re-inits actor info only."), *GetName(),
+				DefaultAbilitySetHandles.NumAbilities(), DefaultAbilitySetHandles.NumEffects());
+			return false;
+		}
+		// ADR 0003 B9: a different pawn data (class/skin, bot data) replaces the previous grant.
+		UE_LOG(LogVeloxCombat, Log, TEXT("%s: pawn data changed (%s -> %s); taking %d abilities, %d effects back and re-granting."), *GetName(),
+			*GetNameSafe(GrantedPawnData), *GetNameSafe(PawnData), DefaultAbilitySetHandles.NumAbilities(), DefaultAbilitySetHandles.NumEffects());
+		DefaultAbilitySetHandles.TakeFromAbilitySystem(AbilitySystemComponent);
 	}
 	bDefaultAbilitySetsGranted = true;
+	GrantedPawnData = PawnData;
 
 	int32 NumSets = 0;
 	if (PawnData)

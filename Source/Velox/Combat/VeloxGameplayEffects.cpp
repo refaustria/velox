@@ -74,7 +74,8 @@ UVeloxGE_SpawnInit::UVeloxGE_SpawnInit()
 		AddSetByCallerModifier(*this, Type.Value, EGameplayModOp::Override, Type.Key);
 	}
 
-	// Components run in array order on application, before the instant execution: clear, then start the decay.
+	// Components run in array order on application, after the modifiers/executions (ADR 0003 B7: ExecuteGameplayEffect
+	// precedes Spec.Def->OnApplied): override the attributes, then clear Dead/SpawnProtected/old decay, then start the decay.
 	URemoveOtherGameplayEffectComponent* Remove = CreateDefaultSubobject<URemoveOtherGameplayEffectComponent>(TEXT("RemoveDeadAndDecay"));
 	GEComponents.Add(Remove);
 	{

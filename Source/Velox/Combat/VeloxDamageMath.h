@@ -10,8 +10,8 @@
 /** Tunables of the damage math, built from UVeloxCombatSettings (cvar overrides applied there). */
 struct FVeloxCombatParams
 {
-	/** Q3 ARMOR_PROTECTION: share of the (post-self-scale) damage the armor absorbs, rounded up. */
-	float ArmorProtection = 0.6667f;
+	/** Q3 ARMOR_PROTECTION 0.66 as an integer percent: share of the (post-self-scale) damage the armor absorbs, rounded up. */
+	int32 ArmorProtectionPercent = 66;
 	/** Q3 halves self damage (integer truncation). */
 	float SelfDamageScale = 0.5f;
 	/** Vanilla Q3 has full self knockback. */
@@ -59,20 +59,15 @@ struct FVeloxDamageResult
 struct FVeloxDamageMath
 {
 	/**
-	 * Armor-save rounding tolerance (health points). Q3 rounds the save up (ceil); with ArmorProtection = 0.6667 a
-	 * multiple of 3 would otherwise round 2.0001 up to 3 and absorb the whole hit. The tolerance keeps the 2/3 intent.
-	 */
-	static constexpr float ArmorSaveTolerance = 1e-3f;
-
-	/**
 	 * One hit, Q3 order: knockback from the raw damage (capped, scaled), then self damage x SelfDamageScale (truncated),
-	 * minimum 1 point for a non-zero hit, then armor save = min(Armor, ceil(Damage x ArmorProtection)) unless bNoArmor,
-	 * HealthLoss = Damage - save. bProtected zeroes everything.
+	 * minimum 1 point for every hit (also a zero-point radius hit, which then has no knockback: ADR 0003 B3), then armor
+	 * save = min(Armor, Damage, ceil(Damage x Pct / 100)) in exact integer arithmetic unless bNoArmor (B2),
+	 * HealthLoss = Damage - save. bProtected zeroes everything; a negative Damage is rejected.
 	 */
 	static FVeloxDamageResult Apply(const FVeloxDamageInput& In, const FVeloxCombatParams& Params)
 	{
 		FVeloxDamageResult Out;
-		if (In.bProtected || In.Damage <= 0)
+		if (In.bProtected || In.Damage < 0)
 		{
 			return Out;
 		}
@@ -94,7 +89,9 @@ struct FVeloxDamageMath
 		int32 Save = 0;
 		if (!In.bNoArmor && In.Armor > 0)
 		{
-			Save = FMath::CeilToInt32(static_cast<float>(Damage) * Params.ArmorProtection - ArmorSaveTolerance);
+			// Exact integer ceiling of Damage x Pct / 100 (Q3 ceil(damage * 0.66)); no float, no tolerance.
+			const int32 Pct = FMath::Clamp(Params.ArmorProtectionPercent, 0, 100);
+			Save = (Damage * Pct + 99) / 100;
 			Save = FMath::Clamp(Save, 0, FMath::Min(In.Armor, Damage));
 		}
 

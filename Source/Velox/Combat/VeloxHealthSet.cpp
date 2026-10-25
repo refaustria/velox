@@ -2,6 +2,7 @@
 
 #include "Combat/VeloxHealthSet.h"
 
+#include "AbilitySystemComponent.h"
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
@@ -82,7 +83,13 @@ void UVeloxHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallback
 {
 	Super::PostGameplayEffectExecute(Data);
 
-	// Executions only run on the authority; the meta attributes are server scratch values.
+	// Executions only run on the authority; the meta attributes are server scratch values. Guard anyway (ADR 0003 B8):
+	// editor/listen clients compile the path, and a future predicted application must not commit metas on a client.
+	const UAbilitySystemComponent* OwningASC = GetOwningAbilitySystemComponent();
+	if (!OwningASC || !OwningASC->IsOwnerActorAuthoritative())
+	{
+		return;
+	}
 	if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
 	{
 		ApplyIncomingDamage(Data);

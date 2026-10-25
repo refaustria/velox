@@ -13,11 +13,15 @@ namespace VeloxCombatCVars
 {
 	constexpr float Unset = -1e30f;
 
-#define VELOX_COMBAT_FLOAT_FIELDS(X) X(ArmorProtection) X(SelfDamageScale) X(SelfKnockbackScale) X(KnockbackSpeedPerDamage) X(MaxKnockbackDamage)
+#define VELOX_COMBAT_FLOAT_FIELDS(X) X(SelfDamageScale) X(SelfKnockbackScale) X(KnockbackSpeedPerDamage) X(MaxKnockbackDamage)
 #define VELOX_DECLARE_COMBAT_CVAR(Name) static TAutoConsoleVariable<float> CVar_##Name(TEXT("velox.combat." #Name), Unset, \
 		TEXT("Override of UVeloxCombatSettings::" #Name " (-1e30 = use the asset). Non-shipping."), ECVF_Default);
 	VELOX_COMBAT_FLOAT_FIELDS(VELOX_DECLARE_COMBAT_CVAR)
 #undef VELOX_DECLARE_COMBAT_CVAR
+
+	constexpr int32 UnsetInt = -1;
+	static TAutoConsoleVariable<int32> CVar_ArmorProtectionPercent(TEXT("velox.combat.ArmorProtectionPercent"), UnsetInt,
+		TEXT("Override of UVeloxCombatSettings::ArmorProtectionPercent (-1 = use the asset). Non-shipping."), ECVF_Default);
 
 	static float Get(const TAutoConsoleVariable<float>& CVar, float AssetValue)
 	{
@@ -43,14 +47,17 @@ UVeloxCombatSettings::UVeloxCombatSettings()
 FVeloxCombatParams UVeloxCombatSettings::BuildCombatParams() const
 {
 	FVeloxCombatParams P;
-	P.ArmorProtection = ArmorProtection;
+	P.ArmorProtectionPercent = ArmorProtectionPercent;
 	P.SelfDamageScale = SelfDamageScale;
 	P.SelfKnockbackScale = SelfKnockbackScale;
 	P.KnockbackSpeedPerDamage = KnockbackSpeedPerDamage;
 	float MaxKnockback = MaxKnockbackDamage;
 #if !UE_BUILD_SHIPPING
 	using namespace VeloxCombatCVars;
-	P.ArmorProtection = Get(CVar_ArmorProtection, P.ArmorProtection);
+	{
+		const int32 Pct = CVar_ArmorProtectionPercent.GetValueOnAnyThread();
+		P.ArmorProtectionPercent = Pct != UnsetInt ? Pct : P.ArmorProtectionPercent;
+	}
 	P.SelfDamageScale = Get(CVar_SelfDamageScale, P.SelfDamageScale);
 	P.SelfKnockbackScale = Get(CVar_SelfKnockbackScale, P.SelfKnockbackScale);
 	P.KnockbackSpeedPerDamage = Get(CVar_KnockbackSpeedPerDamage, P.KnockbackSpeedPerDamage);

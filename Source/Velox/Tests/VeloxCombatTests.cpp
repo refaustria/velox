@@ -4,7 +4,7 @@
 //   Velox.Combat.KnockbackSeq  ShouldReplayPredictedKnockback wrap cases (world-free).
 //   Velox.Combat.Effects       the GE plumbing on a real PlayerState ASC in a private game world: spawn init 125,
 //                              decay to max, damage split + AddKnockback(Server), ammo, dead/protection tags, respawn
-//                              without re-grant.
+//                              without re-grant, re-grant on changed pawn data.
 
 #include "Misc/AutomationTest.h"
 
@@ -23,6 +23,7 @@
 #include "Combat/VeloxHealthComponent.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxGameplayTags.h"
+#include "Core/VeloxPawnData.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
@@ -54,7 +55,8 @@ bool FVeloxCombatDamageMathTest::RunTest(const FString& Parameters)
 
 	// The params defaults are the settings defaults (one source of truth for the ADR table).
 	const FVeloxCombatParams FromSettings = GetDefault<UVeloxCombatSettings>()->BuildCombatParams();
-	TestEqual(TEXT("ArmorProtection default"), FromSettings.ArmorProtection, FVeloxCombatParams().ArmorProtection);
+	TestEqual(TEXT("ArmorProtectionPercent default"), FromSettings.ArmorProtectionPercent, FVeloxCombatParams().ArmorProtectionPercent);
+	TestEqual(TEXT("ArmorProtectionPercent is Q3 0.66"), FromSettings.ArmorProtectionPercent, 66);
 	TestEqual(TEXT("KnockbackSpeedPerDamage default"), FromSettings.KnockbackSpeedPerDamage, 12.5f);
 	TestEqual(TEXT("MaxKnockbackDamage default"), FromSettings.MaxKnockbackDamage, 200);
 
@@ -62,11 +64,15 @@ bool FVeloxCombatDamageMathTest::RunTest(const FString& Parameters)
 	const FRow Table[] = {
 		{ 100, 0, 100, 0 },   // no armor
 		{ 100, 50, 50, 50 },  // armor runs out
-		{ 100, 100, 33, 67 }, // 2/3 rule
-		{ 7, 100, 2, 5 },     // MG
-		{ 3, 100, 1, 2 },     // multiple of 3: tolerance keeps 2/3 (ceil(2.0001) would be 3)
+		{ 100, 100, 34, 66 }, // Q3 rail figure: ceil(0.66 x 100) = 66 (ADR 0003 B2)
+		{ 50, 100, 17, 33 },  // self rocket after halving: ceil(33.0) = 33
+		{ 200, 200, 68, 132 },
+		{ 110, 100, 37, 73 }, // ceil(72.6) = 73
+		{ 10, 100, 3, 7 },    // ceil(6.6) = 7
+		{ 7, 100, 2, 5 },     // MG: ceil(4.62) = 5
+		{ 3, 100, 1, 2 },     // ceil(1.98) = 2
 		{ 1, 100, 0, 1 },     // Q3 ceil: a 1-point hit is fully absorbed
-		{ 0, 100, 0, 0 },
+		{ 0, 100, 0, 1 },     // zero-point radius hit: Q3 minimum 1 damage (B3), absorbed by armor
 	};
 	for (const FRow& Row : Table)
 	{
@@ -81,6 +87,16 @@ bool FVeloxCombatDamageMathTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("self 100: health -50"), Self.HealthLoss, 50);
 	TestEqual(TEXT("self 100: knockback from raw damage"), Self.KnockbackSpeed, 1250.f);
 	TestEqual(TEXT("self 1: at least 1 point"), Hit(1, 0, true).HealthLoss, 1);
+	TestEqual(TEXT("zero-point hit: no knockback"), Hit(0, 100).KnockbackSpeed, 0.f);
+	TestEqual(TEXT("zero-point hit, no armor: 1 health"), Hit(0, 0).HealthLoss, 1);
+	TestEqual(TEXT("self 100 vs 100 armor: health 17"), Hit(100, 100, true).HealthLoss, 17);
+	TestEqual(TEXT("self 100 vs 100 armor: armor 33"), Hit(100, 100, true).ArmorLoss, 33);
+	{
+		FVeloxDamageInput Negative;
+		Negative.Damage = -5;
+		const FVeloxDamageResult R = FVeloxDamageMath::Apply(Negative, FVeloxCombatParams());
+		TestTrue(TEXT("negative damage rejected"), R.HealthLoss == 0 && R.ArmorLoss == 0 && R.KnockbackSpeed == 0.f);
+	}
 	TestEqual(TEXT("self 15 vs 100 armor (plasma splash): 7 -> 2 health / 5 armor"), Hit(15, 100, true).HealthLoss, 2);
 
 	// Cap.
@@ -108,13 +124,13 @@ bool FVeloxCombatDamageMathTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("knockback scale"), FVeloxDamageMath::Apply(In, FVeloxCombatParams()).KnockbackSpeed, 625.f);
 	}
 
-	// Per-pellet rounding: 11 x 10 against 100 armor costs 77 armor (23 left), 100 at once 67.
+	// Per-pellet rounding: 11 x 10 against 100 armor costs 77 armor (23 left), 100 at once 66.
 	const FVeloxDamageResult Pellets = Hit(10, 100, false, false, 11);
 	TestEqual(TEXT("11 pellets x 10: armor loss"), Pellets.ArmorLoss, 77);
 	TestEqual(TEXT("11 pellets x 10: health loss"), Pellets.HealthLoss, 33);
 	TestEqual(TEXT("11 pellets x 10: knockback adds up"), Pellets.KnockbackSpeed, 11.f * 125.f);
-	TestEqual(TEXT("one 110 hit: armor loss"), Hit(110, 100).ArmorLoss, 74);
-	TestEqual(TEXT("one 100 hit: armor loss"), Hit(100, 100).ArmorLoss, 67);
+	TestEqual(TEXT("one 110 hit: armor loss"), Hit(110, 100).ArmorLoss, 73);
+	TestEqual(TEXT("one 100 hit: armor loss"), Hit(100, 100).ArmorLoss, 66);
 	// Armor running out mid-volley.
 	const FVeloxDamageResult Drain = Hit(10, 10, false, false, 3);
 	TestEqual(TEXT("armor runs out mid-volley: armor loss"), Drain.ArmorLoss, 10);
@@ -334,15 +350,15 @@ bool FVeloxCombatEffectsTest::RunTest(const FString& Parameters)
 	W.Advance(2.6f);
 	TestEqual(TEXT("3 decay ticks after 3.1 s"), Health->GetHealth(), 122.f);
 
-	// Damage 50 vs 100 armor (armor not above max health, so it does not decay): Q3 save ceil(33.3) = 34.
+	// Damage 50 vs 100 armor (armor not above max health, so it does not decay): Q3 save ceil(0.66 x 50) = 33 (ADR 0003 B2).
 	ASC->SetNumericAttributeBase(UVeloxHealthSet::GetArmorAttribute(), 100.f);
 	FVeloxDamageSpecParams Params;
 	Params.Damage = 50;
 	Params.DamageTag = VeloxGameplayTags::Damage_Environment;
 	Params.Direction = FVector(0, 0, 2);
 	ASC->ApplyGameplayEffectSpecToSelf(*VeloxEffects::MakeDamageSpec(ASC, Params).Data.Get());
-	TestEqual(TEXT("50 vs 100 armor: health"), Health->GetHealth(), 122.f - 16.f);
-	TestEqual(TEXT("50 vs 100 armor: armor"), Health->GetArmor(), 66.f);
+	TestEqual(TEXT("50 vs 100 armor: health"), Health->GetHealth(), 122.f - 17.f);
+	TestEqual(TEXT("50 vs 100 armor: armor"), Health->GetArmor(), 67.f);
 	TestEqual(TEXT("metas zeroed"), Health->GetIncomingDamage() + Health->GetIncomingArmorDamage() + Health->GetIncomingKnockback(), 0.f);
 	const UVeloxMovementComponent* Movement = Pawn->GetVeloxMovementComponent();
 	TestTrue(TEXT("knockback through AddKnockback: 625 cm/s up"), Movement && Movement->GetPendingKnockback().Velocity.Equals(FVector(0, 0, 625), 0.5));
@@ -407,6 +423,14 @@ bool FVeloxCombatEffectsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("respawn bullets 100"), Ammo->GetBullets(), 100.f);
 	TestEqual(TEXT("still one decay effect"), NumActiveEffects(ASC, UVeloxGE_HealthDecay::StaticClass()), 1);
 	TestEqual(TEXT("abilities not re-granted"), ASC->GetActivatableAbilities().Num(), NumAbilities);
+
+	// ADR 0003 B9: same pawn data is a no-op; a different one takes the old grant back and re-grants.
+	TestFalse(TEXT("same pawn data: no re-grant"), W.PlayerState->GrantDefaultAbilitySets(NewPawn->GetPawnData()));
+	UVeloxPawnData* OtherPawnData = NewObject<UVeloxPawnData>(GetTransientPackage());
+	TestTrue(TEXT("changed pawn data: re-granted"), W.PlayerState->GrantDefaultAbilitySets(OtherPawnData));
+	TestTrue(TEXT("changed pawn data: still granted"), W.PlayerState->HasGrantedDefaultAbilitySets());
+	TestTrue(TEXT("changed pawn data (no sets): old abilities taken back"), ASC->GetActivatableAbilities().Num() <= NumAbilities);
+	TestFalse(TEXT("changed pawn data: second call no-op"), W.PlayerState->GrantDefaultAbilitySets(OtherPawnData));
 	return true;
 }
 

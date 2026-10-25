@@ -204,7 +204,7 @@ def build_combat_settings():
         "health_hard_cap": 200.0,
         "spawn_armor": 0.0,
         "max_armor": 200.0,
-        "armor_protection": 0.6667,
+        "armor_protection_percent": 66,
         "self_damage_scale": 0.5,
         "self_knockback_scale": 1.0,
         "knockback_speed_per_damage": 12.5,

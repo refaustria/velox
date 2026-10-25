@@ -37,15 +37,16 @@ void AVeloxPlayerController::SetupInputComponent()
 	InputSubsystem->AddMappingContext(MappingContext, DefaultMappingContextPriority);
 }
 
-void AVeloxPlayerController::PostProcessInput(const float DeltaTime, const bool bGamePaused)
+void AVeloxPlayerController::PlayerTick(float DeltaTime)
 {
+	Super::PlayerTick(DeltaTime);
+
+	// ADR 0003 B6: after UpdateRotation; DeltaTime == 0 is the engine's paused convention (PlayerController::PlayerTick).
 	if (const AVeloxPlayerState* VeloxPS = GetPlayerState<AVeloxPlayerState>())
 	{
 		if (UVeloxAbilitySystemComponent* ASC = VeloxPS->GetVeloxAbilitySystemComponent())
 		{
-			ASC->ProcessAbilityInput(DeltaTime, bGamePaused);
+			ASC->ProcessAbilityInput(DeltaTime, DeltaTime == 0.f);
 		}
 	}
-
-	Super::PostProcessInput(DeltaTime, bGamePaused);
 }

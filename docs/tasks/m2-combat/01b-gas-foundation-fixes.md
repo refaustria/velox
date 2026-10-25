@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (2026-10-25)
 **Depends on:** 01 (review `docs/reviews/m2-01-gas-foundation-review.md`, ADR 0003 Amendments B1–B9)
 
 ## Goal
