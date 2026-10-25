@@ -35,6 +35,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - ~~Map follow-up (gap run-up)~~ done: runways 1200/2500/4500 cm, pit exit steps, PlayerStarts per runway.
 
 ## Blocked
+- (watch item) one 5.14 cm StrafeRun correction in a post-merge soak round (`Saved/CI/20261025-022110-2542422/nettest/StrafeRun-*`); 10 follow-up rounds clean (0 corrections). Not a regression; logs kept for the next architect pass.
 - (none)
 - Mac client build: human has Xcode but no UE 5.8 yet (Epic Games Launcher install needed, ~40 GB).
 
