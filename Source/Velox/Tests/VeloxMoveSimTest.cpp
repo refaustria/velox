@@ -11,7 +11,7 @@
 
 namespace VeloxMoveSimTest
 {
-	constexpr EAutomationTestFlags Flags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter;
+	constexpr EAutomationTestFlags MoveSimFlags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter;
 	constexpr float Dt = 1.f / 125.f;
 
 	/** The ADR 0002 section 1 defaults, through the one conversion point. */
@@ -55,11 +55,11 @@ namespace VeloxMoveSimTest
 	}
 }
 
-using namespace VeloxMoveSimTest;
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementSettingsDefaultsTest, "Velox.Movement.SettingsDefaults", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementSettingsDefaultsTest, "Velox.Movement.SettingsDefaults", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementSettingsDefaultsTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	// ADR 0002 section 1 table: Q3 value * UnitScale for distances/speeds.
 	const FVeloxMoveParams P = DefaultParams();
 	TestEqual(TEXT("UnitScale"), P.UnitScale, 2.5f);
@@ -82,9 +82,10 @@ bool FVeloxMovementSettingsDefaultsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFrictionTest, "Velox.Movement.Friction", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFrictionTest, "Velox.Movement.Friction", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementFrictionTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	const FVeloxMoveParams P = DefaultParams();
 	const FVeloxMoveInput NoInput;
 	const double V0 = 800.0;
@@ -121,9 +122,10 @@ bool FVeloxMovementFrictionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementGroundAccelTest, "Velox.Movement.GroundAccel", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementGroundAccelTest, "Velox.Movement.GroundAccel", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementGroundAccelTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	const FVeloxMoveParams P = DefaultParams();
 	const FVeloxMoveInput In = Wish(FVector::ForwardVector, P.MaxGroundSpeed, true, false);
 	FVector V = FVector::ZeroVector;
@@ -142,9 +144,10 @@ bool FVeloxMovementGroundAccelTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementAirAccelTest, "Velox.Movement.AirAccel", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementAirAccelTest, "Velox.Movement.AirAccel", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementAirAccelTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	const FVeloxMoveParams P = DefaultParams();
 	const FVector V(800.0, 0.0, 0.0);
 	const double Bound = static_cast<double>(P.AirAcceleration) * Dt * P.AirMaxWishSpeed;
@@ -161,9 +164,10 @@ bool FVeloxMovementAirAccelTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementStrafeJumpTest, "Velox.Movement.StrafeJump", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementStrafeJumpTest, "Velox.Movement.StrafeJump", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementStrafeJumpTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	const FVeloxMoveParams P = DefaultParams();
 	const float W = P.AirMaxWishSpeed;
 	const int32 Ticks = 125;
@@ -190,9 +194,10 @@ bool FVeloxMovementStrafeJumpTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFixedStepInvarianceTest, "Velox.Movement.FixedStepInvariance", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFixedStepInvarianceTest, "Velox.Movement.FixedStepInvariance", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementFixedStepInvarianceTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	// Note: with a wish direction held constant over a move, Q3 Accelerate is exactly split-invariant (the component
 	// along WishDir is min(c0 + Accel*W*T, W) however T is split). Frame-rate dependence comes from the nonlinear
 	// parts: ground friction (1 - f*dt)^n, the StopSpeed regime, and CPM air control. The sequence exercises those.
@@ -250,9 +255,10 @@ bool FVeloxMovementFixedStepInvarianceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementAirControlTest, "Velox.Movement.AirControl", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementAirControlTest, "Velox.Movement.AirControl", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementAirControlTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	FVeloxMoveParams P = DefaultParams();
 	P.bAirControl = true;
 	const FVector V(800.0, 0.0, 150.0);
@@ -285,9 +291,10 @@ bool FVeloxMovementAirControlTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementBunnyHopTest, "Velox.Movement.BunnyHop", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementBunnyHopTest, "Velox.Movement.BunnyHop", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementBunnyHopTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	const FVeloxMoveParams P = DefaultParams();
 	const FVector Landing(1000.0, 0.0, -400.0);
 
@@ -314,9 +321,10 @@ bool FVeloxMovementBunnyHopTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementKnockbackTest, "Velox.Movement.Knockback", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementKnockbackTest, "Velox.Movement.Knockback", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementKnockbackTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	const FVeloxMoveParams P = DefaultParams();
 	const FVector Impulse(1250.0, 0.0, 0.0);
 
@@ -365,9 +373,10 @@ bool FVeloxMovementKnockbackTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementDeterminismTest, "Velox.Movement.Determinism", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementDeterminismTest, "Velox.Movement.Determinism", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementDeterminismTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	struct FScriptRow
 	{
 		FVeloxMoveInput In;
@@ -433,9 +442,10 @@ bool FVeloxMovementDeterminismTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementGracePartitionInvarianceTest, "Velox.Movement.Sim.GracePartitionInvariance", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementGracePartitionInvarianceTest, "Velox.Movement.Sim.GracePartitionInvariance", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementGracePartitionInvarianceTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	// ADR 0002 A27(iv): the server fills a lost move's time into the next move, so friction must start at the same
 	// simulated time for every partition of the same 50 ms. Between calls the grace is decremented by the step and
 	// clamped at 0, as the CMC does per PhysWalking iteration (A27 fix 1).
@@ -509,9 +519,10 @@ bool FVeloxMovementGracePartitionInvarianceTest::RunTest(const FString& Paramete
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFrictionPartitionInvarianceTest, "Velox.Movement.Sim.FrictionPartitionInvariance", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFrictionPartitionInvarianceTest, "Velox.Movement.Sim.FrictionPartitionInvariance", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementFrictionPartitionInvarianceTest::RunTest(const FString& Parameters)
 {
+	using namespace VeloxMoveSimTest;
 	// ADR 0002 A31: the server merges lost client moves into one longer move, so the ground velocity update *and* the
 	// displacement of a move must not depend on how the same 50 ms are partitioned into moves. The displacement of a move
 	// is Mean * dt (trapezoid over the substeps, what the CMC hands to PhysWalking since Fix D); the engine's rectangle

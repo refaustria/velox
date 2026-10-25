@@ -5,12 +5,17 @@
 #include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
 #include "GameplayCueInterface.h"
+#include "Engine/TimerHandle.h"
 #include "GameplayTagContainer.h"
 
 #include "VeloxCharacter.generated.h"
 
 class UAbilitySystemComponent;
 class UInputComponent;
+class UMaterialInstanceDynamic;
+class UMaterialInterface;
+class UStaticMeshComponent;
+class UVeloxCombatSettings;
 class UVeloxAbilitySystemComponent;
 class UVeloxCombatFeedbackComponent;
 class UVeloxHealthComponent;
@@ -19,6 +24,7 @@ class UVeloxMovementComponent;
 class UVeloxScriptedInputComponent;
 class UVeloxPawnData;
 struct FInputActionValue;
+struct FVeloxDamageEvent;
 
 /** Class-default pawn geometry (cm), ADR 0003 section 6. Blueprint subclasses may override the resulting defaults. */
 namespace VeloxCharacterGeometry
@@ -61,6 +67,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Velox|Character")
 	UVeloxCombatFeedbackComponent* GetCombatFeedbackComponent() const { return CombatFeedbackComponent; }
 
+	/** Dead body left behind for CorpseLifetime (ADR 0003 section 8): replicated, no collision, not an ability avatar. */
+	UFUNCTION(BlueprintPure, Category = "Velox|Character")
+	bool IsCorpse() const { return bIsCorpse; }
+
+	/** Tints PlaceholderBody with the PlayerState's colour (dark when a corpse). Server and clients; no-op without a body material. */
+	void ApplyPlayerColor();
+
+	/** Test hook: the body's current colour parameter value (black when there is no body material). */
+	FLinearColor GetBodyColor() const;
+
 	//~IGameplayCueInterface
 	/** Native cue handling (ADR 0003 section 5): forwards to UVeloxCombatFeedbackComponent, then to the interface default. */
 	virtual void HandleGameplayCue(UObject* Self, FGameplayTag GameplayCueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters) override;
@@ -82,6 +98,11 @@ public:
 	//~End of ACharacter interface
 
 	//~AActor interface
+	/** Corpses are viewed from a death camera: in front of the body, looking down at it (ADR 0003 section 8). */
+	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult) override;
+	/** Pits: 1000 environment damage on the pawn's own ASC (Q3: the world kills); a corpse that fell is left to its timer. */
+	virtual void FellOutOfWorld(const UDamageType& DmgType) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	/** `showdebug VeloxMovement` forwards to UVeloxMovementComponent::DisplayVeloxDebug (ACharacter only does so for Physics). */
 	virtual void DisplayDebug(UCanvas* Canvas, const FDebugDisplayInfo& DebugDisplay, float& YL, float& YPos) override;
 	//~End of AActor interface
@@ -99,6 +120,24 @@ protected:
 	void InitAbilityActorInfo();
 
 	void LogCrouchState(const TCHAR* Event) const;
+
+	/** Server: UVeloxHealthComponent::OnOutOfHealth, synchronously inside the killing damage execution (ADR 0003 B8). */
+	void HandleOutOfHealth(const FVeloxDamageEvent& Event);
+	/**
+	 * Server, B8 order: GE_Dead, CancelAbilities, ClearAbilityInput, RemoveAllGameplayCues, then movement / collision /
+	 * hitbox / corpse, death cue, game mode notification, UnPossess last. Everything synchronous, nothing on a timer
+	 * except the corpse's removal. Logs `VeloxDeath step=<n> <what>` per step.
+	 */
+	void HandleDeath(const FVeloxDamageEvent& Event);
+	/** Server and clients: collision off, movement off (server), health component detached (clients), body dark. */
+	void ApplyCorpseState();
+	/** Server, next tick after HandleDeath: floor drop, movement/collision off, UnPossess, death camera, respawn wait. */
+	void CompleteDeath();
+	/** Server: OnDeathFinished, then Destroy (CorpseLifetime after the death). */
+	void FinishCorpse();
+
+	UFUNCTION()
+	void OnRep_IsCorpse();
 
 	void Input_Move(const FInputActionValue& InputActionValue);
 	void Input_MoveCompleted(const FInputActionValue& InputActionValue);
@@ -126,8 +165,34 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
 	TObjectPtr<UVeloxCombatFeedbackComponent> CombatFeedbackComponent;
 
+	/** Bright capsule-sized mesh attached to the skeletal mesh (so it gets the smoothing offset), coloured per player (ADR 0003 section 10). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
+	TObjectPtr<UStaticMeshComponent> PlaceholderBody;
+
+	/** Unlit material with a vector parameter BodyColorParameter (M_PlayerBody, bootstrap script). Set in DefaultGame.ini. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Readability")
+	TSoftObjectPtr<UMaterialInterface> PlayerBodyMaterial;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Velox|Readability")
+	FName BodyColorParameter = TEXT("Color");
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> BodyMaterial;
+
+	/** Copied from the PlayerState while alive so a corpse (no PlayerState) still knows its tunables. */
+	UPROPERTY(Transient)
+	TObjectPtr<const UVeloxCombatSettings> CachedCombatSettings;
+
+	UPROPERTY(ReplicatedUsing = OnRep_IsCorpse)
+	bool bIsCorpse = false;
+
 private:
 	TArray<uint32> AbilityInputBindHandles;
+
+	FTimerHandle CorpseTimer;
+	TWeakObjectPtr<AController> DyingController;
+	FColor LastBodyColor = FColor::White;
+	TWeakObjectPtr<UVeloxAbilitySystemComponent> LastAbilitySystem;
 
 	/** Test tooling (task 05): scripted input replay and test knockback RPC. Created in non-shipping builds only. */
 	UPROPERTY()

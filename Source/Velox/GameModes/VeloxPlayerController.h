@@ -6,6 +6,7 @@
 
 #include "VeloxPlayerController.generated.h"
 
+class UInputAction;
 class UInputMappingContext;
 struct FVeloxShotTiming;
 
@@ -37,6 +38,26 @@ public:
 	UFUNCTION(Client, Unreliable)
 	void ClientConfirmHit(uint8 ShotSeq, uint8 TotalDamage, uint8 Flags);
 
+	/**
+	 * Client -> server: respawn (ADR 0003 section 8). Accepted while the controller waits for a respawn and
+	 * MinRespawnDelay has passed since the death; otherwise ignored (the client keeps retrying while fire/jump is held).
+	 */
+	UFUNCTION(Server, Reliable)
+	void ServerRequestRespawn();
+
+	/** Last server-confirmed hit of this player (HUD hit marker): world time (-1 = none), damage and whether it killed. */
+	double GetLastHitConfirmTime() const { return LastHitConfirmTime; }
+	uint8 GetLastHitConfirmDamage() const { return LastHitConfirmDamage; }
+	bool WasLastHitConfirmKill() const { return bLastHitConfirmKill; }
+
+	/** True while this controller has no pawn (dead and waiting, or not yet spawned); local world time it lost its pawn. */
+	bool IsWaitingForRespawn() const { return GetPawn() == nullptr && PawnLostTime >= 0.0; }
+	double GetPawnLostTime() const { return PawnLostTime; }
+
+	//~AController interface
+	virtual void SetPawn(APawn* InPawn) override;
+	//~End of AController interface
+
 protected:
 	//~APlayerController interface
 	virtual void SetupInputComponent() override;
@@ -53,4 +74,18 @@ protected:
 
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Input")
 	int32 DefaultMappingContextPriority = 0;
+
+	/** Actions (fire, jump) that request a respawn while the player has no pawn. Set in DefaultGame.ini. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Input")
+	TArray<TSoftObjectPtr<UInputAction>> RespawnInputActions;
+
+private:
+	void OnRespawnInput();
+
+	double LastHitConfirmTime = -1.0;
+	uint8 LastHitConfirmDamage = 0;
+	bool bLastHitConfirmKill = false;
+	double PawnLostTime = -1.0;
+	TWeakObjectPtr<APawn> LastPawn;
+	double LastRespawnRequestTime = -1e9;
 };

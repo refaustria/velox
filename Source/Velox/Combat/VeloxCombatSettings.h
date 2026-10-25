@@ -183,8 +183,51 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn")
 	float CorpseLifetime = 3.0f;
 
+	/** Spawn selection: starts within this distance of a living enemy are skipped while a farther free start exists. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn")
 	float SpawnAvoidRadiusCm = 500.f;
+
+	/** Damage of the telefrag a spawning player deals to the occupant of a taken start (Q3 G_KillBox: 100000). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "1"))
+	int32 TelefragDamage = 1000;
+
+	/** Minimum interval between two respawn requests a waiting client sends while it holds fire/jump (s). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0.05", Units = "s"))
+	float RespawnRequestIntervalSeconds = 0.25f;
+
+	/** Death camera: distance behind the corpse (cm) and how far above its eye it looks down (degrees), Q3 shows the body. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0", Units = "cm"))
+	float DeathCamDistanceCm = 220.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0", ClampMax = "80", Units = "deg"))
+	float DeathCamPitchDegrees = 25.f;
+
+	/** Death camera: the camera backs off walls by this much (cm). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0", Units = "cm"))
+	float DeathCamWallOffsetCm = 12.f;
+
+	/** Damage of the world kill (pits, FellOutOfWorld): Q3 kills outright. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "1"))
+	int32 EnvironmentKillDamage = 1000;
+
+	/** A corpse that died in the air is dropped straight down by at most this much (cm) so it lies on the floor. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0", Units = "cm"))
+	float CorpseDropMaxCm = 3000.f;
+
+	/** Corpse body colour = player colour times this (dark = dead, readability). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0", ClampMax = "1"))
+	float CorpseColorScale = 0.3f;
+
+	/** Bright, team-less skins (ADR 0003 section 10): the game mode hands out the first unused entry, wrapping around. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Readability")
+	TArray<FColor> PlayerColorPalette;
+
+	/** HUD hit marker (Q3 server-confirmed): how long it shows after ClientConfirmHit, and its arm length (px at 1080p). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Readability", Meta = (ClampMin = "0", Units = "s"))
+	float HitMarkerSeconds = 0.25f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Readability", Meta = (ClampMin = "0"))
+	float HitMarkerSize = 14.f;
 
 	/** The six ammo types (attribute, cap). Filled with the Q3 defaults by the constructor. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Ammo")
