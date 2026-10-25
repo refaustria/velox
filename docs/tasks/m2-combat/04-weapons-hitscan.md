@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (commit 12a5221; architect review pending)
 **Depends on:** 01, 01b, 03 (03b may run in parallel; 04 does not depend on its fixes)
 
 ## Goal
