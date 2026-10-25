@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev
-**Status:** todo
+**Status:** done (2026-10-25)
 **Depends on:** 03 (review `docs/reviews/m2-03-lag-compensation-review.md`, ADR 0003 Amendments B10–B17). Independent of 04; must be merged before 08.
 
 ## Goal
