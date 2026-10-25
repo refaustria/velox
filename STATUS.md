@@ -3,6 +3,8 @@
 _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main` (M0 + M1 code merged); M1 closes with the human playtest._
 
 ## Done
+- **M2-02** class-default pawn geometry (37.5/70, crouched 50, eye 55/40), ground-only crouch, `UVeloxHitboxComponent` + world-free `VeloxHitMath`, linear smoothing, `IA_Crouch`, `CrouchRun` soak script.
+- **M2-03** `UVeloxLagCompensationSubsystem`: 60 Hz hitbox history (world time + pawn stamp), `TraceShot` with origin snap, pellet merge, rail penetration; client `BuildShotTiming` hint. 3 tests (rewind, hits, trace in world).
 - **M2-01** GAS foundation: `UVeloxHealthSet`/`UVeloxAmmoSet`, world-free `FVeloxDamageMath` (Q3 armor 2/3, self ×0.5 after knockback), damage/decay executions, 7 C++ gameplay effects, health component, ability base with Lyra-style input routing, grant-once + `GE_SpawnInit` per possession, `velox.combat.TestDamage`. 29 tests green; M1 soak unchanged.
 - **M2-07** `L_CombatTest` arena generator, `AVeloxDummyController` strafing dummies via the movement component, spawner actor.
 - **M1-05 complete (2026-10-25).** Headless net soak at 100 ms / 2 % loss both ways passes acceptance after four fix rounds (A24–A34): full list ×5 5/5, PadRun 20/20, KnockbackGroundRun 20/20, StrafeRun+PadRun ×10 with Σ strays ≤ 2.5 cm = 2 (baseline 6). Fixes: ack/correction race guard, partition-invariant grace, important/event moves resent, trapezoid ground displacement, Velox OldMove selection. 25 automation tests green.
@@ -38,7 +40,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 
 ## Next
 - M1-06 human playtest on the Mac → tuning pass from feedback → M1 sign-off.
-- **M2 Combat** in progress on `m2-combat`: 01 GAS foundation done (29 tests), 07 combat test map + dummies done; architect review of 01 and task 02 (geometry/crouch/hitbox) running; then 03 lag compensation → 04 hitscan weapons → 05 projectiles → 06 death/respawn → 08 fire soak → 09 playtest.
+- **M2 Combat** on `m2-combat`: 01/01b GAS foundation (reviewed, Q3 armor 66 % exact), 02 geometry/crouch/hitbox, 03 lag compensation (34 tests) and 07 test map done; merged-build verification and architect review of 03 running; next 04 hitscan weapons → 05 projectiles → 06 death/respawn → 08 fire soak → 09 playtest.
 - Open for architect (minor): A31 test tolerances were widened to the A1 substep residual by the implementer; confirm or tighten via FixedStep.
 - M0-04 → full CI run → merge `m0-infrastructure` into `main` → M1 Movement: `architect` ADR 0002 (movement component design), then tasks.
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
