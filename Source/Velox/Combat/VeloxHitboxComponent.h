@@ -12,8 +12,8 @@ class ACharacter;
 /**
  * Exposes the owning character's hit shapes as an FVeloxHitboxPose. M2: one capsule equal to the collision capsule at
  * its current size (crouch shrinks it). The collision capsule itself ignores the Weapon trace channel; hitscan hits on
- * pawns are resolved against these poses (server: rewound by the lag compensation subsystem, task 03; client: the
- * rendered pose for the cosmetic trace). No tick, no replication: the pose is derived from replicated movement state.
+ * pawns are resolved against these poses (server: rewound by UVeloxLagCompensationSubsystem, with which the component
+ * registers on authority in BeginPlay and unregisters in EndPlay; client: the rendered pose for the cosmetic trace). No tick, no replication: the pose is derived from replicated movement state.
  */
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxHitboxComponent : public UActorComponent

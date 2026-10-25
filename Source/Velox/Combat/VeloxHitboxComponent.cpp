@@ -5,6 +5,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Character.h"
+#include "Net/VeloxLagCompensationSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxHitboxComponent)
 
@@ -80,12 +81,22 @@ void UVeloxHitboxComponent::GetRenderedPose(FVeloxHitboxPose& OutPose) const
 void UVeloxHitboxComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	// Task 03: register with UVeloxLagCompensationSubsystem here when the owner has authority (the subsystem exists
-	// only when NetMode != NM_Client).
+	// Authority only: the server records this pawn's poses for rewound hitscan (ADR 0003 section 6).
+	if (GetOwner() && GetOwner()->HasAuthority())
+	{
+		if (UVeloxLagCompensationSubsystem* LagComp = UVeloxLagCompensationSubsystem::Get(this))
+		{
+			LagComp->RegisterHitbox(this);
+		}
+	}
 }
 
 void UVeloxHitboxComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// Task 03: unregister from UVeloxLagCompensationSubsystem (death unregisters earlier, task 06).
+	// Death unregisters earlier (task 06 calls UVeloxLagCompensationSubsystem::UnregisterHitbox from HandleDeath).
+	if (UVeloxLagCompensationSubsystem* LagComp = UVeloxLagCompensationSubsystem::Get(this))
+	{
+		LagComp->UnregisterHitbox(this);
+	}
 	Super::EndPlay(EndPlayReason);
 }

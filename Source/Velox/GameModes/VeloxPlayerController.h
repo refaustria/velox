@@ -7,6 +7,7 @@
 #include "VeloxPlayerController.generated.h"
 
 class UInputMappingContext;
+struct FVeloxShotTiming;
 
 UCLASS(Config = Game)
 class VELOX_API AVeloxPlayerController : public APlayerController
@@ -15,6 +16,12 @@ class VELOX_API AVeloxPlayerController : public APlayerController
 
 public:
 	AVeloxPlayerController(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+
+	/**
+	 * Lag-compensation timing for a shot along Origin/Dir fired now (ADR 0003 section 6, B6: call where the fire
+	 * ability samples its aim): ViewServerTime and the rendered-proxy hint. Include Net/VeloxLagCompensationSubsystem.h.
+	 */
+	FVeloxShotTiming BuildShotTiming(const FVector& Origin, const FVector& Dir, float RangeCm) const;
 
 protected:
 	//~APlayerController interface
