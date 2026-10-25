@@ -9,6 +9,7 @@
 #include "VeloxPlayerState.generated.h"
 
 class UAbilitySystemComponent;
+class UGameplayAbility;
 class UVeloxAbilitySystemComponent;
 class UVeloxAmmoSet;
 class UVeloxCombatSettings;
@@ -31,6 +32,9 @@ public:
 	//~AActor interface
 	/** Preloads the combat settings on server and clients (ADR 0003 B1), before any replicated attribute is clamped. */
 	virtual void PostInitializeComponents() override;
+	/** Server: asks the game mode for a player colour (dummies and bots get a PlayerState too). */
+	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	//~End of AActor interface
 
 	//~IAbilitySystemInterface
@@ -67,6 +71,23 @@ public:
 	/** Server: GE_SpawnInit (health/armor/ammo from the settings, clears Dead/SpawnProtected, restarts the decay). */
 	void ApplySpawnInit();
 
+	/**
+	 * Server: GE_SpawnProtection for UVeloxCombatSettings::SpawnProtectionSeconds (0 = mechanism off). Applied after
+	 * GE_SpawnInit on every possession; removed early by the first shot when bSpawnProtectionEndsOnFire.
+	 */
+	void ApplySpawnProtection();
+	/** As above with explicit settings (tests, game modes with their own tunables). */
+	void ApplySpawnProtection(const UVeloxCombatSettings& Settings);
+
+	/** Bright per-player body colour (ADR 0003 section 10): palette index chosen by the game mode, replicated. */
+	static constexpr uint8 NoPlayerColor = 255;
+	bool HasPlayerColor() const { return PlayerColorIndex != NoPlayerColor; }
+	uint8 GetPlayerColorIndex() const { return PlayerColorIndex; }
+	/** The palette entry of PlayerColorIndex (white when unassigned or the palette is empty). */
+	FColor GetPlayerColor() const;
+	/** Server: sets the index and refreshes the pawn's body. */
+	void SetPlayerColorIndex(uint8 InIndex);
+
 protected:
 	/**
 	 * Replication rate for this PlayerState (Hz). The 1 Hz engine default is far too low because the ASC lives here;
@@ -80,6 +101,15 @@ protected:
 	TSoftObjectPtr<UVeloxCombatSettings> CombatSettingsAsset;
 
 private:
+	UFUNCTION()
+	void OnRep_PlayerColorIndex();
+
+	void RefreshPawnColor() const;
+	void HandleAbilityActivated(UGameplayAbility* Ability);
+
+	UPROPERTY(ReplicatedUsing = OnRep_PlayerColorIndex)
+	uint8 PlayerColorIndex = NoPlayerColor;
+
 	UPROPERTY(VisibleAnywhere, Category = "Velox|PlayerState")
 	TObjectPtr<UVeloxAbilitySystemComponent> AbilitySystemComponent;
 

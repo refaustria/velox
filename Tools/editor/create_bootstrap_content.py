@@ -320,6 +320,16 @@ def build_combat_settings(table, defs):
         "spawn_protection_ends_on_fire": True,
         "corpse_lifetime": 3.0,
         "spawn_avoid_radius_cm": 500.0,
+        "telefrag_damage": 1000,
+        "environment_kill_damage": 1000,
+        "respawn_request_interval_seconds": 0.25,
+        "death_cam_distance_cm": 220.0,
+        "death_cam_pitch_degrees": 25.0,
+        "death_cam_wall_offset_cm": 12.0,
+        "corpse_drop_max_cm": 3000.0,
+        "corpse_color_scale": 0.3,
+        "hit_marker_seconds": 0.25,
+        "hit_marker_size": 14.0,
     }
     for k, v in values.items():
         try:
@@ -335,6 +345,31 @@ def build_combat_settings(table, defs):
     else:
         fail("DA_CombatSettings_Default: weapon table / machine gun missing")
     save(cs)
+
+
+# ---------------------------------------------------------------- Player body material
+def build_player_material():
+    """ADR 0003 section 10: /Game/Materials/M_PlayerBody, unlit, emissive = vector parameter "Color" (set per player at runtime)."""
+    ensure_dir("/Game/Materials")
+    path = "/Game/Materials/M_PlayerBody"
+    atools = unreal.AssetToolsHelpers.get_asset_tools()
+    mel = unreal.MaterialEditingLibrary
+    if EAL.does_asset_exist(path):
+        mat = EAL.load_asset(path)
+    else:
+        mat = atools.create_asset("M_PlayerBody", "/Game/Materials", unreal.Material, unreal.MaterialFactoryNew())
+    if mat is None:
+        fail("could not create " + path)
+        return
+    mel.delete_all_material_expressions(mat)
+    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    expr = mel.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -300, 0)
+    expr.set_editor_property("parameter_name", "Color")
+    expr.set_editor_property("default_value", unreal.LinearColor(1.0, 1.0, 1.0, 1.0))
+    mel.connect_material_property(expr, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.recompile_material(mat)
+    if not EAL.save_loaded_asset(mat, False):
+        fail("could not save " + path)
 
 
 # ---------------------------------------------------------------- Map
@@ -379,6 +414,7 @@ def main():
     build_data(actions)
     table, defs = build_weapons()
     build_combat_settings(table, defs)
+    build_player_material()
     build_map()
     if ERRORS:
         raise RuntimeError("bootstrap failed: " + "; ".join(ERRORS))

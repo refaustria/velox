@@ -43,6 +43,12 @@ UVeloxCombatSettings::UVeloxCombatSettings()
 		Info.Attribute = Type.Value;
 		Info.MaxAmount = 200;
 	}
+
+	// Eight bright, well separated hues (sRGB). Readability is a non-negotiable (CLAUDE.md): saturated, no greys.
+	PlayerColorPalette = {
+		FColor(255, 40, 40), FColor(40, 140, 255), FColor(40, 255, 70), FColor(255, 230, 30),
+		FColor(255, 60, 220), FColor(30, 240, 240), FColor(255, 140, 20), FColor(160, 90, 255),
+	};
 }
 
 int32 UVeloxCombatSettings::GetSpawnAmmo(const FGameplayTag& AmmoTag) const

@@ -2,10 +2,20 @@
 
 #include "GameModes/VeloxGameMode.h"
 
+#include "AbilitySystemComponent.h"
 #include "Character/VeloxCharacter.h"
+#include "Combat/VeloxAbilitySystemComponent.h"
+#include "Combat/VeloxCombatLog.h"
+#include "Combat/VeloxCombatSettings.h"
+#include "Combat/VeloxGameplayEffects.h"
+#include "Core/VeloxGameplayTags.h"
+#include "EngineUtils.h"
+#include "GameFramework/PlayerStart.h"
 #include "GameModes/VeloxGameState.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
+#include "GameModes/VeloxSpawnSelection.h"
+#include "TimerManager.h"
 #include "UI/VeloxHUD.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxGameMode)
@@ -18,4 +28,262 @@ AVeloxGameMode::AVeloxGameMode(const FObjectInitializer& ObjectInitializer)
 	PlayerStateClass = AVeloxPlayerState::StaticClass();
 	DefaultPawnClass = AVeloxCharacter::StaticClass();
 	HUDClass = AVeloxHUD::StaticClass();
+}
+
+const UVeloxCombatSettings& AVeloxGameMode::GetCombatSettingsFor(const AController* Controller)
+{
+	const AVeloxPlayerState* PlayerState = Controller ? Controller->GetPlayerState<AVeloxPlayerState>() : nullptr;
+	return UVeloxCombatSettings::GetOrDefault(PlayerState ? PlayerState->GetCombatSettings() : nullptr);
+}
+
+void AVeloxGameMode::PlayerDied(AVeloxPlayerState* Victim, AVeloxPlayerState* Killer, const FGameplayTagContainer& DamageTags)
+{
+	if (!Victim)
+	{
+		return;
+	}
+	const bool bSuicide = !Killer || Killer == Victim;
+	if (bSuicide)
+	{
+		Victim->SetScore(Victim->GetScore() - 1.f);
+	}
+	else
+	{
+		Killer->SetScore(Killer->GetScore() + 1.f);
+	}
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxKill victim=%s killer=%s suicide=%d tags=[%s] score_killer=%.0f score_victim=%.0f"), *Victim->GetPlayerName(),
+		Killer ? *Killer->GetPlayerName() : TEXT("-"), bSuicide ? 1 : 0, *DamageTags.ToStringSimple(), Killer ? Killer->GetScore() : 0.f, Victim->GetScore());
+
+	if (AVeloxGameState* VeloxGameState = GetGameState<AVeloxGameState>())
+	{
+		FVeloxKillEvent Event;
+		Event.Victim = Victim;
+		Event.Killer = Killer ? Killer : Victim;
+		Event.DamageTags = DamageTags;
+		Event.Time = GetWorld()->GetTimeSeconds();
+		VeloxGameState->OnKill.Broadcast(Event);
+	}
+}
+
+void AVeloxGameMode::NotifyControllerDied(AController* Controller)
+{
+	UWorld* World = GetWorld();
+	if (!Controller || !World)
+	{
+		return;
+	}
+	const UVeloxCombatSettings& Settings = GetCombatSettingsFor(Controller);
+	const bool bAI = !Controller->IsPlayerController();
+	FPendingRespawn& Pending = PendingRespawns.FindOrAdd(Controller);
+	World->GetTimerManager().ClearTimer(Pending.Timer);
+	Pending.DeathTime = World->GetTimeSeconds();
+	if (bAI && !bAutoRespawnAIControllers)
+	{
+		PendingRespawns.Remove(Controller);
+		return;
+	}
+	// Humans: forced respawn after ForceRespawnDelay unless they press earlier (any time after MinRespawnDelay).
+	const float Delay = bAI ? Settings.MinRespawnDelay : Settings.ForceRespawnDelay;
+	World->GetTimerManager().SetTimer(Pending.Timer, FTimerDelegate::CreateUObject(this, &ThisClass::OnRespawnTimer, TWeakObjectPtr<AController>(Controller), true), Delay, false);
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxRespawn waiting controller=%s ai=%d min=%.2f s %s in %.2f s"), *Controller->GetName(), bAI ? 1 : 0, Settings.MinRespawnDelay, bAI ? TEXT("auto") : TEXT("forced"), Delay);
+}
+
+void AVeloxGameMode::OnRespawnTimer(TWeakObjectPtr<AController> Controller, bool bForced)
+{
+	if (Controller.IsValid())
+	{
+		TryRespawn(Controller.Get(), bForced);
+	}
+}
+
+bool AVeloxGameMode::TryRespawn(AController* Controller, bool bForced)
+{
+	UWorld* World = GetWorld();
+	FPendingRespawn* Pending = Controller ? PendingRespawns.Find(Controller) : nullptr;
+	if (!World || !Pending)
+	{
+		return false;
+	}
+	if (Controller->GetPawn())
+	{
+		World->GetTimerManager().ClearTimer(Pending->Timer);
+		PendingRespawns.Remove(Controller);
+		return false;
+	}
+	const UVeloxCombatSettings& Settings = GetCombatSettingsFor(Controller);
+	const double Now = World->GetTimeSeconds();
+	if (!bForced && Now + KINDA_SMALL_NUMBER < Pending->DeathTime + Settings.MinRespawnDelay)
+	{
+		return false;
+	}
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxRespawn controller=%s after %.2f s (%s)"), *Controller->GetName(), Now - Pending->DeathTime, bForced ? TEXT("forced/auto") : TEXT("requested"));
+	World->GetTimerManager().ClearTimer(Pending->Timer);
+	PendingRespawns.Remove(Controller);
+	RestartPlayer(Controller);
+	return true;
+}
+
+void AVeloxGameMode::AssignPlayerColor(AVeloxPlayerState& PlayerState)
+{
+	if (PlayerState.HasPlayerColor())
+	{
+		return;
+	}
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PlayerState.GetCombatSettings());
+	const int32 NumColors = Settings.PlayerColorPalette.Num();
+	if (NumColors == 0)
+	{
+		return;
+	}
+	TBitArray<> Used(false, NumColors);
+	int32 NumOthers = 0;
+	if (const AGameStateBase* State = GameState)
+	{
+		for (const APlayerState* Other : State->PlayerArray)
+		{
+			const AVeloxPlayerState* OtherVelox = Cast<AVeloxPlayerState>(Other);
+			if (OtherVelox && OtherVelox != &PlayerState && OtherVelox->HasPlayerColor())
+			{
+				++NumOthers;
+				Used[OtherVelox->GetPlayerColorIndex() % NumColors] = true;
+			}
+		}
+	}
+	const int32 Free = Used.Find(false);
+	const int32 Index = Free != INDEX_NONE ? Free : NumOthers % NumColors;
+	PlayerState.SetPlayerColorIndex(static_cast<uint8>(Index));
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxColor player=%s index=%d palette=%d"), *PlayerState.GetPlayerName(), Index, NumColors);
+}
+
+bool AVeloxGameMode::IsStartOccupied(const FVector& Start, const AVeloxCharacter& Pawn)
+{
+	// Two upright capsules overlap when they are closer than the sum of radii (horizontally) and half heights (vertically).
+	const FVector Delta = Pawn.GetActorLocation() - Start;
+	return FMath::Sqrt(FMath::Square(Delta.X) + FMath::Square(Delta.Y)) < 2.0 * VeloxCharacterGeometry::CapsuleRadius && FMath::Abs(Delta.Z) < 2.0 * VeloxCharacterGeometry::CapsuleHalfHeight;
+}
+
+bool AVeloxGameMode::ShouldSpawnAtStartSpot(AController* Player)
+{
+	// The engine reuses Controller->StartSpot; every (re)spawn goes through ChoosePlayerStart instead.
+	return false;
+}
+
+AActor* AVeloxGameMode::ChoosePlayerStart_Implementation(AController* Player)
+{
+	UWorld* World = GetWorld();
+	TArray<APlayerStart*> Starts;
+	for (TActorIterator<APlayerStart> It(World); It; ++It)
+	{
+		Starts.Add(*It);
+	}
+	if (Starts.IsEmpty())
+	{
+		return Super::ChoosePlayerStart_Implementation(Player);
+	}
+
+	TArray<const AVeloxCharacter*> Living;
+	for (TActorIterator<AVeloxCharacter> It(World); It; ++It)
+	{
+		const AVeloxCharacter* Pawn = *It;
+		if (!Pawn->IsCorpse() && !Pawn->IsPendingKillPending() && !(Player && Pawn->GetController() == Player))
+		{
+			Living.Add(Pawn);
+		}
+	}
+	TArray<FVector> Enemies;
+	for (const AVeloxCharacter* Pawn : Living)
+	{
+		Enemies.Add(Pawn->GetActorLocation());
+	}
+	TArray<FVector> StartLocations;
+	TArray<bool> Occupied;
+	for (const APlayerStart* Start : Starts)
+	{
+		StartLocations.Add(Start->GetActorLocation());
+		bool bTaken = false;
+		for (const AVeloxCharacter* Pawn : Living)
+		{
+			bTaken |= IsStartOccupied(Start->GetActorLocation(), *Pawn);
+		}
+		Occupied.Add(bTaken);
+	}
+
+	if (!bSpawnRandomReady)
+	{
+		SpawnRandom.Initialize(SpawnRandomSeed != 0 ? SpawnRandomSeed : FMath::Rand());
+		bSpawnRandomReady = true;
+	}
+	const UVeloxCombatSettings& Settings = GetCombatSettingsFor(Player);
+	const VeloxSpawn::FSelection Pick = VeloxSpawn::Select(StartLocations, Occupied, Enemies, Settings.SpawnAvoidRadiusCm, SpawnRandom);
+	if (Pick.Index == INDEX_NONE)
+	{
+		return Super::ChoosePlayerStart_Implementation(Player);
+	}
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSpawn player=%s start=%s at %s starts=%d candidates=%d enemies=%d nearest_enemy_cm=%.0f telefrag=%d"), *GetNameSafe(Player),
+		*Starts[Pick.Index]->GetName(), *StartLocations[Pick.Index].ToCompactString(), Starts.Num(), Pick.NumCandidates, Enemies.Num(),
+		Enemies.IsEmpty() ? -1.0 : VeloxSpawn::NearestEnemyDistance(StartLocations[Pick.Index], Enemies), Pick.bTelefrag ? 1 : 0);
+	return Starts[Pick.Index];
+}
+
+void AVeloxGameMode::RestartPlayerAtPlayerStart(AController* NewPlayer, AActor* StartSpot)
+{
+	// Living pawns of other controllers in the start's volume die when the new pawn appears (Q3 G_KillBox). The spawn
+	// rule only picks an occupied start when all are occupied.
+	TArray<TWeakObjectPtr<AVeloxCharacter>> Occupants;
+	if (StartSpot && NewPlayer)
+	{
+		for (TActorIterator<AVeloxCharacter> It(GetWorld()); It; ++It)
+		{
+			if (!It->IsCorpse() && It->GetController() != NewPlayer && IsStartOccupied(StartSpot->GetActorLocation(), **It))
+			{
+				Occupants.Add(*It);
+			}
+		}
+	}
+
+	Super::RestartPlayerAtPlayerStart(NewPlayer, StartSpot);
+
+	AVeloxPlayerState* SpawnerPS = NewPlayer ? NewPlayer->GetPlayerState<AVeloxPlayerState>() : nullptr;
+	UVeloxAbilitySystemComponent* SpawnerASC = SpawnerPS ? SpawnerPS->GetVeloxAbilitySystemComponent() : nullptr;
+	if (!SpawnerASC)
+	{
+		return;
+	}
+	const UVeloxCombatSettings& Settings = GetCombatSettingsFor(NewPlayer);
+	for (const TWeakObjectPtr<AVeloxCharacter>& Occupant : Occupants)
+	{
+		UAbilitySystemComponent* VictimASC = Occupant.IsValid() ? Occupant->GetAbilitySystemComponent() : nullptr;
+		if (!VictimASC || Occupant->IsCorpse())
+		{
+			continue;
+		}
+		// Protection must not shield the occupant: the spawn is already decided.
+		VictimASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(VeloxGameplayTags::State_SpawnProtected));
+		FVeloxDamageSpecParams Params;
+		Params.Damage = Settings.TelefragDamage;
+		Params.DamageTag = VeloxGameplayTags::Damage_Telefrag;
+		Params.HitLocation = Occupant->GetActorLocation();
+		Params.bNoArmor = true;
+		Params.bNoKnockback = true;
+		Params.Causer = NewPlayer->GetPawn();
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxTelefrag spawner=%s victim=%s"), *NewPlayer->GetName(), *Occupant->GetName());
+		const FGameplayEffectSpecHandle Spec = VeloxEffects::MakeDamageSpec(SpawnerASC, Params);
+		if (Spec.IsValid())
+		{
+			SpawnerASC->ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), VictimASC);
+		}
+	}
+}
+
+void AVeloxGameMode::Logout(AController* Exiting)
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (FPendingRespawn* Pending = Exiting ? PendingRespawns.Find(Exiting) : nullptr)
+		{
+			World->GetTimerManager().ClearTimer(Pending->Timer);
+		}
+	}
+	PendingRespawns.Remove(Exiting);
+	Super::Logout(Exiting);
 }

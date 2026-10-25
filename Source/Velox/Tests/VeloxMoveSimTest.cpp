@@ -11,7 +11,7 @@
 
 namespace VeloxMoveSimTest
 {
-	constexpr EAutomationTestFlags Flags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter;
+	constexpr EAutomationTestFlags MoveSimFlags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter;
 	constexpr float Dt = 1.f / 125.f;
 
 	/** The ADR 0002 section 1 defaults, through the one conversion point. */
@@ -57,7 +57,7 @@ namespace VeloxMoveSimTest
 
 using namespace VeloxMoveSimTest;
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementSettingsDefaultsTest, "Velox.Movement.SettingsDefaults", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementSettingsDefaultsTest, "Velox.Movement.SettingsDefaults", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementSettingsDefaultsTest::RunTest(const FString& Parameters)
 {
 	// ADR 0002 section 1 table: Q3 value * UnitScale for distances/speeds.
@@ -82,7 +82,7 @@ bool FVeloxMovementSettingsDefaultsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFrictionTest, "Velox.Movement.Friction", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFrictionTest, "Velox.Movement.Friction", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementFrictionTest::RunTest(const FString& Parameters)
 {
 	const FVeloxMoveParams P = DefaultParams();
@@ -121,7 +121,7 @@ bool FVeloxMovementFrictionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementGroundAccelTest, "Velox.Movement.GroundAccel", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementGroundAccelTest, "Velox.Movement.GroundAccel", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementGroundAccelTest::RunTest(const FString& Parameters)
 {
 	const FVeloxMoveParams P = DefaultParams();
@@ -142,7 +142,7 @@ bool FVeloxMovementGroundAccelTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementAirAccelTest, "Velox.Movement.AirAccel", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementAirAccelTest, "Velox.Movement.AirAccel", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementAirAccelTest::RunTest(const FString& Parameters)
 {
 	const FVeloxMoveParams P = DefaultParams();
@@ -161,7 +161,7 @@ bool FVeloxMovementAirAccelTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementStrafeJumpTest, "Velox.Movement.StrafeJump", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementStrafeJumpTest, "Velox.Movement.StrafeJump", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementStrafeJumpTest::RunTest(const FString& Parameters)
 {
 	const FVeloxMoveParams P = DefaultParams();
@@ -190,7 +190,7 @@ bool FVeloxMovementStrafeJumpTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFixedStepInvarianceTest, "Velox.Movement.FixedStepInvariance", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFixedStepInvarianceTest, "Velox.Movement.FixedStepInvariance", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementFixedStepInvarianceTest::RunTest(const FString& Parameters)
 {
 	// Note: with a wish direction held constant over a move, Q3 Accelerate is exactly split-invariant (the component
@@ -250,7 +250,7 @@ bool FVeloxMovementFixedStepInvarianceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementAirControlTest, "Velox.Movement.AirControl", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementAirControlTest, "Velox.Movement.AirControl", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementAirControlTest::RunTest(const FString& Parameters)
 {
 	FVeloxMoveParams P = DefaultParams();
@@ -285,7 +285,7 @@ bool FVeloxMovementAirControlTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementBunnyHopTest, "Velox.Movement.BunnyHop", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementBunnyHopTest, "Velox.Movement.BunnyHop", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementBunnyHopTest::RunTest(const FString& Parameters)
 {
 	const FVeloxMoveParams P = DefaultParams();
@@ -314,7 +314,7 @@ bool FVeloxMovementBunnyHopTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementKnockbackTest, "Velox.Movement.Knockback", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementKnockbackTest, "Velox.Movement.Knockback", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementKnockbackTest::RunTest(const FString& Parameters)
 {
 	const FVeloxMoveParams P = DefaultParams();
@@ -365,7 +365,7 @@ bool FVeloxMovementKnockbackTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementDeterminismTest, "Velox.Movement.Determinism", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementDeterminismTest, "Velox.Movement.Determinism", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementDeterminismTest::RunTest(const FString& Parameters)
 {
 	struct FScriptRow
@@ -433,7 +433,7 @@ bool FVeloxMovementDeterminismTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementGracePartitionInvarianceTest, "Velox.Movement.Sim.GracePartitionInvariance", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementGracePartitionInvarianceTest, "Velox.Movement.Sim.GracePartitionInvariance", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementGracePartitionInvarianceTest::RunTest(const FString& Parameters)
 {
 	// ADR 0002 A27(iv): the server fills a lost move's time into the next move, so friction must start at the same
@@ -509,7 +509,7 @@ bool FVeloxMovementGracePartitionInvarianceTest::RunTest(const FString& Paramete
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFrictionPartitionInvarianceTest, "Velox.Movement.Sim.FrictionPartitionInvariance", VeloxMoveSimTest::Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementFrictionPartitionInvarianceTest, "Velox.Movement.Sim.FrictionPartitionInvariance", VeloxMoveSimTest::MoveSimFlags)
 bool FVeloxMovementFrictionPartitionInvarianceTest::RunTest(const FString& Parameters)
 {
 	// ADR 0002 A31: the server merges lost client moves into one longer move, so the ground velocity update *and* the
