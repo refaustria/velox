@@ -56,7 +56,7 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 #endif
 }
 
-void UVeloxCombatFeedbackComponent::OnHitConfirmed(uint8 ShotSeq, uint8 TotalDamage, uint8 Flags)
+void UVeloxCombatFeedbackComponent::OnHitConfirmed(uint8 ShotSeq, uint8 TotalDamage, uint8 ConfirmFlags)
 {
 	const UWorld* World = GetWorld();
 	LastHitConfirmTime = World ? World->GetTimeSeconds() : 0.0;

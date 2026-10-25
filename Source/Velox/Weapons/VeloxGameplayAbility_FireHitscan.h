@@ -5,8 +5,8 @@
 //   the centre ray (B14). Client: cosmetic resolution against the rendered proxy capsules + world (never the
 //   subsystem, B10), target data -> CallServerSetReplicatedTargetData, predicted GE_AmmoCost, local fire/impact cues,
 //   NextFireTime, EndAbility (not replicated). Listen host / bot: ResolveServerShot directly (no RPC).
-// Server for a remote client: AbilityTargetDataSetDelegate -> OnServerTargetData: bucket first, then type and finite
-//   checks (VeloxShotRejected seq= reason=), ResolveServerShot: TraceShot, one MakeDamageSpec per victim, GE_AmmoCost,
+// Server for a remote client: AbilityTargetDataSetDelegate -> OnServerTargetData: VeloxShotValidation (bucket + spacing,
+//   then type and finite checks; VeloxShotRejected seq= reason=, throttled), the pending switch finalised, ResolveServerShot: TraceShot, one MakeDamageSpec per victim, GE_AmmoCost,
 //   fire cue + impact cue with the activation's prediction key (the predicting client skips them), the LG beam cue,
 //   ClientConfirmHit, EndAbility.
 // Ray directions on both ends: VeloxShotDirs (pellets / Q3 MG spread from FRandomStream(ShotSeq ^ PlayerId)).

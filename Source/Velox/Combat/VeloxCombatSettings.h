@@ -112,6 +112,22 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons")
 	bool bSwitchWaitsForRefire = true;
 
+	/**
+	 * ADR 0003 B18: the server accepts a remote shooter's shot while its GE_WeaponSwitching has at most this many seconds
+	 * left (jitter and reliable-resend compression, <= 1 RTT at the 250 ms ping limit). The shooter's own machine gates
+	 * on its local switch end exactly.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons", Meta = (ClampMin = "0", Units = "s"))
+	float SwitchTimingToleranceSeconds = 0.25f;
+
+	/** ADR 0003 B23: the LG beam cue stays this long after the last accepted shot (covers one lost packet's resend). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons", Meta = (ClampMin = "0", Units = "s"))
+	float BeamKeepAliveSeconds = 0.25f;
+
+	/** Fields above with the non-shipping `velox.combat.<Field>` cvars applied. */
+	float GetSwitchTimingToleranceSeconds() const;
+	float GetBeamKeepAliveSeconds() const;
+
 	// Lag compensation (task 03).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
 	float MaxRewindSeconds = 0.25f;
@@ -134,6 +150,17 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
 	float FireRateBurstAllowance = 3.f;
+
+	/**
+	 * ADR 0003 B19: the server rejects a shot received less than max(0, FireInterval - this) after the last accepted one
+	 * of the same weapon (the bucket alone admits FireRateBurstAllowance shots at once). One RTT of reliable-resend
+	 * compression at the 250 ms ping limit: rail 1.25 s, SG 0.75 s, RL 0.55 s, MG/PG/LG unaffected.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation", Meta = (ClampMin = "0", Units = "s"))
+	float FireRateSpacingTolerance = 0.25f;
+
+	/** FireRateSpacingTolerance with the non-shipping `velox.combat.FireRateSpacingTolerance` cvar applied. */
+	float GetFireRateSpacingTolerance() const;
 
 	// Projectiles (task 05).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Projectiles")

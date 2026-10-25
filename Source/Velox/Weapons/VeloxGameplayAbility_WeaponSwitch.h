@@ -3,8 +3,10 @@
 // (PrepareInputActivation) and travels to the server as event data (EventMagnitude = index); the server validates
 // ownership. Sequence: if bSwitchWaitsForRefire wait for the current weapon's NextFireTime, then GE_WeaponSwitching for
 // Drop + Raise (applied at activation with Wait + Drop + Raise, inside the prediction window), after Wait + Drop the
-// current index changes (server: authoritative; client: predicted until OnRep). Fire is blocked by the tag until the
-// raise ends.
+// current index changes (server: authoritative; client: predicted until OnRep). B18: every machine that runs the
+// activation records the inventory's SwitchEndTime = Now + Wait + Drop + Raise; the shooter's machine fires only at or
+// after it, the server gates a remote shooter by the GE's remaining time with a tolerance (UVeloxGameplayAbility_Fire).
+// The tag stays on the GE for animation/UI and the server gate; it does not block fire activation.
 
 #pragma once
 
@@ -30,6 +32,9 @@ public:
 	//~UGameplayAbility interface
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
 		const FGameplayEventData* TriggerEventData) override;
+	/** Ended before the drop finished (rejected by the server, cancelled): the switch did not happen, SwitchEndTime is cleared. */
+	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
+		bool bReplicateEndAbility, bool bWasCancelled) override;
 	//~End of UGameplayAbility interface
 
 protected:
@@ -37,4 +42,7 @@ protected:
 	void OnDropFinished();
 
 	int32 TargetIndex = INDEX_NONE;
+
+	/** This activation set the inventory's SwitchEndTime and has not reached its drop end yet. */
+	bool bSwitchTimingPending = false;
 };

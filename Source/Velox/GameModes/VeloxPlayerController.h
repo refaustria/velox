@@ -10,7 +10,7 @@ class UInputMappingContext;
 struct FVeloxShotTiming;
 
 /** Flags of AVeloxPlayerController::ClientConfirmHit. */
-namespace EVeloxHitConfirmFlags
+namespace VeloxHitConfirmFlags
 {
 	inline constexpr uint8 None = 0;
 	inline constexpr uint8 Kill = 1 << 0;
@@ -32,7 +32,7 @@ public:
 
 	/**
 	 * Server -> shooter: shot ShotSeq hit (ADR 0003 section 5; Q3 server-confirmed hit marker, nothing is predicted).
-	 * TotalDamage = health + armor removed, clamped to 255; Flags = EVeloxHitConfirmFlags. Unreliable, 4 bytes.
+	 * TotalDamage = health + armor removed, clamped to 255; Flags = VeloxHitConfirmFlags. Unreliable, 4 bytes.
 	 */
 	UFUNCTION(Client, Unreliable)
 	void ClientConfirmHit(uint8 ShotSeq, uint8 TotalDamage, uint8 Flags);

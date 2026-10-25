@@ -139,7 +139,19 @@ void UVeloxGameplayAbility_FireHitscan::Reject(uint8 ShotSeq, const TCHAR* Reaso
 	LastServerShot = FVeloxServerShotInfo();
 	LastServerShot.ShotSeq = ShotSeq;
 	LastServerShot.bRejected = true;
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotRejected seq=%u shooter=%s weapon=%s reason=%s"), ShotSeq, *GetNameSafe(GetShooterPawn()), *GetNameSafe(GetCurrentDefinition()), Reason);
+	// Throttled per player (nit 12): the first rejections of each second at Log (task 08 counts them), the rest Verbose.
+	UVeloxWeaponInventoryComponent* Inventory = GetInventory();
+	const UWorld* World = GetWorld();
+	const bool bLog = !Inventory || !World || Inventory->ShouldLogRejectionAtLog(World->GetTimeSeconds());
+	const FString Line = FString::Printf(TEXT("VeloxShotRejected seq=%u shooter=%s weapon=%s reason=%s"), ShotSeq, *GetNameSafe(GetShooterPawn()), *GetNameSafe(GetCurrentDefinition()), Reason);
+	if (bLog)
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("%s"), *Line);
+	}
+	else
+	{
+		UE_LOG(LogVeloxCombat, Verbose, TEXT("%s"), *Line);
+	}
 }
 
 void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilityTargetDataHandle& Data, FGameplayTag ApplicationTag)
@@ -154,48 +166,35 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 	const UVeloxWeaponDefinition* Definition = GetCurrentDefinition();
 	const UWorld* World = GetWorld();
 	const FGameplayAbilityTargetData* Raw = Data.Num() > 0 ? Data.Get(0) : nullptr;
-	const FGameplayAbilityTargetData_VeloxShot* ShotData =
-		(Raw && Raw->GetScriptStruct() == FGameplayAbilityTargetData_VeloxShot::StaticStruct()) ? static_cast<const FGameplayAbilityTargetData_VeloxShot*>(Raw) : nullptr;
-	const uint8 Seq = ShotData ? ShotData->ShotSeq : 0;
-	const double Now = World ? World->GetTimeSeconds() : 0.0;
-
-	// Review server step 1: the bucket first (cheapest), then the payload. Nothing touches the subsystem on rejection.
-	FVector Dir = ShotData ? FVector(ShotData->Dir) : FVector::ZeroVector;
 	if (!Definition || !World)
 	{
-		Reject(Seq, TEXT("no_weapon"));
-	}
-	else if (!ConsumeServerFireToken(Now, *Definition))
-	{
-		Reject(Seq, TEXT("rate"));
-	}
-	else if (!ShotData)
-	{
-		Reject(Seq, TEXT("type"));
-	}
-	else if (ShotData->Origin.ContainsNaN())
-	{
-		Reject(Seq, TEXT("origin"));
-	}
-	else if (Dir.ContainsNaN() || Dir.IsNearlyZero())
-	{
-		Reject(Seq, TEXT("dir"));
-	}
-	else if (!FMath::IsFinite(ShotData->ViewServerTime) || !FMath::IsFinite(ShotData->HintTargetStamp))
-	{
-		Reject(Seq, TEXT("time"));
+		Reject(0, TEXT("no_weapon"));
 	}
 	else
 	{
-		FShotInput Shot;
-		Shot.Origin = ShotData->Origin;
-		Shot.Dir = Dir.GetSafeNormal();
-		Shot.ViewServerTime = ShotData->ViewServerTime;
-		Shot.HintTarget = ShotData->bHasHint ? ShotData->HintTarget : TWeakObjectPtr<AActor>();
-		Shot.HintTargetStamp = ShotData->bHasHint ? ShotData->HintTargetStamp : 0.f;
-		Shot.ShotSeq = Seq;
-		ResolveServerShot(*Definition, Shot);
-		AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+		// Review server step 1 (world-free, Velox.Combat.ShotValidation): bucket + spacing first, then the payload.
+		// Nothing touches the subsystem on rejection.
+		const double Now = World->GetTimeSeconds();
+		FVeloxValidatedShot Valid;
+		const EVeloxShotReject Reason = ValidateServerShot(Raw, Now, *Definition, Valid);
+		if (Reason != EVeloxShotReject::None)
+		{
+			Reject(Valid.ShotSeq, LexToString(Reason));
+		}
+		else
+		{
+			// B18: a shot of the pending weapon within the switch tolerance completes the switch first.
+			FinalisePendingSwitch(*Definition);
+			FShotInput Shot;
+			Shot.Origin = Valid.Origin;
+			Shot.Dir = Valid.Dir;
+			Shot.ViewServerTime = Valid.ViewServerTime;
+			Shot.HintTarget = Valid.HintTarget;
+			Shot.HintTargetStamp = Valid.HintTargetStamp;
+			Shot.ShotSeq = Valid.ShotSeq;
+			ResolveServerShot(*Definition, Shot);
+			AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);
 }
@@ -318,7 +317,7 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 	{
 		if (AVeloxPlayerController* VeloxPC = Cast<AVeloxPlayerController>(GetShooterController()))
 		{
-			VeloxPC->ClientConfirmHit(Shot.ShotSeq, static_cast<uint8>(FMath::Clamp(TotalDamage, 0, 255)), LastServerShot.bKill ? EVeloxHitConfirmFlags::Kill : EVeloxHitConfirmFlags::None);
+			VeloxPC->ClientConfirmHit(Shot.ShotSeq, static_cast<uint8>(FMath::Clamp(TotalDamage, 0, 255)), LastServerShot.bKill ? VeloxHitConfirmFlags::Kill : VeloxHitConfirmFlags::None);
 		}
 	}
 }

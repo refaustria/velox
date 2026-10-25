@@ -26,7 +26,7 @@ FVeloxShotTiming AVeloxPlayerController::BuildShotTiming(const FVector& Origin, 
 
 void AVeloxPlayerController::ClientConfirmHit_Implementation(uint8 ShotSeq, uint8 TotalDamage, uint8 Flags)
 {
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxHitConfirm seq=%u dmg=%u kill=%d pc=%s"), ShotSeq, TotalDamage, (Flags & EVeloxHitConfirmFlags::Kill) ? 1 : 0, *GetName());
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxHitConfirm seq=%u dmg=%u kill=%d pc=%s"), ShotSeq, TotalDamage, (Flags & VeloxHitConfirmFlags::Kill) ? 1 : 0, *GetName());
 	if (const APawn* MyPawn = GetPawn())
 	{
 		if (UVeloxCombatFeedbackComponent* Feedback = MyPawn->FindComponentByClass<UVeloxCombatFeedbackComponent>())

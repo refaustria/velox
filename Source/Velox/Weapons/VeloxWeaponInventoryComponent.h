@@ -61,17 +61,35 @@ public:
 	/** Increments and returns the per-PlayerState shot counter (ADR 0003 section 5). Each side counts its own shots. */
 	uint8 AllocateShotSeq() { return ++ShotSeqCounter; }
 
+	/**
+	 * ADR 0003 B18: local world time at which the running switch ends on this machine (Now + Wait + Drop + Raise, set by
+	 * the switch ability on every machine that runs it); 0 = no switch. The shooter's machine fires only at or after it.
+	 * Not replicated.
+	 */
+	double GetSwitchEndTime() const { return SwitchEndTime; }
+	void SetSwitchEndTime(double Time) { SwitchEndTime = Time; }
+
+	/**
+	 * Server: true for the first RejectLogLimitPerSecond shot rejections of this player in the current one-second window
+	 * (logged at Log), false afterwards (Verbose): a hostile client cannot flood the log (review of task 04, nit 12).
+	 */
+	bool ShouldLogRejectionAtLog(double Now);
+
 	// --- Server ---
 	/** Owns Definition (grants its fire ability once) and adds Ammo (negative: PickupAmmo). Selects it if nothing is selected. */
 	bool AddWeapon(const UVeloxWeaponDefinition* Definition, int32 Ammo = -1);
-	/** Owns exactly the spawn loadout of the combat settings and selects its first entry (Q3: everything is lost on death). Ammo comes from GE_SpawnInit. */
+	/**
+	 * Owns exactly the spawn loadout of the combat settings and selects its first entry (Q3: everything is lost on death).
+	 * Ammo comes from GE_SpawnInit. Clears SwitchEndTime.
+	 */
 	void ResetToLoadout();
 	void RemoveAllWeapons();
 	/** Server: the authoritative current weapon (also used by tests and cheats to skip the switch). Clears the pending index. */
 	void SetCurrentIndex(int32 Index);
 	void SetPendingIndex(int32 Index);
 	/**
-	 * Server: starts Definition's looping BeamCueTag (LG) if needed and keeps it for 2.5 fire intervals after this shot.
+	 * Server: starts Definition's looping BeamCueTag (LG) if needed and keeps it for BeamKeepAliveSeconds (combat settings,
+	 * at least one fire interval) after this shot (B23).
 	 * Stopped on timeout (released), on a weapon change, and by RemoveAllGameplayCues on death (task 06, B8).
 	 */
 	void KeepBeamAlive(const UVeloxWeaponDefinition& Definition, const FGameplayCueParameters& Parameters);
@@ -104,6 +122,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Velox|Weapons", Meta = (Units = "s"))
 	float PredictionTimeout = 1.0f;
 
+	/** Shot rejections per player and second logged at Log; further ones go to Verbose. */
+	UPROPERTY(EditDefaultsOnly, Category = "Velox|Weapons", Meta = (ClampMin = "0"))
+	int32 RejectLogLimitPerSecond = 5;
+
 private:
 	UVeloxAbilitySystemComponent* GetVeloxASC() const;
 	void GrantFireAbility(int32 Index);
@@ -132,4 +154,9 @@ private:
 	double PredictionExpireTime = 0.0;
 
 	uint8 ShotSeqCounter = 0;
+
+	double SwitchEndTime = 0.0;
+
+	double RejectLogWindowStart = -1.0;
+	int32 RejectLogCount = 0;
 };

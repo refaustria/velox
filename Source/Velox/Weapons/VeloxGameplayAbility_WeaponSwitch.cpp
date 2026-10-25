@@ -12,6 +12,7 @@
 #include "Weapons/VeloxGameplayAbility_Fire.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
+#include "Weapons/VeloxWeaponTable.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxGameplayAbility_WeaponSwitch)
 
@@ -57,7 +58,10 @@ void UVeloxGameplayAbility_WeaponSwitch::ActivateAbility(const FGameplayAbilityS
 {
 	UVeloxWeaponInventoryComponent* Inventory = ActorInfo ? UVeloxWeaponInventoryComponent::Find(ActorInfo->OwnerActor.Get()) : nullptr;
 	UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
-	TargetIndex = TriggerEventData ? FMath::RoundToInt32(TriggerEventData->EventMagnitude) : INDEX_NONE;
+	// The index arrives as a float from the client: anything but a finite value in the table's range is no index (nit 11).
+	const float Magnitude = TriggerEventData ? TriggerEventData->EventMagnitude : -1.f;
+	TargetIndex = (FMath::IsFinite(Magnitude) && Magnitude >= 0.f && Magnitude < static_cast<float>(UVeloxWeaponTable::MaxWeapons)) ? FMath::RoundToInt32(Magnitude) : INDEX_NONE;
+	bSwitchTimingPending = false;
 	// Server validation: owned (ammo is not required, Q3) and a real change.
 	if (!Inventory || !ASC || !Inventory->OwnsIndex(TargetIndex) || TargetIndex == Inventory->GetCurrentIndex() || !CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
@@ -77,6 +81,12 @@ void UVeloxGameplayAbility_WeaponSwitch::ActivateAbility(const FGameplayAbilityS
 
 	// One predicted GE for the whole switch (applied inside the activation's prediction window).
 	const float Duration = static_cast<float>(Wait) + Drop + Raise;
+	// B18: this machine's own switch end (local world time); the fire abilities of the shooter's machine gate on it.
+	if (const UWorld* World = GetWorld())
+	{
+		Inventory->SetSwitchEndTime(World->GetTimeSeconds() + Duration);
+		bSwitchTimingPending = true;
+	}
 	if (Duration > 0.f)
 	{
 		ApplyGameplayEffectSpecToOwner(Handle, ActorInfo, ActivationInfo, VeloxEffects::MakeDurationSpec(ASC, UVeloxGE_WeaponSwitching::StaticClass(), Duration));
@@ -97,6 +107,7 @@ void UVeloxGameplayAbility_WeaponSwitch::ActivateAbility(const FGameplayAbilityS
 
 void UVeloxGameplayAbility_WeaponSwitch::OnDropFinished()
 {
+	bSwitchTimingPending = false;
 	const FGameplayAbilityActorInfo* ActorInfo = GetCurrentActorInfo();
 	if (UVeloxWeaponInventoryComponent* Inventory = ActorInfo ? UVeloxWeaponInventoryComponent::Find(ActorInfo->OwnerActor.Get()) : nullptr)
 	{
@@ -111,4 +122,20 @@ void UVeloxGameplayAbility_WeaponSwitch::OnDropFinished()
 	}
 	// Each side ends at its own drop end: a replicated end could reach the server before its own timer and cancel it.
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);
+}
+
+void UVeloxGameplayAbility_WeaponSwitch::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
+{
+	if (bSwitchTimingPending)
+	{
+		// Rejected by the server (ClientActivateAbilityFailed ends the instance) or cancelled before the drop end: the
+		// weapon did not change, so this machine must not stay blocked until the switch end it predicted.
+		bSwitchTimingPending = false;
+		if (UVeloxWeaponInventoryComponent* Inventory = ActorInfo ? UVeloxWeaponInventoryComponent::Find(ActorInfo->OwnerActor.Get()) : nullptr)
+		{
+			Inventory->SetSwitchEndTime(0.0);
+		}
+	}
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (uncommitted in agent worktree, lead merges)
 **Depends on:** 04 (review `docs/reviews/m2-04-weapons-hitscan-review.md`, ADR 0003 Amendments B18–B20, B22–B23). Independent of 05/06/07; must be merged before 08. 04c (server pattern seed) is a separate task.
 
 ## Goal
@@ -47,4 +47,6 @@ Close review defects 1, 2, 3, 5, 6, 7 and nits 10–12 (§2 of the review is the
 Standard dev-hard format; list each defect with the change and the test that covers it. Report the final values of the three new settings fields and whether any existing test needed a number changed (and why).
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+- 2026-10-25 (dev-hard): defects 1, 2, 3, 5, 6, 7, 10-12 closed. build.sh CI OK, 41 tests (39 + FireTiming, ShotValidation), 0 failures; nettest `--port 7807` round 1/1 PASS; headless L_CombatTest FireTest RG/MG/SG/LG (at 5 m) all hit, RG refire within 1.5 s refused.
+- Settings: SwitchTimingToleranceSeconds 0.25, FireRateSpacingTolerance 0.25, BeamKeepAliveSeconds 0.25 (cvars `velox.combat.<Field>`). DA_CombatSettings_Default re-saved by the bootstrap script byte-identical (values equal the class defaults, delta serialisation) - no asset change to commit.
+- Extras: switch ability clears SwitchEndTime when it ends before its drop end (server rejection / cancel); carry comparison has a 1 us epsilon (`VeloxFireTiming::CarryEpsilonSeconds`); `UVeloxCombatFeedbackComponent::OnHitConfirmed` parameter renamed (unity-build -Wshadow against `using namespace VeloxMoveSimTest` in VeloxMoveSimTest.cpp).
