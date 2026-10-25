@@ -29,3 +29,12 @@ What `FireRun` must assert from the server log (`VeloxShot seq= shooter= hit= re
 
 ## Report back
 Standard format for the agent type; dev-hard includes a design summary for `architect` review.
+
+## Addendum from the architect review of 04 (2026-10-25, review §5, amendments B18–B24)
+- Start only after 04b is merged.
+- Warm-up (B24): shots within 5 s after possession are reported, not judged. `VeloxShotFired` gains `view_delay_ms` (the InterpolationDelay used) and `server_est` (`GetServerWorldTimeSeconds()`); with the server's `view_ms` the pair shows whether a `view_ms=250` comes from the clock estimate or the smoother.
+- Add a switch sequence to `FireRun` (RG → MG → RG, first shot of each weapon fired at its local `SwitchEndTime`): assert `VeloxShotRejected` count 0 and `ClientActivateAbilityFailed` count 0 at 100 ms / 2 % loss. This is the only end-to-end check of B18.
+- Client `VeloxHitConfirm` lines ≥ server `hit=1` count − 1 (unreliable RPC at 2 %).
+- MG 40 shots: 0 rejections (reasons `rate` and `spacing`).
+- Repeat the switch sequence once at 250 ms / 2 % and record whether the 0.25 s tolerance holds (expected yes; a failure means the default must grow or resend compression exceeds one RTT).
+- From the 04 report: add the `VeloxShotFired aim_err_cm` line; put `CrouchRun` into the default list; assert on `rewind_ms`/`view_ms`/`hint`.

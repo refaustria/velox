@@ -17,3 +17,7 @@ Implement ADR 0003 implementation-notes task **`09-human-playtest`** (`docs/adr/
 
 ## Report back
 Standard format for the agent type; dev-hard includes a design summary for `architect` review.
+
+## Addendum from the architect review of 04 (2026-10-25)
+- Requires 04c (server-side pattern seed, cue policy) merged first.
+- Checklist additions: "switch feel at 100 ms: does the first shot after a switch come when you expect?" (B18) and "redirecting a switch mid-drop" (review defect 9).
