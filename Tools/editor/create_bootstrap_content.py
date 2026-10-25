@@ -218,21 +218,29 @@ def q3_spread_deg(spread_units):
 
 
 # Q3 vanilla g_weapon.c / bg_misc.c numbers at UnitScale 2.5. Table order = slot order (MG 2, SG 3, RL 5, LG 6, RG 7, PG 8).
-# fire: hitscan ability class or None (RL/PG fire abilities are task 05). pickup = Q3 weapon pickup quantity.
+# fire: "hitscan" (UVeloxGameplayAbility_FireHitscan) or "projectile" (UVeloxGameplayAbility_FireProjectile + AVeloxProjectile,
+# task 05). pickup = Q3 weapon pickup quantity. Projectile collision radius 2 cm (ADR 0003 section 7).
 WEAPONS = [
     dict(name="MachineGun", slot=2, fire="hitscan", interval=0.1, damage=7, pellets=1, spread=q3_spread_deg(200),
          range_cm=8192 * Q3_UNIT_CM, ammo="Bullets", pickup=40, damage_tag="MachineGun"),
     dict(name="Shotgun", slot=3, fire="hitscan", interval=1.0, damage=10, pellets=11, spread=q3_spread_deg(700),
          range_cm=8192 * Q3_UNIT_CM, ammo="Shells", pickup=10, damage_tag="Shotgun"),
-    dict(name="RocketLauncher", slot=5, fire=None, interval=0.8, damage=100, speed=900 * Q3_UNIT_CM, lifetime=15.0,
+    dict(name="RocketLauncher", slot=5, fire="projectile", interval=0.8, damage=100, speed=900 * Q3_UNIT_CM, lifetime=15.0,
          splash=100, splash_radius=120 * Q3_UNIT_CM, ammo="Rockets", pickup=10, damage_tag="Rocket"),
     dict(name="LightningGun", slot=6, fire="hitscan", interval=0.05, damage=8, range_cm=768 * Q3_UNIT_CM, beam=True,
          ammo="Lightning", pickup=100, damage_tag="Lightning"),
     dict(name="Railgun", slot=7, fire="hitscan", interval=1.5, damage=100, range_cm=8192 * Q3_UNIT_CM, penetrate=True,
          max_pen=4, ammo="Slugs", pickup=10, damage_tag="Rail"),
-    dict(name="PlasmaGun", slot=8, fire=None, interval=0.1, damage=20, speed=2000 * Q3_UNIT_CM, lifetime=10.0,
+    dict(name="PlasmaGun", slot=8, fire="projectile", interval=0.1, damage=20, speed=2000 * Q3_UNIT_CM, lifetime=10.0,
          splash=15, splash_radius=20 * Q3_UNIT_CM, ammo="Cells", pickup=50, damage_tag="Plasma"),
 ]
+
+
+PROJECTILE_RADIUS_CM = 2.0
+FIRE_ABILITIES = {
+    "hitscan": lambda: unreal.VeloxGameplayAbility_FireHitscan.static_class(),
+    "projectile": lambda: unreal.VeloxGameplayAbility_FireProjectile.static_class(),
+}
 
 
 def build_weapons():
@@ -247,7 +255,9 @@ def build_weapons():
             "weapon_tag": tag("Velox.Weapon." + w["name"]),
             "slot": w["slot"],
             "display_name": unreal.Text(w["name"]),
-            "fire_ability": unreal.VeloxGameplayAbility_FireHitscan.static_class() if w["fire"] == "hitscan" else None,
+            "fire_ability": FIRE_ABILITIES[w["fire"]](),
+            "projectile_class": unreal.VeloxProjectile.static_class() if w["fire"] == "projectile" else None,
+            "projectile_radius_cm": PROJECTILE_RADIUS_CM if w["fire"] == "projectile" else 0.0,
             "fire_interval": w["interval"],
             "damage": w["damage"],
             "pellet_count": w.get("pellets", 1),

@@ -17,8 +17,9 @@ class UVeloxMovementSettings;
 
 /**
  * Where a knockback comes from (ADR 0003 section 3, ADR 0002 A17). Overlap (pads) and Server (every server-side impulse:
- * damage, the server's own self-knockback) accumulate into the chained PendingKnockback. Predicted (client self-knockback
- * from a fake projectile) needs the recorded channel of task 05 and is rejected until then.
+ * damage, the server's own self-knockback) accumulate into the chained PendingKnockback. Predicted (the owning client's
+ * self-knockback from its fake projectile) goes into the recorded PendingPredictedKnockback, accepted on the autonomous
+ * proxy only.
  */
 UENUM(BlueprintType)
 enum class EVeloxKnockbackSource : uint8
@@ -88,15 +89,76 @@ public:
 	 * (no ground friction) of KnockbackGraceFor(Impulse). Callable on the authority and the owning client (predicted
 	 * sources such as jump pads call it on both); ignored on simulated proxies, which never run moves, and on the owning
 	 * client while it applies a correction teleport (A19: the server's response already holds every entry it saw).
+	 * Source Predicted forwards to AddPredictedKnockback(Impulse, PredictedSeq) (bOverrideVelocity is ignored there).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Velox|Movement")
-	bool AddKnockback(FVector Impulse, bool bOverrideVelocity = false, EVeloxKnockbackSource Source = EVeloxKnockbackSource::Overlap);
+	bool AddKnockback(FVector Impulse, bool bOverrideVelocity = false, EVeloxKnockbackSource Source = EVeloxKnockbackSource::Overlap, uint8 PredictedSeq = 0);
+
+	/**
+	 * Predicted (ADR 0003 section 3): PredictedSeq is the shot sequence of the fake projectile whose detonation this is.
+	 * Not reflected; game code on the owning client only.
+	 */
+	bool AddPredictedKnockback(const FVector& Impulse, uint8 PredictedSeq);
 
 	/**
 	 * ADR 0003 section 3: a replayed move re-applies its recorded predicted self-knockback only while the server has not
-	 * resolved that shot yet (wrap-aware uint8 compare: int8(Seq - Confirmed) > 0). Used by task 05's PrepMoveFor.
+	 * resolved that shot yet (wrap-aware uint8 compare: int8(Seq - Confirmed) > 0). Used by FSavedMove_Velox::PrepMoveFor.
 	 */
 	static bool ShouldReplayPredictedKnockback(uint8 Seq, uint8 ConfirmedSeq) { return static_cast<int8>(static_cast<uint8>(Seq - ConfirmedSeq)) > 0; }
+
+	/** Wrap-aware newer of two shot sequences (int8 difference). */
+	static uint8 NewerShotSeq(uint8 A, uint8 B) { return static_cast<int8>(static_cast<uint8>(B - A)) > 0 ? B : A; }
+
+	/** Owning client: predicted self-knockback queued for the next move (recorded channel). */
+	const FVeloxPredictedKnockback& GetPendingPredictedKnockback() const { return PendingPredictedKnockback; }
+
+	/** Replay only (FSavedMove_Velox::PrepMoveFor): the recorded predicted impulse of the move about to be replayed. */
+	void SetReplayPredictedKnockback(const FVeloxPredictedKnockback& InPredicted) { PendingPredictedKnockback = InPredicted; }
+
+	/**
+	 * Server: newest own shot whose self-knockback the server has resolved (applied, or found out of range). Client: the
+	 * value of the last correction received (only read during the replay that follows it).
+	 */
+	uint8 GetConfirmedSelfKnockbackSeq() const { return ConfirmedSelfKnockbackSeq; }
+
+	/**
+	 * Server, remote owner: a projectile with self-knockback potential was fired. With no other shot unresolved every
+	 * earlier shot is resolved, so the confirmed sequence moves up to Seq - 1 (keeps it within int8 range of new shots
+	 * however many hitscan shots were fired in between).
+	 */
+	void ServerBeginSelfKnockbackShot(uint8 Seq);
+
+	/** Server: the self-knockback of shot Seq is resolved; ConfirmedSelfKnockbackSeq = newer of it and Seq. */
+	void ServerResolveSelfKnockbackShot(uint8 Seq);
+
+	/**
+	 * Move-timed events (task 05: the owner's self splash of a projectile, evaluated in the owner's move timeline on both
+	 * the owning client and the server so prediction and authority agree to the move). Callback runs at the end of the
+	 * first live (owning client) or server-processed (authority) move whose time stamp is >= MoveTime, never in a replay.
+	 * Returns an id > 0.
+	 */
+	using FVeloxMoveTimedCallback = TFunction<void(UVeloxMovementComponent&)>;
+	int32 AddMoveTimedEvent(float MoveTime, FVeloxMoveTimedCallback&& Callback);
+	/** Runs the event now if it is still pending (server deadline). */
+	bool RunMoveTimedEventNow(int32 EventId);
+	bool CancelMoveTimedEvent(int32 EventId);
+	bool HasMoveTimedEvent(int32 EventId) const;
+	int32 GetNumMoveTimedEvents() const { return MoveTimedEvents.Num(); }
+
+	/**
+	 * Whether an event at EventTime is due after a move ending at MoveTime. Time stamps wrap every ResetPeriod
+	 * (MinTimeBetweenTimeStampResets) on both ends; an event more than half a period ahead was scheduled before a reset.
+	 */
+	static bool IsMoveTimeDue(float EventTime, float MoveTime, float ResetPeriod) { return MoveTime >= EventTime || EventTime - MoveTime > 0.5f * ResetPeriod; }
+
+	/**
+	 * Owning client: time stamp at the end of the last move performed (ClientData->CurrentTimeStamp), i.e. the start of
+	 * the next one. A shot fired in PlayerTick happens there (B6: before the frame's move). 0 without prediction data.
+	 */
+	float GetClientMoveTimeStamp() const;
+
+	/** Server: time stamp of the last client move processed (ServerData->CurrentClientTimeStamp); 0 without server data. */
+	float GetServerClientMoveTimeStamp() const;
 
 	const FVeloxPendingKnockback& GetPendingKnockback() const { return PendingKnockback; }
 
@@ -323,6 +385,29 @@ protected:
 
 	/** Velocity change to apply at the start of the next move. */
 	FVeloxPendingKnockback PendingKnockback;
+
+	/** Recorded channel (ADR 0003 section 3): predicted self-knockback for the start of the next move (owning client). */
+	FVeloxPredictedKnockback PendingPredictedKnockback;
+
+	/** See GetConfirmedSelfKnockbackSeq. */
+	uint8 ConfirmedSelfKnockbackSeq = 0;
+
+	/** Server: own projectile shots whose self-knockback is not resolved yet (ServerBeginSelfKnockbackShot). */
+	TArray<uint8, TInlineAllocator<4>> ServerUnresolvedSelfKnockbackSeqs;
+
+	struct FMoveTimedEvent
+	{
+		int32 Id = 0;
+		float MoveTime = 0.f;
+		FVeloxMoveTimedCallback Callback;
+	};
+
+	/** Pending move-timed events, in insertion order. */
+	TArray<FMoveTimedEvent> MoveTimedEvents;
+	int32 NextMoveTimedEventId = 1;
+
+	/** Runs every due event (end of a live or server move). */
+	void RunDueMoveTimedEvents(float MoveTime);
 
 	/**
 	 * Owning client: set in OnClientCorrectionReceived, before ClientAdjustPosition teleports the pawn; cleared at the

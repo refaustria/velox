@@ -48,6 +48,36 @@ struct FVeloxPendingKnockback
 };
 
 /**
+ * Client-predicted self-knockback (ADR 0003 section 3, ADR 0002 A17 recorded channel): the impulse the owning client
+ * predicts when its fake projectile detonates, keyed by the shot sequence of that projectile. Accepted only on the
+ * autonomous proxy, saved per move and re-applied in replays until the server has resolved the shot
+ * (UVeloxMovementComponent::ShouldReplayPredictedKnockback). Never sent to the server.
+ */
+struct FVeloxPredictedKnockback
+{
+	/** Velocity to add (never an override). */
+	FVector Velocity = FVector::ZeroVector;
+	/** Shot sequence of the newest predicted detonation in this impulse. */
+	uint8 Seq = 0;
+
+	bool IsPending() const { return !Velocity.IsZero(); }
+	void Reset() { *this = FVeloxPredictedKnockback(); }
+
+	/** Accumulates another prediction of the same move; the sequence becomes the newer of the two (wrap-aware). */
+	void Add(const FVector& InVelocity, uint8 InSeq)
+	{
+		if (!IsPending() || static_cast<int8>(static_cast<uint8>(InSeq - Seq)) > 0)
+		{
+			Seq = InSeq;
+		}
+		Velocity += InVelocity;
+	}
+
+	bool operator==(const FVeloxPredictedKnockback& Other) const { return Velocity == Other.Velocity && Seq == Other.Seq; }
+	bool operator!=(const FVeloxPredictedKnockback& Other) const { return !(*this == Other); }
+};
+
+/**
  * Saved move with Velox state (ADR 0002 section 5).
  * Compressed flag allocation (FSavedMove_Character::FLAG_Custom_0..3 belong to Velox):
  *   FLAG_Custom_0 = jump held (sampled every move; auto-hop and the jump latch)
@@ -55,11 +85,13 @@ struct FVeloxPendingKnockback
  *   FLAG_Custom_2 = side input present (CPM rules)
  *   FLAG_Custom_3 = reserved
  *
- * Replay rule (A17, supersedes A12/A14 restore clauses): PrepMoveFor restores nothing Velox-specific (it is Super only).
- * Inputs reach the replay through the compressed flags (MoveAutonomous -> UpdateFromCompressedFlags). KnockbackGrace,
- * the jump latch and the pending knockback are derived state: they chain from the correction
- * (UVeloxMovementComponent::OnClientCorrectionReceived) through the replayed moves exactly like Velocity, and replayed pad
- * overlaps re-fire on their own. The saved copies below exist for CanCombineWith/bForceNoCombine and debugging.
+ * Replay rule (A17, supersedes A12/A14 restore clauses): PrepMoveFor restores nothing Velox-specific except the recorded
+ * predicted self-knockback (ADR 0003 section 3). Inputs reach the replay through the compressed flags (MoveAutonomous ->
+ * UpdateFromCompressedFlags). KnockbackGrace, the jump latch and the pending knockback are derived state: they chain from
+ * the correction (UVeloxMovementComponent::OnClientCorrectionReceived) through the replayed moves exactly like Velocity,
+ * and replayed pad overlaps re-fire on their own. The saved copies below exist for CanCombineWith/bForceNoCombine and
+ * debugging. The one exception, SavedPredictedKnockback, has no replayable source event (the fake projectile is not
+ * re-simulated): PrepMoveFor assigns it iff the server has not resolved its shot yet.
  */
 class VELOX_API FSavedMove_Velox : public FSavedMove_Character
 {
@@ -100,6 +132,12 @@ public:
 	 */
 	FVeloxPendingKnockback SavedPendingKnockback;
 
+	/**
+	 * Predicted self-knockback the move consumes at its start (captured in SetMoveFor). The recorded channel: assigned in
+	 * PrepMoveFor while UVeloxMovementComponent::ShouldReplayPredictedKnockback(Seq, ConfirmedSelfKnockbackSeq) holds.
+	 */
+	FVeloxPredictedKnockback SavedPredictedKnockback;
+
 	/** KnockbackGrace at the start of the move. CanCombineWith and debugging only; never restored (A14, A17). */
 	float SavedKnockbackGrace = 0.f;
 
@@ -121,8 +159,21 @@ public:
 	/** A jump happened in this move with jump held, e.g. the held-jump landing jump (A29). Recorded in PostUpdate_Record. */
 	uint8 bSavedJumpedHeld : 1;
 
+	/**
+	 * A predicted self-knockback was queued at the end of this move (the client's move-timed self detonation of a fake
+	 * projectile); the server evaluates its own self splash at the end of the same move, so the move's partition must
+	 * survive loss (A29). Recorded in PostUpdate_Record.
+	 */
+	uint8 bSavedQueuedPredictedKnockback : 1;
+
 	/** A28/A29 event move: a lost one costs 10-15 cm, anything else <= 2 cm, so it wins the single OldMove slot (A32). */
-	bool IsEventMove() const { return bSavedEnteredTrigger || bSavedJumpedHeld; }
+	bool IsEventMove() const { return bSavedEnteredTrigger || bSavedJumpedHeld || bSavedQueuedPredictedKnockback; }
+
+	/**
+	 * ADR 0003 section 3 PrepMoveFor rule, world-free: the predicted impulse a replay of a move recorded with Saved must
+	 * apply, given the last ConfirmedSelfKnockbackSeq received from the server (empty once the server resolved the shot).
+	 */
+	static FVeloxPredictedKnockback PredictedKnockbackForReplay(const FVeloxPredictedKnockback& Saved, uint8 ConfirmedSeq);
 
 	/**
 	 * A32 (Quake cl_packetdup 1): the OldMove to send with an RPC carrying NewMove (and PendingMove, may be null).
@@ -175,11 +226,14 @@ struct FVeloxCorrectionState
 	float KnockbackGrace = 0.f;
 	bool bJumpLatched = false;
 	FVeloxPendingKnockback PendingKnockback;
+	/** ADR 0003 section 3: newest own shot whose self-knockback the server has resolved, at check time (A18). */
+	uint8 ConfirmedSelfKnockbackSeq = 0;
 };
 
 /**
  * Server -> owning client move response with the Velox state a replay needs (ADR 0002 section 4): the server's
- * KnockbackGrace and jump latch after the acked move, and any knockback the server has not consumed yet. Values are the
+ * KnockbackGrace and jump latch after the acked move, any knockback the server has not consumed yet, and the newest own
+ * shot whose self-knockback the server has resolved (ADR 0003 section 3). Values are the
  * server's state at the time of the error check (snapshot), see UVeloxMovementComponent::GetServerCorrectionState (A18).
  * Only corrections carry it; each field costs one bit when zero/false. Applied in
  * UVeloxMovementComponent::OnClientCorrectionReceived.
@@ -196,6 +250,8 @@ struct VELOX_API FVeloxMoveResponseDataContainer : public FCharacterMoveResponse
 	float KnockbackGrace = 0.f;
 	bool bJumpLatched = false;
 	FVeloxPendingKnockback PendingKnockback;
+	/** ADR 0003 section 3: one byte, corrections only (optional against 0). */
+	uint8 ConfirmedSelfKnockbackSeq = 0;
 };
 
 /** Client prediction data that allocates FSavedMove_Velox. */

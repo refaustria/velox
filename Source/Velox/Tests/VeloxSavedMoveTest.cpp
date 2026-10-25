@@ -1,8 +1,9 @@
 // Velox - saved-move flag plumbing, CanCombineWith rules and jump latch (ADR 0002 sections 5 and 7, A12, A17). World-free.
 //
-// Replay model (A17): FSavedMove_Velox::PrepMoveFor is Super only. The jump latch, KnockbackGrace and the pending
-// knockback are derived state that chains from the correction through the replayed moves; the saved copies are read by
-// CanCombineWith only. The replay itself needs a world and is covered by the task-05 net soak (LatchRun, PadRun scripts).
+// Replay model (A17): FSavedMove_Velox::PrepMoveFor restores nothing Velox-specific except the recorded predicted
+// self-knockback (ADR 0003 section 3, M2 task 05). The jump latch, KnockbackGrace and the pending knockback are derived
+// state that chains from the correction through the replayed moves; the saved copies are read by CanCombineWith only.
+// The replay itself needs a world and is covered by the task-05 net soak (LatchRun, PadRun scripts).
 
 
 #include "Misc/AutomationTest.h"
@@ -145,6 +146,29 @@ bool FVeloxMovementSavedMoveCombineTest::RunTest(const FString& Parameters)
 		New->bSavedHasForwardInput = false;
 		New->bSavedHasSideInput = true;
 		TestFalse(TEXT("Velox rules: side presence differs"), Old->CanCombineVeloxState(*New, true));
+	}
+	{
+		// ADR 0003 section 3: a recorded predicted self-knockback forbids combining on either side.
+		auto Old = MakeGroundMove(), New = MakeGroundMove();
+		Old->SavedPredictedKnockback.Add(FVector(0.0, 0.0, 1100.0), 7);
+		TestFalse(TEXT("old move has a predicted knockback"), Combines(Old, New));
+		TestFalse(TEXT("Velox rules: old predicted"), Old->CanCombineVeloxState(*New, true));
+		Old->SavedPredictedKnockback.Reset();
+		New->SavedPredictedKnockback.Add(FVector(0.0, 0.0, 75.0), 8);
+		TestFalse(TEXT("new move has a predicted knockback"), Combines(Old, New));
+		TestFalse(TEXT("Velox rules: new predicted"), Old->CanCombineVeloxState(*New, true));
+		New->SavedPredictedKnockback.Reset();
+		TestTrue(TEXT("no prediction: combines again"), Combines(Old, New));
+	}
+	{
+		// A29: the move at whose end a predicted self-knockback was queued is an event move (resent until acked, A32).
+		auto Move = MakeGroundMove();
+		TestFalse(TEXT("plain move is no event move"), Move->IsEventMove());
+		Move->bSavedQueuedPredictedKnockback = true;
+		TestTrue(TEXT("queued predicted knockback makes an event move"), Move->IsEventMove());
+		Move->Clear();
+		TestFalse(TEXT("Clear resets the queued flag"), static_cast<bool>(Move->bSavedQueuedPredictedKnockback));
+		TestFalse(TEXT("Clear resets the predicted knockback"), Move->SavedPredictedKnockback.IsPending());
 	}
 	{
 		// Engine rules still apply after the Velox ones.

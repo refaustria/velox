@@ -6,6 +6,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
+#include "Weapons/VeloxProjectile.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxCombatFeedbackComponent)
 
@@ -37,6 +38,11 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 	else if (EventType == EGameplayCueEvent::Executed)
 	{
 		UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxCue %s on %s from %s to %s"), *TagName, *GetNameSafe(GetOwner()), *Start.ToCompactString(), *Parameters.Location.ToCompactString());
+		// Projectile explosions (task 05): the owning client ends its fake of that shot (ADR 0003 section 7).
+		if (Parameters.RawMagnitude > 0.f && TagName.EndsWith(TEXT(".Impact")))
+		{
+			AVeloxProjectile::OnImpactCue(GetOwner(), Parameters);
+		}
 	}
 
 #if !UE_BUILD_SHIPPING
@@ -51,7 +57,8 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 	}
 	else if (TagName.EndsWith(TEXT(".Impact")))
 	{
-		DrawDebugSphere(World, Parameters.Location, 6.f, 8, FColor::Orange, false, 0.5f);
+		// Projectile impacts carry the splash radius in RawMagnitude; hitscan impacts a small marker.
+		DrawDebugSphere(World, Parameters.Location, Parameters.RawMagnitude > 0.f ? Parameters.RawMagnitude : 6.f, 8, FColor::Orange, false, 0.5f);
 	}
 #endif
 }

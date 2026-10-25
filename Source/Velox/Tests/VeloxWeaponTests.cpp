@@ -349,10 +349,9 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("add RG"), Inventory->AddWeapon(Table->Get(RG), 10));
 	TestTrue(TEXT("add RG again (ammo only)"), Inventory->AddWeapon(Table->Get(RG), 5));
 	TestTrue(TEXT("owns RG"), Inventory->OwnsIndex(RG));
-	TestEqual(TEXT("one spec more"), ASC->GetActivatableAbilities().Num(), NumSpecsAtSpawn + 1);
-	TestEqual(TEXT("slugs 15"), PlayerState->GetAmmoSet()->GetSlugs(), 15.f);
-	TestTrue(TEXT("add RL (no fire ability yet)"), Inventory->AddWeapon(Table->Get(RL), 5));
-	TestNull(TEXT("RL has no fire spec until task 05"), Inventory->FindFireSpec(RL));
+	TestEqual(TEXT("one spec more"), ASC->GetActivatableAbilities().Num(), NumSpecsAtSpawn + 1);	TestEqual(TEXT("slugs 15"), PlayerState->GetAmmoSet()->GetSlugs(), 15.f);
+	TestTrue(TEXT("add RL"), Inventory->AddWeapon(Table->Get(RL), 5));
+	TestNotNull(TEXT("RL has its projectile fire spec (task 05)"), Inventory->FindFireSpec(RL));
 	MGSpec = Inventory->FindFireSpec(MG);
 	FGameplayAbilitySpec* RGSpec = Inventory->FindFireSpec(RG);
 	if (!TestNotNull(TEXT("RG fire spec"), RGSpec) || !MGSpec)
