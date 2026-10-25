@@ -8,12 +8,18 @@
 #include "Engine/LocalPlayer.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "Net/VeloxLagCompensationSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxPlayerController)
 
 AVeloxPlayerController::AVeloxPlayerController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+}
+
+FVeloxShotTiming AVeloxPlayerController::BuildShotTiming(const FVector& Origin, const FVector& Dir, float RangeCm) const
+{
+	return VeloxLagComp::BuildShotTiming(*this, Origin, Dir, RangeCm);
 }
 
 void AVeloxPlayerController::SetupInputComponent()
