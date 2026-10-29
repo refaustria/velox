@@ -30,6 +30,8 @@ LAG_OVERRIDE=""
 PKT_ARGS=()
 # Scripts on L_CombatTest (task 08); everything else runs on L_MovementTest.
 COMBAT_SCRIPTS=" FireRun FireRunControl RocketJumpRun "
+# Scripts on L_ItemTest (M3 task 04); the client runs velox.items.Watch.
+ITEM_SCRIPTS=" ItemRun "
 
 nettest_usage() {
   cat <<USAGE
@@ -102,6 +104,10 @@ run_one() {
   PKT_ARGS=(-PktLag="$lag" -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=$((lag - 20)) -PktIncomingLagMax=$((lag + 20)) -PktIncomingLoss=2)
   if [[ "$script" == LatchRun ]]; then cexec="velox.move.Preset Q3, $cexec"; sexec="velox.move.Preset Q3"; fi
   if [[ "$COMBAT_SCRIPTS" == *" $script "* ]]; then map="L_CombatTest"; fi
+  if [[ "$ITEM_SCRIPTS" == *" $script "* ]]; then
+    # M3 task 04 / ADR 0004 section 10: velox.items.Watch logs the client's placeholder and Health/Armor/Bullets changes.
+    map="L_ItemTest"; cexec="$cexec, velox.items.Watch"
+  fi
   case "$script" in
     FireRun|FireRunControl)
       # Task 08: invulnerable strafing target at FireRun.json's dummyLocation, every weapon, per-pawn rewind lines.
@@ -713,6 +719,106 @@ elif script == "RocketJumpRun":
         fails.append("no VeloxProjectileExplode line for the rocket")
     elif not any(e.get("self") == "move_timed" for e in ex):
         fails.append("VeloxProjectileExplode self=%s (want move_timed)" % [e.get("self") for e in ex])
+
+elif script == "ItemRun":
+    # M3 task 04 / ADR 0004 section 10: the client runs over Health.Small, Armor.Shard and Ammo.Bullets (ItemRun.json, L_ItemTest).
+    # Client lines: VeloxPickupPredict item= t= (the predicted take), VeloxPickupPredict{Confirmed,Lost,Refused} item= ms=,
+    # VeloxItemWatch placeholder=hidden|shown item= predicted= (velox.items.Watch, once per frame) and VeloxItemWatch attr=
+    # Health|Armor|Bullets value= t=. Server: VeloxPickup item= by= gain=. The confirmation and the attribute step are
+    # replicated by the server, so they cannot arrive before the round trip; the ADR's 150 ms / 200 ms are measured on top of
+    # it: threshold = RTT (2 x one-way lag + 40 ms jitter) + 150 ms / + 200 ms from the predicted take.
+    FRAME_RE = re.compile(r"^\[[^\]]*\]\[\s*(\d+)\]")
+    def frame_of(line):
+        m = FRAME_RE.match(line)
+        return int(m.group(1)) if m else None
+    want = {"DA_Item_Health_Small": "Health", "DA_Item_Armor_Shard": "Armor", "DA_Item_Ammo_Bullets": "Bullets"}
+    predicts, outcomes, hidden, attrs = {}, {}, {}, []
+    for l in C:
+        if "VeloxPickupPredict item=" in l:
+            d = kv(l); predicts.setdefault(d.get("item"), (num(d, "t"), frame_of(l)))
+        m = re.search(r"VeloxPickupPredict(Confirmed|Lost|Refused) item=(\S+) ms=(\S+)", l)
+        if m:
+            outcomes.setdefault(m.group(2), []).append((m.group(1), float(m.group(3))))
+        if "VeloxItemWatch placeholder=hidden" in l:
+            d = kv(l); hidden.setdefault(d.get("item"), []).append((num(d, "t"), frame_of(l), d.get("predicted")))
+        if "VeloxItemWatch attr=" in l:
+            d = kv(l); attrs.append((num(d, "t"), d.get("attr"), num(d, "value")))
+    granted = {}
+    for l in S:
+        if "VeloxPickup item=" in l and " gain=" in l:
+            d = kv(l)
+            if num(d, "gain") > 0:
+                granted.setdefault(d.get("item"), []).append(d)
+    if not any("VeloxItemWatch started" in l for l in C):
+        fails.append("velox.items.Watch did not start on the client")
+    conf_limit_ms = rtt * 1000.0 + 150.0
+    attr_limit_s = rtt + 0.200
+    # With 2 % loss each way a server -> client bunch is lost now and then and its properties are retransmitted one RTT
+    # later; that is the network, not the item code. One such slow event per run (at most RTT + 60 ms over its limit) is
+    # reported as a note, a second one or a larger overshoot fails.
+    retx_ms = rtt * 1000.0 + 60.0
+    slow = []
+    for item, attr in sorted(want.items()):
+        short = item.split("_")[-1]
+        if item not in predicts:
+            fails.append("%s: no VeloxPickupPredict line on the client (not predicted)" % short)
+            continue
+        pt, pf = predicts[item]
+        # predicted hide within one frame: the placeholder is hidden in the same call as the predict log line; the observer
+        # (engine ticker, start of the next frame) sees it at most one frame later.
+        hs = [h for h in hidden.get(item, []) if h[0] >= pt - 0.001]
+        if not hs:
+            fails.append("%s: placeholder never observed hidden after the predicted take" % short)
+            hide_frames = None
+        else:
+            hide_frames = ((hs[0][1] - pf) % 1000) if (hs[0][1] is not None and pf is not None) else None
+            if hide_frames is None or hide_frames > 2 or hs[0][2] != "1":
+                fails.append("%s: hidden %s frame(s) after the predict (want <= 1 observer frame, predicted=1; got predicted=%s)" % (short, hide_frames, hs[0][2]))
+        res = outcomes.get(item, [])
+        confirmed = [ms for kind, ms in res if kind == "Confirmed"]
+        bad = [kind for kind, ms in res if kind != "Confirmed"]
+        if bad:
+            fails.append("%s: prediction outcome %s (want Confirmed)" % (short, bad))
+        conf_ms = confirmed[0] if confirmed else None
+        if conf_ms is None:
+            fails.append("%s: no VeloxPickupPredictConfirmed line" % short)
+        elif conf_ms > conf_limit_ms:
+            msg = "%s: confirmation after %.0f ms > RTT %.0f + 150 = %.0f ms" % (short, conf_ms, rtt * 1000.0, conf_limit_ms)
+            (slow if conf_ms <= conf_limit_ms + retx_ms else fails).append(msg)
+        steps = [a for a in attrs if a[1] == attr and a[0] > pt]
+        # the first change of this attribute after the predict that is an increase over the value before it
+        before = [a for a in attrs if a[1] == attr and a[0] <= pt]
+        prev = before[-1][2] if before else None
+        step = None
+        for a in steps:
+            if prev is None or a[2] > prev:
+                step = a; break
+            prev = a[2]
+        if step is None:
+            fails.append("%s: no %s increase observed on the client after the take" % (short, attr))
+            step_s = None
+        else:
+            step_s = step[0] - pt
+            if step_s > attr_limit_s:
+                msg = "%s: %s step after %.0f ms > RTT %.0f + 200 = %.0f ms" % (short, attr, step_s * 1000.0, rtt * 1000.0, attr_limit_s * 1000.0)
+                (slow if step_s <= attr_limit_s + retx_ms / 1000.0 else fails).append(msg)
+        if len(granted.get(item, [])) != 1:
+            fails.append("%s: %d server grants (VeloxPickup item= gain>0), want 1" % (short, len(granted.get(item, []))))
+        detail.append("%s:hide=%sf,conf=%s,%s=%s" % (short, hide_frames, ("%.0fms" % conf_ms) if conf_ms is not None else "-", attr, ("%.0fms" % (step_s * 1000.0)) if step_s is not None else "-"))
+    if len(slow) > 1:
+        fails.extend(slow)
+        fails.append("more than one slow event (%d): one retransmitted bunch is tolerated, two are not" % len(slow))
+    elif slow:
+        notes.append("loss recovery tolerated: " + slow[0])
+    other = [i for i in predicts if i not in want]
+    if other:
+        notes.append("also predicted: %s" % ",".join(sorted(i.split("DA_Item_")[-1] for i in other)))
+    lost = [l for l in C if re.search(r"VeloxPickupPredict(Lost|Refused)", l)]
+    if lost:
+        fails.append("%d prediction(s) lost or refused: %s" % (len(lost), lost[0].split("VeloxPickupPredict", 1)[1].strip()[:100]))
+    # 0 corrections: the item grants do not touch movement, so the whole run has none (echoes included).
+    if corr:
+        fails.append("%d client correction(s) during ItemRun (want 0): %s" % (len(corr), fmt(corr)))
 
 # ---- global rules on non-echo corrections (the intended ones are excluded)
 rest = [c for c in nonecho if c not in excluded]
