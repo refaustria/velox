@@ -28,7 +28,7 @@ enum class EVeloxShotReject : uint8
 	Origin,
 	/** Direction NaN or zero. */
 	Dir,
-	/** View time, hint stamp or (projectile) fire move time stamp not finite. */
+	/** View time, hint stamp or fire move time stamp not finite. */
 	Time,
 };
 
@@ -54,11 +54,24 @@ struct FVeloxValidatedShot
 	double ViewServerTime = 0.0;
 	TWeakObjectPtr<AActor> HintTarget;
 	float HintTargetStamp = 0.f;
-	/** FGameplayAbilityTargetData_VeloxProjectileShot::FireMoveTimeStamp (finite); 0 for a hitscan payload. */
+	/** FGameplayAbilityTargetData_VeloxShot::FireMoveTimeStamp (finite), hitscan and projectile payloads (B36). */
 	float FireMoveTimeStamp = 0.f;
 	/** The payload was the projectile subclass (carries FireMoveTimeStamp). */
 	bool bProjectileShot = false;
 	uint8 ShotSeq = 0;
+};
+
+/** ADR 0003 B36: the eye a remote shot's origin is validated against (ResolveShotEye). */
+struct FVeloxShotEye
+{
+	/** The shooter's eye after the move that ended at the (clamped) FireMoveTimeStamp, else the live eye. */
+	FVector Eye = FVector::ZeroVector;
+	/** (last processed move stamp - FireMoveTimeStamp) x 1000: how far the move stream ran ahead of the shot. */
+	float LateMs = 0.f;
+	/** LateMs is meaningful (a stamp was given and no time-stamp reset lies in between). */
+	bool bHasLate = false;
+	/** Eye came from the shooter's per-move eye ring. */
+	bool bFromRing = false;
 };
 
 namespace VeloxShotValidation
@@ -66,10 +79,11 @@ namespace VeloxShotValidation
 	/**
 	 * Validates Raw received at Now for a weapon of Interval: bucket (Capacity = FVeloxFireRateBucket::CapacityFor, B32)
 	 * then payload. On None, OutShot holds the shot; OutShot.ShotSeq is filled whenever the
-	 * struct type is right (logs), 0 otherwise.
+	 * struct type is right (logs), 0 otherwise. bConsumeBucket false (ADR 0003 B35): the shot's token was already taken
+	 * when its fire move carried it (UVeloxGameplayAbility_Fire::ServerConsumeMoveShotToken); the payload is still checked.
 	 */
 	VELOX_API EVeloxShotReject Validate(const FGameplayAbilityTargetData* Raw, FVeloxFireRateBucket& Bucket, double Now, float Interval, float Capacity,
-		FVeloxValidatedShot& OutShot);
+		FVeloxValidatedShot& OutShot, bool bConsumeBucket = true);
 
 	/**
 	 * ADR 0003 B15 step 1 (shared by TraceShot and the projectile ability, B26): the client origin, or the shooter's
@@ -87,4 +101,20 @@ namespace VeloxShotValidation
 	VELOX_API float ClampFireMoveTimeStamp(float ClientStamp, float LastMoveStamp, float MaxRewindSeconds, float ResetPeriod, EVeloxFireStampClamp& OutResult);
 
 	VELOX_API FVector ValidateOrigin(const UWorld& World, const APawn& Shooter, const FVector& ClientOrigin, float MaxOriginErrorCm, const TCHAR*& OutSnapReason);
+
+	/**
+	 * ADR 0003 B36: the B15 rule against a given Eye (the shooter's eye at the shot's FireMoveTimeStamp): distance and
+	 * occlusion trace are measured from Eye, a snap returns Eye. The overload above forwards with the live eye.
+	 */
+	VELOX_API FVector ValidateOrigin(const UWorld& World, const APawn& Shooter, const FVector& Eye, const FVector& ClientOrigin, float MaxOriginErrorCm,
+		const TCHAR*& OutSnapReason);
+
+	/**
+	 * ADR 0003 B36 (server, remote shooter): the eye at FireMoveTimeStamp from the shooter's UVeloxMovementComponent
+	 * eye ring (GetServerEyeAtMoveTime). The stamp is first bounded by ClampFireMoveTimeStamp against the last processed
+	 * move (+- MaxRewindSeconds), so a client cannot pick an eye older than the rewind window. Falls back to the live
+	 * eye without a stamp, without a Velox movement component, off the authority, or when the stamp is newer than the
+	 * newest ring entry (the RPC overtook its move in one packet: the live eye is that eye).
+	 */
+	VELOX_API FVeloxShotEye ResolveShotEye(const APawn& Shooter, bool bHasFireMoveTimeStamp, float FireMoveTimeStamp, float MaxRewindSeconds);
 }

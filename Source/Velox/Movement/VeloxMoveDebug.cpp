@@ -30,7 +30,7 @@
 	X(StepHeight) X(WalkableFloorAngle) X(EdgePerchRadius) X(AirAcceleration) X(AirMaxWishSpeed) \
 	X(AirStopAcceleration) X(AirStrafeAcceleration) X(AirStrafeMaxWishSpeed) X(AirControl) X(AirControlScale) \
 	X(JumpVelocity) X(GravityZ) X(RampSlideMinNormalSpeed) X(RampExitMinAngle) X(KnockbackGraceMin) \
-	X(KnockbackGraceMax) X(KnockbackGracePerSpeed) X(FixedStep)
+	X(KnockbackGraceMax) X(KnockbackGracePerSpeed) X(FixedStep) X(HasteSpeedScale)
 
 #define VELOX_MOVE_BOOL_FIELDS(X) \
 	X(bAirControl) X(bAutoHop) X(bRampExitCatchAir) X(bFixedStepIntegration) X(bCombineAirMoves)

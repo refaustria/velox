@@ -1,0 +1,12 @@
+{
+ "name": "ItemRun",
+ "note": "L_ItemTest, M3 task 04 / ADR 0004 section 10. Starts at (-2700,-1700) on the south-wall item grid and runs east over Health.Small (x -2550), Armor.Shard (-2250) and Ammo.Bullets (-1950); the next items (Health.Medium -1650, Health.Large -1350) are refused at 100+ health, so a short overshoot takes nothing else. Then stands still for 2.5 s so the replicated takes and the attribute changes arrive. infra/ci/nettest.sh runs the client with velox.items.Watch and judges the VeloxPickupPredict* and VeloxItemWatch lines.",
+ "startYaw": 0,
+ "startLocation": [-2700, -1700, 100],
+ "rows": [
+  {"duration": 0.5, "yaw": 0, "label": "settle"},
+  {"duration": 1.0, "forward": 1, "yaw": 0, "label": "run over Small, Shard, Bullets"},
+  {"duration": 0.8, "yaw": 0, "label": "coast to a stop", "check": {"name": "stopped between Bullets and Medium", "box": [-1950, -1800, -1650, -1600], "onGround": true}},
+  {"duration": 2.5, "yaw": 0, "label": "wait for confirmation"}
+ ]
+}

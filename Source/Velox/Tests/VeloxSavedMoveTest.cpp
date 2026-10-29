@@ -173,6 +173,26 @@ bool FVeloxMovementSavedMoveCombineTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Clear resets the predicted knockback"), Move->SavedPredictedKnockback.IsPending());
 	}
 	{
+		// ADR 0002 A36: a fire move (it carries a projectile shot) combines with nothing, in both directions, and is an
+		// event move (A29 list).
+		auto Old = MakeGroundMove(), New = MakeGroundMove();
+		Old->bSavedHasShot = true;
+		Old->SavedMoveShot.ShotSeq = 3;
+		TestFalse(TEXT("old move carries a shot"), Combines(Old, New));
+		TestFalse(TEXT("Velox rules: old shot"), Old->CanCombineVeloxState(*New, true));
+		TestTrue(TEXT("a fire move is an event move"), Old->IsEventMove());
+		Old->Clear();
+		Old->DeltaTime = New->DeltaTime;
+		TestFalse(TEXT("Clear resets the shot flag"), static_cast<bool>(Old->bSavedHasShot));
+		TestEqual(TEXT("Clear resets the shot"), Old->SavedMoveShot.ShotSeq, static_cast<uint8>(0));
+		Old = MakeGroundMove();
+		New->bSavedHasShot = true;
+		TestFalse(TEXT("new move carries a shot"), Combines(Old, New));
+		TestFalse(TEXT("Velox rules: new shot"), Old->CanCombineVeloxState(*New, true));
+		New->bSavedHasShot = false;
+		TestTrue(TEXT("no shot: combines again"), Combines(Old, New));
+	}
+	{
 		// Engine rules still apply after the Velox ones.
 		auto Old = MakeGroundMove(), New = MakeGroundMove();
 		New->bForceNoCombine = true;
@@ -527,6 +547,219 @@ bool FVeloxMovementExtraOldMoveSerializeTest::RunTest(const FString& Parameters)
 			TestNull(TEXT("no extra old move"), Extra);
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementPowerupResponseSerializeTest, "Velox.Movement.SavedMove.PowerupResponseSerialize", VeloxSavedMoveTest::Flags)
+bool FVeloxMovementPowerupResponseSerializeTest::RunTest(const FString& Parameters)
+{
+	// ADR 0004 section 3 (task 03): the powerup end times travel in acks and corrections through the one response
+	// serializer (FCharacterMoveResponseDataContainer::Serialize); one bit each while 0.
+	UVeloxMovementComponent& Movement = *GetMutableDefault<UVeloxMovementComponent>();
+	int32 BitsWithout[2] = { 0, 0 };
+	int32 BitsWith[2] = { 0, 0 };
+	for (const bool bCorrection : { false, true })
+	{
+		for (const bool bWithTimes : { false, true })
+		{
+			FVeloxMoveResponseDataContainer Sent;
+			Sent.ClientAdjustment.bAckGoodMove = !bCorrection;
+			Sent.ClientAdjustment.TimeStamp = 12.345678f;
+			Sent.ClientAdjustment.NewLoc = FVector(100.0, 200.0, 92.15);
+			Sent.ClientAdjustment.NewVel = FVector(1040.0, 0.0, 0.0);
+			Sent.ClientAdjustment.MovementMode = MOVE_Walking;
+			Sent.KnockbackGrace = 0.f;
+			if (bWithTimes)
+			{
+				Sent.PowerupMoveTimes.HasteEnd = 42.123456f;
+				Sent.PowerupMoveTimes.QuadEnd = 239.987654f;
+			}
+			FBitWriter Writer(0, /*bAllowResize*/ true);
+			TestTrue(TEXT("serialise"), Sent.Serialize(Movement, Writer, nullptr));
+			(bWithTimes ? BitsWith : BitsWithout)[bCorrection ? 1 : 0] = static_cast<int32>(Writer.GetNumBits());
+			uint32 Marker = 0x5AC3u;
+			Writer << Marker;
+
+			FBitReader Reader(Writer.GetData(), Writer.GetNumBits());
+			FVeloxMoveResponseDataContainer Received;
+			Received.PowerupMoveTimes.HasteEnd = 1.f; // must be overwritten (also with 0)
+			TestTrue(TEXT("deserialise"), Received.Serialize(Movement, Reader, nullptr));
+			uint32 ReadMarker = 0;
+			Reader << ReadMarker;
+			const FString Kind = FString::Printf(TEXT("%s %s"), bCorrection ? TEXT("correction") : TEXT("ack"), bWithTimes ? TEXT("with times") : TEXT("without"));
+			TestEqual(Kind + TEXT(": stream aligned"), ReadMarker, Marker);
+			TestEqual(Kind + TEXT(": kind kept"), Received.IsCorrection(), bCorrection);
+			TestEqual(Kind + TEXT(": HasteEnd exact"), Received.PowerupMoveTimes.HasteEnd, Sent.PowerupMoveTimes.HasteEnd);
+			TestEqual(Kind + TEXT(": QuadEnd exact"), Received.PowerupMoveTimes.QuadEnd, Sent.PowerupMoveTimes.QuadEnd);
+		}
+	}
+	TestEqual(TEXT("ack: 64 bits for both end times"), BitsWith[0] - BitsWithout[0], 64);
+	TestEqual(TEXT("correction: 64 bits for both end times"), BitsWith[1] - BitsWithout[1], 64);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementMoveShotOldMoveTest, "Velox.Movement.SavedMove.MoveShotOldMove", VeloxSavedMoveTest::Flags)
+bool FVeloxMovementMoveShotOldMoveTest::RunTest(const FString& Parameters)
+{
+	// ADR 0002 A36 with A32/A35: the fire move wins old-move slot 1 while unacked, its predecessor slot 2; the splash move
+	// (queued predicted self-knockback, newer) takes slot 1 once it exists.
+	TArray<FSavedMovePtr> Saved;
+	auto Add = [&Saved](float TimeStamp, bool bShot = false, bool bQueuedPredicted = false) -> const FSavedMove_Character*
+	{
+		TSharedPtr<FSavedMove_Velox> Move = MakeShared<FSavedMove_Velox>();
+		Move->Clear();
+		Move->TimeStamp = TimeStamp;
+		Move->bSavedHasShot = bShot;
+		Move->bSavedQueuedPredictedKnockback = bQueuedPredicted;
+		Saved.Add(Move);
+		return Move.Get();
+	};
+	TSharedPtr<FSavedMove_Velox> AckedMove = MakeShared<FSavedMove_Velox>();
+	AckedMove->Clear();
+	AckedMove->TimeStamp = 1.0f;
+	const FSavedMovePtr Acked = AckedMove;
+
+	Add(1.0f);
+	const FSavedMove_Character* BeforeFire = Add(1.0083f);
+	const FSavedMove_Character* Fire = Add(1.0166f, /*bShot*/ true);
+	Add(1.025f);
+	const FSavedMove_Character* Ordinary = Add(1.0333f);
+	const FSavedMove_Character* New = Add(1.0416f);
+	bool bEvent = false;
+	const FSavedMove_Character* Old = FSavedMove_Velox::ChooseOldMove(Saved, Acked, New, nullptr, nullptr, &bEvent);
+	TestTrue(TEXT("the fire move beats the newer ordinary move for slot 1"), Old == Fire && Old != Ordinary);
+	TestTrue(TEXT("slot 1 is an event move"), bEvent);
+	TestTrue(TEXT("its predecessor takes slot 2"), FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New, nullptr, Old) == BeforeFire);
+
+	// About 55 ms later the predicted self splash was queued at the end of a newer move: that move wins slot 1 (A35).
+	const FSavedMove_Character* BeforeSplash = Add(1.05f);
+	const FSavedMove_Character* Splash = Add(1.0583f, false, /*bQueuedPredicted*/ true);
+	const FSavedMove_Character* New2 = Add(1.0666f);
+	const FSavedMove_Character* Old2 = FSavedMove_Velox::ChooseOldMove(Saved, Acked, New2, nullptr, nullptr);
+	TestTrue(TEXT("a newer splash move takes slot 1"), Old2 == Splash);
+	TestTrue(TEXT("the move before the splash move takes slot 2"), FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New2, nullptr, Old2) == BeforeSplash);
+
+	// Once the fire move is acked it is never resent.
+	AckedMove->TimeStamp = 1.0166f;
+	Saved.Reset();
+	Add(1.0166f, true);
+	const FSavedMove_Character* Prev = Add(1.025f);
+	const FSavedMove_Character* New3 = Add(1.0333f);
+	TestTrue(TEXT("acked fire move: the previous move again"), FSavedMove_Velox::ChooseOldMove(Saved, Acked, New3, nullptr, nullptr) == Prev);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementMoveShotSerializeTest, "Velox.Movement.SavedMove.MoveShotSerialize", VeloxSavedMoveTest::Flags)
+bool FVeloxMovementMoveShotSerializeTest::RunTest(const FString& Parameters)
+{
+	// ADR 0002 A36: FVeloxNetworkMoveData carries the shot behind one presence bit after the engine's fields; <= 160 bits
+	// with a shot; every field survives; every move type (new, pending, old, extra old) carries it.
+	UVeloxMovementComponent& Movement = *GetMutableDefault<UVeloxMovementComponent>();
+	auto FillMove = [](FCharacterNetworkMoveData& Data, float TimeStamp)
+	{
+		Data.TimeStamp = TimeStamp;
+		Data.Acceleration = FVector(800.0, 0.0, 0.0);
+		Data.Location = FVector(466.6, -1203.4, 92.15);
+		Data.ControlRotation = FRotator(-90.0, 90.0, 0.0);
+		Data.CompressedMoveFlags = FSavedMove_Velox::FLAG_JumpHeld;
+		Data.MovementMode = MOVE_Walking;
+	};
+	// The shot as the fire ability builds it: the RPC payload's quantized values (FVector_NetQuantize100 / Normal).
+	FVeloxMoveShot Shot;
+	Shot.ShotSeq = 201;
+	Shot.WeaponIndex = 15;
+	Shot.FireMoveTimeStamp = 1.750139f;
+	{
+		// Quantize origin and direction once (the RPC's Quantize), so the move-shot round trip must be exact.
+		FVeloxMoveShot Raw;
+		Raw.Origin = FVector(1834.567, -1203.4321, 152.149);
+		Raw.Dir = FVector(0.1234, -0.0567, -0.9907).GetSafeNormal();
+		FBitWriter Writer(0, true);
+		TestTrue(TEXT("pre-quantize"), Raw.Serialize(Writer));
+		FBitReader Reader(Writer.GetData(), Writer.GetNumBits());
+		TestTrue(TEXT("pre-quantize read"), Raw.Serialize(Reader));
+		Shot.Origin = Raw.Origin;
+		Shot.Dir = Raw.Dir;
+		TestTrue(TEXT("origin quantized to 1 cm"), FVector::Dist(Shot.Origin, FVector(1834.567, -1203.4321, 152.149)) <= 1.0);
+	}
+
+	// Bits of the Velox part alone, per move: the same move serialised by the engine's FCharacterNetworkMoveData.
+	auto Bits = [&Movement](FCharacterNetworkMoveData& Data, FCharacterNetworkMoveData::ENetworkMoveType Type)
+	{
+		FBitWriter Writer(0, true);
+		Data.Serialize(Movement, Writer, nullptr, Type);
+		return static_cast<int32>(Writer.GetNumBits());
+	};
+	FCharacterNetworkMoveData EngineMove;
+	FillMove(EngineMove, 1.758472f);
+	FVeloxNetworkMoveData Without;
+	FillMove(Without, 1.758472f);
+	FVeloxNetworkMoveData With;
+	FillMove(With, 1.758472f);
+	With.bHasShot = true;
+	With.Shot = Shot;
+	const int32 EngineBits = Bits(EngineMove, FCharacterNetworkMoveData::ENetworkMoveType::NewMove);
+	const int32 WithoutBits = Bits(Without, FCharacterNetworkMoveData::ENetworkMoveType::NewMove) - EngineBits;
+	const int32 WithBits = Bits(With, FCharacterNetworkMoveData::ENetworkMoveType::NewMove) - EngineBits;
+	AddInfo(FString::Printf(TEXT("Velox part of a move: %d bit(s) without a shot, %d bits with one"), WithoutBits, WithBits));
+	TestEqual(TEXT("without a shot: 1 bit"), WithoutBits, 1);
+	TestTrue(TEXT("with a shot: <= 160 bits"), WithBits <= 160);
+	TestTrue(TEXT("old move type: same cost"), Bits(With, FCharacterNetworkMoveData::ENetworkMoveType::OldMove) - Bits(EngineMove, FCharacterNetworkMoveData::ENetworkMoveType::OldMove) == WithBits);
+
+	// The container round trip: the shot on the new move, the old move and the extra old move; none on the pending one.
+	FVeloxNetworkMoveDataContainer Sent;
+	FillMove(*Sent.GetNewMoveData(), 1.766805f);
+	static_cast<FVeloxNetworkMoveData*>(Sent.GetNewMoveData())->bHasShot = true;
+	static_cast<FVeloxNetworkMoveData*>(Sent.GetNewMoveData())->Shot = Shot;
+	Sent.bHasPendingMove = true;
+	FillMove(*Sent.GetPendingMoveData(), 1.762639f);
+	Sent.bHasOldMove = true;
+	FillMove(*Sent.GetOldMoveData(), 1.758472f);
+	FVeloxMoveShot OldShot = Shot;
+	OldShot.ShotSeq = 200;
+	OldShot.WeaponIndex = 4;
+	static_cast<FVeloxNetworkMoveData*>(Sent.GetOldMoveData())->bHasShot = true;
+	static_cast<FVeloxNetworkMoveData*>(Sent.GetOldMoveData())->Shot = OldShot;
+	Sent.SetHasExtraOldMove(true);
+	FillMove(Sent.GetExtraOldMoveStorage(), 1.750139f);
+	FVeloxMoveShot ExtraShot = Shot;
+	ExtraShot.ShotSeq = 199;
+	ExtraShot.FireMoveTimeStamp = 1.741806f;
+	Sent.GetExtraOldMoveStorage().bHasShot = true;
+	Sent.GetExtraOldMoveStorage().Shot = ExtraShot;
+
+	FBitWriter Writer(0, true);
+	TestTrue(TEXT("serialise"), Sent.Serialize(Movement, Writer, nullptr));
+	uint32 Marker = 0xC35Au;
+	Writer << Marker;
+	FBitReader Reader(Writer.GetData(), Writer.GetNumBits());
+	FVeloxNetworkMoveDataContainer Received;
+	// Stale values from a previous RPC must be overwritten.
+	static_cast<FVeloxNetworkMoveData*>(Received.GetPendingMoveData())->bHasShot = true;
+	TestTrue(TEXT("deserialise"), Received.Serialize(Movement, Reader, nullptr));
+	uint32 ReadMarker = 0;
+	Reader << ReadMarker;
+	TestEqual(TEXT("stream aligned after the container"), ReadMarker, Marker);
+
+	const FVeloxNetworkMoveData* NewData = static_cast<const FVeloxNetworkMoveData*>(Received.GetNewMoveData());
+	const FVeloxNetworkMoveData* PendingData = static_cast<const FVeloxNetworkMoveData*>(Received.GetPendingMoveData());
+	const FVeloxNetworkMoveData* OldData = static_cast<const FVeloxNetworkMoveData*>(Received.GetOldMoveData());
+	const FVeloxNetworkMoveData* ExtraData = Received.GetExtraOldMoveData();
+	TestTrue(TEXT("new move: shot present"), NewData->bHasShot);
+	TestEqual(TEXT("new move: seq"), NewData->Shot.ShotSeq, Shot.ShotSeq);
+	TestEqual(TEXT("new move: weapon index 15 (4 bits)"), NewData->Shot.WeaponIndex, Shot.WeaponIndex);
+	TestEqual(TEXT("new move: stamp exact"), NewData->Shot.FireMoveTimeStamp, Shot.FireMoveTimeStamp);
+	TestTrue(TEXT("new move: quantized origin exact"), FVector(NewData->Shot.Origin) == FVector(Shot.Origin));
+	TestTrue(TEXT("new move: quantized dir exact"), FVector(NewData->Shot.Dir) == FVector(Shot.Dir));
+	TestTrue(TEXT("new move: whole shot equal"), NewData->Shot == Shot);
+	TestFalse(TEXT("pending move: no shot (stale flag overwritten)"), PendingData->bHasShot);
+	TestTrue(TEXT("old move: its shot"), OldData->bHasShot && OldData->Shot == OldShot);
+	if (TestNotNull(TEXT("extra old move received"), ExtraData))
+	{
+		TestTrue(TEXT("extra old move: its shot"), ExtraData->bHasShot && ExtraData->Shot == ExtraShot);
+	}
+	TestTrue(TEXT("AsVeloxMoveData finds the container's own data"), Received.AsVeloxMoveData(Received.GetOldMoveData()) == OldData);
+	TestNull(TEXT("AsVeloxMoveData rejects foreign data"), Received.AsVeloxMoveData(&EngineMove));
 	return true;
 }
 

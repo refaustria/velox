@@ -10,6 +10,8 @@
 #include "VeloxHealthSet.generated.h"
 
 struct FGameplayEffectSpec;
+struct FVeloxGameplayEffectContext;
+struct FGameplayEffectModCallbackData;
 
 /** One applied damage execution (server). */
 struct FVeloxDamageEvent
@@ -76,6 +78,8 @@ protected:
 
 	/** Commits the three damage metas (IncomingDamage is the commit attribute, written last by the execution). */
 	void ApplyIncomingDamage(const FGameplayEffectModCallbackData& Data);
+	/** Server: GameplayCue.Character.Damage with Location = the damage source (victim HUD direction indicator). */
+	void ExecuteDamageCue(const FGameplayEffectModCallbackData& Data, const FVeloxGameplayEffectContext* Context, float Amount) const;
 
 private:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Health, Category = "Velox|Health", Meta = (AllowPrivateAccess = true))

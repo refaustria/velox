@@ -49,12 +49,12 @@ Acceptance criteria:
 Goal: playable FFA and Duel matches.
 
 Acceptance criteria:
-- [ ] Pickups via GAS: health (5/25/50/Mega), armor (shards/yellow/red), ammo, weapons; respawn timers; powerups (Quad, Haste, Regen, Battle Suit) with timers and effects.
-- [ ] Game modes FFA and Duel (1v1, frag limit and time limit, overtime/sudden death), warmup, ready-up, match end and map restart.
-- [ ] Scoreboard, frag/death feed, match timer, HUD (health, armor, ammo, weapon bar, powerup timers, crosshair, hit markers, damage indicators).
-- [ ] Main menu, server connect by IP, settings (sensitivity, FOV, keybinds, audio, video), persisted in config.
-- [ ] Item timers for spectators/duel per standard rules.
-- [ ] Automation tests for pickup respawn timing, score/limit logic, powerup stacking rules.
+- [x] Pickups via GAS: health (5/25/50/Mega), armor (shards/yellow/red), ammo, weapons; respawn timers; powerups (Quad, Haste, Regen, Battle Suit) with timers and effects.
+- [x] Game modes FFA and Duel (1v1, frag limit and time limit, overtime/sudden death), warmup, ready-up, match end and map restart.
+- [x] Scoreboard, frag/death feed, match timer, HUD (health, armor, ammo, weapon bar, powerup timers, crosshair, hit markers, damage indicators).
+- [x] Main menu, server connect by IP, settings (sensitivity, FOV, keybinds, audio, video), persisted in config.
+- [x] Item timers for spectators/duel per standard rules.
+- [x] Automation tests for pickup respawn timing, score/limit logic, powerup stacking rules. *(79 tests; net soak 55/55 on 2026-10-30; human playtest `docs/playtests/m3-gameloop-checklist.md` pending; Gauntlet deferred)*
 
 ## M4 — Bots
 

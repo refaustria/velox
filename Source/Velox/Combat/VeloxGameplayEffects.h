@@ -33,7 +33,8 @@ public:
 
 /**
  * Instant; Override MaxHealth, MaxArmor, Health, Armor (SetByCaller.<Name>) and the six ammo attributes
- * (SetByCaller.<ammo tag>). Removes GE_Dead, GE_SpawnProtection and a previous GE_HealthDecay, then applies GE_HealthDecay.
+ * (SetByCaller.<ammo tag>). Removes GE_Dead, GE_SpawnProtection, every powerup (Velox.Powerup.*: lost on death, ADR 0004
+ * section 3) and a previous GE_HealthDecay, then applies GE_HealthDecay.
  */
 UCLASS()
 class VELOX_API UVeloxGE_SpawnInit : public UGameplayEffect
@@ -79,6 +80,27 @@ public:
 	UVeloxGE_Dead();
 };
 
+/**
+ * Instant; Additive on Health, magnitude SetByCaller.Health (ADR 0004 section 2: health pickups). The pickup rule computes
+ * the gain against the item's cap; the GE never knows the cap (UVeloxHealthSet still clamps to HealthHardCap).
+ */
+UCLASS()
+class VELOX_API UVeloxGE_Heal : public UGameplayEffect
+{
+	GENERATED_BODY()
+public:
+	UVeloxGE_Heal();
+};
+
+/** Instant; Additive on Armor, magnitude SetByCaller.Armor (armor pickups; the gain is computed by the pickup rule). */
+UCLASS()
+class VELOX_API UVeloxGE_ArmorGain : public UGameplayEffect
+{
+	GENERATED_BODY()
+public:
+	UVeloxGE_ArmorGain();
+};
+
 /** Parameters of one damage application (hitscan hit, projectile direct/splash, world damage). */
 struct FVeloxDamageSpecParams
 {
@@ -91,6 +113,11 @@ struct FVeloxDamageSpecParams
 	FVector Direction = FVector::ZeroVector;
 	FVector HitLocation = FVector::ZeroVector;
 	float KnockbackScale = 1.f;
+	/**
+	 * Outgoing damage scale applied by MakeDamageSpec to Damage (Q3 `damage *= s_quadFactor`, truncated): the shooter's
+	 * Quad factor for hitscan (ADR 0004 section 3). Projectiles scale their damage at the explosion and pass 1.
+	 */
+	float DamageScale = 1.f;
 	uint8 ShotSeq = 0;
 	bool bSelf = false;
 	bool bRadius = false;
@@ -111,6 +138,18 @@ namespace VeloxEffects
 	/** GE_AmmoCost: -Cost on AmmoTag's attribute, 0 on the others. */
 	VELOX_API FGameplayEffectSpecHandle MakeAmmoCostSpec(const UAbilitySystemComponent* ASC, const FGameplayTag& AmmoTag, int32 Cost);
 
+	/** GE_AmmoCost with a positive magnitude: +Amount on AmmoTag's attribute (ammo / weapon pickups, ADR 0004 section 2). */
+	VELOX_API FGameplayEffectSpecHandle MakeAmmoGainSpec(const UAbilitySystemComponent* ASC, const FGameplayTag& AmmoTag, int32 Amount);
+
+	/** GE_Heal: +Amount health (the pickup rule's gain). */
+	VELOX_API FGameplayEffectSpecHandle MakeHealSpec(const UAbilitySystemComponent* ASC, int32 Amount);
+
+	/** GE_ArmorGain: +Amount armor (the pickup rule's gain). */
+	VELOX_API FGameplayEffectSpecHandle MakeArmorGainSpec(const UAbilitySystemComponent* ASC, int32 Amount);
+
 	/** GE_WeaponSwitching / GE_SpawnProtection (any HasDuration GE reading SetByCaller.Duration). */
 	VELOX_API FGameplayEffectSpecHandle MakeDurationSpec(const UAbilitySystemComponent* ASC, TSubclassOf<UGameplayEffect> EffectClass, float Duration);
+
+	/** Velox.State.MatchFrozen (intermission, ADR 0004 section 5): the native tag VeloxMatchTags::State_MatchFrozen (task 05). */
+	VELOX_API FGameplayTag GetMatchFrozenTag();
 }

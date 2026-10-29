@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "Engine/NetSerialization.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/CharacterMovementReplication.h"
 
@@ -75,6 +76,54 @@ struct FVeloxPredictedKnockback
 
 	bool operator==(const FVeloxPredictedKnockback& Other) const { return Velocity == Other.Velocity && Seq == Other.Seq; }
 	bool operator!=(const FVeloxPredictedKnockback& Other) const { return !(*this == Other); }
+};
+
+/**
+ * Powerup end times in the owner's move-time domain (ADR 0004 section 3): the client move time stamp (server:
+ * ServerData->CurrentClientTimeStamp, owning client: the saved move's TimeStamp) at which the powerup ends, normalised to
+ * [0, MinTimeBetweenTimeStampResets); 0 = not active. Bots and listen hosts use world time (ADR 0003 B12). Set by the
+ * server (UVeloxMovementComponent::ServerSetPowerupRemaining), sent in every move response (acks and corrections) and
+ * snapshotted per correction (A18); evaluated per move with UVeloxMovementComponent::IsPowerupActive on both ends.
+ */
+struct FVeloxPowerupMoveTimes
+{
+	float HasteEnd = 0.f;
+	float QuadEnd = 0.f;
+
+	bool operator==(const FVeloxPowerupMoveTimes& Other) const { return HasteEnd == Other.HasteEnd && QuadEnd == Other.QuadEnd; }
+	bool operator!=(const FVeloxPowerupMoveTimes& Other) const { return !(*this == Other); }
+};
+
+/**
+ * The projectile shot fired at the start of a move (ADR 0003 B35, ADR 0002 A36): the fire move of a weapon with splash
+ * and a projectile class carries it, so the server registers the owner's self splash from the move stream (repaired by
+ * the old-move slots within one RPC) instead of from the reliable fire RPC (one NAK-driven resend late under loss).
+ * The values are the quantized ones the fire RPC carries (FGameplayAbilityTargetData_VeloxProjectileShot::Quantize);
+ * both quantizers round, so they survive this second round trip unchanged. About 19 bytes on the wire.
+ */
+struct VELOX_API FVeloxMoveShot
+{
+	/** Per-life shot sequence (UVeloxWeaponInventoryComponent::AllocateShotSeq), as in the fire RPC. */
+	uint8 ShotSeq = 0;
+	/** Weapon table index, 0..MaxWeaponIndex (4 bits on the wire). */
+	uint8 WeaponIndex = 0;
+	/** The client move time stamp at fire time: the end of the previous move = the start of the fire move (B6). */
+	float FireMoveTimeStamp = 0.f;
+	/** The eye at fire time. */
+	FVector_NetQuantize100 Origin = FVector::ZeroVector;
+	/** The aim direction (quantized normal, renormalised by the consumer). */
+	FVector_NetQuantizeNormal Dir = FVector::ForwardVector;
+
+	static constexpr uint8 MaxWeaponIndex = 15;
+
+	/** Same layout on save and load: seq 8 bits, weapon 4 bits, stamp 32 bits, origin (packed, 1 cm / 100), dir 48 bits. */
+	bool Serialize(FArchive& Ar);
+
+	bool operator==(const FVeloxMoveShot& Other) const
+	{
+		return ShotSeq == Other.ShotSeq && WeaponIndex == Other.WeaponIndex && FireMoveTimeStamp == Other.FireMoveTimeStamp && Origin == Other.Origin && Dir == Other.Dir;
+	}
+	bool operator!=(const FVeloxMoveShot& Other) const { return !(*this == Other); }
 };
 
 /**
@@ -170,8 +219,27 @@ public:
 	 */
 	uint8 bSavedQueuedPredictedKnockback : 1;
 
-	/** A28/A29 event move: a lost one costs 10-15 cm, anything else <= 2 cm, so it wins the single OldMove slot (A32). */
-	bool IsEventMove() const { return bSavedEnteredTrigger || bSavedJumpedHeld || bSavedQueuedPredictedKnockback; }
+	/**
+	 * Haste active in this move (ADR 0004 section 3), evaluated at the move's TimeStamp in SetMoveFor. CanCombineWith only:
+	 * moves on different sides of the Haste end never combine. Never restored; a replay recomputes the scale from the
+	 * move's time stamp and the chained FVeloxPowerupMoveTimes.
+	 */
+	uint8 bSavedHasteActive : 1;
+
+	/**
+	 * ADR 0002 A36: the move starts with a projectile shot (taken from UVeloxMovementComponent::ConsumePendingMoveShot in
+	 * SetMoveFor) and carries it to the server in FVeloxNetworkMoveData. Never combined, never restored on replay (A17).
+	 */
+	uint8 bSavedHasShot : 1;
+
+	/** ADR 0002 A36: the shot of a fire move (valid while bSavedHasShot). */
+	FVeloxMoveShot SavedMoveShot;
+
+	/**
+	 * A28/A29/A35/A36 event move: a lost one costs 10-15 cm (or, for the fire move, the server's self splash one resend
+	 * late), anything else <= 2 cm, so it wins the first OldMove slot (A32) and its predecessor the second (A35).
+	 */
+	bool IsEventMove() const { return bSavedEnteredTrigger || bSavedJumpedHeld || bSavedQueuedPredictedKnockback || bSavedHasShot; }
 
 	/**
 	 * ADR 0003 section 3 PrepMoveFor rule, world-free: the predicted impulse a replay of a move recorded with Saved must
@@ -203,8 +271,10 @@ public:
 };
 
 /**
- * Per-move network payload. Velox adds no serialised fields in M1 (ADR 0002 section 5): wish direction travels in
- * Acceleration and inputs in CompressedMoveFlags. Add fields here only when a move needs data neither can express.
+ * Per-move network payload (ADR 0002 section 5): wish direction travels in Acceleration and inputs in
+ * CompressedMoveFlags. ADR 0002 A36 adds the one field neither can express: the projectile shot of a fire move,
+ * serialised after the engine's fields behind one presence bit, for every move type (new, pending, old and the Velox
+ * extra old move), so a resent fire move carries its shot again.
  */
 struct VELOX_API FVeloxNetworkMoveData : public FCharacterNetworkMoveData
 {
@@ -214,6 +284,10 @@ struct VELOX_API FVeloxNetworkMoveData : public FCharacterNetworkMoveData
 	virtual void ClientFillNetworkMoveData(const FSavedMove_Character& ClientMove, ENetworkMoveType MoveType) override;
 	virtual bool Serialize(UCharacterMovementComponent& CharacterMovement, FArchive& Ar, UPackageMap* PackageMap, ENetworkMoveType MoveType) override;
 	//~End of FCharacterNetworkMoveData interface
+
+	/** ADR 0002 A36: the move is a fire move (Shot valid). */
+	bool bHasShot = false;
+	FVeloxMoveShot Shot;
 };
 
 /**
@@ -243,6 +317,12 @@ struct VELOX_API FVeloxNetworkMoveDataContainer : public FCharacterNetworkMoveDa
 	FVeloxNetworkMoveData* GetExtraOldMoveData() { return bHasExtraOldMove ? &ExtraOldMoveData : nullptr; }
 	const FVeloxNetworkMoveData* GetExtraOldMoveData() const { return bHasExtraOldMove ? &ExtraOldMoveData : nullptr; }
 
+	/**
+	 * The Velox move data behind a pointer the engine hands out (GetCurrentNetworkMoveData) if it points into this
+	 * container (new, pending, old or extra old move), else nullptr (e.g. the legacy unpacked ServerMove path).
+	 */
+	const FVeloxNetworkMoveData* AsVeloxMoveData(const FCharacterNetworkMoveData* MoveData) const;
+
 	/** Test access: the storage of the extra old move and its presence bit. */
 	FVeloxNetworkMoveData& GetExtraOldMoveStorage() { return ExtraOldMoveData; }
 	void SetHasExtraOldMove(bool bInHasExtraOldMove) { bHasExtraOldMove = bInHasExtraOldMove; }
@@ -268,6 +348,8 @@ struct FVeloxCorrectionState
 	FVeloxPendingKnockback PendingKnockback;
 	/** ADR 0003 section 3: newest own shot whose self-knockback the server has resolved, at check time (A18). */
 	uint8 ConfirmedSelfKnockbackSeq = 0;
+	/** ADR 0004 section 3: powerup end times at check time (A18), so the replay sees the values of its check time. */
+	FVeloxPowerupMoveTimes PowerupMoveTimes;
 };
 
 /**
@@ -277,6 +359,10 @@ struct FVeloxCorrectionState
  * server's state at the time of the error check (snapshot), see UVeloxMovementComponent::GetServerCorrectionState (A18).
  * Only corrections carry it; each field costs one bit when zero/false. Applied in
  * UVeloxMovementComponent::OnClientCorrectionReceived.
+ * ADR 0004 section 3: the powerup end times travel in acks and corrections alike (one bit each while 0; the engine
+ * serialises both through this one container, FCharacterMoveResponseDataContainer::Serialize). Acks carry the live values
+ * (the ack's time stamp is the last move processed), corrections the A18 snapshot. Applied in
+ * UVeloxMovementComponent::OnClientCorrectionReceived and ClientAckGoodMove_Implementation.
  */
 struct VELOX_API FVeloxMoveResponseDataContainer : public FCharacterMoveResponseDataContainer
 {
@@ -292,6 +378,8 @@ struct VELOX_API FVeloxMoveResponseDataContainer : public FCharacterMoveResponse
 	FVeloxPendingKnockback PendingKnockback;
 	/** ADR 0003 section 3: one byte, corrections only (optional against 0). */
 	uint8 ConfirmedSelfKnockbackSeq = 0;
+	/** ADR 0004 section 3: acks and corrections, each float optional against 0. */
+	FVeloxPowerupMoveTimes PowerupMoveTimes;
 };
 
 /** Client prediction data that allocates FSavedMove_Velox. */

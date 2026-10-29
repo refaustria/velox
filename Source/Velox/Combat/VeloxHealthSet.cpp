@@ -7,12 +7,19 @@
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxGameplayEffectContext.h"
+#include "Core/VeloxGameplayTags.h"
 #include "GameplayEffect.h"
 #include "GameplayEffectExtension.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxHealthSet)
+
+namespace VeloxHealthSetPrivate
+{
+	/** Distance (cm) behind the victim along the shot line used as the damage cue's source location (only the direction matters). */
+	constexpr double DamageCueSourceDistance = 1000.0;
+}
 
 UVeloxHealthSet::UVeloxHealthSet()
 {
@@ -97,6 +104,30 @@ void UVeloxHealthSet::PostGameplayEffectExecute(const FGameplayEffectModCallback
 	// IncomingArmorDamage / IncomingKnockback are committed together with IncomingDamage, which the execution writes last.
 }
 
+void UVeloxHealthSet::ExecuteDamageCue(const FGameplayEffectModCallbackData& Data, const FVeloxGameplayEffectContext* Context, float Amount) const
+{
+	UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent();
+	const AActor* Avatar = Data.Target.AbilityActorInfo.IsValid() ? Data.Target.AbilityActorInfo->AvatarActor.Get() : nullptr;
+	if (!ASC || !Avatar || !Context)
+	{
+		return;
+	}
+	// Location = where the damage came from, for the victim's damage direction indicator (ADR 0004 section 7): splash from
+	// the explosion origin, a hit along the shot line (the direction is what counts, not the distance).
+	FVector Source = Avatar->GetActorLocation() - FVector(Context->HitDirection) * VeloxHealthSetPrivate::DamageCueSourceDistance;
+	if (Context->HasFlag(EVeloxDamageFlags::Radius) || Context->HitDirection.IsNearlyZero())
+	{
+		Source = Context->HitLocation;
+	}
+	FGameplayCueParameters CueParams;
+	CueParams.Location = Source;
+	CueParams.Normal = Context->HitDirection;
+	CueParams.RawMagnitude = Amount;
+	CueParams.Instigator = Data.EffectSpec.GetEffectContext().GetOriginalInstigator();
+	CueParams.EffectCauser = Data.EffectSpec.GetEffectContext().GetEffectCauser();
+	ASC->ExecuteGameplayCue(VeloxGameplayTags::GameplayCue_Character_Damage, CueParams);
+}
+
 void UVeloxHealthSet::ApplyIncomingDamage(const FGameplayEffectModCallbackData& Data)
 {
 	const float HealthLoss = FMath::Max(GetIncomingDamage(), 0.f);
@@ -147,6 +178,11 @@ void UVeloxHealthSet::ApplyIncomingDamage(const FGameplayEffectModCallbackData& 
 		*GetNameSafe(GetOwningActor()), *GetNameSafe(Event.Instigator.Get()), *Event.DamageTags.ToStringSimple(), Event.OldHealth, Event.NewHealth,
 		Event.OldArmor, Event.NewArmor, *Event.Knockback.ToCompactString(), KnockbackSpeed,
 		KnockbackSpeed <= 0.f ? TEXT("none") : (bKnockbackAccepted ? TEXT("accepted") : TEXT("not applied")));
+
+	if (HealthLoss > 0.f || ArmorLoss > 0.f)
+	{
+		ExecuteDamageCue(Data, Context, HealthLoss + ArmorLoss);
+	}
 
 	OnDamaged.Broadcast(Event);
 

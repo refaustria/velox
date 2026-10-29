@@ -16,7 +16,7 @@ namespace VeloxCombatCVars
 	constexpr float Unset = -1e30f;
 
 #define VELOX_COMBAT_FLOAT_FIELDS(X) X(SelfDamageScale) X(SelfKnockbackScale) X(KnockbackSpeedPerDamage) X(MaxKnockbackDamage) X(HitboxTeleportDistanceCm) \
-	X(SwitchTimingToleranceSeconds) X(BeamKeepAliveSeconds) X(FireRateJitterToleranceSeconds)
+	X(BeamKeepAliveSeconds) X(FireRateJitterToleranceSeconds) X(PickupTakeEventMaxAgeSeconds)
 #define VELOX_DECLARE_COMBAT_CVAR(Name) static TAutoConsoleVariable<float> CVar_##Name(TEXT("velox.combat." #Name), Unset, \
 		TEXT("Override of UVeloxCombatSettings::" #Name " (-1e30 = use the asset). Non-shipping."), ECVF_Default);
 	VELOX_COMBAT_FLOAT_FIELDS(VELOX_DECLARE_COMBAT_CVAR)
@@ -50,6 +50,14 @@ UVeloxCombatSettings::UVeloxCombatSettings()
 		FColor(255, 40, 40), FColor(40, 140, 255), FColor(40, 255, 70), FColor(255, 230, 30),
 		FColor(255, 60, 220), FColor(30, 240, 240), FColor(255, 140, 20), FColor(160, 90, 255),
 	};
+
+	// ADR 0004 section 3: Quad blue, Haste yellow, Regen red, Battle Suit green.
+	PowerupTints = {
+		{ VeloxGameplayTags::Powerup_Quad, FLinearColor(0.15f, 0.35f, 1.f, 1.f) },
+		{ VeloxGameplayTags::Powerup_Haste, FLinearColor(1.f, 0.85f, 0.1f, 1.f) },
+		{ VeloxGameplayTags::Powerup_Regen, FLinearColor(1.f, 0.1f, 0.1f, 1.f) },
+		{ VeloxGameplayTags::Powerup_BattleSuit, FLinearColor(0.15f, 1.f, 0.2f, 1.f) },
+	};
 }
 
 int32 UVeloxCombatSettings::GetSpawnAmmo(const FGameplayTag& AmmoTag) const
@@ -74,15 +82,6 @@ float UVeloxCombatSettings::GetHitboxTeleportDistanceCm() const
 #endif
 }
 
-float UVeloxCombatSettings::GetSwitchTimingToleranceSeconds() const
-{
-#if !UE_BUILD_SHIPPING
-	return VeloxCombatCVars::Get(VeloxCombatCVars::CVar_SwitchTimingToleranceSeconds, SwitchTimingToleranceSeconds);
-#else
-	return SwitchTimingToleranceSeconds;
-#endif
-}
-
 float UVeloxCombatSettings::GetFireRateJitterToleranceSeconds() const
 {
 #if !UE_BUILD_SHIPPING
@@ -98,6 +97,15 @@ float UVeloxCombatSettings::GetBeamKeepAliveSeconds() const
 	return VeloxCombatCVars::Get(VeloxCombatCVars::CVar_BeamKeepAliveSeconds, BeamKeepAliveSeconds);
 #else
 	return BeamKeepAliveSeconds;
+#endif
+}
+
+float UVeloxCombatSettings::GetPickupTakeEventMaxAgeSeconds() const
+{
+#if !UE_BUILD_SHIPPING
+	return VeloxCombatCVars::Get(VeloxCombatCVars::CVar_PickupTakeEventMaxAgeSeconds, PickupTakeEventMaxAgeSeconds);
+#else
+	return PickupTakeEventMaxAgeSeconds;
 #endif
 }
 
@@ -121,6 +129,16 @@ FVeloxCombatParams UVeloxCombatSettings::BuildCombatParams() const
 	MaxKnockback = Get(CVar_MaxKnockbackDamage, MaxKnockback);
 #endif
 	P.MaxKnockbackDamage = FMath::RoundToInt32(MaxKnockback);
+	P.BattleSuitDirectDamageScale = BattleSuitDirectDamageScale;
+	return P;
+}
+
+FVeloxRegenParams UVeloxCombatSettings::BuildRegenParams() const
+{
+	FVeloxRegenParams P;
+	P.HealthPerTick = RegenHealthPerTick;
+	P.OverTick = RegenOverTick;
+	P.SoftCapScale = RegenSoftCapScale;
 	return P;
 }
 

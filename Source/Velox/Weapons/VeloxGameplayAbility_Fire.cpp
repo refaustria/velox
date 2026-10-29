@@ -11,10 +11,16 @@
 #include "Combat/VeloxGameplayEffects.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
+#include "GameModes/VeloxMatchEffects.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
 #include "GameplayCueInterface.h"
+#include "GameFramework/Character.h"
+#include "Movement/VeloxMovementComponent.h"
+#include "TimerManager.h"
 #include "Weapons/VeloxFireTiming.h"
+#include "Weapons/VeloxShotTargetData.h"
+#include "Weapons/VeloxWeaponCheats.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
 
@@ -44,6 +50,8 @@ UVeloxGameplayAbility_Fire::UVeloxGameplayAbility_Fire(const FObjectInitializer&
 	SetAssetTags(AssetTags);
 	// Not State_WeaponSwitching (B18): the replicated GE ends one RTT late on the client; CanActivateAbility gates instead.
 	ActivationBlockedTags.AddTag(VeloxGameplayTags::State_Dead);
+	// ADR 0004 section 5: no firing while the match is frozen (intermission).
+	ActivationBlockedTags.AddTag(VeloxMatchTags::State_MatchFrozen);
 	// Safety net: a server instance still waiting for target data never blocks the next activation.
 	bRetriggerInstancedAbility = true;
 }
@@ -125,9 +133,10 @@ bool UVeloxGameplayAbility_Fire::CanActivateAbility(const FGameplayAbilitySpecHa
 	const double Now = World->GetTimeSeconds();
 	const bool bRemote = IsServerForRemoteShooter(ActorInfo);
 
-	// B18: switch timing. Shooter's machine: its own switch end; server for a remote shooter: the GE with a tolerance.
+	// B18: switch timing. Shooter's machine: its own switch end; server for a remote shooter: the GE with the one resend
+	// tolerance (B37: the skew between a switch RPC and a later fire RPC is bounded by the resend compression).
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory->GetCombatSettings());
-	if (!VeloxFireTiming::IsSwitchFireAllowed(!bRemote, Now, Inventory->GetSwitchEndTime(), bRemote ? GetSwitchRemaining(ASC) : 0.0, Settings.GetSwitchTimingToleranceSeconds()))
+	if (!VeloxFireTiming::IsSwitchFireAllowed(!bRemote, Now, Inventory->GetSwitchEndTime(), bRemote ? GetSwitchRemaining(ASC) : 0.0, Settings.GetFireRateJitterToleranceSeconds()))
 	{
 		if (OptionalRelevantTags)
 		{
@@ -168,27 +177,86 @@ bool UVeloxGameplayAbility_Fire::CheckCost(const FGameplayAbilitySpecHandle Hand
 	return bAfford;
 }
 
+bool UVeloxGameplayAbility_Fire::IsShooterHasteActive(const FGameplayAbilityActorInfo* ActorInfo)
+{
+	if (!ActorInfo)
+	{
+		return false;
+	}
+	if (IsServerForRemoteShooter(ActorInfo))
+	{
+		// Server rule: its own tag (exact on the server's timeline; bucket refill and capacity, B32).
+		const UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
+		return ASC && ASC->HasMatchingGameplayTag(VeloxGameplayTags::Powerup_Haste);
+	}
+	// Shooter's machine: the move timeline (B6: shots happen at the end of the last move, GetPowerupClockNow there).
+	const ACharacter* Character = Cast<ACharacter>(ActorInfo->AvatarActor.Get());
+	const UVeloxMovementComponent* Movement = Character ? Cast<UVeloxMovementComponent>(Character->GetCharacterMovement()) : nullptr;
+	return Movement && Movement->IsHasteActive();
+}
+
+float UVeloxGameplayAbility_Fire::GetHasteFireInterval(const FGameplayAbilityActorInfo* ActorInfo, float Interval) const
+{
+	const UVeloxWeaponInventoryComponent* Inventory = ActorInfo ? UVeloxWeaponInventoryComponent::Find(ActorInfo->OwnerActor.Get()) : nullptr;
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
+	return static_cast<float>(VeloxFireTiming::HasteFireInterval(Interval, IsShooterHasteActive(ActorInfo), Settings.HasteFireRateScale));
+}
+
 void UVeloxGameplayAbility_Fire::AdvanceNextFireTime(double Now, float Interval)
 {
 	const UWorld* World = GetWorld();
-	NextFireTime = VeloxFireTiming::AdvanceNextFireTime(NextFireTime, Now, Interval, World ? World->GetDeltaSeconds() : 0.0);
+	// ADR 0004 section 3: Haste divides the interval (client rule; the server's remote path runs the bucket instead).
+	const float HasteInterval = GetHasteFireInterval(CurrentActorInfo, Interval);
+	NextFireTime = VeloxFireTiming::AdvanceNextFireTime(NextFireTime, Now, HasteInterval, World ? World->GetDeltaSeconds() : 0.0);
 }
 
 bool UVeloxGameplayAbility_Fire::ConsumeServerFireToken(double Now, const UVeloxWeaponDefinition& Definition)
 {
 	const UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
-	const float Interval = Definition.GetSafeFireInterval();
+	// ADR 0004 section 3: the server's Haste tag sets the bucket's refill interval and capacity (B32).
+	const float Interval = GetHasteFireInterval(CurrentActorInfo, Definition.GetSafeFireInterval());
 	return ServerBucket.TryConsume(Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.GetFireRateJitterToleranceSeconds()));
 }
 
-EVeloxShotReject UVeloxGameplayAbility_Fire::ValidateServerShot(const FGameplayAbilityTargetData* Raw, double Now, const UVeloxWeaponDefinition& Definition, FVeloxValidatedShot& OutShot)
+EVeloxShotReject UVeloxGameplayAbility_Fire::ValidateServerShot(const FGameplayAbilityTargetData* Raw, double Now, const UVeloxWeaponDefinition& Definition, FVeloxValidatedShot& OutShot,
+	bool bConsumeBucket)
 {
 	const UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
-	const float Interval = Definition.GetSafeFireInterval();
+	const float Interval = GetHasteFireInterval(CurrentActorInfo, Definition.GetSafeFireInterval());
 	return VeloxShotValidation::Validate(Raw, ServerBucket, Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.GetFireRateJitterToleranceSeconds()),
-		OutShot);
+		OutShot, bConsumeBucket);
+}
+
+bool UVeloxGameplayAbility_Fire::DebugHoldServerTargetData(const FGameplayAbilityTargetDataHandle& Data, TFunction<void()>&& Resume)
+{
+#if UE_BUILD_SHIPPING
+	return false;
+#else
+	const UVeloxWeaponDefinition* Definition = GetCurrentDefinition();
+	UWorld* World = GetWorld();
+	float HoldSeconds = 0.f;
+	if (bReleasingHeldTargetData || !Definition || !World || !VeloxWeaponCheats::ConsumeShotRpcHold(Definition->Slot, HoldSeconds))
+	{
+		return false;
+	}
+	// Hitscan and projectile payloads both derive from FGameplayAbilityTargetData_VeloxShot (nettest reads seq= of held shots).
+	const FGameplayAbilityTargetData* Raw = Data.Num() > 0 ? Data.Get(0) : nullptr;
+	const UScriptStruct* RawType = Raw ? Raw->GetScriptStruct() : nullptr;
+	const uint8 HeldSeq = RawType && RawType->IsChildOf(FGameplayAbilityTargetData_VeloxShot::StaticStruct())
+		? static_cast<const FGameplayAbilityTargetData_VeloxShot*>(Raw)->ShotSeq : 0;
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotRpcHeld seq=%u weapon=%s slot=%d ms=%.0f t=%.3f"), HeldSeq, *GetNameSafe(Definition), Definition->Slot, HoldSeconds * 1000.f,
+		World->GetTimeSeconds());
+	FTimerHandle Handle;
+	World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this, Resume = MoveTemp(Resume)]()
+	{
+		bReleasingHeldTargetData = true;
+		Resume();
+		bReleasingHeldTargetData = false;
+	}), FMath::Max(HoldSeconds, UE_KINDA_SMALL_NUMBER), false);
+	return true;
+#endif
 }
 
 void UVeloxGameplayAbility_Fire::FinalisePendingSwitch(const UVeloxWeaponDefinition& Definition) const

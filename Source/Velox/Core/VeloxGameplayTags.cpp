@@ -12,6 +12,8 @@ namespace VeloxGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Fire, "InputTag.Fire", "Fire the current weapon.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Zoom, "InputTag.Zoom", "Zoom.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Scoreboard, "InputTag.Scoreboard", "Show the scoreboard.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ready, "InputTag.Ready", "Toggle ready-up (warmup / intermission).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Menu, "InputTag.Menu", "Open the in-game menu.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Weapon_Next, "InputTag.Weapon.Next", "Switch to the next weapon.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Weapon_Prev, "InputTag.Weapon.Prev", "Switch to the previous weapon.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Weapon_Slot1, "InputTag.Weapon.Slot1", "Select weapon slot 1.");
@@ -77,6 +79,36 @@ namespace VeloxGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Character_Damage, "GameplayCue.Character.Damage", "Character took damage.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Character_Death, "GameplayCue.Character.Death", "Character died.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Character_Spawn, "GameplayCue.Character.Spawn", "Character spawned.");
+
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Health_Small, "Velox.Item.Health.Small", "Item: +5 health up to the hard cap (Q3 green).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Health_Medium, "Velox.Item.Health.Medium", "Item: +25 health up to max health (Q3 yellow).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Health_Large, "Velox.Item.Health.Large", "Item: +50 health up to max health (Q3 gold).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Health_Mega, "Velox.Item.Health.Mega", "Item: +100 health up to the hard cap (Q3 mega).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Armor_Shard, "Velox.Item.Armor.Shard", "Item: +5 armor.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Armor_Yellow, "Velox.Item.Armor.Yellow", "Item: +50 armor.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Armor_Red, "Velox.Item.Armor.Red", "Item: +100 armor.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Ammo_Bullets, "Velox.Item.Ammo.Bullets", "Item: machine gun ammo.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Ammo_Shells, "Velox.Item.Ammo.Shells", "Item: shotgun ammo.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Ammo_Rockets, "Velox.Item.Ammo.Rockets", "Item: rocket launcher ammo.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Ammo_Cells, "Velox.Item.Ammo.Cells", "Item: plasma gun ammo.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Ammo_Lightning, "Velox.Item.Ammo.Lightning", "Item: lightning gun ammo.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Ammo_Slugs, "Velox.Item.Ammo.Slugs", "Item: railgun ammo.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Weapon_MachineGun, "Velox.Item.Weapon.MachineGun", "Item: machine gun.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Weapon_Shotgun, "Velox.Item.Weapon.Shotgun", "Item: shotgun.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Weapon_RocketLauncher, "Velox.Item.Weapon.RocketLauncher", "Item: rocket launcher.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Weapon_LightningGun, "Velox.Item.Weapon.LightningGun", "Item: lightning gun.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Weapon_Railgun, "Velox.Item.Weapon.Railgun", "Item: railgun.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Weapon_PlasmaGun, "Velox.Item.Weapon.PlasmaGun", "Item: plasma gun.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Powerup_Quad, "Velox.Item.Powerup.Quad", "Item: Quad Damage.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Powerup_Haste, "Velox.Item.Powerup.Haste", "Item: Haste.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Powerup_Regen, "Velox.Item.Powerup.Regen", "Item: Regeneration.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Item_Powerup_BattleSuit, "Velox.Item.Powerup.BattleSuit", "Item: Battle Suit.");
+
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Powerup, "Velox.Powerup", "Any active powerup (removed on death by GE_SpawnInit, task 02).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Powerup_Quad, "Velox.Powerup.Quad", "Active Quad Damage (x3 outgoing damage).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Powerup_Haste, "Velox.Powerup.Haste", "Active Haste (x1.3 wish speed and fire rate).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Powerup_Regen, "Velox.Powerup.Regen", "Active Regeneration.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Powerup_BattleSuit, "Velox.Powerup.BattleSuit", "Active Battle Suit.");
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_MachineGun_Fire, "GameplayCue.Weapon.MachineGun.Fire", "MachineGun: shot fired (tracer from the eye to the ray end).");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Weapon_MachineGun_Impact, "GameplayCue.Weapon.MachineGun.Impact", "MachineGun: impact at the ray end / explosion.");

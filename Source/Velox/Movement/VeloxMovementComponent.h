@@ -42,6 +42,44 @@ namespace VeloxProxySmoothing
 		double MinStamp);
 }
 
+/** ADR 0003 B36 / ADR 0002 A36: the shooter's eye after one processed client move (server), keyed by the move's end stamp. */
+struct FVeloxEyeSample
+{
+	float Stamp = 0.f;
+	FVector Eye = FVector::ZeroVector;
+};
+
+/**
+ * Fixed ring of the last Capacity eye samples, oldest first, strictly increasing stamps (128 entries = 1.07 s at 120 Hz).
+ * A push with a stamp below the newest resets the ring (new client time-stamp domain after a reset); an equal stamp
+ * replaces the newest entry. No allocation.
+ */
+struct FVeloxEyeRing
+{
+	static constexpr int32 Capacity = 128;
+
+	VELOX_API void Push(float Stamp, const FVector& Eye);
+	void Reset() { Head = 0; Count = 0; }
+	int32 Num() const { return Count; }
+	/** Index-th oldest sample, 0 <= Index < Num(). */
+	const FVeloxEyeSample& Get(int32 Index) const { return Samples[(Head + Index) % Capacity]; }
+
+private:
+	FVeloxEyeSample Samples[Capacity];
+	/** Slot of the oldest sample. */
+	int32 Head = 0;
+	int32 Count = 0;
+};
+
+namespace VeloxEyeRing
+{
+	/**
+	 * World-free lookup (B36): exact entry; between two entries -> linear interpolation; older than the oldest -> the
+	 * oldest; newer than the newest or an empty ring -> false (the caller uses the live eye).
+	 */
+	VELOX_API bool Lookup(const FVeloxEyeRing& Ring, float Stamp, FVector& OutEye);
+}
+
 /**
  * Where a knockback comes from (ADR 0003 section 3, ADR 0002 A17). Overlap (pads) and Server (every server-side impulse:
  * damage, the server's own self-knockback) accumulate into the chained PendingKnockback. Predicted (the owning client's
@@ -54,6 +92,13 @@ enum class EVeloxKnockbackSource : uint8
 	Overlap,
 	Server,
 	Predicted
+};
+
+/** Powerups that live in the owner's move timeline (ADR 0004 section 3): FVeloxPowerupMoveTimes::HasteEnd / QuadEnd. */
+enum class EVeloxMovePowerup : uint8
+{
+	Haste,
+	Quad
 };
 
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
@@ -167,6 +212,33 @@ public:
 	 */
 	void ServerNoteShot(uint8 Seq);
 
+	// ---- Move-carried projectile shot (ADR 0003 B35, ADR 0002 A36) -------------------------------------------------
+
+	/**
+	 * Owning client (autonomous proxy only): the shot rides the next saved move (FSavedMove_Velox::SetMoveFor ->
+	 * ConsumePendingMoveShot) to the server. Single slot: a second queue before a move took the first overwrites it and
+	 * logs a Warning. Returns false (nothing queued) outside the autonomous proxy.
+	 */
+	bool QueueMoveShot(const FVeloxMoveShot& Shot);
+
+	/** FSavedMove_Velox::SetMoveFor: takes the queued shot (true) and clears the slot; false when none is queued. */
+	bool ConsumePendingMoveShot(FVeloxMoveShot& OutShot);
+
+	bool HasPendingMoveShot() const { return bHasPendingMoveShot; }
+
+	/**
+	 * Server (authority, remote owner): a move carrying a shot is about to be simulated: (Shot, MoveEndStamp =
+	 * ClientTimeStamp, MoveDeltaTime). Broadcast from MoveAutonomous before Super, so an event due inside the fire move is
+	 * registered in time. Duplicates never reach it (VerifyClientTimeStamp runs first). Bound by
+	 * UVeloxWeaponInventoryComponent::BindServerMoveStream.
+	 */
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnVeloxServerMoveShot, const FVeloxMoveShot& /*Shot*/, float /*MoveEndStamp*/, float /*MoveDeltaTime*/);
+	FOnVeloxServerMoveShot OnServerMoveShot;
+
+	/** Server (authority, remote owner): a client move ending at MoveEndStamp was simulated (after Super::MoveAutonomous). */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnVeloxServerMoveProcessed, float /*MoveEndStamp*/);
+	FOnVeloxServerMoveProcessed OnServerMoveProcessed;
+
 	/**
 	 * Move-timed events (task 05: the owner's self splash of a projectile, evaluated in the owner's move timeline on both
 	 * the owning client and the server so prediction and authority agree to the move). Callback runs at the end of the
@@ -182,6 +254,10 @@ public:
 	int32 CancelAllMoveTimedEvents();
 	bool HasMoveTimedEvent(int32 EventId) const;
 	int32 GetNumMoveTimedEvents() const { return MoveTimedEvents.Num(); }
+	/** The move time of a pending event; false when EventId is not pending (tests, logs). */
+	bool GetMoveTimedEventTime(int32 EventId, float& OutMoveTime) const;
+	/** Server: shot Seq has begun (ServerBeginSelfKnockbackShot) and is not resolved yet (tests). */
+	bool IsServerSelfKnockbackShotUnresolved(uint8 Seq) const { return ServerUnresolvedSelfKnockbackSeqs.Contains(Seq); }
 
 	/**
 	 * Whether an event at EventTime is due after a move ending at MoveTime. Time stamps wrap every ResetPeriod
@@ -197,6 +273,12 @@ public:
 
 	/** Server: time stamp of the last client move processed (ServerData->CurrentClientTimeStamp); 0 without server data. */
 	float GetServerClientMoveTimeStamp() const;
+
+	/**
+	 * Server (ADR 0003 B36): the eye (GetPawnViewLocation) after the processed client move that ended at Stamp, from
+	 * the per-move ring pushed in MoveAutonomous; VeloxEyeRing::Lookup semantics (false: use the live eye).
+	 */
+	bool GetServerEyeAtMoveTime(float Stamp, FVector& OutEye) const { return VeloxEyeRing::Lookup(ServerEyeRing, Stamp, OutEye); }
 
 	const FVeloxPendingKnockback& GetPendingKnockback() const { return PendingKnockback; }
 
@@ -280,6 +362,69 @@ public:
 	/** Server: Velox state snapshot for the correction queued by the last failed error check (A18). */
 	const FVeloxCorrectionState& GetServerCorrectionState() const { return ServerCorrectionState; }
 
+	// ---- Powerups in the move timeline (ADR 0004 section 3) ---------------------------------------------------------
+
+	/**
+	 * Signed seconds from MoveTime to End in a time-stamp domain that wraps every ResetPeriod
+	 * (MinTimeBetweenTimeStampResets): End - MoveTime reduced into (-ResetPeriod / 2, ResetPeriod / 2]. Positive while the
+	 * end lies ahead of the move. Exact across a time-stamp reset in either order (End stored before or after the reset),
+	 * for durations below half a period.
+	 */
+	static float PowerupTimeLeft(float End, float MoveTime, float ResetPeriod);
+
+	/** A powerup with end End (0 = none) is active in a move ending at MoveTime: End != 0 && PowerupTimeLeft > 0. */
+	static bool IsPowerupActive(float End, float MoveTime, float ResetPeriod) { return End != 0.f && PowerupTimeLeft(End, MoveTime, ResetPeriod) > 0.f; }
+
+	/** IsPowerupActive with this component's MinTimeBetweenTimeStampResets. */
+	bool IsPowerupActiveAt(float End, float MoveTime) const { return IsPowerupActive(End, MoveTime, MinTimeBetweenTimeStampResets); }
+
+	/**
+	 * The end time of a powerup with RemainingSeconds left at Now: (Now + Remaining) normalised to (0, ResetPeriod];
+	 * Remaining is clamped to PowerupMaxRemainingSeconds so the end stays unambiguous (PowerupTimeLeft). 0 for Remaining <= 0.
+	 */
+	static float MakePowerupEnd(double Now, float RemainingSeconds, float ResetPeriod);
+
+	/** Longest remaining time the move timeline can represent: 0.45 x the reset period (108 s at the engine's 240 s). */
+	static float PowerupMaxRemainingSeconds(float ResetPeriod) { return 0.45f * ResetPeriod; }
+
+	/**
+	 * Seconds after the end at which a non-replayed move drops a stale end time (a quarter period): long after every
+	 * in-flight shot or move that could still refer to it, long before PowerupTimeLeft wraps to positive again.
+	 */
+	static float PowerupStaleSeconds(float ResetPeriod) { return 0.25f * ResetPeriod; }
+
+	/**
+	 * The move-time clock of this pawn: the move being simulated (server: the client stamp in MoveAutonomous, or the last
+	 * one processed; owning client: the live move's CurrentTimeStamp or the replayed move's stamp; outside a move the end
+	 * of the last move, where B6 shots happen), or world time for a pawn whose moves carry no client stamps (bots, listen
+	 * host, standalone; ADR 0003 B12). Normalised into [0, MinTimeBetweenTimeStampResets) for world time.
+	 */
+	float GetPowerupClockNow() const;
+
+	/** IsPowerupActiveAt(end of Powerup, GetPowerupClockNow()). */
+	bool IsPowerupActiveNow(EVeloxMovePowerup Powerup) const;
+
+	/** Haste active in the move timeline right now (HUD, AI, tests). */
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement")
+	bool IsHasteActive() const { return IsPowerupActiveNow(EVeloxMovePowerup::Haste); }
+
+	/** SimParams.HasteSpeedScale while Haste is active at GetPowerupClockNow(), else 1 (GetMaxSpeed, the sim). */
+	float GetHasteSpeedScale() const;
+
+	/** Speed scale of the move being simulated (computed at the start of PerformMovement). */
+	float GetMoveSpeedScale() const { return MoveSpeedScale; }
+
+	const FVeloxPowerupMoveTimes& GetPowerupMoveTimes() const { return PowerupMoveTimes; }
+
+	/** Owning client (response receipt) and tests: replaces the end times. Game code on the server uses ServerSetPowerupRemaining. */
+	void SetPowerupMoveTimes(const FVeloxPowerupMoveTimes& InTimes) { PowerupMoveTimes = InTimes; }
+
+	/**
+	 * Server: the powerup has RemainingSeconds left now (its GE's remaining time): End = MakePowerupEnd(GetPowerupClockNow(),
+	 * RemainingSeconds); 0 when RemainingSeconds <= 0 (a premature removal). Sent with the next response.
+	 */
+	void ServerSetPowerupRemaining(EVeloxMovePowerup Powerup, float RemainingSeconds);
+
 	//~UCharacterMovementComponent interface
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
 	virtual float GetMaxSpeed() const override;
@@ -327,7 +472,8 @@ protected:
 
 	/**
 	 * Captures the move's ClientTimeStamp (server and client replay); non-shipping on the authority: logs merged server
-	 * moves (VeloxMoveGap, A28(iv)/A34(i)) and old moves that filled a gap (VeloxMoveRepaired, A32).
+	 * moves (VeloxMoveGap, A28(iv)/A34(i)) and old moves that filled a gap (VeloxMoveRepaired, A32). Authority (ADR 0002
+	 * A36): broadcasts OnServerMoveShot before Super for a move that carries a shot, and OnServerMoveProcessed after it.
 	 */
 	virtual void MoveAutonomous(float ClientTimeStamp, float DeltaTime, uint8 CompressedFlags, const FVector& NewAccel) override;
 
@@ -421,6 +567,9 @@ protected:
 	/** ClientTimeStamp of the last MoveAutonomous (server, client replay); A28(iii) instrumentation. */
 	float LastMoveAutonomousTimeStamp = 0.f;
 
+	/** Authority: (ClientTimeStamp, eye) after every MoveAutonomous of a remote client (ADR 0003 B36). ~4 KB. */
+	FVeloxEyeRing ServerEyeRing;
+
 	/** DoJump succeeded in the current move (take-off or landing jump); cleared where a move begins (A29, task M1-07). */
 	uint8 bJumpedThisMove : 1;
 
@@ -451,6 +600,10 @@ protected:
 	/** Recorded channel (ADR 0003 section 3): predicted self-knockback for the start of the next move (owning client). */
 	FVeloxPredictedKnockback PendingPredictedKnockback;
 
+	/** ADR 0002 A36, owning client: the shot the next saved move carries (QueueMoveShot / ConsumePendingMoveShot). */
+	FVeloxMoveShot PendingMoveShot;
+	bool bHasPendingMoveShot = false;
+
 	/** See GetConfirmedSelfKnockbackSeq. */
 	uint8 ConfirmedSelfKnockbackSeq = 0;
 
@@ -480,6 +633,29 @@ protected:
 
 	/** Server: Velox state at the error check that queued the pending correction (A18). */
 	FVeloxCorrectionState ServerCorrectionState;
+
+	/** ADR 0004 section 3: powerup end times in the move-time domain (server: authoritative; owning client: last response). */
+	FVeloxPowerupMoveTimes PowerupMoveTimes;
+
+	/** FVeloxMoveInput::SpeedScale of the current move (Haste), set at the start of every PerformMovement. */
+	float MoveSpeedScale = 1.f;
+
+	/**
+	 * Owning client: applies the powerup end times of a response (ack or correction) before any replay; non-shipping logs
+	 * a change (VeloxPowerupMoveTimes).
+	 */
+	void ApplyReceivedPowerupMoveTimes(const FVeloxPowerupMoveTimes& InTimes, float TimeStamp, const TCHAR* Kind);
+
+	/** Non-replayed moves (server, live owning client, bots): drops end times more than PowerupStaleSeconds in the past. */
+	void DropStalePowerupMoveTimes(float MoveClock);
+
+#if !UE_BUILD_SHIPPING
+	/** Net soak (HasteRun): Haste state of the previous non-replayed move, and the peak XY speed while active. */
+	bool bSoakHasteActive = false;
+	float SoakHastePeak2D = 0.f;
+	/** Logs VeloxHasteState when the Haste state of a non-replayed move (stamp MoveClock, length DeltaSeconds) differs from the previous one. */
+	void LogHasteStateChange(float MoveClock, float DeltaSeconds, float StartSpeed2D);
+#endif
 
 	/** FVeloxMoveParams of the current move: built in SetMovementSettings and at the start of every PerformMovement (A8). */
 	FVeloxMoveParams SimParams;

@@ -1,5 +1,6 @@
 // Velox - one hitscan/projectile shot as GAS target data (ADR 0003 section 5, review of task 03). Sent by the predicting
-// client with CallServerSetReplicatedTargetData (reliable), never inside moves (ADR 0002 A33). About 30 bytes.
+// client with CallServerSetReplicatedTargetData (reliable). About 34 bytes. A projectile shot is also carried in its fire
+// move (FVeloxMoveShot, ADR 0003 B35 / ADR 0002 A36); hitscan shots stay out of moves (A33).
 
 #pragma once
 
@@ -35,6 +36,14 @@ struct VELOX_API FGameplayAbilityTargetData_VeloxShot : public FGameplayAbilityT
 	 */
 	UPROPERTY()
 	uint8 ShotSeq = 0;
+
+	/**
+	 * UVeloxMovementComponent::GetClientMoveTimeStamp() at fire time (end of the last move, B6: before the frame's move).
+	 * ADR 0003 B36: the server validates Origin against the shooter's eye at this stamp (per-move eye ring); the
+	 * projectile ability also schedules the owner's self splash from it (B25). Full precision (~4 bytes).
+	 */
+	UPROPERTY()
+	float FireMoveTimeStamp = 0.f;
 
 	/** Rendered-proxy hint (B14): written only when set (one bit otherwise). */
 	UPROPERTY()

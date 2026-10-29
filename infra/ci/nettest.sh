@@ -14,7 +14,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 GREP=/usr/bin/grep   # the interactive shell's grep is a ugrep wrapper; use the real one
 PORT=7777
-SCRIPTS_ARG="StrafeRun,PadRun,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun"
+SCRIPTS_ARG="StrafeRun,PadRun,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun"
 REPEAT=1
 KEEP_GOING=0
 CLIENT_TIMEOUT="${VELOX_NETTEST_TIMEOUT:-120}"
@@ -29,7 +29,9 @@ FIRE_LAG_MS=50
 LAG_OVERRIDE=""
 PKT_ARGS=()
 # Scripts on L_CombatTest (task 08); everything else runs on L_MovementTest.
-COMBAT_SCRIPTS=" FireRun FireRunControl RocketJumpRun "
+COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun RocketJumpRunHold "
+# Scripts on L_ItemTest (M3 task 04); the client runs velox.items.Watch.
+ITEM_SCRIPTS=" ItemRun "
 
 nettest_usage() {
   cat <<USAGE
@@ -37,7 +39,11 @@ Usage: ${CI_SCRIPT_NAME} [options]
 
 Runs dedicated server + scripted -nullrhi client (100 ms / 2 % loss both directions) per script and checks the
 net-soak pass criteria. Exit code is non-zero if any script fails. FireRun, FireRunControl (FireRun.json with
-velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest.
+velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest. ItemRun runs on
+L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest. FireRunHold (task 08g, not in the default list) is FireRun
+with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3). RocketJumpRunHold
+(task 08f, not in the default list) is RocketJumpRun with the server holding the rocket's fire RPC 300 ms
+(velox.combat.DebugHoldShotRpc 300 5 1, ADR 0003 B35).
 
 Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
@@ -81,7 +87,7 @@ trap 'exit 130' INT TERM
 script_lag() {
   if [[ -n "$LAG_OVERRIDE" ]]; then echo "$LAG_OVERRIDE"; return; fi
   case "$1" in
-    FireRun|FireRunControl) echo "$FIRE_LAG_MS" ;;
+    FireRun|FireRunControl|FireRunHold) echo "$FIRE_LAG_MS" ;;
     *) echo "$LAG_MS" ;;
   esac
 }
@@ -102,18 +108,28 @@ run_one() {
   PKT_ARGS=(-PktLag="$lag" -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=$((lag - 20)) -PktIncomingLagMax=$((lag + 20)) -PktIncomingLoss=2)
   if [[ "$script" == LatchRun ]]; then cexec="velox.move.Preset Q3, $cexec"; sexec="velox.move.Preset Q3"; fi
   if [[ "$COMBAT_SCRIPTS" == *" $script "* ]]; then map="L_CombatTest"; fi
+  if [[ "$ITEM_SCRIPTS" == *" $script "* ]]; then
+    # M3 task 04 / ADR 0004 section 10: velox.items.Watch logs the client's placeholder and Health/Armor/Bullets changes.
+    map="L_ItemTest"; cexec="$cexec, velox.items.Watch"
+  fi
   case "$script" in
-    FireRun|FireRunControl)
+    FireRun|FireRunControl|FireRunHold)
       # Task 08: invulnerable strafing target at FireRun.json's dummyLocation, every weapon, per-pawn rewind lines.
+      # FireRunHold (task 08g, ADR 0003 B36): FireRun with the server holding the first three rail target-data RPCs
+      # (slot 7) for 300 ms each, a deterministic stand-in for a reliable resend.
       local dummy lagcomp=1
       dummy="$(python3 -I -c 'import json,sys; print(" ".join("%g" % v for v in json.load(open(sys.argv[1]))["dummyLocation"]))' \
         "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json")" || { echo "FAILED: FireRun.json has no dummyLocation" >&2; return 1; }
       [[ "$script" == FireRunControl ]] && lagcomp=0
       sexec="velox.combat.GiveAllWeapons, velox.combat.SpawnDummy $dummy invulnerable, velox.lagcomp.Debug 1, velox.combat.LagComp $lagcomp"
+      [[ "$script" == FireRunHold ]] && sexec="$sexec, velox.combat.DebugHoldShotRpc 300 7 3"
       script_args=(-VeloxScript=FireRun) ;;
-    RocketJumpRun)
+    RocketJumpRun|RocketJumpRunHold)
       # Task 08 / ADR 0003 B25: wraps the task-05 test command; VeloxCorrection lines come from velox.move.LogCorrections.
       sexec="velox.combat.GiveAllWeapons"
+      # Task 08f / ADR 0003 B35: forced late fire RPC (the server holds the RL target data 300 ms, as a lost packet's
+      # reliable resend would); the fire move itself is on time, so the self splash must come from the move stream.
+      [[ "$script" == RocketJumpRunHold ]] && sexec="$sexec, velox.combat.DebugHoldShotRpc 300 5 1"
       cexec="$cexec, velox.move.LogCorrections 1, velox.combat.RocketJumpTest -90 quit"
       script_args=() ;;
   esac
@@ -195,7 +211,7 @@ if not server_alive:
 if crc != 0:
     fails.append("client exit code %d" % crc)
 
-if script == "RocketJumpRun":
+if script in ("RocketJumpRun", "RocketJumpRunHold"):
     # velox.combat.RocketJumpTest's result line instead of a script's VeloxNetSoak line.
     final = next((l for l in reversed(C) if "VeloxRocketJump: apex_cm=" in l), None)
     if final is None:
@@ -540,12 +556,15 @@ elif script == "LatchRun":
                 notes.append("%s: no friction drop (%.1f -> %.1f)" % (name, before, after))
             stray_only(t, t + 0.3, name)
 
-elif script in ("FireRun", "FireRunControl"):
+elif script in ("FireRun", "FireRunControl", "FireRunHold"):
     # Task 08 / ADR 0003 section 9, B17, B24, B25: FireRun.json against the invulnerable strafing dummy. Client lines:
     # VeloxShotFired (seq, weapon, aim_err_cm, view_delay_ms, server_est), VeloxHitConfirm (new=), ClientActivateAbilityFailed
     # (GAS, Display). Server lines: VeloxShot (seq, hit, rewind_ms, view_ms, hint, hits, snap), VeloxShotRejected,
     # VeloxProjectileExplode, SpawnDummy, VeloxLagCompRegister/VeloxLagCompRewind (velox.lagcomp.Debug 1).
     control = script == "FireRunControl"
+    hold_run = script == "FireRunHold"
+    # Task 08g / B36: shots the server held (velox.combat.DebugHoldShotRpc); judged separately from the FireRun rules.
+    held = [kv(l).get("seq") for l in S if "VeloxShotRpcHeld seq=" in l]
     WALL_RE = re.compile(r"^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]")
     def wall(line):
         m = WALL_RE.match(line)
@@ -576,7 +595,7 @@ elif script in ("FireRun", "FireRunControl"):
     if t_possess is None:
         notes.append("no VeloxShotSeqReset line: warm-up not applied")
     warm = [d for d in fired.values() if not judged(d)]
-    rails = [d for d in fired.values() if "Railgun" in d.get("weapon", "") and judged(d)]
+    rails = [d for d in fired.values() if "Railgun" in d.get("weapon", "") and judged(d) and d.get("seq") not in held]
     mgs = [d for d in fired.values() if "MachineGun" in d.get("weapon", "") and judged(d)]
     rails.sort(key=lambda d: num(d, "t")); mgs.sort(key=lambda d: num(d, "t"))
     rail_srv = [(d, srv.get(d.get("seq"))) for d in rails]
@@ -593,12 +612,41 @@ elif script in ("FireRun", "FireRunControl"):
         len(rails), hit_n, stamp_n, ("%.1f" % statistics.median(rew)) if rew else "-", ("%.1f" % (sum(dif) / len(dif))) if dif else "-",
         ("%.1f" % max(aim)) if aim else "-", ("%.1f" % statistics.median(delays)) if delays else "-", len(mgs), len(rejected), len(act_failed),
         confirms, hits_srv, ",".join("direct=%s/victims=%s/sent=%s" % (e.get("direct"), e.get("confirm_victims"), e.get("confirm_sent")) for e in explodes) or "none", len(warm)))
+    # B36: late_ms = (last processed move stamp - FireMoveTimeStamp) on every server shot line; VeloxShotOriginSnap (any
+    # weapon, err_cm against the eye at the fire stamp) must not occur for an honest client.
+    lates = [(seq, num(s_, "late_ms")) for seq, s_ in srv.items() if seq not in held and s_.get("late_ms") not in (None, "na")]
+    over40 = [(seq, round(v, 1)) for seq, v in lates if v > 40.0]
+    detail.append("late_max=%s late_gt40=%d" % (("%.1f" % max(v for _, v in lates)) if lates else "-", len(over40)))
+    if over40:
+        notes.append("non-held shots with late_ms > 40 (a lost RPC resent, RTT + ~80 ms): %s" % over40[:6])
+    snap_lines = [kv(l) for l in S if "VeloxShotOriginSnap seq=" in l]
+    if snap_lines:
+        fails.append("%d VeloxShotOriginSnap line(s), max err_cm %.1f: %s" % (len(snap_lines), max(num(d, "err_cm") for d in snap_lines),
+            ["seq=%s err_cm=%s reason=%s late_ms=%s" % (d.get("seq"), d.get("err_cm"), d.get("reason"), d.get("late_ms")) for d in snap_lines[:4]]))
+    if hold_run:
+        # Task 08g: the three held rails are processed 300 ms late; late_ms in [280, 360], no snap, no rejection; their
+        # hit / miss and rewind_ms (clamped at MaxRewindSeconds) are reported, not asserted.
+        rows = []
+        for seq in held:
+            s_ = srv.get(seq)
+            if s_ is None:
+                rows.append("seq=%s:no_server_line" % seq)
+                fails.append("held rail seq=%s has no server VeloxShot line" % seq)
+                continue
+            late = s_.get("late_ms")
+            rows.append("seq=%s:late=%s/rewind=%s/hint=%s/hit=%s" % (seq, late, s_.get("rewind_ms"), s_.get("hint"), s_.get("hit")))
+            if late in (None, "na") or not (280.0 <= num(s_, "late_ms") <= 360.0):
+                fails.append("held rail seq=%s late_ms=%s not in [280, 360]" % (seq, late))
+        detail.append("held=[%s]" % " ".join(rows))
+        if len(held) != 3:
+            fails.append("expected 3 held rail RPCs (VeloxShotRpcHeld seq=), got %d" % len(held))
     railfile = os.path.join(out_dir, "FireRun.railhits")
     if not control:
-        with open(railfile, "w") as rf:
-            rf.write("%d %d\n" % (hit_n, len(rails)))
-        if len(rails) < 10:
-            fails.append("expected >= 10 judged rail shots, got %d" % len(rails))
+        if not hold_run:
+            with open(railfile, "w") as rf:
+                rf.write("%d %d\n" % (hit_n, len(rails)))
+        if len(rails) < (10 - len(held)):
+            fails.append("expected >= %d judged rail shots, got %d" % (10 - len(held), len(rails)))
         missing = [d.get("seq") for d, s_ in rail_srv if s_ is None]
         if missing:
             fails.append("rail shots without a server VeloxShot line (rejected or lost): seq %s" % missing)
@@ -609,9 +657,12 @@ elif script in ("FireRun", "FireRunControl"):
             fails.append("rail hits on the dummy %d of %d (want >= n - 1)" % (hit_n, len(rails)))
         if rails and stamp_n < len(rails) - 1:
             fails.append("hint=stamp on %d of %d rail shots (want >= n - 1): %s" % (stamp_n, len(rails), [s_.get("hint") for _, s_ in rail_srv if s_]))
-        out_rew = [(s_.get("seq"), num(s_, "rewind_ms")) for _, s_ in rail_srv if s_ and not (60.0 <= num(s_, "rewind_ms") <= 250.0)]
+        # Task 08g / B36: a rail whose RPC was resent is processed late_ms later, so its needed rewind grows by late_ms (and
+        # is clamped at MaxRewindSeconds, accepted by B36): the upper bound is 250 + max(0, late_ms).
+        out_rew = [(s_.get("seq"), num(s_, "rewind_ms"), s_.get("late_ms")) for _, s_ in rail_srv
+                   if s_ and not (60.0 <= num(s_, "rewind_ms") <= 250.0 + max(0.0, num(s_, "late_ms")))]
         if out_rew:
-            fails.append("rail rewind_ms outside [60, 250]: %s" % out_rew)
+            fails.append("rail rewind_ms outside [60, 250 + late_ms] (seq, rewind, late): %s" % out_rew)
         big = [(s_.get("seq"), round(num(s_, "rewind_ms") - num(s_, "view_ms"), 1)) for _, s_ in rail_srv if s_ and abs(num(s_, "rewind_ms") - num(s_, "view_ms")) > 60.0]
         if big:
             fails.append("|rewind_ms - view_ms| > 60 ms: %s" % big)
@@ -666,7 +717,7 @@ elif script in ("FireRun", "FireRunControl"):
         else:
             notes.append("no FireRun result in this round: control hits reported only")
 
-elif script == "RocketJumpRun":
+elif script in ("RocketJumpRun", "RocketJumpRunHold"):
     # Task 08 / ADR 0003 B25: velox.combat.RocketJumpTest -90 (fire RL at the floor and jump in the same frame).
     fire_line = next((kv(l) for l in C if "VeloxRocketJump: fire+jump t=" in l), None)
     if fire_line is None:
@@ -699,10 +750,32 @@ elif script == "RocketJumpRun":
     if not shots:
         fails.append("no VeloxProjectileShot line on the server")
     for d in shots:
-        gap = abs(num(d, "client_ts") - num(d, "last_ts"))
-        detail.append("client_ts-last_ts=%.4f" % gap)
-        if gap > 1.0 / 60.0 + rtt:
-            fails.append("VeloxProjectileShot seq=%s |client_ts - last_ts| %.4f > 1/60 + RTT %.3f" % (d.get("seq"), gap, rtt))
+        # Task 08f / ADR 0003 B35: the rocket's self splash comes from the move stream (source=move, late_ms reported); the
+        # |client_ts - last_ts| rule only applies to a fire RPC that scheduled it itself (source=rpc, review defect 7).
+        src = d.get("source", "?")
+        detail.append("source=%s late_ms=%s" % (src, d.get("late_ms", "-")))
+        if src != "move":
+            fails.append("VeloxProjectileShot seq=%s source=%s (want move: the fire move did not carry the shot)" % (d.get("seq"), src))
+        if "late_ms" not in d:
+            fails.append("VeloxProjectileShot seq=%s has no late_ms" % d.get("seq"))
+        if src == "rpc":
+            gap = abs(num(d, "client_ts") - num(d, "last_ts"))
+            if gap > 1.0 / 60.0 + rtt:
+                fails.append("VeloxProjectileShot seq=%s |client_ts - last_ts| %.4f > 1/60 + RTT %.3f" % (d.get("seq"), gap, rtt))
+        if script == "RocketJumpRunHold" and not (280.0 <= num(d, "late_ms", -1.0) <= 360.0):
+            fails.append("RocketJumpRunHold: VeloxProjectileShot seq=%s late_ms=%s not in [280, 360] (hold not applied?)" % (d.get("seq"), d.get("late_ms")))
+    if script == "RocketJumpRunHold" and not any("VeloxShotRpcHeld" in l for l in S):
+        fails.append("RocketJumpRunHold: no VeloxShotRpcHeld line on the server (velox.combat.DebugHoldShotRpc did not act)")
+    for tag in ("VeloxShotLate", "VeloxMoveShotOrphan", "VeloxShotOriginSnap", "VeloxMoveShotMismatch"):
+        hits = [l for l in S if tag + " " in l]
+        if hits:
+            fails.append("%d %s line(s): %s" % (len(hits), tag, hits[0].split(tag, 1)[1].strip()[:140]))
+    ignored = [l for l in S if "VeloxMoveShotIgnored" in l]
+    if ignored:
+        notes.append("%d VeloxMoveShotIgnored: %s" % (len(ignored), ignored[0].split("VeloxMoveShotIgnored", 1)[1].strip()[:100]))
+    moveshots = [kv(l) for l in S if "VeloxMoveShot seq=" in l]
+    if not moveshots:
+        fails.append("no VeloxMoveShot line on the server (the fire move did not carry the shot)")
     clamps = [l for l in S if "VeloxShotTimeClamp" in l]
     if clamps:
         fails.append("%d VeloxShotTimeClamp line(s): %s" % (len(clamps), clamps[0].split("VeloxShotTimeClamp", 1)[1].strip()[:140]))
@@ -716,12 +789,199 @@ elif script == "RocketJumpRun":
     elif not any(e.get("self") == "move_timed" for e in ex):
         fails.append("VeloxProjectileExplode self=%s (want move_timed)" % [e.get("self") for e in ex])
 
+elif script == "HasteRun":
+    # M3 task 03 / ADR 0004 sections 3 and 10: HasteRun.json on L_MovementTest. Client: VeloxNetSoak event=haste t= (the
+    # row that asks the server for 2.5 s of Haste), VeloxScript row lines (vel= at row start), VeloxHasteState role=client
+    # (live moves: active flips with ts, speed2d at the move start, peak2d), VeloxPowerupMoveTimes recv= (end times taken
+    # from a response). Server: VeloxNetSoak event=haste_server haste_end=, VeloxHasteState role=server.
+    # vel is FVector::ToCompactString: V(0) or V(X=.., Y=.., Z=..) with zero components left out.
+    ROW_RE = re.compile(r"VeloxScript: st=(\S+) row=(\d+) '([^']*)' pos=.* vel=(V\([^)]*\))")
+    def row_speed(label):
+        for l in C:
+            m = ROW_RE.search(l)
+            if m and m.group(3) == label:
+                comp = dict((a, float(b)) for a, b in re.findall(r"([XYZ])=(-?[0-9.]+)", m.group(4)))
+                return math.hypot(comp.get("X", 0.0), comp.get("Y", 0.0))
+        return None
+    def states(lines, role):
+        return [kv(l) for l in lines if "VeloxHasteState role=%s " % role in l]
+    hc = next((kv(l) for l in C if "VeloxNetSoak event=haste " in l), None)
+    hs = next((kv(l) for l in S if "VeloxNetSoak event=haste_server " in l), None)
+    cs, ss = states(C, "client"), states(S, "server")
+    c_on = [d for d in cs if d.get("active") == "1"]; c_off = [d for d in cs if d.get("active") == "0"]
+    s_on = [d for d in ss if d.get("active") == "1"]; s_off = [d for d in ss if d.get("active") == "0"]
+    if hc is None:
+        fails.append("no client 'VeloxNetSoak event=haste' line")
+    if hs is None:
+        fails.append("no server 'VeloxNetSoak event=haste_server' line (RPC rejected?)")
+    for name, on, off in (("client", c_on, c_off), ("server", s_on, s_off)):
+        if len(on) != 1 or len(off) != 1:
+            fails.append("%s: want exactly one VeloxHasteState active=1 and one active=0 line, got %d / %d" % (name, len(on), len(off)))
+    base, hasted, after = row_speed("haste"), row_speed("strafe hop"), row_speed("after expiry")
+    detail.append("client speed base=%s hasted=%s after=%s" % tuple(("%.1f" % v) if v is not None else "-" for v in (base, hasted, after)))
+    TOL = 0.995   # steady-state convergence of the ground speed (Q3 accel/friction substeps)
+    scale = 1.3
+    if None in (base, hasted, after):
+        fails.append("missing VeloxScript row lines (haste / strafe hop / after expiry)")
+    else:
+        if hasted < scale * base * TOL:
+            fails.append("client hasted ground speed %.1f < 1.3 x baseline %.1f" % (hasted, base))
+        if after > 1.01 * base or after < 0.99 * base:
+            fails.append("client speed 1 s after the expiry %.1f not back at the baseline %.1f (+- 1 %%)" % (after, base))
+    if len(s_on) == 1 and len(s_off) == 1:
+        sb, sh = num(s_on[0], "speed2d"), num(s_off[0], "speed2d")
+        detail.append("server speed base=%.1f at_expiry=%.1f peak=%s" % (sb, sh, s_off[0].get("peak2d")))
+        if sh < scale * sb * TOL:
+            fails.append("server hasted ground speed at the expiry %.1f < 1.3 x its speed at the pickup move %.1f" % (sh, sb))
+    if len(c_off) == 1 and base is not None:
+        ch = num(c_off[0], "speed2d")
+        if ch < scale * base * TOL:
+            fails.append("client hasted ground speed at the expiry %.1f < 1.3 x baseline %.1f" % (ch, base))
+    # The end time the server set is the one the client received (full float precision through acks and corrections).
+    recv = [kv(l) for l in C if "VeloxPowerupMoveTimes recv=" in l]
+    got = [d for d in recv if num(d, "haste_end") != 0.0]
+    if hs is not None:
+        if not got:
+            fails.append("client never received a non-zero haste_end (VeloxPowerupMoveTimes recv=)")
+        elif got[0].get("haste_end") != hs.get("haste_end"):
+            fails.append("client received haste_end=%s, server set %s" % (got[0].get("haste_end"), hs.get("haste_end")))
+        else:
+            detail.append("haste_end=%s via %s after %.0f ms" % (hs.get("haste_end"), got[0].get("recv"), (num(got[0], "t") - num(hc, "t")) * 1000.0 if hc else -1.0))
+    # Expiry: exact in the move timeline - the first non-hasted move starts at the same boundary on both ends. The client
+    # logs its live move, which it may combine with the next one before sending (the server then simulates the combined
+    # move), so the start stamps ts - dt are compared, not the end stamps.
+    if len(c_off) == 1 and len(s_off) == 1:
+        cts = num(c_off[0], "ts") - num(c_off[0], "dt")
+        sts = num(s_off[0], "ts") - num(s_off[0], "dt")
+        detail.append("expiry_boundary client=%.6f server=%.6f" % (cts, sts))
+        if abs(cts - sts) > 1e-5:
+            g = next((g for g in gaps if num(g, "ts") - num(g, "dt") < cts + 1e-6 and cts <= num(g, "ts") + 1e-6), None)
+            if g is not None:
+                notes.append("expiry move merged on the server (VeloxMoveGap ts=%s dt=%s): client ts=%s server ts=%s" % (g.get("ts"), g.get("dt"), c_off[0].get("ts"), s_off[0].get("ts")))
+            else:
+                fails.append("expiry at different move boundaries: client ts=%s dt=%s server ts=%s dt=%s" % (c_off[0].get("ts"), c_off[0].get("dt"), s_off[0].get("ts"), s_off[0].get("dt")))
+    # Windows (client world time). t_pickup = the server's grant in client time: the request row + one-way lag.
+    if hc is not None:
+        th = num(hc, "t")
+        t_pick_end = th + rtt / 2.0 + 0.3
+        w = in_window(th, t_pick_end)
+        detail.append("pickup_window=[%.2f,%.2f] corr=%s" % (th, t_pick_end, fmt(w)))
+        if len(w) > 1 or any(c[1] > 30.0 for c in w):
+            fails.append("pickup: non-echo corrections in [t_h, t_h + RTT/2 + 0.3]: %s (allowed: at most one <= 30 cm)" % fmt(w))
+        excluded.extend(w)
+    if len(c_off) == 1:
+        te = num(c_off[0], "t")
+        around = [c for c in corr if te - 1.0 <= c[0] <= te + 1.0]
+        detail.append("expiry t=%.2f corr_2s=%d" % (te, len(around)))
+        if around:
+            fails.append("corrections in the 2 s around the expiry (want 0): %s" % fmt(around))
+
+elif script == "ItemRun":
+    # M3 task 04 / ADR 0004 section 10: the client runs over Health.Small, Armor.Shard and Ammo.Bullets (ItemRun.json, L_ItemTest).
+    # Client lines: VeloxPickupPredict item= t= (the predicted take), VeloxPickupPredict{Confirmed,Lost,Refused} item= ms=,
+    # VeloxItemWatch placeholder=hidden|shown item= predicted= (velox.items.Watch, once per frame) and VeloxItemWatch attr=
+    # Health|Armor|Bullets value= t=. Server: VeloxPickup item= by= gain=. The confirmation and the attribute step are
+    # replicated by the server, so they cannot arrive before the round trip; the ADR's 150 ms / 200 ms are measured on top of
+    # it: threshold = RTT (2 x one-way lag + 40 ms jitter) + 150 ms / + 200 ms from the predicted take.
+    FRAME_RE = re.compile(r"^\[[^\]]*\]\[\s*(\d+)\]")
+    def frame_of(line):
+        m = FRAME_RE.match(line)
+        return int(m.group(1)) if m else None
+    want = {"DA_Item_Health_Small": "Health", "DA_Item_Armor_Shard": "Armor", "DA_Item_Ammo_Bullets": "Bullets"}
+    predicts, outcomes, hidden, attrs = {}, {}, {}, []
+    for l in C:
+        if "VeloxPickupPredict item=" in l:
+            d = kv(l); predicts.setdefault(d.get("item"), (num(d, "t"), frame_of(l)))
+        m = re.search(r"VeloxPickupPredict(Confirmed|Lost|Refused) item=(\S+) ms=(\S+)", l)
+        if m:
+            outcomes.setdefault(m.group(2), []).append((m.group(1), float(m.group(3))))
+        if "VeloxItemWatch placeholder=hidden" in l:
+            d = kv(l); hidden.setdefault(d.get("item"), []).append((num(d, "t"), frame_of(l), d.get("predicted")))
+        if "VeloxItemWatch attr=" in l:
+            d = kv(l); attrs.append((num(d, "t"), d.get("attr"), num(d, "value")))
+    granted = {}
+    for l in S:
+        if "VeloxPickup item=" in l and " gain=" in l:
+            d = kv(l)
+            if num(d, "gain") > 0:
+                granted.setdefault(d.get("item"), []).append(d)
+    if not any("VeloxItemWatch started" in l for l in C):
+        fails.append("velox.items.Watch did not start on the client")
+    conf_limit_ms = rtt * 1000.0 + 150.0
+    attr_limit_s = rtt + 0.200
+    # With 2 % loss each way a server -> client bunch is lost now and then and its properties are retransmitted one RTT
+    # later; that is the network, not the item code. One such slow event per run (at most RTT + 60 ms over its limit) is
+    # reported as a note, a second one or a larger overshoot fails.
+    retx_ms = rtt * 1000.0 + 60.0
+    slow = []
+    for item, attr in sorted(want.items()):
+        short = item.split("_")[-1]
+        if item not in predicts:
+            fails.append("%s: no VeloxPickupPredict line on the client (not predicted)" % short)
+            continue
+        pt, pf = predicts[item]
+        # predicted hide within one frame: the placeholder is hidden in the same call as the predict log line; the observer
+        # (engine ticker, start of the next frame) sees it at most one frame later.
+        hs = [h for h in hidden.get(item, []) if h[0] >= pt - 0.001]
+        if not hs:
+            fails.append("%s: placeholder never observed hidden after the predicted take" % short)
+            hide_frames = None
+        else:
+            hide_frames = ((hs[0][1] - pf) % 1000) if (hs[0][1] is not None and pf is not None) else None
+            if hide_frames is None or hide_frames > 2 or hs[0][2] != "1":
+                fails.append("%s: hidden %s frame(s) after the predict (want <= 1 observer frame, predicted=1; got predicted=%s)" % (short, hide_frames, hs[0][2]))
+        res = outcomes.get(item, [])
+        confirmed = [ms for kind, ms in res if kind == "Confirmed"]
+        bad = [kind for kind, ms in res if kind != "Confirmed"]
+        if bad:
+            fails.append("%s: prediction outcome %s (want Confirmed)" % (short, bad))
+        conf_ms = confirmed[0] if confirmed else None
+        if conf_ms is None:
+            fails.append("%s: no VeloxPickupPredictConfirmed line" % short)
+        elif conf_ms > conf_limit_ms:
+            msg = "%s: confirmation after %.0f ms > RTT %.0f + 150 = %.0f ms" % (short, conf_ms, rtt * 1000.0, conf_limit_ms)
+            (slow if conf_ms <= conf_limit_ms + retx_ms else fails).append(msg)
+        steps = [a for a in attrs if a[1] == attr and a[0] > pt]
+        # the first change of this attribute after the predict that is an increase over the value before it
+        before = [a for a in attrs if a[1] == attr and a[0] <= pt]
+        prev = before[-1][2] if before else None
+        step = None
+        for a in steps:
+            if prev is None or a[2] > prev:
+                step = a; break
+            prev = a[2]
+        if step is None:
+            fails.append("%s: no %s increase observed on the client after the take" % (short, attr))
+            step_s = None
+        else:
+            step_s = step[0] - pt
+            if step_s > attr_limit_s:
+                msg = "%s: %s step after %.0f ms > RTT %.0f + 200 = %.0f ms" % (short, attr, step_s * 1000.0, rtt * 1000.0, attr_limit_s * 1000.0)
+                (slow if step_s <= attr_limit_s + retx_ms / 1000.0 else fails).append(msg)
+        if len(granted.get(item, [])) != 1:
+            fails.append("%s: %d server grants (VeloxPickup item= gain>0), want 1" % (short, len(granted.get(item, []))))
+        detail.append("%s:hide=%sf,conf=%s,%s=%s" % (short, hide_frames, ("%.0fms" % conf_ms) if conf_ms is not None else "-", attr, ("%.0fms" % (step_s * 1000.0)) if step_s is not None else "-"))
+    if len(slow) > 1:
+        fails.extend(slow)
+        fails.append("more than one slow event (%d): one retransmitted bunch is tolerated, two are not" % len(slow))
+    elif slow:
+        notes.append("loss recovery tolerated: " + slow[0])
+    other = [i for i in predicts if i not in want]
+    if other:
+        notes.append("also predicted: %s" % ",".join(sorted(i.split("DA_Item_")[-1] for i in other)))
+    lost = [l for l in C if re.search(r"VeloxPickupPredict(Lost|Refused)", l)]
+    if lost:
+        fails.append("%d prediction(s) lost or refused: %s" % (len(lost), lost[0].split("VeloxPickupPredict", 1)[1].strip()[:100]))
+    # 0 corrections: the item grants do not touch movement, so the whole run has none (echoes included).
+    if corr:
+        fails.append("%d client correction(s) during ItemRun (want 0): %s" % (len(corr), fmt(corr)))
+
 # ---- global rules on non-echo corrections (the intended ones are excluded)
 rest = [c for c in nonecho if c not in excluded]
 xs = [c[1] for c in rest]
 x = max(xs) if xs else 0.0
 y = sum(xs) / len(xs) if xs else 0.0
-if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl"):
+if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "FireRunHold", "HasteRun"):
     if len(rest) > 3 * Lexp:
         fails.append("corrections C=%d > 3 x L_exp (%.1f)" % (len(rest), 3 * Lexp))
     if x > 30.0:
@@ -790,8 +1050,8 @@ main() {
   info "Net soak: scripts=${scripts[*]} rounds=$REPEAT port=$PORT lag=${lag_desc} logs=$base_dir"
   for s in "${scripts[@]}"; do
     case "$s" in
-      FireRunControl) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "FireRunControl needs FireRun.json" ;;
-      RocketJumpRun) ;;   # drives velox.combat.RocketJumpTest, no JSON script
+      FireRunControl|FireRunHold) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "$s needs FireRun.json" ;;
+      RocketJumpRun|RocketJumpRunHold) ;;   # drive velox.combat.RocketJumpTest, no JSON script
       *) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/$s.json" ]] || die "unknown script '$s'" ;;
     esac
   done

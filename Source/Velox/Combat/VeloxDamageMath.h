@@ -20,6 +20,19 @@ struct FVeloxCombatParams
 	float KnockbackSpeedPerDamage = 12.5f;
 	/** Q3 caps the knockback damage at 200. */
 	int32 MaxKnockbackDamage = 200;
+	/** Q3 G_Damage: a Battle Suit halves every non-radius hit (integer truncation, before the self halving). */
+	float BattleSuitDirectDamageScale = 0.5f;
+};
+
+/** Q3 ClientTimerActions regeneration tunables (ADR 0004 section 3), built from UVeloxCombatSettings. */
+struct FVeloxRegenParams
+{
+	/** Health added per tick below MaxHealth. */
+	int32 HealthPerTick = 15;
+	/** Health added per tick between MaxHealth and the hard cap. */
+	int32 OverTick = 5;
+	/** The +HealthPerTick step stops at MaxHealth x this (Q3 1.1). */
+	float SoftCapScale = 1.1f;
 };
 
 struct FVeloxDamageInput
@@ -38,6 +51,10 @@ struct FVeloxDamageInput
 	bool bProtected = false;
 	/** Per-weapon knockback scale (UVeloxWeaponDefinition::KnockbackScale). */
 	float KnockbackScale = 1.0f;
+	/** Victim has Velox.Powerup.BattleSuit (ADR 0004 section 3). */
+	bool bBattleSuit = false;
+	/** Q3 DAMAGE_RADIUS (splash): a Battle Suit takes no health/armor loss from it, only the knockback. */
+	bool bRadius = false;
 };
 
 struct FVeloxDamageResult
@@ -63,6 +80,8 @@ struct FVeloxDamageMath
 	 * minimum 1 point for every hit (also a zero-point radius hit, which then has no knockback: ADR 0003 B3), then armor
 	 * save = min(Armor, Damage, ceil(Damage x Pct / 100)) in exact integer arithmetic unless bNoArmor (B2),
 	 * HealthLoss = Damage - save. bProtected zeroes everything; a negative Damage is rejected.
+	 * Battle Suit (Q3 G_Damage order, ADR 0004 section 3): after the knockback, a radius hit costs nothing (knockback
+	 * stays), any other hit is scaled by BattleSuitDirectDamageScale (truncated) before the self halving.
 	 */
 	static FVeloxDamageResult Apply(const FVeloxDamageInput& In, const FVeloxCombatParams& Params)
 	{
@@ -80,6 +99,14 @@ struct FVeloxDamageMath
 		}
 
 		int32 Damage = In.Damage;
+		if (In.bBattleSuit)
+		{
+			if (In.bRadius)
+			{
+				return Out;
+			}
+			Damage = FMath::FloorToInt32(static_cast<float>(Damage) * Params.BattleSuitDirectDamageScale);
+		}
 		if (In.bSelf)
 		{
 			Damage = FMath::FloorToInt32(static_cast<float>(Damage) * Params.SelfDamageScale);
@@ -112,6 +139,37 @@ struct FVeloxDamageMath
 			Pellet.Armor = FMath::Max(Pellet.Armor - One.ArmorLoss, 0);
 		}
 		return Total;
+	}
+
+	/**
+	 * Q3 `damage *= s_quadFactor` at fire (ADR 0004 section 3, Quad): the raw damage of a hit, or a projectile's direct and
+	 * splash damage before the falloff, times Scale, truncated to an integer. Scale 1 is the identity; never negative.
+	 */
+	static int32 ScaleDamage(int32 Damage, float Scale)
+	{
+		if (Scale == 1.f)
+		{
+			return Damage;
+		}
+		return FMath::Max(FMath::FloorToInt32(static_cast<float>(Damage) * Scale + UE_KINDA_SMALL_NUMBER), 0);
+	}
+
+	/**
+	 * Q3 ClientTimerActions with a Regeneration: one tick (every second). Below MaxHealth +HealthPerTick capped at
+	 * MaxHealth x SoftCapScale (truncated); else below HardCap +OverTick capped at HardCap; else unchanged.
+	 */
+	static int32 RegenStep(int32 Health, int32 MaxHealth, int32 HardCap, const FVeloxRegenParams& Params)
+	{
+		if (Health < MaxHealth)
+		{
+			const int32 SoftCap = FMath::FloorToInt32(static_cast<float>(MaxHealth) * Params.SoftCapScale + UE_KINDA_SMALL_NUMBER);
+			return FMath::Max(FMath::Min(Health + Params.HealthPerTick, SoftCap), Health);
+		}
+		if (Health < HardCap)
+		{
+			return FMath::Min(Health + Params.OverTick, HardCap);
+		}
+		return Health;
 	}
 
 	/** Q3 G_RadiusDamage: (int)(Damage x (1 - Dist / Radius)), 0 at or outside the radius. */

@@ -44,6 +44,15 @@ void AVeloxGameMode::PlayerDied(AVeloxPlayerState* Victim, AVeloxPlayerState* Ki
 		return;
 	}
 	const bool bSuicide = !Killer || Killer == Victim;
+	if (Phase == EVeloxMatchPhase::PostMatch)
+	{
+		// Intermission (ADR 0004 section 5): frozen players take no damage once task 02 honours MatchFrozen; until then a
+		// projectile in flight may still kill, and that frag must not change the final score.
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxKill victim=%s killer=%s ignored (PostMatch)"), *AVeloxPlayerState::VeloxPlayerLabel(Victim), *AVeloxPlayerState::VeloxPlayerLabel(Killer));
+		return;
+	}
+	// Kills count real frags only (ADR 0004 section 6); a suicide is a death and -1 score, as in Q3.
+	Victim->AddDeath();
 	if (bSuicide)
 	{
 		Victim->SetScore(Victim->GetScore() - 1.f);
@@ -51,12 +60,23 @@ void AVeloxGameMode::PlayerDied(AVeloxPlayerState* Victim, AVeloxPlayerState* Ki
 	else
 	{
 		Killer->SetScore(Killer->GetScore() + 1.f);
+		Killer->AddKill();
 	}
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxKill victim=%s killer=%s suicide=%d tags=[%s] score_killer=%.0f score_victim=%.0f"), *AVeloxPlayerState::VeloxPlayerLabel(Victim),
-		*AVeloxPlayerState::VeloxPlayerLabel(Killer), bSuicide ? 1 : 0, *DamageTags.ToStringSimple(), Killer ? Killer->GetScore() : 0.f, Victim->GetScore());
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxKill victim=%s killer=%s suicide=%d tags=[%s] score_killer=%.0f score_victim=%.0f kills_killer=%d deaths_victim=%d"), *AVeloxPlayerState::VeloxPlayerLabel(Victim),
+		*AVeloxPlayerState::VeloxPlayerLabel(Killer), bSuicide ? 1 : 0, *DamageTags.ToStringSimple(), Killer ? Killer->GetScore() : 0.f, Victim->GetScore(), Killer ? Killer->GetKills() : 0,
+		Victim->GetDeaths());
 
 	if (AVeloxGameState* VeloxGameState = GetGameState<AVeloxGameState>())
 	{
+		FVeloxKillFeedEntry FeedEntry;
+		FeedEntry.VictimName = AVeloxPlayerState::VeloxPlayerLabel(Victim);
+		FeedEntry.KillerName = bSuicide ? FeedEntry.VictimName : AVeloxPlayerState::VeloxPlayerLabel(Killer);
+		FeedEntry.VictimColor = Victim->GetPlayerColorIndex();
+		FeedEntry.KillerColor = bSuicide ? FeedEntry.VictimColor : Killer->GetPlayerColorIndex();
+		FeedEntry.DamageTag = VeloxKillFeed::PickDamageTag(DamageTags);
+		FeedEntry.bSuicide = bSuicide;
+		VeloxGameState->AppendKillFeedEntry(MoveTemp(FeedEntry));
+
 		FVeloxKillEvent Event;
 		Event.Victim = Victim;
 		Event.Killer = Killer ? Killer : Victim;
@@ -64,6 +84,8 @@ void AVeloxGameMode::PlayerDied(AVeloxPlayerState* Victim, AVeloxPlayerState* Ki
 		Event.Time = GetWorld()->GetTimeSeconds();
 		VeloxGameState->OnKill.Broadcast(Event);
 	}
+	// Frag limit / sudden death: evaluated on the next tick, outside the killing damage execution (B27).
+	RequestMatchEvaluation();
 }
 
 void AVeloxGameMode::NotifyControllerDied(AController* Controller)
@@ -109,6 +131,11 @@ bool AVeloxGameMode::TryRespawn(AController* Controller, bool bForced)
 	{
 		World->GetTimerManager().ClearTimer(Pending->Timer);
 		PendingRespawns.Remove(Controller);
+		return false;
+	}
+	if (bMatchRulesEnabled && Phase == EVeloxMatchPhase::PostMatch)
+	{
+		// PostMatch (engine WaitingPostMatch): no respawns during the intermission; the restart spawns everyone.
 		return false;
 	}
 	const UVeloxCombatSettings& Settings = GetCombatSettingsFor(Controller);
@@ -308,5 +335,16 @@ void AVeloxGameMode::Logout(AController* Exiting)
 		}
 	}
 	PendingRespawns.Remove(Exiting);
+	if (const APlayerState* ExitingPS = Exiting ? Exiting->PlayerState.Get() : nullptr)
+	{
+		// Forfeit / countdown abort: the PlayerState stays in the PlayerArray until it is destroyed, so mark it leaving.
+		if (bMatchRulesEnabled && IsActivePlayer(ExitingPS))
+		{
+			bActivePlayerLeft = true;
+			UE_LOG(LogVeloxMatch, Log, TEXT("VeloxMatch leave player=%s phase=%s"), *AVeloxPlayerState::VeloxPlayerLabel(ExitingPS), LexToString(Phase));
+		}
+		LeavingPlayerStates.Add(ExitingPS);
+	}
 	Super::Logout(Exiting);
+	RequestMatchEvaluation();
 }

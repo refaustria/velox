@@ -64,6 +64,34 @@ def key(name):
     return k
 
 
+# Rebindable actions (ADR 0004 section 7): action asset -> (mapping name, display name, category). The mapping name is what
+# UVeloxGameUserSettings::RebindKey takes. IA_Look (mouse) is not rebindable; the four IA_Move keys get one override per key.
+MAPPABLE_ACTIONS = {
+    "IA_Jump": ("Jump", "Jump", "Movement"),
+    "IA_Crouch": ("Crouch", "Crouch", "Movement"),
+    "IA_Fire": ("Fire", "Fire", "Combat"),
+    "IA_Weapon_Next": ("WeaponNext", "Next weapon", "Weapons"),
+    "IA_Weapon_Prev": ("WeaponPrev", "Previous weapon", "Weapons"),
+}
+for _slot in range(1, 10):
+    MAPPABLE_ACTIONS[f"IA_Weapon_Slot{_slot}"] = (f"Weapon{_slot}", f"Weapon {_slot}", "Weapons")
+MOVE_KEY_SETTINGS = {
+    "W": ("MoveForward", "Move forward"),
+    "S": ("MoveBack", "Move back"),
+    "A": ("MoveLeft", "Move left"),
+    "D": ("MoveRight", "Move right"),
+}
+
+
+def make_key_settings(outer, name, display_name, category):
+    """UPlayerMappableKeySettings instanced on an action or an IMC mapping."""
+    settings = unreal.new_object(unreal.PlayerMappableKeySettings, outer=outer)
+    settings.set_editor_property("name", name)
+    settings.set_editor_property("display_name", unreal.Text(display_name))
+    settings.set_editor_property("display_category", unreal.Text(category))
+    return settings
+
+
 def build_input():
     ensure_dir("/Game/Input")
     VT = unreal.InputActionValueType
@@ -73,6 +101,10 @@ def build_input():
         "IA_Jump": make_action("IA_Jump", VT.BOOLEAN),
         "IA_Crouch": make_action("IA_Crouch", VT.BOOLEAN),
         "IA_Fire": make_action("IA_Fire", VT.BOOLEAN),
+        # ADR 0004 section 6/7 (task 06): UI actions, bound by the player controller / HUD (tasks 08, 10), not by abilities.
+        "IA_Ready": make_action("IA_Ready", VT.BOOLEAN),
+        "IA_Scoreboard": make_action("IA_Scoreboard", VT.BOOLEAN),
+        "IA_Menu": make_action("IA_Menu", VT.BOOLEAN),
     }
     # ADR 0003 section 4: Q3 weapon select (keys 1-9 = slot, mouse wheel = weapnext/weapprev).
     for slot in range(1, 10):
@@ -83,6 +115,11 @@ def build_input():
                            unreal.InputMappingContext_Factory() if hasattr(unreal, "InputMappingContext_Factory") else None)
     if imc is None or any(a is None for a in actions.values()):
         return actions, imc
+
+    for action_name, (mapping_name, display_name, category) in MAPPABLE_ACTIONS.items():
+        action = actions[action_name]
+        action.set_editor_property("player_mappable_key_settings", make_key_settings(action, mapping_name, display_name, category))
+        save(action)
 
     imc.unmap_all()
     # WASD -> IA_Move (X = right/left, Y = forward/back). Modifiers: Swizzle (YXZ) for W/S, Negate for A/S.
@@ -104,6 +141,9 @@ def build_input():
     imc.map_key(actions["IA_Jump"], key("SpaceBar"))
     imc.map_key(actions["IA_Crouch"], key("LeftControl"))
     imc.map_key(actions["IA_Fire"], key("LeftMouseButton"))
+    imc.map_key(actions["IA_Ready"], key("F3"))
+    imc.map_key(actions["IA_Scoreboard"], key("Tab"))
+    imc.map_key(actions["IA_Menu"], key("Escape"))
     slot_keys = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"]
     for slot, key_name in enumerate(slot_keys, start=1):
         imc.map_key(actions[f"IA_Weapon_Slot{slot}"], key(key_name))
@@ -113,7 +153,12 @@ def build_input():
     dkm = imc.get_editor_property("default_key_mappings")
     mappings = list(dkm.get_editor_property("mappings"))
     for m in mappings:
-        spec = modifier_specs.get(m.get_editor_property("key").export_text())
+        key_name = m.get_editor_property("key").export_text()
+        move_settings = MOVE_KEY_SETTINGS.get(key_name)
+        if move_settings and m.get_editor_property("action") == actions["IA_Move"]:
+            m.set_editor_property("setting_behavior", unreal.PlayerMappableKeySettingBehaviors.OVERRIDE_SETTINGS)
+            m.set_editor_property("player_mappable_key_settings", make_key_settings(imc, move_settings[0], move_settings[1], "Movement"))
+        spec = modifier_specs.get(key_name)
         if not spec:
             continue
         mods = []
@@ -128,6 +173,21 @@ def build_input():
     imc.set_editor_property("default_key_mappings", dkm)
     save(imc)
     return actions, imc
+
+
+# ---------------------------------------------------------------- Audio (sound classes for the volume settings)
+def build_audio():
+    """SC_Master -> SC_Effects / SC_Music and the default mix UVeloxGameUserSettings overrides (ADR 0004 section 7)."""
+    ensure_dir("/Game/Audio")
+    master, _ = get_or_create("/Game/Audio", "SC_Master", unreal.SoundClass, unreal.SoundClassFactory())
+    effects, _ = get_or_create("/Game/Audio", "SC_Effects", unreal.SoundClass, unreal.SoundClassFactory())
+    music, _ = get_or_create("/Game/Audio", "SC_Music", unreal.SoundClass, unreal.SoundClassFactory())
+    mix, _ = get_or_create("/Game/Audio", "SM_Default", unreal.SoundMix, unreal.SoundMixFactory())
+    for child in (effects, music):
+        if child is not None and master is not None:
+            child.set_editor_property("parent_class", master)
+    for asset in (master, effects, music, mix):
+        save(asset)
 
 
 # ---------------------------------------------------------------- Data assets
@@ -174,6 +234,7 @@ def build_data(actions):
             "fixed_step": 0.008,
             "fixed_step_integration": True,
             "combine_air_moves": False,
+            "haste_speed_scale": 1.3,  # ADR 0004 section 3 (M3 task 03)
         }
         for k, v in values.items():
             try:
@@ -191,6 +252,9 @@ def build_data(actions):
             entry(actions["IA_Look"], "InputTag.Look.Mouse"),
             entry(actions["IA_Jump"], "InputTag.Jump"),
             entry(actions["IA_Crouch"], "InputTag.Crouch"),
+            entry(actions["IA_Ready"], "InputTag.Ready"),
+            entry(actions["IA_Scoreboard"], "InputTag.Scoreboard"),
+            entry(actions["IA_Menu"], "InputTag.Menu"),
         ])
         ability = [entry(actions["IA_Fire"], "InputTag.Fire")]
         ability += [entry(actions[f"IA_Weapon_Slot{slot}"], f"InputTag.Weapon.Slot{slot}") for slot in range(1, 10)]
@@ -318,8 +382,8 @@ def build_combat_settings(table, defs):
         "weapon_drop_time": 0.2,
         "weapon_raise_time": 0.25,
         "switch_waits_for_refire": True,
-        "switch_timing_tolerance_seconds": 0.25,  # ADR 0003 B18
         "beam_keep_alive_seconds": 0.25,  # B23
+        "pickup_take_event_max_age_seconds": 1.0,  # ADR 0004 C10
         "max_rewind_seconds": 0.30,  # ADR 0003 B34
         "history_window_seconds": 1.0,
         "max_origin_error_cm": 75.0,
@@ -378,7 +442,16 @@ def build_player_material():
     expr = mel.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -300, 0)
     expr.set_editor_property("parameter_name", "Color")
     expr.set_editor_property("default_value", unreal.LinearColor(1.0, 1.0, 1.0, 1.0))
-    mel.connect_material_property(expr, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    # M3-02: PowerupTint (rgb = tint, a = strength, VeloxCombatFeedbackComponent); black / alpha 0 = no tint.
+    # Emissive = lerp(Color, PowerupTint.rgb, PowerupTint.a).
+    tint = mel.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -600, 200)
+    tint.set_editor_property("parameter_name", "PowerupTint")
+    tint.set_editor_property("default_value", unreal.LinearColor(0.0, 0.0, 0.0, 0.0))
+    lerp = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -100, 0)
+    mel.connect_material_expressions(expr, "", lerp, "A")
+    mel.connect_material_expressions(tint, "", lerp, "B")
+    mel.connect_material_expressions(tint, "A", lerp, "Alpha")
+    mel.connect_material_property(lerp, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     mel.recompile_material(mat)
     if not EAL.save_loaded_asset(mat, False):
         fail("could not save " + path)
@@ -421,13 +494,41 @@ def build_map():
         fail("save_current_level failed")
 
 
+def build_menu_map():
+    """L_MainMenu (ADR 0004 section 7): the front-end map. Empty level, WorldSettings.DefaultGameMode = AVeloxMenuGameMode
+    (no pawn, AVeloxMenuPlayerController shows the main menu widget). GameDefaultMap in DefaultEngine.ini points here."""
+    ensure_dir("/Game/Maps")
+    path = "/Game/Maps/L_MainMenu"
+    if EAL.does_asset_exist(path):
+        log("L_MainMenu exists, skipping map creation (delete Content/Maps/L_MainMenu.umap to rebuild)")
+        return
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    if not les.new_level(path, False):
+        fail("new_level failed for " + path)
+        return
+    cls = getattr(unreal, "VeloxMenuGameMode", None)
+    if cls is None:
+        fail("unreal.VeloxMenuGameMode not available (build the editor module first)")
+        return
+    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
+    settings.set_editor_property("default_game_mode", cls)
+    got = settings.get_editor_property("default_game_mode")
+    log(f"L_MainMenu WorldSettings.DefaultGameMode = {got.get_name() if got else None}")
+    if got is None:
+        fail("could not set WorldSettings.DefaultGameMode on L_MainMenu")
+    if not les.save_current_level():
+        fail("save_current_level failed for " + path)
+
+
 def main():
     actions, _imc = build_input()
+    build_audio()
     build_data(actions)
     table, defs = build_weapons()
     build_combat_settings(table, defs)
     build_player_material()
     build_map()
+    build_menu_map()
     if ERRORS:
         raise RuntimeError("bootstrap failed: " + "; ".join(ERRORS))
     log("done")

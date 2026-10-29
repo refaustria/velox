@@ -11,7 +11,11 @@
 #include "Movement/VeloxMoveDebug.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "Character/VeloxCharacter.h"
-#include "Combat/VeloxCombatSettings.h"
+#include "Core/VeloxLog.h"
+#include "UI/VeloxHUDViewModel.h"
+#include "UI/VeloxHUDWidget.h"
+#include "UI/VeloxScoreboardWidget.h"
+#include "Blueprint/UserWidget.h"
 #include "Engine/Canvas.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
@@ -31,82 +35,92 @@ namespace VeloxHUDPrivate
 }
 #endif
 
-namespace VeloxHUDPrivate
-{
-	// Hit marker geometry, relative to HitMarkerSize: gap from the centre, line thickness, kill marker scale.
-	constexpr float HitMarkerGap = 0.5f;
-	constexpr float HitMarkerThickness = 2.f;
-	constexpr float KillMarkerScale = 1.6f;
-	constexpr float DeathTextScale = 2.f;
-	constexpr float DeathTextY = 0.35f;
-	constexpr float DeathPromptGap = 36.f;
-	const FLinearColor HitColor(1.f, 1.f, 1.f, 1.f);
-	const FLinearColor KillColor(1.f, 0.1f, 0.1f, 1.f);
-}
-
-void AVeloxHUD::DrawHitMarker()
-{
-	using namespace VeloxHUDPrivate;
-	const AVeloxPlayerController* PC = Cast<AVeloxPlayerController>(PlayerOwner);
-	const AVeloxPlayerState* PS = PC ? PC->GetPlayerState<AVeloxPlayerState>() : nullptr;
-	const UWorld* World = GetWorld();
-	if (!PC || !World || !Canvas || PC->GetLastHitConfirmTime() < 0.0)
-	{
-		return;
-	}
-	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PS ? PS->GetCombatSettings() : nullptr);
-	const double Age = World->GetTimeSeconds() - PC->GetLastHitConfirmTime();
-	if (Age < 0.0 || Age > Settings.HitMarkerSeconds)
-	{
-		return;
-	}
-	const bool bKill = PC->WasLastHitConfirmKill();
-	const float Arm = Settings.HitMarkerSize * (Canvas->ClipY / 1080.f) * (bKill ? KillMarkerScale : 1.f);
-	const float Gap = Arm * HitMarkerGap;
-	const FLinearColor Color = bKill ? KillColor : HitColor;
-	const float CX = Canvas->ClipX * 0.5f;
-	const float CY = Canvas->ClipY * 0.5f;
-	for (const FVector2D Sign : { FVector2D(1, 1), FVector2D(1, -1), FVector2D(-1, 1), FVector2D(-1, -1) })
-	{
-		DrawLine(CX + Sign.X * Gap, CY + Sign.Y * Gap, CX + Sign.X * Arm, CY + Sign.Y * Arm, Color, HitMarkerThickness);
-	}
-}
-
-void AVeloxHUD::DrawDeathOverlay()
-{
-	using namespace VeloxHUDPrivate;
-	const AVeloxPlayerController* PC = Cast<AVeloxPlayerController>(PlayerOwner);
-	const UWorld* World = GetWorld();
-	if (!PC || !World || !Canvas || !PC->IsWaitingForRespawn())
-	{
-		return;
-	}
-	const AVeloxPlayerState* PS = PC->GetPlayerState<AVeloxPlayerState>();
-	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PS ? PS->GetCombatSettings() : nullptr);
-	const double Waited = World->GetTimeSeconds() - PC->GetPawnLostTime();
-	const FString Title = TEXT("YOU WERE FRAGGED");
-	const FString Prompt = Waited < Settings.MinRespawnDelay ? FString::Printf(TEXT("Respawn in %.1f"), Settings.MinRespawnDelay - Waited) : FString(TEXT("Press FIRE to respawn"));
-	UFont* Font = GEngine ? GEngine->GetLargeFont() : nullptr;
-	float W = 0.f;
-	float H = 0.f;
-	GetTextSize(Title, W, H, Font, DeathTextScale);
-	const float Y = Canvas->ClipY * DeathTextY;
-	DrawText(Title, KillColor, (Canvas->ClipX - W) * 0.5f, Y, Font, DeathTextScale);
-	GetTextSize(Prompt, W, H, Font, 1.f);
-	DrawText(Prompt, HitColor, (Canvas->ClipX - W) * 0.5f, Y + H * DeathTextScale + DeathPromptGap, Font, 1.f);
-}
-
 AVeloxHUD::AVeloxHUD(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	HUDWidgetClass = UVeloxHUDWidget::StaticClass();
+	ScoreboardWidgetClass = UVeloxScoreboardWidget::StaticClass();
+}
+
+void AVeloxHUD::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// The HUD actor exists only for local players; a dedicated server never builds UI.
+	APlayerController* Controller = GetOwningPlayerController();
+	if (GetNetMode() == NM_DedicatedServer || !Controller || !Controller->IsLocalController() || !HUDWidgetClass)
+	{
+		return;
+	}
+	ViewModel = NewObject<UVeloxHUDViewModel>(this);
+	HUDWidget = CreateWidget<UVeloxHUDWidget>(Controller, HUDWidgetClass);
+	if (HUDWidget)
+	{
+		HUDWidget->SetViewModel(ViewModel);
+		HUDWidget->AddToViewport(HUDWidgetZOrder);
+	}
+	if (ScoreboardWidgetClass)
+	{
+		ScoreboardWidget = CreateWidget<UVeloxScoreboardWidget>(Controller, ScoreboardWidgetClass);
+		if (ScoreboardWidget)
+		{
+			ScoreboardWidget->SetViewModel(ViewModel);
+			ScoreboardWidget->AddToViewport(ScoreboardWidgetZOrder);
+		}
+		UE_LOG(LogVelox, Log, TEXT("VeloxHUD scoreboard class=%s created=%d in_viewport=%d"), *GetNameSafe(ScoreboardWidgetClass), ScoreboardWidget ? 1 : 0, ScoreboardWidget && ScoreboardWidget->IsInViewport() ? 1 : 0);
+	}
+	UE_LOG(LogVelox, Log, TEXT("VeloxHUD widget class=%s created=%d in_viewport=%d"), *GetNameSafe(HUDWidgetClass), HUDWidget ? 1 : 0, HUDWidget && HUDWidget->IsInViewport() ? 1 : 0);
+}
+
+void AVeloxHUD::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (HUDWidget)
+	{
+		HUDWidget->RemoveFromParent();
+		HUDWidget = nullptr;
+	}
+	if (ScoreboardWidget)
+	{
+		ScoreboardWidget->RemoveFromParent();
+		ScoreboardWidget = nullptr;
+	}
+	if (ViewModel)
+	{
+		ViewModel->Unbind();
+	}
+	ViewModel = nullptr;
+	Super::EndPlay(EndPlayReason);
+}
+
+void AVeloxHUD::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	const AVeloxPlayerController* Controller = Cast<AVeloxPlayerController>(GetOwningPlayerController());
+	if (!ViewModel || !HUDWidget || !Controller)
+	{
+		return;
+	}
+	ViewModel->UpdateFromGame(*Controller);
+	if (!bLoggedWidget && ViewModel->bHasPlayer)
+	{
+		// Headless check (-game -nullrhi): the widget tree exists and carries the first real values.
+		bLoggedWidget = true;
+		HUDWidget->RefreshFromViewModel();
+		UE_LOG(LogVelox, Log, TEXT("VeloxHUD bound %s"), *HUDWidget->DescribeBoundValues());
+	}
+	// Headless evidence (-game -nullrhi): the scoreboard opening, forced at PostMatch or held, with what it shows.
+	if (ScoreboardWidget && ViewModel->bScoreboardVisible != bLoggedScoreboardVisible)
+	{
+		bLoggedScoreboardVisible = ViewModel->bScoreboardVisible;
+		ScoreboardWidget->RefreshFromViewModel();
+		UE_LOG(LogVelox, Log, TEXT("VeloxScoreboard visible=%d forced=%d %s"), bLoggedScoreboardVisible ? 1 : 0, ViewModel->bScoreboardForced ? 1 : 0, *ScoreboardWidget->DescribeBoundValues());
+	}
 }
 
 void AVeloxHUD::DrawHUD()
 {
 	Super::DrawHUD();
-
-	DrawHitMarker();
-	DrawDeathOverlay();
 
 #if !UE_BUILD_SHIPPING
 	using namespace VeloxHUDPrivate;

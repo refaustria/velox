@@ -15,11 +15,42 @@
 class UAbilitySystemComponent;
 class UVeloxAbilitySystemComponent;
 class UVeloxCombatSettings;
+class UVeloxGameplayAbility_FireProjectile;
 class UVeloxGameplayAbility_WeaponSwitch;
+class UVeloxMovementComponent;
 class UVeloxWeaponDefinition;
 class UVeloxWeaponTable;
 struct FGameplayAbilitySpec;
 struct FGameplayCueParameters;
+struct FVeloxMoveShot;
+
+/**
+ * ADR 0003 B35, server: a projectile shot registered from the owner's move stream (the fire move carried it). The owner's
+ * self splash is already scheduled (EventId); the fire RPC adopts the record and only spawns the projectile, pays ammo,
+ * plays the cue and finalises the switch.
+ */
+struct FVeloxMoveShotRecord
+{
+	uint8 ShotSeq = 0;
+	int32 WeaponIndex = INDEX_NONE;
+	/** After the B15 origin rule (snapped to the server eye at the move start if needed). */
+	FVector Origin = FVector::ZeroVector;
+	/** Unit direction. */
+	FVector Dir = FVector::ForwardVector;
+	/** As received in the move (the fire RPC is cross-checked against these). */
+	FVector ClientOrigin = FVector::ZeroVector;
+	FVector ClientDir = FVector::ForwardVector;
+	float ClientFireMoveTimeStamp = 0.f;
+	/** After ClampFireMoveTimeStamp against the move's start. */
+	float FireMoveTimeStamp = 0.f;
+	/** The scheduled self splash on the owner's movement component, and its explosion origin. */
+	int32 EventId = 0;
+	FVector SplashOrigin = FVector::ZeroVector;
+	/** Server world time the move was processed (orphan expiry). */
+	double ReceiveTime = 0.0;
+	/** The fire RPC took it (a record is adopted once). */
+	bool bAdopted = false;
+};
 
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxWeaponInventoryComponent : public UActorComponent
@@ -40,8 +71,39 @@ public:
 	const UVeloxWeaponDefinition* GetDefinition(int32 Index) const;
 	int32 IndexOf(const UVeloxWeaponDefinition* Definition) const;
 
-	bool OwnsIndex(int32 Index) const { return Index >= 0 && Index < 16 && (OwnedMask & (1u << Index)) != 0; }
+	/** Owned per the replicated mask or, on the owning client, a pickup's unexpired prediction (PredictOwned). */
+	bool OwnsIndex(int32 Index) const { return Index >= 0 && Index < 16 && (GetEffectiveOwnedMask() & (1u << Index)) != 0; }
+	/** The replicated (server) mask. */
 	uint16 GetOwnedMask() const { return OwnedMask; }
+	/** OwnedMask | the unexpired predicted bits (owning client; equals OwnedMask on the server). */
+	uint16 GetEffectiveOwnedMask() const;
+
+	/**
+	 * Owning client (ADR 0004 section 2): a predicted weapon pickup owns Index until local world time Until or until the
+	 * replicated mask has it, so a slot press switches at once (Q3 predicts STAT_WEAPONS). The server validates the switch
+	 * against its own mask as always. DropPredictedOwned removes the bit (pickup taken by someone else / refused).
+	 */
+	void PredictOwned(int32 Index, double Until);
+	void DropPredictedOwned(int32 Index);
+
+	/**
+	 * Q3 cg_autoswitch (ADR 0004 section 2), world-free: the table index to select when the owned mask changes from
+	 * OldMask to NewMask, or INDEX_NONE. Exactly one newly owned weapon (a pickup; GiveAllWeapons and a first replication
+	 * from an empty mask never switch), the setting on, a current weapon that allows it (machine gun or gauntlet), and a
+	 * target other than the current weapon.
+	 */
+	static int32 SelectAutoSwitchTarget(bool bEnabled, bool bCurrentAllowsAutoSwitch, int32 CurrentIndex, uint16 OldMask, uint16 NewMask);
+	/** Weapons the autoswitch leaves (Q3 default behaviour: the machine gun and the gauntlet). */
+	static bool AllowsAutoSwitchFrom(const UVeloxWeaponDefinition* Current);
+	/** InputTag.Weapon.Slot<Slot> (1-9), invalid otherwise. */
+	static FGameplayTag SlotInputTag(int32 Slot);
+
+	/**
+	 * Owning machine with a local player controller: presses the slot of the SelectAutoSwitchTarget result through the
+	 * normal switch ability input. Clients: from OnRep_OwnedMask. Listen-server host / standalone (no OnRep on the
+	 * authority): the weapon pickup calls it after AddWeapon.
+	 */
+	void RunAutoSwitch(uint16 OldMask, uint16 NewMask);
 
 	/** Current weapon; on the owning client the locally predicted switch result until the server confirms it. */
 	int32 GetCurrentIndex() const;
@@ -105,9 +167,20 @@ public:
 	 */
 	void ResetToLoadout();
 	void RemoveAllWeapons();
-	/** Server: the authoritative current weapon (also used by tests and cheats to skip the switch). Clears the pending index. */
+	/**
+	 * Server: the authoritative current weapon (also used by tests and cheats to skip the switch). Clears the pending
+	 * index and the pending drop timer.
+	 */
 	void SetCurrentIndex(int32 Index);
-	void SetPendingIndex(int32 Index);
+	/**
+	 * Server (ADR 0003 B37 iii): Index becomes the target of a running switch whose drop ends DropEndSeconds from now. The
+	 * inventory owns that drop end: PendingDropTimer runs CompletePendingDrop then (DropEndSeconds <= 0: at once), so a
+	 * superseding switch activation that ends the switch instance (B33) cannot orphan the pending switch. GE_WeaponSwitching
+	 * keeps running through the raise; SwitchEndTime is not touched. INDEX_NONE clears the pending index and the timer.
+	 */
+	void SetPendingIndex(int32 Index, float DropEndSeconds);
+	/** Tests and logs: the server's pending drop timer is armed. */
+	bool IsPendingDropTimerActive() const;
 	/**
 	 * Server (B18, task 08b D4): an accepted shot of the pending weapon completes the running switch: the pending index
 	 * becomes current, the switch ability instance still waiting for its (latency-shifted) drop end is ended, and
@@ -130,6 +203,61 @@ public:
 	void KeepBeamAlive(const UVeloxWeaponDefinition& Definition, const FGameplayCueParameters& Parameters);
 	void StopBeam();
 
+	// --- Server: the move-carried projectile shot (ADR 0003 B35, ADR 0002 A36) ---
+	/**
+	 * Binds OnServerMoveShot / OnServerMoveProcessed of Movement (the possessed pawn's movement component; called from
+	 * AVeloxCharacter::InitAbilityActorInfo on the authority) and unbinds a previously bound one. A new binding starts a
+	 * new move stream: records, pending RPC shots and the processed-move state are cleared. Null: unbind only.
+	 */
+	void BindServerMoveStream(UVeloxMovementComponent* Movement);
+	/** Unbinds Movement if it is the bound one (AVeloxCharacter::UnPossessed). */
+	void UnbindServerMoveStream(const UVeloxMovementComponent* Movement);
+	UVeloxMovementComponent* GetBoundServerMovement() const;
+
+	/**
+	 * OnServerMoveShot: the fire move of shot Shot.ShotSeq is about to be simulated (MoveEndStamp = its client time stamp,
+	 * MoveDeltaTime = its server delta). B35 steps 1-6: owned projectile weapon with splash, sequence not recorded,
+	 * stamp clamped against the move's start, origin through the B15 rule against the live eye (= the eye at the move
+	 * start), the weapon's fire-rate token and ammo affordable (both skipped when the fire RPC overtook the move and is
+	 * pending: it paid already), then the owner's self splash scheduled and the record kept. Logs VeloxMoveShot or
+	 * VeloxMoveShotIgnored reason=.
+	 */
+	void HandleServerMoveShot(const FVeloxMoveShot& Shot, float MoveEndStamp, float MoveDeltaTime);
+
+	/**
+	 * OnServerMoveProcessed: resumes pending fire RPCs whose move-shot is now recorded (source=move) or whose fire stamp
+	 * the move stream passed without one (source=rpc), and expires records whose RPC never came (VeloxMoveShotOrphan).
+	 */
+	void HandleServerMoveProcessed(float MoveEndStamp);
+
+	/** The unadopted record of Seq, or null. */
+	const FVeloxMoveShotRecord* FindMoveShotRecord(uint8 Seq) const;
+	/** Takes the unadopted record of Seq (marks it adopted); false without one. */
+	bool AdoptMoveShotRecord(uint8 Seq, FVeloxMoveShotRecord& OutRecord);
+
+	/**
+	 * A projectile fire RPC with FireMoveTimeStamp and no record must wait for its fire move: the move stream is bound,
+	 * has processed a move, and has not yet passed the stamp (the RPC overtook the move, normally inside one packet).
+	 */
+	bool ShouldWaitForMoveShot(float FireMoveTimeStamp) const;
+
+	/** The fire RPC of Seq waits for its move (UVeloxGameplayAbility_FireProjectile keeps the validated shot). */
+	void AddPendingRpcShot(uint8 Seq, float FireMoveTimeStamp, UVeloxGameplayAbility_FireProjectile* Ability);
+	void RemovePendingRpcShot(uint8 Seq, const UVeloxGameplayAbility_FireProjectile* Ability);
+	bool HasPendingRpcShot(uint8 Seq) const;
+
+	/** Records whose RPC never came, this binding (an M6 anti-cheat signal). */
+	int32 GetNumMoveShotOrphans() const { return NumMoveShotOrphans; }
+	int32 GetNumMoveShotRecords() const { return ServerMoveShots.Num(); }
+	/** Last client move time stamp the bound move stream processed; false before the first move. */
+	bool GetLastProcessedMoveStamp(float& OutStamp) const { OutStamp = LastProcessedMoveStamp; return bServerMoveStreamSeen; }
+
+	/** Drops every record and pending RPC shot (ResetToLoadout, rebinding); pending abilities end cancelled. */
+	void ClearMoveShots();
+
+	/** Records kept per life (ring). */
+	static constexpr int32 MaxMoveShotRecords = 8;
+
 	// --- Owning client ---
 	/** Local prediction of a switch result; replaced by the replicated value when it arrives or after PredictionTimeout. */
 	void PredictCurrentIndex(int32 Index);
@@ -140,14 +268,17 @@ public:
 
 	//~UActorComponent interface
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	/** Clears the pending drop timer (B37) and the beam timer. */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	//~End of UActorComponent interface
 
 protected:
 	UFUNCTION()
 	void OnRep_CurrentIndex(uint8 OldIndex);
 
+	/** Owning client: drops confirmed predicted bits and runs the autoswitch rule. */
 	UFUNCTION()
-	void OnRep_OwnedMask();
+	void OnRep_OwnedMask(uint16 OldMask);
 
 	/** Granted once per PlayerState (one spec bound to InputTag.Weapon.Slot1..9/Next/Prev). */
 	UPROPERTY(EditDefaultsOnly, Category = "Velox|Weapons")
@@ -167,6 +298,9 @@ private:
 	void RemoveFireAbility(int32 Index);
 	void GrantSwitchAbility();
 	void StopBeamOf(int32 Index);
+	/** B37 (iii), PendingDropTimer: Target becomes current if it is still the pending index. */
+	void CompletePendingDrop(int32 Target);
+	void ClearPendingDropTimer();
 
 	/** Bit i = weapon table index i is owned. Owner only. */
 	UPROPERTY(ReplicatedUsing = OnRep_OwnedMask)
@@ -183,10 +317,16 @@ private:
 	FGameplayAbilitySpecHandle SwitchSpecHandle;
 
 	FTimerHandle BeamTimer;
+	/** Server: the drop end of the pending switch (B37 iii). */
+	FTimerHandle PendingDropTimer;
 	FGameplayTag ActiveBeamCueTag;
 
 	int32 PredictedIndex = INDEX_NONE;
 	double PredictionExpireTime = 0.0;
+
+	/** Owning client: weapons owned by a predicted pickup and the local world time each prediction expires. */
+	uint16 PredictedOwnedMask = 0;
+	double PredictedOwnedUntil[16] = {};
 
 	uint8 ShotSeqCounter = 0;
 
@@ -197,4 +337,28 @@ private:
 
 	double RejectLogWindowStart = -1.0;
 	int32 RejectLogCount = 0;
+
+	// --- Server: move-carried projectile shot (ADR 0003 B35) ---
+	struct FPendingRpcShot
+	{
+		uint8 ShotSeq = 0;
+		float FireMoveTimeStamp = 0.f;
+		TWeakObjectPtr<UVeloxGameplayAbility_FireProjectile> Ability;
+	};
+
+	int32 FindMoveShotRecordIndex(uint8 Seq) const;
+	/** Logs and counts an expired or evicted record that was never adopted. */
+	void NoteMoveShotOrphan(const FVeloxMoveShotRecord& Record, const TCHAR* Why);
+	/** Seconds a record waits for its RPC: FireRateJitterToleranceSeconds + MaxRewindSeconds. */
+	double GetMoveShotOrphanSeconds() const;
+
+	/** Oldest first; at most MaxMoveShotRecords. */
+	TArray<FVeloxMoveShotRecord, TInlineAllocator<MaxMoveShotRecords>> ServerMoveShots;
+	TArray<FPendingRpcShot, TInlineAllocator<2>> PendingRpcShots;
+	TWeakObjectPtr<UVeloxMovementComponent> BoundServerMovement;
+	FDelegateHandle MoveShotHandle;
+	FDelegateHandle MoveProcessedHandle;
+	float LastProcessedMoveStamp = 0.f;
+	bool bServerMoveStreamSeen = false;
+	int32 NumMoveShotOrphans = 0;
 };

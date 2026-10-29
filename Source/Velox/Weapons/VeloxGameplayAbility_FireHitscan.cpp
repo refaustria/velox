@@ -5,6 +5,8 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Combat/VeloxCombatLog.h"
+#include "Combat/VeloxCombatSettings.h"
+#include "Combat/VeloxDamageMath.h"
 #include "Combat/VeloxGameplayEffectContext.h"
 #include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHealthSet.h"
@@ -15,6 +17,8 @@
 #include "GameFramework/Character.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
+#include "HAL/IConsoleManager.h"
+#include "Items/VeloxPowerupEffects.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
 #include "TimerManager.h"
@@ -165,6 +169,10 @@ void UVeloxGameplayAbility_FireHitscan::ActivateAbility(const FGameplayAbilitySp
 	Data->HintTarget = Shot.HintTarget;
 	Data->bHasHint = Shot.HintTarget.IsValid();
 	Data->HintTargetStamp = Data->bHasHint ? Shot.HintTargetStamp : 0.f;
+	// B36: the server validates the origin against the eye at this stamp (the end of the last move, as for projectiles).
+	const ACharacter* ShooterCharacter = Cast<ACharacter>(Pawn);
+	const UVeloxMovementComponent* Movement = ShooterCharacter ? Cast<UVeloxMovementComponent>(ShooterCharacter->GetCharacterMovement()) : nullptr;
+	Data->FireMoveTimeStamp = Movement ? Movement->GetClientMoveTimeStamp() : 0.f;
 	const FGameplayAbilityTargetDataHandle DataHandle(Data);
 	ASC->CallServerSetReplicatedTargetData(Handle, ActivationInfo.GetActivationPredictionKey(), DataHandle, FGameplayTag(), ASC->ScopedPredictionKey);
 
@@ -233,6 +241,11 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 	{
 		return;
 	}
+	// velox.combat.DebugHoldShotRpc (non-shipping, ADR 0003 B35 forced loss): process this target data later.
+	if (DebugHoldServerTargetData(Data, [this, Data, ApplicationTag]() { OnServerTargetData(Data, ApplicationTag); }))
+	{
+		return;
+	}
 	ASC->ConsumeClientReplicatedTargetData(CurrentSpecHandle, CurrentActivationInfo.GetActivationPredictionKey());
 
 	const UVeloxWeaponDefinition* Definition = GetCurrentDefinition();
@@ -244,7 +257,7 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 	}
 	else
 	{
-		// Review server step 1 (world-free, Velox.Combat.ShotValidation): bucket + spacing first, then the payload.
+		// Review server step 1 (world-free, Velox.Combat.ShotValidation): the B32 token bucket first, then the payload.
 		// Nothing touches the subsystem on rejection.
 		const double Now = World->GetTimeSeconds();
 		FVeloxValidatedShot Valid;
@@ -272,8 +285,11 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 			Shot.HintTarget = Valid.HintTarget;
 			Shot.HintTargetStamp = Valid.HintTargetStamp;
 			Shot.ShotSeq = Valid.ShotSeq;
+			Shot.FireMoveTimeStamp = Valid.FireMoveTimeStamp;
+			Shot.bHasFireMoveTimeStamp = true;
 			ResolveServerShot(*Definition, Shot);
-			AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+			// B37: no NextFireTime carry on receive time; the switch's refire wait reads this instead.
+			NoteAcceptedRemoteShot(Now);
 		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);
@@ -315,12 +331,17 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 	Request.ViewServerTime = Shot.ViewServerTime;
 	Request.HintTarget = Shot.HintTarget;
 	Request.HintTargetStamp = Shot.HintTargetStamp;
+	// B36: the origin is validated against the shooter's eye at the fire stamp (remote shooters).
+	Request.FireMoveTimeStamp = Shot.FireMoveTimeStamp;
+	Request.bHasFireMoveTimeStamp = Shot.bHasFireMoveTimeStamp;
 
 	// Step 3.
 	FVeloxShotResult Result;
 	LagComp->TraceShot(Request, Result);
 
 	// Step 4: one damage spec per victim, nearest first; a victim killed earlier in the list still gets its hit applied.
+	// ADR 0004 section 3: Quad at fire, from the shooter ASC's tag on the server (Q3 s_quadFactor).
+	const float DamageScale = VeloxPowerups::GetOutgoingDamageScale(ASC, UVeloxCombatSettings::GetOrDefault(PlayerState ? PlayerState->GetCombatSettings() : nullptr));
 	int32 TotalDamage = 0;
 	for (const FVeloxShotHit& Hit : Result.Hits)
 	{
@@ -340,6 +361,7 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 		Params.Direction = Shot.Dir;
 		Params.HitLocation = Hit.Location;
 		Params.KnockbackScale = Definition.KnockbackScale;
+		Params.DamageScale = DamageScale;
 		Params.ShotSeq = Shot.ShotSeq;
 		const FGameplayEffectSpecHandle Spec = VeloxEffects::MakeDamageSpec(ASC, Params);
 		if (Spec.IsValid())
@@ -355,6 +377,9 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 		}
 	}
 	LastServerShot.TotalDamage = TotalDamage;
+	UE_CLOG(Result.Hits.Num() > 0, LogVeloxCombat, Log, TEXT("VeloxShotDamage seq=%u shooter=%s weapon=%s base=%d scale=%.2f hit_dmg=%d hits=%d total=%d"), Shot.ShotSeq,
+		*GetNameSafe(Shooter), *GetNameSafe(&Definition), Definition.Damage, DamageScale, FVeloxDamageMath::ScaleDamage(Definition.Damage, DamageScale), LastServerShot.PelletHits,
+		TotalDamage);
 
 	// Step 5: ammo, cues. The fire cue runs with the activation's prediction key on a remote shot (the predicting client
 	// skips it, having drawn its own); the impact cue is the server's alone (B21).

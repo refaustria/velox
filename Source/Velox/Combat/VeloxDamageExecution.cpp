@@ -7,6 +7,7 @@
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxDamageMath.h"
 #include "Combat/VeloxGameplayEffectContext.h"
+#include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxGameplayTags.h"
 #include "GameModes/VeloxPlayerState.h"
@@ -90,15 +91,21 @@ void UVeloxDamageExecution::Execute_Implementation(const FGameplayEffectCustomEx
 	Input.bNoKnockback = !Context || Context->HasFlag(EVeloxDamageFlags::NoKnockback) || Context->HitDirection.IsNearlyZero();
 	Input.bProtected = TargetASC && TargetASC->HasMatchingGameplayTag(VeloxGameplayTags::State_SpawnProtected);
 	Input.KnockbackScale = Context ? Context->KnockbackScale : 1.f;
+	// ADR 0004 section 3: the victim's Battle Suit and the splash flag (Q3 DAMAGE_RADIUS).
+	Input.bBattleSuit = TargetASC && TargetASC->HasMatchingGameplayTag(VeloxGameplayTags::Powerup_BattleSuit);
+	Input.bRadius = Context && Context->HasFlag(EVeloxDamageFlags::Radius);
 	const int32 PelletHits = FMath::Max(FMath::RoundToInt32(Spec.GetSetByCallerMagnitude(VeloxGameplayTags::SetByCaller_PelletHits, false, 1.f)), 1);
 
-	const bool bDead = TargetASC && TargetASC->HasMatchingGameplayTag(VeloxGameplayTags::State_Dead);
+	// Dead and match-frozen (intermission, ADR 0004 section 5) targets take nothing, not even knockback.
+	const FGameplayTag MatchFrozenTag = VeloxEffects::GetMatchFrozenTag();
+	const bool bFrozen = TargetASC && MatchFrozenTag.IsValid() && TargetASC->HasMatchingGameplayTag(MatchFrozenTag);
+	const bool bDead = bFrozen || (TargetASC && TargetASC->HasMatchingGameplayTag(VeloxGameplayTags::State_Dead));
 	const FVeloxCombatParams Params = SettingsFor(TargetASC).BuildCombatParams();
 	const FVeloxDamageResult Result = bDead ? FVeloxDamageResult() : FVeloxDamageMath::ApplyPellets(Input, PelletHits, Params);
 
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDamageCalc target=%s dmg=%d pellets=%d armor=%d self=%d protected=%d noarmor=%d dead=%d -> health_loss=%d armor_loss=%d knockback=%.1f cm/s"),
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDamageCalc target=%s dmg=%d pellets=%d armor=%d self=%d protected=%d noarmor=%d radius=%d suit=%d dead=%d frozen=%d -> health_loss=%d armor_loss=%d knockback=%.1f cm/s"),
 		*GetNameSafe(TargetASC ? TargetASC->GetOwnerActor() : nullptr), Input.Damage, PelletHits, Input.Armor, Input.bSelf ? 1 : 0, Input.bProtected ? 1 : 0,
-		Input.bNoArmor ? 1 : 0, bDead ? 1 : 0, Result.HealthLoss, Result.ArmorLoss, Result.KnockbackSpeed);
+		Input.bNoArmor ? 1 : 0, Input.bRadius ? 1 : 0, Input.bBattleSuit ? 1 : 0, bDead ? 1 : 0, bFrozen ? 1 : 0, Result.HealthLoss, Result.ArmorLoss, Result.KnockbackSpeed);
 
 	// IncomingDamage last: UVeloxHealthSet commits all three metas when it sees IncomingDamage.
 	if (Result.ArmorLoss > 0)
@@ -136,7 +143,10 @@ void UVeloxDecayExecution::Execute_Implementation(const FGameplayEffectCustomExe
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DecayStatics().MaxHealthDef, EvalParams, MaxHealth);
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DecayStatics().ArmorDef, EvalParams, Armor);
 
-	const bool bDecayHealth = Health > MaxHealth;
+	// ADR 0004 section 3 (Q3 ClientTimerActions `else` branch): no health decay while regenerating; armor still decays.
+	const UAbilitySystemComponent* DecayTargetASC = ExecutionParams.GetTargetAbilitySystemComponent();
+	const bool bRegenerating = DecayTargetASC && DecayTargetASC->HasMatchingGameplayTag(VeloxGameplayTags::Powerup_Regen);
+	const bool bDecayHealth = Health > MaxHealth && !bRegenerating;
 	const bool bDecayArmor = Armor > MaxHealth;
 	if (bDecayHealth)
 	{
@@ -148,8 +158,7 @@ void UVeloxDecayExecution::Execute_Implementation(const FGameplayEffectCustomExe
 	}
 	if (bDecayHealth || bDecayArmor)
 	{
-		const UAbilitySystemComponent* TargetASC = ExecutionParams.GetTargetAbilitySystemComponent();
 		UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxDecay target=%s health %.0f->%.0f armor %.0f->%.0f (max health %.0f)"),
-			*GetNameSafe(TargetASC ? TargetASC->GetOwnerActor() : nullptr), Health, bDecayHealth ? Health - 1.f : Health, Armor, bDecayArmor ? Armor - 1.f : Armor, MaxHealth);
+			*GetNameSafe(DecayTargetASC ? DecayTargetASC->GetOwnerActor() : nullptr), Health, bDecayHealth ? Health - 1.f : Health, Armor, bDecayArmor ? Armor - 1.f : Armor, MaxHealth);
 	}
 }

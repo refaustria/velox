@@ -1,0 +1,51 @@
+{
+ "name": "HasteRun",
+ "note": "M3 task 03 / ADR 0004 sections 3 and 10. L_MovementTest corridor (start (40,0,100)). Ground run to the 800 cm/s baseline, then the server gives Haste for 2.5 s (serverHaste: AVeloxCharacter::ServerGiveTestHaste, the pickup's GE path) while running on: ground speed rises to 1.3 x baseline once the response carries HasteEnd (one correction expected); one strafe hop with the scaled air cap; Haste expires 0.9 s into the 'run through expiry' row, exactly in the move timeline (0 corrections around it); 1 s later the row 'after expiry' starts back at the baseline. infra/ci/nettest.sh judges the VeloxHasteState (client and server), VeloxNetSoak event=haste/haste_server, VeloxPowerupMoveTimes and VeloxScript row lines.",
+ "startYaw": 0,
+ "startLocation": [
+  40,
+  0,
+  100
+ ],
+ "rows": [
+  {
+   "duration": 0.5,
+   "yaw": 0,
+   "label": "settle"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "yaw": 0,
+   "label": "baseline run"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "serverHaste": 2.5,
+   "label": "haste"
+  },
+  {
+   "duration": 0.6,
+   "forward": 1,
+   "right": 1,
+   "jump": true,
+   "label": "strafe hop"
+  },
+  {
+   "duration": 1.9,
+   "forward": 1,
+   "yaw": 0,
+   "label": "run through expiry"
+  },
+  {
+   "duration": 0.5,
+   "forward": 1,
+   "label": "after expiry"
+  },
+  {
+   "duration": 0.6,
+   "label": "stop"
+  }
+ ]
+}

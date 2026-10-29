@@ -198,6 +198,7 @@ void AVeloxProjectile::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxProjectile, SpawnServerTime, Params);
 	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxProjectile, ShotSeq, Params);
 	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxProjectile, Definition, Params);
+	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxProjectile, bQuad, Params);
 }
 
 float AVeloxProjectile::GetRadius() const
@@ -220,6 +221,7 @@ AVeloxProjectile* AVeloxProjectile::SpawnServerProjectile(UWorld& World, TSubcla
 	}
 	Projectile->Definition = Launch.Definition;
 	Projectile->ShotSeq = Launch.ShotSeq;
+	Projectile->bQuad = Launch.bQuad;
 	Projectile->StartLocation = Launch.Origin;
 	Projectile->LaunchVelocity = Launch.Dir * Launch.Definition->ProjectileSpeed;
 	Projectile->ForwardSimSeconds = FMath::Max(Launch.ForwardSimSeconds, 0.f);
@@ -233,8 +235,8 @@ AVeloxProjectile* AVeloxProjectile::SpawnServerProjectile(UWorld& World, TSubcla
 	Projectile->State.Age = 0.0;
 	Projectile->FinishSpawning(SpawnTransform);
 
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileSpawn seq=%u weapon=%s owner=%s origin=%s fwd_ms=%.1f self_event=%d"), Launch.ShotSeq, *GetNameSafe(Launch.Definition),
-		*GetNameSafe(Launch.Shooter), *Launch.Origin.ToCompactString(), Projectile->ForwardSimSeconds * 1000.f, Launch.SelfSplashEventId);
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileSpawn seq=%u weapon=%s owner=%s origin=%s fwd_ms=%.1f self_event=%d quad=%d"), Launch.ShotSeq, *GetNameSafe(Launch.Definition),
+		*GetNameSafe(Launch.Shooter), *Launch.Origin.ToCompactString(), Projectile->ForwardSimSeconds * 1000.f, Launch.SelfSplashEventId, Launch.bQuad ? 1 : 0);
 
 	// Forward simulation as a sweep: a hit inside the window explodes now (the projectile then never replicates).
 	if (Projectile->ForwardSimSeconds > 0.f)
@@ -261,6 +263,7 @@ AVeloxProjectile* AVeloxProjectile::SpawnFakeProjectile(UWorld& World, TSubclass
 	Projectile->SetReplicates(false);
 	Projectile->Definition = Launch.Definition;
 	Projectile->ShotSeq = Launch.ShotSeq;
+	Projectile->bQuad = Launch.bQuad;
 	Projectile->StartLocation = Launch.Origin;
 	Projectile->LaunchVelocity = Launch.Dir * Launch.Definition->ProjectileSpeed;
 	Projectile->SourceASC = Launch.SourceASC;
@@ -295,6 +298,22 @@ void AVeloxProjectile::BeginPlay()
 		return;
 	}
 	TickProxy(0.f);
+}
+
+void AVeloxProjectile::Reset()
+{
+	// Rockets in flight must not survive ResetLevel (they would hit the restarted players).
+	bExploded = true;
+	if (UVeloxMovementComponent* OwnerMovement = SelfSplashMovement.Get(); OwnerMovement && SelfSplashEventId != 0 && OwnerMovement->HasMoveTimedEvent(SelfSplashEventId))
+	{
+		OwnerMovement->CancelMoveTimedEvent(SelfSplashEventId);
+		if (HasAuthority() && !bFake)
+		{
+			OwnerMovement->ServerResolveSelfKnockbackShot(ShotSeq);
+		}
+	}
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileReset seq=%u fake=%d destroyed"), ShotSeq, bFake ? 1 : 0);
+	Destroy();
 }
 
 void AVeloxProjectile::Tick(float DeltaSeconds)
@@ -458,7 +477,7 @@ void AVeloxProjectile::ServerExplode(const FVeloxProjectileImpact& Impact)
 	FConfirmTally Confirm;
 	if (Impact.Pawn && Definition->Damage > 0)
 	{
-		ApplyDamage(*ASC, Impact.Pawn, *Definition, Definition->Damage, LaunchVelocity, Origin, ShotSeq, false, this, Confirm);
+		ApplyDamage(*ASC, Impact.Pawn, *Definition, ScaledShotDamage(Definition->Damage, bQuad, ASC), LaunchVelocity, Origin, ShotSeq, false, this, Confirm);
 	}
 
 	// Q3 G_RadiusDamage: every living pawn but the direct victim with Dist < radius and LOS, zero points included (B3).
@@ -471,7 +490,8 @@ void AVeloxProjectile::ServerExplode(const FVeloxProjectileImpact& Impact)
 	}
 	TArray<FVeloxSplashHit, TInlineAllocator<16>> Splash;
 	auto LineOfSight = [World](const FVector& From, const FVector& To) { return HasLineOfSight(*World, From, To); };
-	FVeloxProjectileSim::CollectSplash(Origin, Targets, Impact.Pawn, Definition->SplashDamage, Definition->SplashRadiusCm, Settings.RadiusKnockbackZOffset, LineOfSight, Splash);
+	FVeloxProjectileSim::CollectSplash(Origin, Targets, Impact.Pawn, ScaledShotDamage(Definition->SplashDamage, bQuad, ASC), Definition->SplashRadiusCm, Settings.RadiusKnockbackZOffset,
+		LineOfSight, Splash);
 	for (const FVeloxSplashHit& Hit : Splash)
 	{
 		ApplyDamage(*ASC, Hit.Actor, *Definition, Hit.Points, Hit.Dir, Origin, ShotSeq, true, this, Confirm);
@@ -504,9 +524,9 @@ void AVeloxProjectile::ServerExplode(const FVeloxProjectileImpact& Impact)
 	Info.bConfirmSent = bConfirmSent;
 #endif
 
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileExplode seq=%u weapon=%s owner=%s at=%s age_ms=%.1f direct=%s splash=%d self=%s confirm_victims=%d confirm_dmg=%u kill=%d confirm_sent=%d"),
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileExplode seq=%u weapon=%s owner=%s at=%s age_ms=%.1f direct=%s splash=%d self=%s confirm_victims=%d confirm_dmg=%u kill=%d confirm_sent=%d quad=%d"),
 		ShotSeq, *GetNameSafe(Definition), *GetNameSafe(OwnerPawn), *Origin.ToCompactString(), State.Age * 1000.0, *GetNameSafe(Impact.Pawn), Splash.Num(),
-		bSkipOwner ? TEXT("move_timed") : (bResolveOwnerHere ? TEXT("here") : TEXT("local")), Confirm.Victims, ConfirmDamage, Confirm.bKill ? 1 : 0, bConfirmSent ? 1 : 0);
+		bSkipOwner ? TEXT("move_timed") : (bResolveOwnerHere ? TEXT("here") : TEXT("local")), Confirm.Victims, ConfirmDamage, Confirm.bKill ? 1 : 0, bConfirmSent ? 1 : 0, bQuad ? 1 : 0);
 
 	// The authoritative explosion for every client, the owner included: outside any prediction window (an explosion
 	// inside the fire RPC's forward simulation would otherwise carry the shot's key and skip the predicting client).
@@ -574,7 +594,7 @@ void AVeloxProjectile::FakeDetonate(const FVeloxProjectileImpact& Impact)
 		{
 			OwnerMovement->CancelMoveTimedEvent(SelfSplashEventId);
 		}
-		RunOwnerSelfSplash(*OwnerMovement, *Definition, SourceASC.Get(), Impact.Location, ShotSeq, true, TEXT("fake_pawn_hit"));
+		RunOwnerSelfSplash(*OwnerMovement, *Definition, SourceASC.Get(), Impact.Location, ShotSeq, true, TEXT("fake_pawn_hit"), bQuad);
 	}
 	UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxProjectileFake seq=%u detonated at %s pawn=%s"), ShotSeq, *Impact.Location.ToCompactString(), *GetNameSafe(Impact.Pawn));
 #if !UE_BUILD_SHIPPING
@@ -619,8 +639,17 @@ void AVeloxProjectile::TickProxy(float DeltaSeconds)
 #endif
 }
 
+int32 AVeloxProjectile::ScaledShotDamage(int32 BaseDamage, bool bInQuad, const UAbilitySystemComponent* SettingsASC)
+{
+	if (!bInQuad)
+	{
+		return BaseDamage;
+	}
+	return FVeloxDamageMath::ScaleDamage(BaseDamage, VeloxProjectilePrivate::SettingsOf(SettingsASC).QuadDamageFactor);
+}
+
 int32 AVeloxProjectile::ScheduleOwnerSelfSplash(UVeloxMovementComponent& OwnerMovement, const UVeloxWeaponDefinition& Definition, UAbilitySystemComponent* SourceASC, float MoveTime,
-	const FVector& Origin, uint8 InShotSeq, bool bPredicted)
+	const FVector& Origin, uint8 InShotSeq, bool bPredicted, bool bInQuad)
 {
 	if (!bPredicted)
 	{
@@ -628,11 +657,11 @@ int32 AVeloxProjectile::ScheduleOwnerSelfSplash(UVeloxMovementComponent& OwnerMo
 	}
 	TWeakObjectPtr<const UVeloxWeaponDefinition> WeakDefinition = &Definition;
 	TWeakObjectPtr<UAbilitySystemComponent> WeakASC = SourceASC;
-	return OwnerMovement.AddMoveTimedEvent(MoveTime, [WeakDefinition, WeakASC, Origin, InShotSeq, bPredicted](UVeloxMovementComponent& Movement)
+	return OwnerMovement.AddMoveTimedEvent(MoveTime, [WeakDefinition, WeakASC, Origin, InShotSeq, bPredicted, bInQuad](UVeloxMovementComponent& Movement)
 	{
 		if (const UVeloxWeaponDefinition* Def = WeakDefinition.Get())
 		{
-			RunOwnerSelfSplash(Movement, *Def, WeakASC.Get(), Origin, InShotSeq, bPredicted, TEXT("move"));
+			RunOwnerSelfSplash(Movement, *Def, WeakASC.Get(), Origin, InShotSeq, bPredicted, TEXT("move"), bInQuad);
 		}
 		else if (!bPredicted)
 		{
@@ -642,7 +671,7 @@ int32 AVeloxProjectile::ScheduleOwnerSelfSplash(UVeloxMovementComponent& OwnerMo
 }
 
 void AVeloxProjectile::RunOwnerSelfSplash(UVeloxMovementComponent& OwnerMovement, const UVeloxWeaponDefinition& Definition, UAbilitySystemComponent* InSourceASC, const FVector& Origin,
-	uint8 InShotSeq, bool bPredicted, const TCHAR* Reason)
+	uint8 InShotSeq, bool bPredicted, const TCHAR* Reason, bool bInQuad)
 {
 	using namespace VeloxProjectilePrivate;
 
@@ -658,7 +687,9 @@ void AVeloxProjectile::RunOwnerSelfSplash(UVeloxMovementComponent& OwnerMovement
 		Hitbox->GetCurrentPose(Pose);
 		const UVeloxCombatSettings& Settings = SettingsOf(VictimASC);
 		auto LineOfSight = [World](const FVector& From, const FVector& To) { return HasLineOfSight(*World, From, To); };
-		bHit = FVeloxProjectileSim::EvaluateSplash(Origin, Pawn, Pose, Definition.SplashDamage, Definition.SplashRadiusCm, Settings.RadiusKnockbackZOffset, LineOfSight, Hit);
+		// ADR 0004 section 3: the shot's Quad state scales the splash before the falloff, on both ends alike.
+		bHit = FVeloxProjectileSim::EvaluateSplash(Origin, Pawn, Pose, ScaledShotDamage(Definition.SplashDamage, bInQuad, VictimASC), Definition.SplashRadiusCm,
+			Settings.RadiusKnockbackZOffset, LineOfSight, Hit);
 		if (bHit && bPredicted)
 		{
 			const bool bProtected = VictimASC->HasMatchingGameplayTag(VeloxGameplayTags::State_SpawnProtected);
@@ -673,8 +704,8 @@ void AVeloxProjectile::RunOwnerSelfSplash(UVeloxMovementComponent& OwnerMovement
 			ApplyDamage(InSourceASC ? *InSourceASC : *VictimASC, Pawn, Definition, Hit.Points, Hit.Dir, Origin, InShotSeq, true, nullptr, SelfOnly);
 		}
 	}
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSelfSplash role=%s reason=%s seq=%u ts=%.6f pos=%s origin=%s hit=%d dist=%.2f points=%d"), bPredicted ? TEXT("client") : TEXT("server"), Reason, InShotSeq,
-		OwnerMovement.GetCurrentMoveTimeStamp(), Pawn ? *Pawn->GetActorLocation().ToCompactString() : TEXT("-"), *Origin.ToCompactString(), bHit ? 1 : 0, Hit.Dist, Hit.Points);
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSelfSplash role=%s reason=%s seq=%u ts=%.6f pos=%s origin=%s hit=%d dist=%.2f points=%d quad=%d"), bPredicted ? TEXT("client") : TEXT("server"), Reason, InShotSeq,
+		OwnerMovement.GetCurrentMoveTimeStamp(), Pawn ? *Pawn->GetActorLocation().ToCompactString() : TEXT("-"), *Origin.ToCompactString(), bHit ? 1 : 0, Hit.Dist, Hit.Points, bInQuad ? 1 : 0);
 	if (!bPredicted)
 	{
 		OwnerMovement.ServerResolveSelfKnockbackShot(InShotSeq);

@@ -53,5 +53,7 @@ FVeloxMoveParams UVeloxMovementSettings::BuildBaseSimParams() const
 	P.FixedStep = FixedStep;
 	P.bFixedStepIntegration = bFixedStepIntegration;
 	P.bCombineAirMoves = bCombineAirMoves;
+
+	P.HasteSpeedScale = HasteSpeedScale;
 	return P;
 }

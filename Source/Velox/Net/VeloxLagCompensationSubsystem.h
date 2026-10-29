@@ -130,11 +130,20 @@ struct FVeloxShotRequest
 	double ViewServerTime = 0.0;
 	TWeakObjectPtr<AActor> HintTarget;
 	float HintTargetStamp = 0.f;
-	/** Tolerances; ApplySettings copies them from the shooter's combat settings. */
-	float MaxRewindSeconds = 0.25f;
+	/**
+	 * Tolerances; ApplySettings copies them from the shooter's combat settings (these defaults only matter without it).
+	 * MaxRewindSeconds equals the UVeloxCombatSettings default 0.30 (ADR 0003 B34; 0.35 is human question 19).
+	 */
+	float MaxRewindSeconds = 0.30f;
 	float MaxOriginErrorCm = 75.f;
-	/** Snap Origin to the shooter's server eye (GetPawnViewLocation) when farther than MaxOriginErrorCm. */
+	/**
+	 * Snap Origin to the shooter's server eye when farther than MaxOriginErrorCm (B15); the eye is the one at
+	 * FireMoveTimeStamp when bHasFireMoveTimeStamp (B36, VeloxShotValidation::ResolveShotEye), else the live eye.
+	 */
 	bool bValidateOrigin = true;
+	/** The shot's FGameplayAbilityTargetData_VeloxShot::FireMoveTimeStamp (remote shooters only). */
+	float FireMoveTimeStamp = 0.f;
+	bool bHasFireMoveTimeStamp = false;
 	uint8 ShotSeq = 0;
 
 	void ApplySettings(const UVeloxCombatSettings* Settings);

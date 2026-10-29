@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat (follow-up)
 **Agent:** dev-hard (architect ruling first on items 1–3)
-**Status:** todo — needs architect ruling
+**Status:** folded into 08h (architect ruling B37, `docs/reviews/m2-late-rpc-review.md`)
 **Depends on:** 08c, 08d merged
 
 ## Findings from 08c (2026-10-29, report-only runs `--lag 125`)
