@@ -614,6 +614,43 @@ bool UVeloxMovementComponent::CanCrouchInCurrentState() const
 	return Super::CanCrouchInCurrentState() && IsMovingOnGround();
 }
 
+double VeloxProxySmoothing::RenderedStamp(TConstArrayView<FVeloxSmoothingAnchor> Anchors, const FVector& Capsule, double ExtrapolationSeconds, const FVector& Drawn,
+	double MinStamp)
+{
+	if (Anchors.IsEmpty())
+	{
+		return 0.0;
+	}
+	double BestDistSq = TNumericLimits<double>::Max();
+	double BestStamp = Anchors.Last().Stamp;
+	// Segment A(SA) -> B(SB); the part before MinStamp is skipped. Later segments win ties (<=).
+	auto Consider = [&](const FVector& A, double SA, const FVector& B, double SB)
+	{
+		if (SB < MinStamp)
+		{
+			return;
+		}
+		const double Span = SB - SA;
+		const double MinU = (Span > 0.0 && SA < MinStamp) ? (MinStamp - SA) / Span : 0.0;
+		const FVector AB = B - A;
+		const double LenSq = AB.SizeSquared();
+		const double U = LenSq > UE_DOUBLE_SMALL_NUMBER ? FMath::Clamp(FVector::DotProduct(Drawn - A, AB) / LenSq, MinU, 1.0) : 1.0;
+		const double DistSq = FVector::DistSquared(Drawn, A + AB * U);
+		if (DistSq <= BestDistSq)
+		{
+			BestDistSq = DistSq;
+			BestStamp = SA + Span * U;
+		}
+	};
+	for (int32 Index = 1; Index < Anchors.Num(); ++Index)
+	{
+		Consider(Anchors[Index - 1].Location, Anchors[Index - 1].Stamp, Anchors[Index].Location, Anchors[Index].Stamp);
+	}
+	const FVeloxSmoothingAnchor& Newest = Anchors.Last();
+	Consider(Newest.Location, Newest.Stamp, Capsule, Newest.Stamp + FMath::Max(ExtrapolationSeconds, 0.0));
+	return BestStamp;
+}
+
 double UVeloxMovementComponent::GetRenderedServerStamp() const
 {
 	if (!HasPredictionData_Client())
@@ -621,7 +658,66 @@ double UVeloxMovementComponent::GetRenderedServerStamp() const
 		return 0.0;
 	}
 	const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character();
-	return ClientData ? ClientData->SmoothingClientTimeStamp : 0.0;
+	if (!ClientData)
+	{
+		return 0.0;
+	}
+	if (SmoothingAnchorCount == 0 || !UpdatedComponent || NetworkSmoothingMode != ENetworkSmoothingMode::Linear)
+	{
+		return ClientData->SmoothingClientTimeStamp;
+	}
+	TArray<FVeloxSmoothingAnchor, TInlineAllocator<VeloxProxySmoothing::MaxAnchors>> Anchors;
+	for (int32 Index = 0; Index < SmoothingAnchorCount; ++Index)
+	{
+		Anchors.Add(SmoothingAnchors[(SmoothingAnchorHead + Index) % VeloxProxySmoothing::MaxAnchors]);
+	}
+	// Drawn place = capsule (newest anchor + SimulateMovement extrapolation) + the smoother's world mesh offset. The
+	// extrapolation is timed by distance over the replicated speed, at most the time since the update (a blocked capsule
+	// stops early).
+	const FVector Capsule = UpdatedComponent->GetComponentLocation();
+	const FVector Drawn = Capsule + ClientData->MeshTranslationOffset;
+	const UWorld* World = GetWorld();
+	const double SinceUpdate = World ? FMath::Max(World->GetTimeSeconds() - ClientData->LastCorrectionTime, 0.0) : 0.0;
+	const double Speed = Velocity.Size();
+	const double Extrapolation = Speed > UE_KINDA_SMALL_NUMBER ? FMath::Min(FVector::Dist(Capsule, Anchors.Last().Location) / Speed, SinceUpdate) : 0.0;
+	// Lower bound SmoothingClientTimeStamp: the lerp starts at the previously drawn place and SCT advances with its alpha
+	// towards the newest stamp while the capsule end is at or past it, so the drawn stamp never falls below SCT on a
+	// locally linear path. Without the bound a ping-pong path (strafe reversal) offers the same place on the outgoing arm
+	// ~0.25 s earlier.
+	return VeloxProxySmoothing::RenderedStamp(Anchors, Capsule, Extrapolation, Drawn, ClientData->SmoothingClientTimeStamp);
+}
+
+void UVeloxMovementComponent::SmoothCorrection(const FVector& OldLocation, const FQuat& OldRotation, const FVector& NewLocation, const FQuat& NewRotation)
+{
+	Super::SmoothCorrection(OldLocation, OldRotation, NewLocation, NewRotation);
+	const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character();
+	if (!CharacterOwner || CharacterOwner->GetLocalRole() != ROLE_SimulatedProxy || !ClientData)
+	{
+		return;
+	}
+	// Super set SmoothingServerTimeStamp to this update's stamp.
+	const double Stamp = ClientData->SmoothingServerTimeStamp;
+	constexpr int32 Max = VeloxProxySmoothing::MaxAnchors;
+	if (SmoothingAnchorCount > 0)
+	{
+		FVeloxSmoothingAnchor& Newest = SmoothingAnchors[(SmoothingAnchorHead + SmoothingAnchorCount - 1) % Max];
+		if (Stamp == Newest.Stamp)
+		{
+			Newest.Location = NewLocation; // same server move resent (or moved without a new stamp): keep one point
+			return;
+		}
+		if (Stamp < Newest.Stamp)
+		{
+			SmoothingAnchorCount = 0; // stamp reset (new pawn life, time-stamp wrap): the old path is another domain
+		}
+	}
+	if (SmoothingAnchorCount == Max)
+	{
+		SmoothingAnchorHead = (SmoothingAnchorHead + 1) % Max;
+		--SmoothingAnchorCount;
+	}
+	SmoothingAnchors[(SmoothingAnchorHead + SmoothingAnchorCount) % Max] = {Stamp, NewLocation};
+	++SmoothingAnchorCount;
 }
 
 bool UVeloxMovementComponent::CanAttemptJump() const

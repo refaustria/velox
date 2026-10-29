@@ -21,9 +21,12 @@ CLIENT_TIMEOUT="${VELOX_NETTEST_TIMEOUT:-120}"
 SERVER_START_TIMEOUT="${VELOX_NETTEST_SERVER_START_TIMEOUT:-180}"
 SERVER_FPS=60
 CLIENT_FPS=120
-# Client-side packet simulation: outgoing (PktLag/PktLoss) and incoming (PktIncoming*), LAG_MS each way (default 100: RTT
-# about 200 ms), 2 % loss each way. --lag N changes the one-way lag (incoming N +- 20 ms).
+# Client-side packet simulation: outgoing (PktLag/PktLoss) and incoming (PktIncoming*), one-way lag per script (default
+# 100 ms, RTT about 200 ms; FireRun/FireRunControl 50 ms = the ADR 0003 latency of 100 ms RTT, task 08b D2), 2 % loss
+# each way. --lag N sets the one-way lag of every script (incoming N +- 20 ms).
 LAG_MS=100
+FIRE_LAG_MS=50
+LAG_OVERRIDE=""
 PKT_ARGS=()
 # Scripts on L_CombatTest (task 08); everything else runs on L_MovementTest.
 COMBAT_SCRIPTS=" FireRun FireRunControl RocketJumpRun "
@@ -40,7 +43,8 @@ Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
   --port N         Server UDP port (default ${PORT}; must be free)
   --timeout S      Seconds to wait for a client's VeloxNetSoak line (default ${CLIENT_TIMEOUT})
-  --lag MS         One-way packet lag in ms (default ${LAG_MS}; incoming MS +- 20); loss stays 2 % each way
+  --lag MS         One-way packet lag in ms for every script (default ${LAG_MS}, FireRun/FireRunControl ${FIRE_LAG_MS};
+                   incoming MS +- 20); loss stays 2 % each way
   --repeat N       Run the script list N times (default 1); stops after the first failing round unless --keep-going
   --keep-going     With --repeat: run all N rounds and report the pass count
   -h, --help       Show this help
@@ -72,6 +76,16 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
+# One-way lag of a script: --lag if given, else FIRE_LAG_MS for the hitscan soak (ADR 0003 B17 is written for 100 ms
+# RTT; MaxRewindSeconds 0.25 cannot cover a 200 ms RTT plus the interpolation delay), LAG_MS for everything else.
+script_lag() {
+  if [[ -n "$LAG_OVERRIDE" ]]; then echo "$LAG_OVERRIDE"; return; fi
+  case "$1" in
+    FireRun|FireRunControl) echo "$FIRE_LAG_MS" ;;
+    *) echo "$LAG_MS" ;;
+  esac
+}
+
 port_busy() { ss -H -ulnp 2>/dev/null | "$GREP" -q ":${PORT}[[:space:]]"; }
 
 # run_one <script> : leaves results in $OUT_DIR/<script>.result; returns 0 pass / 1 fail
@@ -83,7 +97,9 @@ run_one() {
   # LogVeloxMovement Verbose on the client: counts the A25 "ClientAckGoodMove ... ignored" lines.
   # LogVeloxNet Verbose on the client: one VeloxResend/VeloxSend line per ServerMovePacked RPC (A32/A34 resend counts).
   local cexec="t.MaxFPS ${CLIENT_FPS}, log LogVeloxMovement Verbose, log LogVeloxNet Verbose" sexec="" map="L_MovementTest"
-  local script_args=(-VeloxScript="$script")
+  local script_args=(-VeloxScript="$script") lag
+  lag="$(script_lag "$script")"
+  PKT_ARGS=(-PktLag="$lag" -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=$((lag - 20)) -PktIncomingLagMax=$((lag + 20)) -PktIncomingLoss=2)
   if [[ "$script" == LatchRun ]]; then cexec="velox.move.Preset Q3, $cexec"; sexec="velox.move.Preset Q3"; fi
   if [[ "$COMBAT_SCRIPTS" == *" $script "* ]]; then map="L_CombatTest"; fi
   case "$script" in
@@ -117,7 +133,7 @@ run_one() {
   done
   sleep 2
 
-  info "[$script] starting client (${CLIENT_FPS} Hz, packet simulation), log $clog"
+  info "[$script] starting client (${CLIENT_FPS} Hz, packet simulation ${lag} ms one way), log $clog"
   "$EDITOR_CMD" "$VELOX_PROJECT" "127.0.0.1:$PORT" -game -log -stdout -FullStdOutLogOutput -nullrhi -nosound -unattended -nopause -nosplash \
     -ExecCmds="$cexec" "${script_args[@]}" -WINDOWED -ResX=320 -ResY=240 \
     "${PKT_ARGS[@]}" >"$clog" 2>&1 &
@@ -139,7 +155,7 @@ run_one() {
   sleep 1
   cleanup
 
-  python3 -I - "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$LAG_MS" "$OUT_DIR" <<'PY'
+  python3 -I - "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$lag" "$OUT_DIR" <<'PY'
 import math, os, re, statistics, sys
 
 script, slog, clog, crc, server_alive, result_path, lag_ms, out_dir = sys.argv[1:9]
@@ -749,7 +765,7 @@ main() {
       --scripts) [[ $# -ge 2 ]] || die "--scripts needs a value"; SCRIPTS_ARG="$2"; shift 2 ;;
       --port)    [[ $# -ge 2 ]] || die "--port needs a value"; PORT="$2"; shift 2 ;;
       --timeout) [[ $# -ge 2 ]] || die "--timeout needs a value"; CLIENT_TIMEOUT="$2"; shift 2 ;;
-      --lag)     [[ $# -ge 2 && "$2" =~ ^[0-9]+$ && "$2" -ge 20 ]] || die "--lag needs an integer >= 20 (ms)"; LAG_MS="$2"; shift 2 ;;
+      --lag)     [[ $# -ge 2 && "$2" =~ ^[0-9]+$ && "$2" -ge 20 ]] || die "--lag needs an integer >= 20 (ms)"; LAG_OVERRIDE="$2"; shift 2 ;;
       --repeat)  [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--repeat needs a positive integer"; REPEAT="$2"; shift 2 ;;
       --keep-going) KEEP_GOING=1; shift ;;
       -h|--help) nettest_usage; exit 0 ;;
@@ -757,7 +773,6 @@ main() {
     esac
   done
   IFS=',' read -r -a scripts <<< "$SCRIPTS_ARG"
-  PKT_ARGS=(-PktLag="$LAG_MS" -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=$((LAG_MS - 20)) -PktIncomingLagMax=$((LAG_MS + 20)) -PktIncomingLoss=2)
   cd "$REPO_ROOT" || exit 1
   load_env_file
   ci_resolve_engine
@@ -766,7 +781,9 @@ main() {
   local base_dir
   if [[ -n "${VELOX_CI_LOG_DIR:-}" ]]; then base_dir="$VELOX_CI_LOG_DIR/nettest"; else base_dir="$VELOX_OUT/$(date +%Y%m%d-%H%M%S)-$$/nettest"; fi
   mkdir -p "$base_dir"
-  info "Net soak: scripts=${scripts[*]} rounds=$REPEAT port=$PORT lag=${LAG_MS} ms logs=$base_dir"
+  local lag_desc
+  if [[ -n "$LAG_OVERRIDE" ]]; then lag_desc="${LAG_OVERRIDE} ms (all scripts)"; else lag_desc="${LAG_MS} ms (FireRun/FireRunControl ${FIRE_LAG_MS} ms)"; fi
+  info "Net soak: scripts=${scripts[*]} rounds=$REPEAT port=$PORT lag=${lag_desc} logs=$base_dir"
   for s in "${scripts[@]}"; do
     case "$s" in
       FireRunControl) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "FireRunControl needs FireRun.json" ;;
@@ -786,7 +803,7 @@ main() {
     done
     rounds_run=$round
     echo
-    echo "=== Velox net soak round $round/$REPEAT (${LAG_MS} ms / 2 % loss both directions, server ${SERVER_FPS} Hz, client ${CLIENT_FPS} Hz) ==="
+    echo "=== Velox net soak round $round/$REPEAT (one way ${lag_desc} / 2 % loss both directions, server ${SERVER_FPS} Hz, client ${CLIENT_FPS} Hz) ==="
     for s in "${scripts[@]}"; do cat "$OUT_DIR/$s.result"; done
     if [[ "$round_failed" == 1 ]]; then
       failed=1

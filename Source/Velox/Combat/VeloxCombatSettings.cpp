@@ -16,7 +16,7 @@ namespace VeloxCombatCVars
 	constexpr float Unset = -1e30f;
 
 #define VELOX_COMBAT_FLOAT_FIELDS(X) X(SelfDamageScale) X(SelfKnockbackScale) X(KnockbackSpeedPerDamage) X(MaxKnockbackDamage) X(HitboxTeleportDistanceCm) \
-	X(SwitchTimingToleranceSeconds) X(FireRateSpacingTolerance) X(BeamKeepAliveSeconds)
+	X(SwitchTimingToleranceSeconds) X(FireRateSpacingTolerance) X(BeamKeepAliveSeconds) X(FireRateJitterToleranceSeconds)
 #define VELOX_DECLARE_COMBAT_CVAR(Name) static TAutoConsoleVariable<float> CVar_##Name(TEXT("velox.combat." #Name), Unset, \
 		TEXT("Override of UVeloxCombatSettings::" #Name " (-1e30 = use the asset). Non-shipping."), ECVF_Default);
 	VELOX_COMBAT_FLOAT_FIELDS(VELOX_DECLARE_COMBAT_CVAR)
@@ -89,6 +89,15 @@ float UVeloxCombatSettings::GetFireRateSpacingTolerance() const
 	return VeloxCombatCVars::Get(VeloxCombatCVars::CVar_FireRateSpacingTolerance, FireRateSpacingTolerance);
 #else
 	return FireRateSpacingTolerance;
+#endif
+}
+
+float UVeloxCombatSettings::GetFireRateJitterToleranceSeconds() const
+{
+#if !UE_BUILD_SHIPPING
+	return VeloxCombatCVars::Get(VeloxCombatCVars::CVar_FireRateJitterToleranceSeconds, FireRateJitterToleranceSeconds);
+#else
+	return FireRateJitterToleranceSeconds;
 #endif
 }
 

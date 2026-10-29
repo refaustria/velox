@@ -66,7 +66,7 @@ struct FVeloxValidatedShot
 namespace VeloxShotValidation
 {
 	/**
-	 * Validates Raw received at Now for a weapon of Interval: bucket (Capacity = FireRateBurstAllowance, spacing
+	 * Validates Raw received at Now for a weapon of Interval: bucket (Capacity = FVeloxFireRateBucket::CapacityFor, spacing
 	 * Interval - SpacingTolerance) then payload. On None, OutShot holds the shot; OutShot.ShotSeq is filled whenever the
 	 * struct type is right (logs), 0 otherwise.
 	 */

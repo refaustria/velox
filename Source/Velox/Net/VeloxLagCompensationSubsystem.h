@@ -1,10 +1,12 @@
 // Velox - server-side lag compensation (ADR 0003 section 6): per-pawn hitbox history, rewound hitscan traces.
 //
 // Time domains:
-//   WorldTime  server UWorld::GetTimeSeconds(). The client names it through GameState->GetServerWorldTimeSeconds()
-//              minus its measured interpolation delay (FVeloxShotTiming::ViewServerTime).
-//   PawnStamp  the pawn's CMC->GetServerLastTransformUpdateTimeStamp(): the value the engine replicates to viewers and
-//              that Linear smoothing interpolates in (SmoothingClientTimeStamp). Accumulated client move time for
+//   WorldTime  server UWorld::GetTimeSeconds(). The client names it through VeloxLagComp::EstimateServerTime
+//              (GetServerWorldTimeSeconds() plus the replicated value's expected staleness, task 08b D5) minus its
+//              measured interpolation delay (FVeloxShotTiming::ViewServerTime).
+//   PawnStamp  the pawn's CMC->GetServerLastTransformUpdateTimeStamp(): the value the engine replicates to viewers.
+//              The client names the stamp of the drawn pose with UVeloxMovementComponent::GetRenderedServerStamp (the
+//              received path nearest the drawn place, task 08b D1; not SmoothingClientTimeStamp). Accumulated client move time for
 //              remote players, server world time for bots / the listen host. Monotonic per pawn, advances only on
 //              movement. The client's hint (HintTarget, HintTargetStamp) is in this domain.
 //
@@ -101,16 +103,16 @@ enum class EVeloxRewindMode : uint8
 /** Client-side timing of one shot (ADR 0003 sections 5, 6), built by AVeloxPlayerController::BuildShotTiming. */
 struct FVeloxShotTiming
 {
-	/** Server world time the client was looking at: GetServerWorldTimeSeconds() - interpolation delay. */
+	/** Server world time the client was looking at: EstimateServerTime() - interpolation delay. */
 	double ViewServerTime = 0.0;
 	/** Simulated proxy whose rendered capsule the client's ray hit first (not blocked by world), if any. */
 	TWeakObjectPtr<AActor> HintTarget;
 	/** That proxy's GetRenderedServerStamp() (PawnStamp domain). */
 	float HintTargetStamp = 0.f;
 	/**
-	 * Measured interpolation delay (s) and whether it came from proxies (false: fallback
-	 * NetworkSimulatedSmoothLocationTime + 0.5 / SampleRateHz, no ping term: the server-time estimate already lags by
-	 * the one-way latency, ADR 0003 B13). Diagnostics.
+	 * Measured interpolation delay (s): mean over moving proxies of (SmoothingServerTimeStamp - GetRenderedServerStamp())
+	 * + update age, and whether it came from proxies (false: fallback NetworkSimulatedSmoothLocationTime + 0.5 /
+	 * SampleRateHz, no ping term: the server-time estimate already lags by the one-way latency, ADR 0003 B13). Diagnostics.
 	 */
 	float InterpolationDelay = 0.f;
 	bool bDelayFromProxies = false;
@@ -211,6 +213,18 @@ namespace VeloxLagComp
 
 	/** Sorts Result.Hits by distance and remaps the rays' indices. */
 	VELOX_API void SortHits(FVeloxShotResult& Result);
+
+	/**
+	 * Task 08b (D5, provisional, architect to rule): expected age of AGameStateBase's replicated server time when it
+	 * reaches the client. The server sets ReplicatedWorldTimeSecondsDouble every UpdatePeriod (ServerWorldTimeSecondsUpdateFrequency,
+	 * 0.1 s) and the GameState is sent every 1 / NetUpdateFrequency (AInfo: 10 Hz) with a random per-update delay, so the
+	 * value received is on average half the shorter of the two periods old; GetServerWorldTimeSeconds() is that much
+	 * earlier than "server time minus one-way latency" (ADR 0003 B13 assumes <= one frame). 0 for non-positive inputs.
+	 */
+	VELOX_API double ExpectedServerTimeStaleness(float UpdatePeriod, float NetUpdateFrequency);
+
+	/** GetServerWorldTimeSeconds() + ExpectedServerTimeStaleness(...) of GameState (D5). */
+	VELOX_API double EstimateServerTime(const class AGameStateBase& GameState);
 
 	/**
 	 * Client shot timing for the local player of PC (ADR 0003 section 6): interpolation delay from the simulated Velox

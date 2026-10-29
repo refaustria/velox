@@ -24,6 +24,15 @@ UVeloxGameplayAbility_WeaponSwitch::UVeloxGameplayAbility_WeaponSwitch(const FOb
 	AssetTags.AddTag(VeloxGameplayTags::Ability_Weapon_Switch);
 	SetAssetTags(AssetTags);
 	ActivationBlockedTags.AddTag(VeloxGameplayTags::State_Dead);
+	// D4: on the server a new switch ends a running one (its drop end lags the client's by the latency) instead of being
+	// rejected. The superseded instance's EndAbility only resets SwitchEndTime, which the new activation sets again.
+	bRetriggerInstancedAbility = true;
+}
+
+void UVeloxGameplayAbility_WeaponSwitch::CompleteSwitchEarly()
+{
+	bSwitchTimingPending = false;
+	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);
 }
 
 EVeloxInputActivation UVeloxGameplayAbility_WeaponSwitch::PrepareInputActivation(const FGameplayTag& InputTag, const FGameplayAbilityActorInfo* ActorInfo,
@@ -32,6 +41,13 @@ EVeloxInputActivation UVeloxGameplayAbility_WeaponSwitch::PrepareInputActivation
 	const UVeloxWeaponInventoryComponent* Inventory = ActorInfo ? UVeloxWeaponInventoryComponent::Find(ActorInfo->OwnerActor.Get()) : nullptr;
 	const int32 Index = Inventory ? Inventory->ResolveSelectInput(InputTag) : INDEX_NONE;
 	if (Index == INDEX_NONE || Index == Inventory->GetCurrentIndex())
+	{
+		return EVeloxInputActivation::Skip;
+	}
+	// D4: retriggering is for the server only; locally a press during the own drop stays ignored (pre-08b behaviour).
+	const UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
+	const FGameplayAbilitySpec* Spec = ASC ? ASC->FindAbilitySpecFromClass(GetClass()) : nullptr;
+	if (Spec && Spec->IsActive())
 	{
 		return EVeloxInputActivation::Skip;
 	}

@@ -1,6 +1,8 @@
 // Velox - weapon tests (ADR 0003 sections 4, 5, 9; task 04).
 //   Velox.Combat.FireRateBucket      token bucket + minimum spacing: exact rate, 2x rate, receive jitter, rail burst
-//                                    (world-free, B19).
+//                                    (world-free, B19); task 08b D3: capacity sized in time (CapacityFor), honest MG with
+//                                    reliable-resend bursts at 100 and 250 ms RTT / 2 % loss never rejected (and the old
+//                                    3-token bucket does reject the same arrivals), a 2x MG cheat rejected within 1 s.
 //   Velox.Combat.FireTiming          Q3 one-frame carry of NextFireTime (no banked double tap) and the switch gate (B18,
 //                                    B19; world-free).
 //   Velox.Combat.ShotValidation      every server reject reason from its input, a valid shot normalised (world-free),
@@ -51,6 +53,7 @@
 #include "Weapons/VeloxGameplayAbility_Fire.h"
 #include "Weapons/VeloxGameplayAbility_FireHitscan.h"
 #include "Weapons/VeloxGameplayAbility_FireProjectile.h"
+#include "Weapons/VeloxGameplayAbility_WeaponSwitch.h"
 #include "Weapons/VeloxShotTargetData.h"
 #include "Weapons/VeloxShotValidation.h"
 #include "Weapons/VeloxWeaponCheats.h"
@@ -168,6 +171,87 @@ bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 			Accepted += Bucket.TryConsume(Receive, Interval, 3.f, MinSpacing) ? 1 : 0;
 		}
 		TestEqual(TEXT("0.25 s jitter at 1.5 s: all accepted"), Accepted, Shots);
+	}
+
+	// Task 08b D3: capacity in time, max(BurstAllowance 3, 1 + 0.5 s / interval).
+	constexpr float BurstAllowance = 3.f;
+	constexpr float JitterTolerance = 0.5f;
+	TestEqual(TEXT("capacity LG 11"), FVeloxFireRateBucket::CapacityFor(0.05f, BurstAllowance, JitterTolerance), 11.f, 1e-4f);
+	TestEqual(TEXT("capacity MG 6"), FVeloxFireRateBucket::CapacityFor(0.1f, BurstAllowance, JitterTolerance), 6.f, 1e-4f);
+	TestEqual(TEXT("capacity RG 3 (allowance)"), FVeloxFireRateBucket::CapacityFor(1.5f, BurstAllowance, JitterTolerance), 3.f, 1e-4f);
+	TestEqual(TEXT("capacity tolerance 0 -> allowance"), FVeloxFireRateBucket::CapacityFor(0.1f, BurstAllowance, 0.f), 3.f, 1e-4f);
+	TestEqual(TEXT("capacity at least 1"), FVeloxFireRateBucket::CapacityFor(0.f, 0.f, 0.f), 1.f, 1e-4f);
+
+	// Honest MG (0.1 s, client frames 120 Hz, Q3 carry: fire times on frame boundaries), one-way delay base +- 20 ms,
+	// 2 % of shots lost and resent RTT + 80 ms later (task 08 evidence: arrival 270-300 ms late at 200 ms RTT), arrivals
+	// in order (a reliable resend holds back the later shots of the same channel). 600 s of sustained fire.
+	auto HonestMG = [](double RttSeconds, float Capacity, uint32 Seed)
+	{
+		FVeloxFireRateBucket Bucket;
+		FRandomStream Stream(Seed);
+		constexpr float Interval = 0.1f;
+		constexpr double Frame = 1.0 / 120.0;
+		int32 Rejected = 0;
+		double LastArrival = 0.0;
+		for (int32 Index = 0; Index < 6000; ++Index)
+		{
+			const double Fire = FMath::CeilToDouble((10.0 + Index * Interval) / Frame) * Frame;
+			double Arrival = Fire + RttSeconds * 0.5 + Stream.FRandRange(-0.02, 0.02);
+			if (Stream.FRand() < 0.02)
+			{
+				Arrival += RttSeconds + 0.08;
+			}
+			Arrival = FMath::Max(Arrival, LastArrival);
+			LastArrival = Arrival;
+			Rejected += Bucket.TryConsume(Arrival, Interval, Capacity, 0.f) ? 0 : 1;
+		}
+		return Rejected;
+	};
+	const float MGCapacity = FVeloxFireRateBucket::CapacityFor(0.1f, BurstAllowance, JitterTolerance);
+	TestEqual(TEXT("D3: honest MG, 100 ms RTT, 2 % resends: 0 rejected"), HonestMG(0.1, MGCapacity, 11), 0);
+	TestEqual(TEXT("D3: honest MG, 250 ms RTT, 2 % resends: 0 rejected"), HonestMG(0.25, MGCapacity, 12), 0);
+	TestTrue(TEXT("D3: the old 3-token bucket rejects the same honest MG at 200 ms RTT (the defect)"), HonestMG(0.2, BurstAllowance, 13) > 0);
+
+	// Resend burst row: shots 14-16 held back by one lost packet arrive together 270 ms late, 17 on time (task 08 round 3).
+	{
+		FVeloxFireRateBucket Bucket;
+		constexpr float Interval = 0.1f;
+		const double Late[] = { 0.0, 0.0, 0.0, 0.27, 0.17, 0.073, 0.022, 0.023, 0.024 };
+		int32 Accepted = 0;
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(Late); ++Index)
+		{
+			Accepted += Bucket.TryConsume(10.0 + Index * Interval + Late[Index], Interval, MGCapacity, 0.f) ? 1 : 0;
+		}
+		TestEqual(TEXT("D3: resend burst then an on-time shot: all accepted"), Accepted, static_cast<int32>(UE_ARRAY_COUNT(Late)));
+	}
+
+	// 2x cheat: MG every 50 ms after 5 s of honest fire. The first rejection comes within 1 s; long-term rate 1/interval.
+	{
+		FVeloxFireRateBucket Bucket;
+		constexpr float Interval = 0.1f;
+		for (int32 Index = 0; Index < 50; ++Index)
+		{
+			Bucket.TryConsume(10.0 + Index * Interval, Interval, MGCapacity, 0.f);
+		}
+		const double CheatStart = 10.0 + 50 * Interval;
+		double FirstReject = -1.0;
+		int32 Accepted = 0;
+		const int32 Shots = 400; // 20 s
+		for (int32 Index = 0; Index < Shots; ++Index)
+		{
+			const double T = CheatStart + Index * 0.05;
+			if (Bucket.TryConsume(T, Interval, MGCapacity, 0.f))
+			{
+				++Accepted;
+			}
+			else if (FirstReject < 0.0)
+			{
+				FirstReject = T - CheatStart;
+			}
+		}
+		TestTrue(FString::Printf(TEXT("D3: 2x MG cheat rejected within 1 s (first rejection after %.2f s)"), FirstReject), FirstReject >= 0.0 && FirstReject <= 1.0);
+		const int32 MaxAccepted = FMath::CeilToInt32(Shots * 0.05 / Interval + MGCapacity);
+		TestTrue(FString::Printf(TEXT("D3: 2x cheat long-term rate bounded: %d accepted <= %d"), Accepted, MaxAccepted), Accepted <= MaxAccepted);
 	}
 	return true;
 }
@@ -769,6 +853,51 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	ASC->AbilityInputTagReleased(InputTag_Fire);
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
 	ASC->RemoveActiveGameplayEffect(ExtraSwitching);
+
+	// Task 08b D4: an accepted shot of the pending weapon completes the switch (CompletePendingSwitch, called by
+	// FinalisePendingSwitch on the server) while the switch instance still waits for its drop end; a switch in the same
+	// frame must then activate. RG -> RL now waits for the rail's refire (1.5 s), so the instance is long active.
+	FGameplayAbilitySpec* SwitchSpec = ASC->FindAbilitySpecFromClass(UVeloxGameplayAbility_WeaponSwitch::StaticClass());
+	if (!TestNotNull(TEXT("D4: switch spec"), SwitchSpec))
+	{
+		return false;
+	}
+	const FGameplayAbilitySpecHandle SwitchHandle = SwitchSpec->Handle;
+	auto SwitchActive = [&]() { const FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromHandle(SwitchHandle); return Spec && Spec->IsActive(); };
+	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot5);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot5);
+	W.Advance(1.f / 60.f);
+	TestTrue(TEXT("D4: RG -> RL running (instance active, tag, pending RL)"), SwitchActive() && ASC->HasMatchingGameplayTag(State_WeaponSwitching) && Inventory->GetPendingIndex() == RL);
+	Inventory->CompletePendingSwitch();
+	TestEqual(TEXT("D4: completed -> RL current"), Inventory->GetCurrentIndex(), RL);
+	TestEqual(TEXT("D4: completed -> no pending index"), Inventory->GetPendingIndex(), static_cast<int32>(INDEX_NONE));
+	TestFalse(TEXT("D4: completed -> switch instance ended"), SwitchActive());
+	TestFalse(TEXT("D4: completed -> GE_WeaponSwitching removed"), ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+	TestEqual(TEXT("D4: completed -> SwitchEndTime cleared"), Inventory->GetSwitchEndTime(), 0.0);
+	// Same frame: RL -> MG activates (pre-08b: rejected, the instance was still running).
+	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot2);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot2);
+	TestTrue(TEXT("D4: switch in the same frame as the completion activates"), SwitchActive() && Inventory->GetPendingIndex() == MG);
+	// A local press during the own drop is still ignored (the shooter's machine does not retrigger).
+	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot7);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot7);
+	TestEqual(TEXT("D4: local press during the drop ignored (pending stays MG)"), Inventory->GetPendingIndex(), MG);
+	// The server receiving a new switch while the previous instance still runs (latency-shifted drop end): it supersedes.
+	{
+		FGameplayEventData Event;
+		Event.EventTag = InputTag_Weapon_Slot7;
+		Event.EventMagnitude = static_cast<float>(RG);
+		TestTrue(TEXT("D4: server activation during a running switch supersedes it"), ASC->InternalTryActivateAbility(SwitchHandle, FPredictionKey(), nullptr, nullptr, &Event));
+	}
+	TestEqual(TEXT("D4: superseded -> pending RG"), Inventory->GetPendingIndex(), RG);
+	TestTrue(TEXT("D4: superseded -> SwitchEndTime of the new switch"), Inventory->GetSwitchEndTime() > W.World->GetTimeSeconds());
+	W.Advance(0.3f);
+	TestEqual(TEXT("D4: the superseding switch lands on RG"), Inventory->GetCurrentIndex(), RG);
+	TestFalse(TEXT("D4: no switch running after its drop"), SwitchActive());
+	W.Advance(0.3f);
 
 	// Respawn semantics: the loadout again, RG/RL taken away, a running switch's local end cleared.
 	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot2);

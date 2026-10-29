@@ -375,6 +375,31 @@ void UVeloxWeaponInventoryComponent::SetPendingIndex(int32 Index)
 	PendingIndex = (Index >= 0 && Index < UVeloxWeaponTable::MaxWeapons) ? static_cast<uint8>(Index) : NoWeapon;
 }
 
+void UVeloxWeaponInventoryComponent::CompletePendingSwitch()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || PendingIndex == NoWeapon)
+	{
+		return;
+	}
+	const int32 Target = PendingIndex;
+	if (UVeloxAbilitySystemComponent* ASC = GetVeloxASC())
+	{
+		if (const FGameplayAbilitySpec* Spec = SwitchSpecHandle.IsValid() ? ASC->FindAbilitySpecFromHandle(SwitchSpecHandle) : nullptr; Spec && Spec->IsActive())
+		{
+			for (UGameplayAbility* Instance : Spec->GetAbilityInstances())
+			{
+				if (UVeloxGameplayAbility_WeaponSwitch* Switch = Cast<UVeloxGameplayAbility_WeaponSwitch>(Instance); Switch && Switch->IsActive())
+				{
+					Switch->CompleteSwitchEarly();
+				}
+			}
+		}
+		ASC->RemoveActiveGameplayEffectBySourceEffect(UVeloxGE_WeaponSwitching::StaticClass(), nullptr);
+	}
+	SwitchEndTime = 0.0;
+	SetCurrentIndex(Target);
+}
+
 void UVeloxWeaponInventoryComponent::PredictCurrentIndex(int32 Index)
 {
 	const UWorld* World = GetWorld();

@@ -9,6 +9,10 @@
 //                               TraceShot hits a moving pawn at the rewound place and misses it at the current one,
 //                               velox.combat.LagComp 0, world blocks on the Weapon channel, shooter excluded, origin
 //                               snap, unregister on EndPlay.
+//   Velox.Combat.RenderedStamp  task 08b D1/D5: the stamp of a simulated proxy's drawn place from the received anchors
+//                               (VeloxProxySmoothing::RenderedStamp): on a segment, on the extrapolation, the SCT lower
+//                               bound on a ping-pong path, the apex of a reversal overshoot, a blocked extrapolation;
+//                               the expected staleness of the replicated GameState server time.
 
 #include "Misc/AutomationTest.h"
 
@@ -24,6 +28,7 @@
 #include "GameFramework/WorldSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/OutputDevice.h"
+#include "Movement/VeloxMovementComponent.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
 
 #include <limits>
@@ -509,6 +514,66 @@ bool FVeloxCombatLagCompTraceTest::RunTest(const FString& Parameters)
 
 	Target->Destroy();
 	TestFalse(TEXT("unregistered on EndPlay"), LagComp->IsRegistered(Target));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatRenderedStampTest, "Velox.Combat.RenderedStamp", VeloxLagCompTest::Flags)
+
+bool FVeloxCombatRenderedStampTest::RunTest(const FString& Parameters)
+{
+	using VeloxProxySmoothing::RenderedStamp;
+	constexpr double Tol = 1e-6;
+	constexpr double Dt = 1.0 / 60.0;
+	constexpr double Speed = 800.0; // the FireRun dummy's strafe speed (cm/s)
+
+	// Straight path y = 800 (s - 10), anchors every 1/60 s from s = 10 to 10 + 6/60.
+	TArray<FVeloxSmoothingAnchor> Line;
+	for (int32 I = 0; I <= 6; ++I)
+	{
+		const double S = 10.0 + I * Dt;
+		Line.Add({S, FVector(0.0, Speed * (S - 10.0), 0.0)});
+	}
+	const double Newest = Line.Last().Stamp;
+	const FVector NewestLoc = Line.Last().Location;
+	TestEqual(TEXT("no anchors -> 0"), RenderedStamp({}, FVector::ZeroVector, 0.0, FVector::ZeroVector, 0.0), 0.0);
+	// Drawn 3.5 updates behind the newest (the lerp still covering old ground): the stamp of that place, not SCT.
+	const double Behind = Newest - 3.5 * Dt;
+	TestEqual(TEXT("drawn on the received path -> its stamp"), RenderedStamp(Line, NewestLoc, 0.0, FVector(0.0, Speed * (Behind - 10.0), 0.0), 10.0), Behind, Tol);
+	// Off the path by 5 cm sideways (mesh offset not along the motion): the projection.
+	TestEqual(TEXT("sideways offset -> projected stamp"), RenderedStamp(Line, NewestLoc, 0.0, FVector(5.0, Speed * (Behind - 10.0), 0.0), 10.0), Behind, Tol);
+	// Capsule extrapolated 12 ms past the newest anchor, mesh offset -3 ms: drawn on the extrapolation segment.
+	{
+		const FVector Capsule = NewestLoc + FVector(0.0, Speed * 0.012, 0.0);
+		const FVector Drawn = NewestLoc + FVector(0.0, Speed * 0.009, 0.0);
+		TestEqual(TEXT("drawn on the extrapolation -> newest + 9 ms"), RenderedStamp(Line, Capsule, 0.012, Drawn, 10.0), Newest + 0.009, Tol);
+		TestEqual(TEXT("drawn ahead of the capsule -> clamped to the capsule's stamp"), RenderedStamp(Line, Capsule, 0.012, Capsule + FVector(0.0, 20.0, 0.0), 10.0), Newest + 0.012, Tol);
+	}
+	// MinStamp clips: a drawn place older than MinStamp maps to MinStamp.
+	TestEqual(TEXT("older than MinStamp -> MinStamp"), RenderedStamp(Line, NewestLoc, 0.0, FVector(0.0, Speed * (10.02 - 10.0), 0.0), 10.05), 10.05, Tol);
+
+	// Ping-pong (strafe reversal at s = 10.1, y = 80): out to 80, back. Drawn y = 60 exists at s = 10.075 and 10.125.
+	TArray<FVeloxSmoothingAnchor> PingPong;
+	for (int32 I = 0; I <= 9; ++I)
+	{
+		const double S = 10.0 + I * 0.025;
+		const double Y = S <= 10.1 ? Speed * (S - 10.0) : 80.0 - Speed * (S - 10.1);
+		PingPong.Add({S, FVector(0.0, Y, 0.0)});
+	}
+	const FVector Drawn60(0.0, 60.0, 0.0);
+	TestEqual(TEXT("ping-pong, SCT 10.11: the returning arm"), RenderedStamp(PingPong, PingPong.Last().Location, 0.0, Drawn60, 10.11), 10.125, Tol);
+	TestEqual(TEXT("ping-pong, SCT 10.0: equal distance -> the newer arm"), RenderedStamp(PingPong, PingPong.Last().Location, 0.0, Drawn60, 10.0), 10.125, Tol);
+	// Overshoot: the extrapolation ran past the apex before the reversal update; drawn y = 95 lies on no server pose.
+	TestEqual(TEXT("overshoot past the apex -> the apex stamp"), RenderedStamp(PingPong, PingPong.Last().Location, 0.0, FVector(0.0, 95.0, 0.0), 10.06), 10.1, Tol);
+
+	// Blocked extrapolation: the capsule did not move although time passed (wall): the newest anchor's stamp.
+	TestEqual(TEXT("blocked capsule -> newest stamp"), RenderedStamp(Line, NewestLoc, 0.0, NewestLoc, 10.0), Newest, Tol);
+
+	// D5: the replicated server time is on average half the shorter of update period and GameState send period old.
+	TestEqual(TEXT("staleness 0.1 s timer, 10 Hz GameState -> 50 ms"), VeloxLagComp::ExpectedServerTimeStaleness(0.1f, 10.f), 0.05, Tol);
+	TestEqual(TEXT("staleness 0.1 s timer, 100 Hz GameState -> 5 ms"), VeloxLagComp::ExpectedServerTimeStaleness(0.1f, 100.f), 0.005, Tol);
+	TestEqual(TEXT("staleness 0.5 s timer, 10 Hz -> 50 ms"), VeloxLagComp::ExpectedServerTimeStaleness(0.5f, 10.f), 0.05, Tol);
+	TestEqual(TEXT("staleness timer off -> 0"), VeloxLagComp::ExpectedServerTimeStaleness(0.f, 10.f), 0.0);
+	TestEqual(TEXT("staleness no net updates -> 0"), VeloxLagComp::ExpectedServerTimeStaleness(0.1f, 0.f), 0.0);
 	return true;
 }
 

@@ -109,6 +109,13 @@ public:
 	void SetCurrentIndex(int32 Index);
 	void SetPendingIndex(int32 Index);
 	/**
+	 * Server (B18, task 08b D4): an accepted shot of the pending weapon completes the running switch: the pending index
+	 * becomes current, the switch ability instance still waiting for its (latency-shifted) drop end is ended, and
+	 * GE_WeaponSwitching is removed. Without this a switch arriving in the same frame as that shot was rejected (the
+	 * instanced-per-actor switch was still active). No-op without a pending index.
+	 */
+	void CompletePendingSwitch();
+	/**
 	 * Server: starts Definition's looping BeamCueTag (LG) if needed and keeps it for BeamKeepAliveSeconds (combat settings,
 	 * at least one fire interval) after this shot (B23).
 	 * Stopped on timeout (released), on a weapon change, and by RemoveAllGameplayCues on death (task 06, B8).

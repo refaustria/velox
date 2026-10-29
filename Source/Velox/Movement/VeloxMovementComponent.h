@@ -15,6 +15,33 @@
 
 class UVeloxMovementSettings;
 
+/** One server update as received by a simulated proxy: the replicated stamp and the world location it carried. */
+struct FVeloxSmoothingAnchor
+{
+	double Stamp = 0.0;
+	FVector Location = FVector::ZeroVector;
+};
+
+/**
+ * World-free part of UVeloxMovementComponent::GetRenderedServerStamp (task 08b, D1). Under Linear smoothing a simulated
+ * proxy is drawn at Capsule + MeshTranslationOffset: the capsule sits at the newest received server pose extrapolated
+ * by SimulateMovement, and the offset lerps the previously drawn place onto it, so the drawn place is neither the pose at
+ * SmoothingClientTimeStamp nor at the newest stamp. RenderedStamp returns the stamp of the point of the received server
+ * trajectory nearest to Drawn: the polyline through Anchors (oldest first, increasing stamps) plus the extrapolation
+ * segment from the newest anchor to Capsule, timed by ExtrapolationSeconds; stamps below MinStamp are not considered.
+ * Nearest wins; on equal distance the newer point. This is exact while the server path is locally linear (the soak
+ * measures |dt| < 1 ms) and degrades to the nearest received pose where the drawn place left the server path (the
+ * extrapolation overshoot at a direction reversal).
+ */
+namespace VeloxProxySmoothing
+{
+	/** Anchors kept per proxy: 32 updates cover 0.53 s at 60 Hz, more than MaxClientSmoothingDeltaTime (0.5 s), the farthest SCT trails the newest stamp. */
+	inline constexpr int32 MaxAnchors = 32;
+
+	VELOX_API double RenderedStamp(TConstArrayView<FVeloxSmoothingAnchor> Anchors, const FVector& Capsule, double ExtrapolationSeconds, const FVector& Drawn,
+		double MinStamp);
+}
+
 /**
  * Where a knockback comes from (ADR 0003 section 3, ADR 0002 A17). Overlap (pads) and Server (every server-side impulse:
  * damage, the server's own self-knockback) accumulate into the chained PendingKnockback. Predicted (the owning client's
@@ -233,9 +260,12 @@ public:
 	void DisplayVeloxDebug(class UCanvas* Canvas, float& YL, float& YPos) const;
 
 	/**
-	 * Simulated proxy: the server stamp of the pose currently drawn (Linear smoothing's SmoothingClientTimeStamp, in the
-	 * domain of GetServerLastTransformUpdateTimeStamp on the server). The lag-comp hint of ADR 0003 section 6. 0 when
-	 * the component has no client prediction data (server, before the first update).
+	 * Simulated proxy: the server stamp of the pose currently drawn, in the domain of GetServerLastTransformUpdateTimeStamp
+	 * on the server. The lag-comp hint of ADR 0003 section 6. Not SmoothingClientTimeStamp: that only times the mesh
+	 * offset's lerp, while the capsule underneath is extrapolated from the newest server pose, so the drawn pose is
+	 * up to ~80 ms newer than it (task 08b, D1). VeloxProxySmoothing::RenderedStamp over the anchors recorded in
+	 * SmoothCorrection, no older than SmoothingClientTimeStamp (the drawn stamp's lower bound). 0 when the component has no
+	 * client prediction data (server); SmoothingClientTimeStamp before the first update.
 	 */
 	double GetRenderedServerStamp() const;
 
@@ -261,6 +291,8 @@ public:
 	 */
 	virtual void ClientAckGoodMove_Implementation(float TimeStamp) override;
 	virtual void ServerMoveHandleClientError(float ClientTimeStamp, float DeltaTime, const FVector& Accel, const FVector& RelativeClientLocation, FMovementBaseInterfaceData* ClientMovementBaseInterfaceData, FName ClientBaseBoneName, uint8 ClientMovementMode) override;
+	/** Simulated proxy: records the server stamp and location of the update as an anchor of GetRenderedServerStamp (D1). */
+	virtual void SmoothCorrection(const FVector& OldLocation, const FQuat& OldRotation, const FVector& NewLocation, const FQuat& NewRotation) override;
 	//~End of UCharacterMovementComponent interface
 
 	// The single-argument DoJump is deprecated in the engine and forwards to the two-argument one.
@@ -446,6 +478,11 @@ protected:
 	/** Owning client: RPCs sent with an OldMove (A32 resend), and RPCs sent in total. Net soak / debugging. */
 	int32 NumResentMoves = 0;
 	int32 NumServerMoveRPCs = 0;
+
+	/** Simulated proxy: ring of received server updates (D1); SmoothingAnchors[(SmoothingAnchorHead + i) % MaxAnchors], i < SmoothingAnchorCount, oldest first. */
+	FVeloxSmoothingAnchor SmoothingAnchors[VeloxProxySmoothing::MaxAnchors];
+	int32 SmoothingAnchorHead = 0;
+	int32 SmoothingAnchorCount = 0;
 
 private:
 	/** Persistent storage installed via SetNetworkMoveDataContainer in the constructor. */

@@ -179,14 +179,17 @@ bool UVeloxGameplayAbility_Fire::ConsumeServerFireToken(double Now, const UVelox
 	const UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
 	const float Interval = Definition.GetSafeFireInterval();
-	return ServerBucket.TryConsume(Now, Interval, Settings.FireRateBurstAllowance, FVeloxFireRateBucket::MinSpacingFor(Interval, Settings.GetFireRateSpacingTolerance()));
+	return ServerBucket.TryConsume(Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.FireRateBurstAllowance, Settings.GetFireRateJitterToleranceSeconds()),
+		FVeloxFireRateBucket::MinSpacingFor(Interval, Settings.GetFireRateSpacingTolerance()));
 }
 
 EVeloxShotReject UVeloxGameplayAbility_Fire::ValidateServerShot(const FGameplayAbilityTargetData* Raw, double Now, const UVeloxWeaponDefinition& Definition, FVeloxValidatedShot& OutShot)
 {
 	const UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
-	return VeloxShotValidation::Validate(Raw, ServerBucket, Now, Definition.GetSafeFireInterval(), Settings.FireRateBurstAllowance, Settings.GetFireRateSpacingTolerance(), OutShot);
+	const float Interval = Definition.GetSafeFireInterval();
+	return VeloxShotValidation::Validate(Raw, ServerBucket, Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.FireRateBurstAllowance, Settings.GetFireRateJitterToleranceSeconds()),
+		Settings.GetFireRateSpacingTolerance(), OutShot);
 }
 
 void UVeloxGameplayAbility_Fire::FinalisePendingSwitch(const UVeloxWeaponDefinition& Definition) const
@@ -195,7 +198,7 @@ void UVeloxGameplayAbility_Fire::FinalisePendingSwitch(const UVeloxWeaponDefinit
 	if (Inventory && Inventory->GetPendingIndex() != INDEX_NONE && Inventory->GetPendingDefinition() == &Definition)
 	{
 		UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxWeaponSwitch finalised by a shot of %s"), *GetNameSafe(&Definition));
-		Inventory->SetCurrentIndex(Inventory->GetPendingIndex());
+		Inventory->CompletePendingSwitch(); // D4: also ends the switch instance and its GE
 	}
 }
 

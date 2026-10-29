@@ -304,6 +304,25 @@ void VeloxLagComp::SortHits(FVeloxShotResult& Result)
 // ---------------------------------------------------------------------------------------------------------------------
 // Client shot timing
 
+double VeloxLagComp::ExpectedServerTimeStaleness(float UpdatePeriod, float NetUpdateFrequency)
+{
+	if (!(UpdatePeriod > 0.f) || !(NetUpdateFrequency > 0.f))
+	{
+		return 0.0;
+	}
+	return 0.5 * FMath::Min(static_cast<double>(UpdatePeriod), 1.0 / static_cast<double>(NetUpdateFrequency));
+}
+
+double VeloxLagComp::EstimateServerTime(const AGameStateBase& GameState)
+{
+	// ServerWorldTimeSecondsUpdateFrequency is a protected UPROPERTY: read through reflection (engine default 0.1 s if
+	// the property ever disappears). A Velox GameState accessor would be cleaner (out of 08b's scope).
+	static const FFloatProperty* UpdatePeriodProperty = FindFProperty<FFloatProperty>(AGameStateBase::StaticClass(), TEXT("ServerWorldTimeSecondsUpdateFrequency"));
+	constexpr float EngineDefaultUpdatePeriod = 0.1f;
+	const float UpdatePeriod = UpdatePeriodProperty ? UpdatePeriodProperty->GetPropertyValue_InContainer(&GameState) : EngineDefaultUpdatePeriod;
+	return GameState.GetServerWorldTimeSeconds() + ExpectedServerTimeStaleness(UpdatePeriod, GameState.GetNetUpdateFrequency());
+}
+
 FVeloxShotTiming VeloxLagComp::BuildShotTiming(const APlayerController& PC, const FVector& Origin, const FVector& Dir, float RangeCm)
 {
 	FVeloxShotTiming Timing;
@@ -314,7 +333,8 @@ FVeloxShotTiming VeloxLagComp::BuildShotTiming(const APlayerController& PC, cons
 	}
 	const double Now = World->GetTimeSeconds();
 	const AGameStateBase* GameState = World->GetGameState();
-	const double ServerNow = GameState ? GameState->GetServerWorldTimeSeconds() : Now;
+	// D5 (task 08b): corrected for the staleness of the replicated server time; on the server the correction is unused.
+	const double ServerNow = GameState ? (PC.GetNetMode() == NM_Client ? EstimateServerTime(*GameState) : GameState->GetServerWorldTimeSeconds()) : Now;
 	Timing.ViewServerTime = ServerNow;
 	if (PC.GetNetMode() != NM_Client)
 	{
@@ -345,11 +365,13 @@ FVeloxShotTiming VeloxLagComp::BuildShotTiming(const APlayerController& PC, cons
 		if (ClientData && ClientData->LastCorrectionTime > 0.0)
 		{
 			// Rendered pose = the latest received state (sent ~Age ago in the GameState's server-time estimate) minus the
-			// smoothing lag still to cover. Proxies at rest stop receiving updates and are left out.
+			// stamp distance between it and the drawn pose (GetRenderedServerStamp, task 08b D1: not
+			// SmoothingClientTimeStamp, which ignores the proxy extrapolation). Proxies at rest stop receiving updates
+			// and are left out.
 			const double Age = Now - ClientData->LastCorrectionTime;
 			if (Age <= VeloxLagCompCVars::MaxProxyUpdateAge && !Movement->Velocity.IsNearlyZero())
 			{
-				DelaySum += (ClientData->SmoothingServerTimeStamp - ClientData->SmoothingClientTimeStamp) + Age;
+				DelaySum += (ClientData->SmoothingServerTimeStamp - Movement->GetRenderedServerStamp()) + Age;
 				++DelayCount;
 			}
 		}

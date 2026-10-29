@@ -1,10 +1,13 @@
 // Velox - server fire-rate validation (ADR 0003 section 5, B19): a token bucket plus a minimum spacing per weapon
 // instance on server receive time. World-free, unit-tested in Velox.Combat.FireRateBucket.
 //
-// Bucket: refill 1 / FireInterval tokens per second, capacity FireRateBurstAllowance (>= 1), full on first use. A shot
-// costs one token. Receive-time jitter of up to (Capacity - 1) x FireInterval is absorbed; the long-term rate is bounded
-// exactly by 1 / FireInterval (a client firing faster runs dry after the burst and every further over-rate shot is
-// rejected).
+// Bucket: refill 1 / FireInterval tokens per second, capacity CapacityFor(FireInterval) (>= 1), full on first use. A
+// shot costs one token. Receive-time delay spread of up to (Capacity - 1) x FireInterval is absorbed (the bucket is a
+// GCRA with tolerance (Capacity - 1) x FireInterval: a client firing exactly at the rate is never rejected while every
+// shot's delay lies within that window of the others'); the long-term rate is bounded exactly by 1 / FireInterval (a
+// client firing faster runs dry after the burst and every further over-rate shot is rejected). Task 08b (D3): the
+// capacity is sized in time, max(FireRateBurstAllowance, 1 + FireRateJitterToleranceSeconds / FireInterval): a fixed
+// 3 tokens gave the MG 200 ms, less than one reliable resend (~RTT + 80 ms), and sustained fire never refills it.
 // Spacing (B19): the bucket alone admits Capacity simultaneous shots after any idle (three rails in one frame). A shot
 // received less than MinSpacing = max(0, Interval - FireRateSpacingTolerance) after the last accepted one is rejected;
 // rail 1.25 s, SG 0.75 s, RL 0.55 s, MG/PG/LG 0 (bucket only). A rejected shot costs nothing.
@@ -34,6 +37,13 @@ struct FVeloxFireRateBucket
 	{
 		bInitialised = false;
 		bHasAccepted = false;
+	}
+
+	/** D3: token capacity of a weapon, max(BurstAllowance, 1 + JitterToleranceSeconds / Interval), at least 1. */
+	static float CapacityFor(float Interval, float BurstAllowance, float JitterToleranceSeconds)
+	{
+		const float FromTime = Interval > 0.f ? 1.f + FMath::Max(JitterToleranceSeconds, 0.f) / Interval : 1.f;
+		return FMath::Max3(BurstAllowance, FromTime, 1.f);
 	}
 
 	/** B19: the minimum receive-time spacing of a weapon. */

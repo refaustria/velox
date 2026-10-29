@@ -326,6 +326,7 @@ def build_combat_settings(table, defs):
         "hitbox_teleport_distance_cm": 150.0,
         "fire_rate_burst_allowance": 3.0,
         "fire_rate_spacing_tolerance": 0.25,  # B19
+        "fire_rate_jitter_tolerance_seconds": 0.5,  # task 08b D3
         "projectile_forward_prediction_max": 0.1,
         "min_respawn_delay": 1.7,
         "force_respawn_delay": 20.0,

@@ -7,6 +7,9 @@
 // activation records the inventory's SwitchEndTime = Now + Wait + Drop + Raise; the shooter's machine fires only at or
 // after it, the server gates a remote shooter by the GE's remaining time with a tolerance (UVeloxGameplayAbility_Fire).
 // The tag stays on the GE for animation/UI and the server gate; it does not block fire activation.
+// Task 08b (D4): a switch activation that reaches the server while its previous switch instance is still running (that
+// instance's drop end is shifted by the latency) supersedes it (bRetriggerInstancedAbility); the shooter's machine still
+// ignores a switch press during its own drop (PrepareInputActivation skips while the spec is active), as before.
 
 #pragma once
 
@@ -21,6 +24,12 @@ class VELOX_API UVeloxGameplayAbility_WeaponSwitch : public UVeloxGameplayAbilit
 
 public:
 	UVeloxGameplayAbility_WeaponSwitch(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+
+	/**
+	 * Server (task 08b D4, via UVeloxWeaponInventoryComponent::CompletePendingSwitch): the switch was completed by an
+	 * accepted shot of the pending weapon before this instance's drop end; ends it without touching SwitchEndTime.
+	 */
+	void CompleteSwitchEarly();
 
 	/** Switch timing on this machine: seconds until the current weapon may fire (0 without bSwitchWaitsForRefire). */
 	static double RefireWait(const FGameplayAbilityActorInfo* ActorInfo, bool bSwitchWaitsForRefire);

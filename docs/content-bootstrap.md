@@ -25,6 +25,7 @@ Q3 derivation (vanilla `g_weapon.c` / `bg_misc.c`; the script computes the numbe
 |---|---|---|
 | `SwitchTimingToleranceSeconds` (`switch_timing_tolerance_seconds`) | 0.25 s | B18: the server accepts a remote shooter's shot while `GE_WeaponSwitching` has at most this left; the shooter's own machine gates on its local `SwitchEndTime` exactly. |
 | `FireRateSpacingTolerance` (`fire_rate_spacing_tolerance`) | 0.25 s | B19: server minimum spacing between accepted shots of one weapon = `max(0, FireInterval - tolerance)` (rail 1.25 s, SG 0.75 s, RL 0.55 s, MG/PG/LG 0), on top of the token bucket (`FireRateBurstAllowance` 3). |
+| `FireRateJitterToleranceSeconds` (`fire_rate_jitter_tolerance_seconds`) | 0.5 s | Task 08b (D3): receive-time delay spread the fire-rate bucket absorbs; capacity per weapon = `max(FireRateBurstAllowance, 1 + tolerance / FireInterval)` (MG 6, LG 11, PG 6, rail/SG/RL 3). A 2x fire-rate client is rejected after about this long. |
 | `BeamKeepAliveSeconds` (`beam_keep_alive_seconds`) | 0.25 s | B23: the LG beam cue stays this long (at least one fire interval) after the last accepted shot. |
 
 After adding a field to `UVeloxCombatSettings`, add its key to `values` in `build_combat_settings()`, rebuild (`infra/ci/build.sh`) and re-run the script; commit only the assets that actually changed (the script re-saves every asset it touches).
