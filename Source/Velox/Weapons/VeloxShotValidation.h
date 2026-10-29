@@ -1,4 +1,4 @@
-// Velox - server validation of one shot's target data (ADR 0003 section 5, B19, B26, review of task 04 defect 6).
+// Velox - server validation of one shot's target data (ADR 0003 section 5, B26, B32, review of task 04 defect 6).
 // Validate is world-free: everything the check needs is passed in, so every reject reason is unit-tested
 // (Velox.Combat.ShotValidation). Used by OnServerTargetData of the hitscan and the projectile fire abilities (B26).
 //
@@ -22,10 +22,8 @@ enum class EVeloxShotReject : uint8
 	None,
 	/** Missing or neither FGameplayAbilityTargetData_VeloxShot nor its projectile subclass. */
 	Type,
-	/** Fire-rate bucket empty. */
+	/** Fire-rate bucket empty (B32). */
 	Rate,
-	/** Under the minimum spacing after the last accepted shot (B19). */
-	Spacing,
 	/** Origin contains NaN. */
 	Origin,
 	/** Direction NaN or zero. */
@@ -45,7 +43,7 @@ enum class EVeloxFireStampClamp : uint8
 	Reset,
 };
 
-/** Log / test name of a reason ("none", "type", "rate", "spacing", "origin", "dir", "time"). */
+/** Log / test name of a reason ("none", "type", "rate", "origin", "dir", "time"). */
 VELOX_API const TCHAR* LexToString(EVeloxShotReject Reason);
 
 /** A shot that passed validation (Dir normalised, hint cleared unless sent). */
@@ -66,12 +64,12 @@ struct FVeloxValidatedShot
 namespace VeloxShotValidation
 {
 	/**
-	 * Validates Raw received at Now for a weapon of Interval: bucket (Capacity = FVeloxFireRateBucket::CapacityFor, spacing
-	 * Interval - SpacingTolerance) then payload. On None, OutShot holds the shot; OutShot.ShotSeq is filled whenever the
+	 * Validates Raw received at Now for a weapon of Interval: bucket (Capacity = FVeloxFireRateBucket::CapacityFor, B32)
+	 * then payload. On None, OutShot holds the shot; OutShot.ShotSeq is filled whenever the
 	 * struct type is right (logs), 0 otherwise.
 	 */
 	VELOX_API EVeloxShotReject Validate(const FGameplayAbilityTargetData* Raw, FVeloxFireRateBucket& Bucket, double Now, float Interval, float Capacity,
-		float SpacingTolerance, FVeloxValidatedShot& OutShot);
+		FVeloxValidatedShot& OutShot);
 
 	/**
 	 * ADR 0003 B15 step 1 (shared by TraceShot and the projectile ability, B26): the client origin, or the shooter's
