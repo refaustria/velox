@@ -38,3 +38,10 @@ Standard format for the agent type; dev-hard includes a design summary for `arch
 - MG 40 shots: 0 rejections (reasons `rate` and `spacing`).
 - Repeat the switch sequence once at 250 ms / 2 % and record whether the 0.25 s tolerance holds (expected yes; a failure means the default must grow or resend compression exceeds one RTT).
 - From the 04 report: add the `VeloxShotFired aim_err_cm` line; put `CrouchRun` into the default list; assert on `rewind_ms`/`view_ms`/`hint`.
+
+## Addendum from the architect review of 05/06 (2026-10-29, review §5, B25–B29)
+- Start only after 05b and 06b are merged.
+- `FireRun` uses `SpawnDummy … invulnerable` (or asserts the dummy respawned at its spawner between shots); add an RL shot at the strafing dummy (`VeloxProjectileExplode direct=<dummy>` and a `VeloxHitConfirm` line).
+- `RocketJumpRun` wraps `velox.combat.RocketJumpTest -90 quit`, 5 rounds at 100 ms / 2 %: `result=PASS`, 0 non-echo corrections in `[t_fire, t_fire + 0.6]` (one ≤ 5 cm tolerated), server and client `VeloxSelfSplash` with equal `seq`, `ts` equal to 1e-6, `hit=1`, equal `points`, `dist` within 1 cm; `VeloxProjectileShot` with `|client_ts − last_ts| ≤ 1/60 + RTT`; no `VeloxShotTimeClamp`; `VeloxProjectileExplode … self=move_timed`; no "forced by the deadline". Repeat once at 250 ms / 2 %.
+- Review defect 9: replace KnockbackRun's fixed `grace_max − 2/60` rule (`infra/ci/nettest.sh` ~l.270) by the exact relation `|rgrace − (grace_max − (ts_resp − ts_consume_start))| ≤ 1e-3`, using a new non-shipping server log line `VeloxKnockbackConsumed ts_start= ts_end= grace=` from `ConsumePendingKnockback` on the authority.
+- Soak measurements only on an otherwise idle machine (lesson of 2026-10-25/29).

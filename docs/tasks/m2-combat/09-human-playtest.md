@@ -21,3 +21,6 @@ Standard format for the agent type; dev-hard includes a design summary for `arch
 ## Addendum from the architect review of 04 (2026-10-25)
 - Requires 04c (server-side pattern seed, cue policy) merged first.
 - Checklist additions: "switch feel at 100 ms: does the first shot after a switch come when you expect?" (B18) and "redirecting a switch mid-drop" (review defect 9).
+
+## Addendum from the architect review of 05/06 (2026-10-29)
+- Rocket-jump feel at 100 ms (no snap at launch or landing); plasma climb; rocket hit marker; death camera (facing, distance, wall back-off; should it turn toward the killer?); hit-marker visibility; respawn on fire/jump after 1.7 s; readability of all 8 palette colours against the greybox; does 0 s spawn protection feel right (open question 2).
