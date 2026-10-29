@@ -2,7 +2,7 @@
 
 **Milestone:** M3 Game loop
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged; 74 tests)
 **Depends on:** 01, 02, 03, 05 merged on `m3-gameloop`; `docs/reviews/m3-gameplay-review.md`; ADR 0004 C1–C10
 **Estimate:** 2 h
 
@@ -53,3 +53,6 @@ Standard format: result, what changed, verification (commands + output tail), op
 ## Added by the lead (2026-10-29)
 - **F5 player name**: the server ignores `?Name=` (`UPendingNetGame` overrides it with `ULocalPlayer::GetNickname()`, M3-10 report). Add a `ULocalPlayer` subclass overriding `GetGameLoginOptions()` → `Name=<UVeloxGameUserSettings PlayerName>` (sanitised), set `LocalPlayerClassName` in `DefaultEngine.ini`; verify on a headless server that `VeloxKill`/scoreboard show the configured name.
 - **F6 stale comments**: "bucket + spacing" remnants in `Weapons/VeloxGameplayAbility_Fire.h` (l.7/65/91), `VeloxGameplayAbility_FireHitscan.cpp:250`, `VeloxGameplayAbility_FireHitscan.h:9`, `VeloxGameplayAbility_FireProjectile.cpp:243` → B32 wording (comments only; 08h may touch these files — keep hunks comment-only).
+
+## Outcome (2026-10-29)
+build.sh 74 tests (+ `Velox.Items.PickupReset`), 0 failures (`20261029-224521-4031786`, worktree). F1 reset re-check on next tick (test); F2 `IsStaleTake` + `PickupTakeEventMaxAgeSeconds` 1 s (unit rows); F3 headless Duel: ready survives Countdown→Warmup abort; F4 PostMatch joiner gets `VeloxMatch intermission` (`IsInIntermission()` also checks the phase); F5 server log `Login request: ?Name=Anarki` via `UVeloxLocalPlayer::GetGameLoginOptions` (`LocalPlayerClassName`); F6 B32 comments; HasteRun documented in `infra/ci/README.md`. ItemRun + HasteRun 3/3 under load. Extra: `velox.match.Ready [0|1] [idx=N|all]`.
