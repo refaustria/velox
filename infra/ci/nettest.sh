@@ -29,7 +29,7 @@ FIRE_LAG_MS=50
 LAG_OVERRIDE=""
 PKT_ARGS=()
 # Scripts on L_CombatTest (task 08); everything else runs on L_MovementTest.
-COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun "
+COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun RocketJumpRunHold "
 # Scripts on L_ItemTest (M3 task 04); the client runs velox.items.Watch.
 ITEM_SCRIPTS=" ItemRun "
 
@@ -41,7 +41,9 @@ Runs dedicated server + scripted -nullrhi client (100 ms / 2 % loss both directi
 net-soak pass criteria. Exit code is non-zero if any script fails. FireRun, FireRunControl (FireRun.json with
 velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest. ItemRun runs on
 L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest. FireRunHold (task 08g, not in the default list) is FireRun
-with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3).
+with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3). RocketJumpRunHold
+(task 08f, not in the default list) is RocketJumpRun with the server holding the rocket's fire RPC 300 ms
+(velox.combat.DebugHoldShotRpc 300 5 1, ADR 0003 B35).
 
 Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
@@ -122,9 +124,12 @@ run_one() {
       sexec="velox.combat.GiveAllWeapons, velox.combat.SpawnDummy $dummy invulnerable, velox.lagcomp.Debug 1, velox.combat.LagComp $lagcomp"
       [[ "$script" == FireRunHold ]] && sexec="$sexec, velox.combat.DebugHoldShotRpc 300 7 3"
       script_args=(-VeloxScript=FireRun) ;;
-    RocketJumpRun)
+    RocketJumpRun|RocketJumpRunHold)
       # Task 08 / ADR 0003 B25: wraps the task-05 test command; VeloxCorrection lines come from velox.move.LogCorrections.
       sexec="velox.combat.GiveAllWeapons"
+      # Task 08f / ADR 0003 B35: forced late fire RPC (the server holds the RL target data 300 ms, as a lost packet's
+      # reliable resend would); the fire move itself is on time, so the self splash must come from the move stream.
+      [[ "$script" == RocketJumpRunHold ]] && sexec="$sexec, velox.combat.DebugHoldShotRpc 300 5 1"
       cexec="$cexec, velox.move.LogCorrections 1, velox.combat.RocketJumpTest -90 quit"
       script_args=() ;;
   esac
@@ -206,7 +211,7 @@ if not server_alive:
 if crc != 0:
     fails.append("client exit code %d" % crc)
 
-if script == "RocketJumpRun":
+if script in ("RocketJumpRun", "RocketJumpRunHold"):
     # velox.combat.RocketJumpTest's result line instead of a script's VeloxNetSoak line.
     final = next((l for l in reversed(C) if "VeloxRocketJump: apex_cm=" in l), None)
     if final is None:
@@ -559,7 +564,7 @@ elif script in ("FireRun", "FireRunControl", "FireRunHold"):
     control = script == "FireRunControl"
     hold_run = script == "FireRunHold"
     # Task 08g / B36: shots the server held (velox.combat.DebugHoldShotRpc); judged separately from the FireRun rules.
-    held = [kv(l).get("seq") for l in S if "VeloxShotRpcHold seq=" in l]
+    held = [kv(l).get("seq") for l in S if "VeloxShotRpcHeld seq=" in l]
     WALL_RE = re.compile(r"^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]")
     def wall(line):
         m = WALL_RE.match(line)
@@ -634,7 +639,7 @@ elif script in ("FireRun", "FireRunControl", "FireRunHold"):
                 fails.append("held rail seq=%s late_ms=%s not in [280, 360]" % (seq, late))
         detail.append("held=[%s]" % " ".join(rows))
         if len(held) != 3:
-            fails.append("expected 3 held rail RPCs (VeloxShotRpcHold seq=), got %d" % len(held))
+            fails.append("expected 3 held rail RPCs (VeloxShotRpcHeld seq=), got %d" % len(held))
     railfile = os.path.join(out_dir, "FireRun.railhits")
     if not control:
         if not hold_run:
@@ -712,7 +717,7 @@ elif script in ("FireRun", "FireRunControl", "FireRunHold"):
         else:
             notes.append("no FireRun result in this round: control hits reported only")
 
-elif script == "RocketJumpRun":
+elif script in ("RocketJumpRun", "RocketJumpRunHold"):
     # Task 08 / ADR 0003 B25: velox.combat.RocketJumpTest -90 (fire RL at the floor and jump in the same frame).
     fire_line = next((kv(l) for l in C if "VeloxRocketJump: fire+jump t=" in l), None)
     if fire_line is None:
@@ -745,10 +750,32 @@ elif script == "RocketJumpRun":
     if not shots:
         fails.append("no VeloxProjectileShot line on the server")
     for d in shots:
-        gap = abs(num(d, "client_ts") - num(d, "last_ts"))
-        detail.append("client_ts-last_ts=%.4f" % gap)
-        if gap > 1.0 / 60.0 + rtt:
-            fails.append("VeloxProjectileShot seq=%s |client_ts - last_ts| %.4f > 1/60 + RTT %.3f" % (d.get("seq"), gap, rtt))
+        # Task 08f / ADR 0003 B35: the rocket's self splash comes from the move stream (source=move, late_ms reported); the
+        # |client_ts - last_ts| rule only applies to a fire RPC that scheduled it itself (source=rpc, review defect 7).
+        src = d.get("source", "?")
+        detail.append("source=%s late_ms=%s" % (src, d.get("late_ms", "-")))
+        if src != "move":
+            fails.append("VeloxProjectileShot seq=%s source=%s (want move: the fire move did not carry the shot)" % (d.get("seq"), src))
+        if "late_ms" not in d:
+            fails.append("VeloxProjectileShot seq=%s has no late_ms" % d.get("seq"))
+        if src == "rpc":
+            gap = abs(num(d, "client_ts") - num(d, "last_ts"))
+            if gap > 1.0 / 60.0 + rtt:
+                fails.append("VeloxProjectileShot seq=%s |client_ts - last_ts| %.4f > 1/60 + RTT %.3f" % (d.get("seq"), gap, rtt))
+        if script == "RocketJumpRunHold" and not (280.0 <= num(d, "late_ms", -1.0) <= 360.0):
+            fails.append("RocketJumpRunHold: VeloxProjectileShot seq=%s late_ms=%s not in [280, 360] (hold not applied?)" % (d.get("seq"), d.get("late_ms")))
+    if script == "RocketJumpRunHold" and not any("VeloxShotRpcHeld" in l for l in S):
+        fails.append("RocketJumpRunHold: no VeloxShotRpcHeld line on the server (velox.combat.DebugHoldShotRpc did not act)")
+    for tag in ("VeloxShotLate", "VeloxMoveShotOrphan", "VeloxShotOriginSnap", "VeloxMoveShotMismatch"):
+        hits = [l for l in S if tag + " " in l]
+        if hits:
+            fails.append("%d %s line(s): %s" % (len(hits), tag, hits[0].split(tag, 1)[1].strip()[:140]))
+    ignored = [l for l in S if "VeloxMoveShotIgnored" in l]
+    if ignored:
+        notes.append("%d VeloxMoveShotIgnored: %s" % (len(ignored), ignored[0].split("VeloxMoveShotIgnored", 1)[1].strip()[:100]))
+    moveshots = [kv(l) for l in S if "VeloxMoveShot seq=" in l]
+    if not moveshots:
+        fails.append("no VeloxMoveShot line on the server (the fire move did not carry the shot)")
     clamps = [l for l in S if "VeloxShotTimeClamp" in l]
     if clamps:
         fails.append("%d VeloxShotTimeClamp line(s): %s" % (len(clamps), clamps[0].split("VeloxShotTimeClamp", 1)[1].strip()[:140]))
@@ -1024,7 +1051,7 @@ main() {
   for s in "${scripts[@]}"; do
     case "$s" in
       FireRunControl|FireRunHold) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "$s needs FireRun.json" ;;
-      RocketJumpRun) ;;   # drives velox.combat.RocketJumpTest, no JSON script
+      RocketJumpRun|RocketJumpRunHold) ;;   # drive velox.combat.RocketJumpTest, no JSON script
       *) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/$s.json" ]] || die "unknown script '$s'" ;;
     esac
   done

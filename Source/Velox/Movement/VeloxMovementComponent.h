@@ -212,6 +212,33 @@ public:
 	 */
 	void ServerNoteShot(uint8 Seq);
 
+	// ---- Move-carried projectile shot (ADR 0003 B35, ADR 0002 A36) -------------------------------------------------
+
+	/**
+	 * Owning client (autonomous proxy only): the shot rides the next saved move (FSavedMove_Velox::SetMoveFor ->
+	 * ConsumePendingMoveShot) to the server. Single slot: a second queue before a move took the first overwrites it and
+	 * logs a Warning. Returns false (nothing queued) outside the autonomous proxy.
+	 */
+	bool QueueMoveShot(const FVeloxMoveShot& Shot);
+
+	/** FSavedMove_Velox::SetMoveFor: takes the queued shot (true) and clears the slot; false when none is queued. */
+	bool ConsumePendingMoveShot(FVeloxMoveShot& OutShot);
+
+	bool HasPendingMoveShot() const { return bHasPendingMoveShot; }
+
+	/**
+	 * Server (authority, remote owner): a move carrying a shot is about to be simulated: (Shot, MoveEndStamp =
+	 * ClientTimeStamp, MoveDeltaTime). Broadcast from MoveAutonomous before Super, so an event due inside the fire move is
+	 * registered in time. Duplicates never reach it (VerifyClientTimeStamp runs first). Bound by
+	 * UVeloxWeaponInventoryComponent::BindServerMoveStream.
+	 */
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnVeloxServerMoveShot, const FVeloxMoveShot& /*Shot*/, float /*MoveEndStamp*/, float /*MoveDeltaTime*/);
+	FOnVeloxServerMoveShot OnServerMoveShot;
+
+	/** Server (authority, remote owner): a client move ending at MoveEndStamp was simulated (after Super::MoveAutonomous). */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnVeloxServerMoveProcessed, float /*MoveEndStamp*/);
+	FOnVeloxServerMoveProcessed OnServerMoveProcessed;
+
 	/**
 	 * Move-timed events (task 05: the owner's self splash of a projectile, evaluated in the owner's move timeline on both
 	 * the owning client and the server so prediction and authority agree to the move). Callback runs at the end of the
@@ -227,6 +254,10 @@ public:
 	int32 CancelAllMoveTimedEvents();
 	bool HasMoveTimedEvent(int32 EventId) const;
 	int32 GetNumMoveTimedEvents() const { return MoveTimedEvents.Num(); }
+	/** The move time of a pending event; false when EventId is not pending (tests, logs). */
+	bool GetMoveTimedEventTime(int32 EventId, float& OutMoveTime) const;
+	/** Server: shot Seq has begun (ServerBeginSelfKnockbackShot) and is not resolved yet (tests). */
+	bool IsServerSelfKnockbackShotUnresolved(uint8 Seq) const { return ServerUnresolvedSelfKnockbackSeqs.Contains(Seq); }
 
 	/**
 	 * Whether an event at EventTime is due after a move ending at MoveTime. Time stamps wrap every ResetPeriod
@@ -441,7 +472,8 @@ protected:
 
 	/**
 	 * Captures the move's ClientTimeStamp (server and client replay); non-shipping on the authority: logs merged server
-	 * moves (VeloxMoveGap, A28(iv)/A34(i)) and old moves that filled a gap (VeloxMoveRepaired, A32).
+	 * moves (VeloxMoveGap, A28(iv)/A34(i)) and old moves that filled a gap (VeloxMoveRepaired, A32). Authority (ADR 0002
+	 * A36): broadcasts OnServerMoveShot before Super for a move that carries a shot, and OnServerMoveProcessed after it.
 	 */
 	virtual void MoveAutonomous(float ClientTimeStamp, float DeltaTime, uint8 CompressedFlags, const FVector& NewAccel) override;
 
@@ -567,6 +599,10 @@ protected:
 
 	/** Recorded channel (ADR 0003 section 3): predicted self-knockback for the start of the next move (owning client). */
 	FVeloxPredictedKnockback PendingPredictedKnockback;
+
+	/** ADR 0002 A36, owning client: the shot the next saved move carries (QueueMoveShot / ConsumePendingMoveShot). */
+	FVeloxMoveShot PendingMoveShot;
+	bool bHasPendingMoveShot = false;
 
 	/** See GetConfirmedSelfKnockbackSeq. */
 	uint8 ConfirmedSelfKnockbackSeq = 0;

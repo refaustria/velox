@@ -1,5 +1,6 @@
 // Velox - one hitscan/projectile shot as GAS target data (ADR 0003 section 5, review of task 03). Sent by the predicting
-// client with CallServerSetReplicatedTargetData (reliable), never inside moves (ADR 0002 A33). About 34 bytes.
+// client with CallServerSetReplicatedTargetData (reliable). About 34 bytes. A projectile shot is also carried in its fire
+// move (FVeloxMoveShot, ADR 0003 B35 / ADR 0002 A36); hitscan shots stay out of moves (A33).
 
 #pragma once
 

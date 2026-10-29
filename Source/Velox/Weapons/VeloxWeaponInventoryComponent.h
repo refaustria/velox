@@ -15,11 +15,42 @@
 class UAbilitySystemComponent;
 class UVeloxAbilitySystemComponent;
 class UVeloxCombatSettings;
+class UVeloxGameplayAbility_FireProjectile;
 class UVeloxGameplayAbility_WeaponSwitch;
+class UVeloxMovementComponent;
 class UVeloxWeaponDefinition;
 class UVeloxWeaponTable;
 struct FGameplayAbilitySpec;
 struct FGameplayCueParameters;
+struct FVeloxMoveShot;
+
+/**
+ * ADR 0003 B35, server: a projectile shot registered from the owner's move stream (the fire move carried it). The owner's
+ * self splash is already scheduled (EventId); the fire RPC adopts the record and only spawns the projectile, pays ammo,
+ * plays the cue and finalises the switch.
+ */
+struct FVeloxMoveShotRecord
+{
+	uint8 ShotSeq = 0;
+	int32 WeaponIndex = INDEX_NONE;
+	/** After the B15 origin rule (snapped to the server eye at the move start if needed). */
+	FVector Origin = FVector::ZeroVector;
+	/** Unit direction. */
+	FVector Dir = FVector::ForwardVector;
+	/** As received in the move (the fire RPC is cross-checked against these). */
+	FVector ClientOrigin = FVector::ZeroVector;
+	FVector ClientDir = FVector::ForwardVector;
+	float ClientFireMoveTimeStamp = 0.f;
+	/** After ClampFireMoveTimeStamp against the move's start. */
+	float FireMoveTimeStamp = 0.f;
+	/** The scheduled self splash on the owner's movement component, and its explosion origin. */
+	int32 EventId = 0;
+	FVector SplashOrigin = FVector::ZeroVector;
+	/** Server world time the move was processed (orphan expiry). */
+	double ReceiveTime = 0.0;
+	/** The fire RPC took it (a record is adopted once). */
+	bool bAdopted = false;
+};
 
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxWeaponInventoryComponent : public UActorComponent
@@ -172,6 +203,61 @@ public:
 	void KeepBeamAlive(const UVeloxWeaponDefinition& Definition, const FGameplayCueParameters& Parameters);
 	void StopBeam();
 
+	// --- Server: the move-carried projectile shot (ADR 0003 B35, ADR 0002 A36) ---
+	/**
+	 * Binds OnServerMoveShot / OnServerMoveProcessed of Movement (the possessed pawn's movement component; called from
+	 * AVeloxCharacter::InitAbilityActorInfo on the authority) and unbinds a previously bound one. A new binding starts a
+	 * new move stream: records, pending RPC shots and the processed-move state are cleared. Null: unbind only.
+	 */
+	void BindServerMoveStream(UVeloxMovementComponent* Movement);
+	/** Unbinds Movement if it is the bound one (AVeloxCharacter::UnPossessed). */
+	void UnbindServerMoveStream(const UVeloxMovementComponent* Movement);
+	UVeloxMovementComponent* GetBoundServerMovement() const;
+
+	/**
+	 * OnServerMoveShot: the fire move of shot Shot.ShotSeq is about to be simulated (MoveEndStamp = its client time stamp,
+	 * MoveDeltaTime = its server delta). B35 steps 1-6: owned projectile weapon with splash, sequence not recorded,
+	 * stamp clamped against the move's start, origin through the B15 rule against the live eye (= the eye at the move
+	 * start), the weapon's fire-rate token and ammo affordable (both skipped when the fire RPC overtook the move and is
+	 * pending: it paid already), then the owner's self splash scheduled and the record kept. Logs VeloxMoveShot or
+	 * VeloxMoveShotIgnored reason=.
+	 */
+	void HandleServerMoveShot(const FVeloxMoveShot& Shot, float MoveEndStamp, float MoveDeltaTime);
+
+	/**
+	 * OnServerMoveProcessed: resumes pending fire RPCs whose move-shot is now recorded (source=move) or whose fire stamp
+	 * the move stream passed without one (source=rpc), and expires records whose RPC never came (VeloxMoveShotOrphan).
+	 */
+	void HandleServerMoveProcessed(float MoveEndStamp);
+
+	/** The unadopted record of Seq, or null. */
+	const FVeloxMoveShotRecord* FindMoveShotRecord(uint8 Seq) const;
+	/** Takes the unadopted record of Seq (marks it adopted); false without one. */
+	bool AdoptMoveShotRecord(uint8 Seq, FVeloxMoveShotRecord& OutRecord);
+
+	/**
+	 * A projectile fire RPC with FireMoveTimeStamp and no record must wait for its fire move: the move stream is bound,
+	 * has processed a move, and has not yet passed the stamp (the RPC overtook the move, normally inside one packet).
+	 */
+	bool ShouldWaitForMoveShot(float FireMoveTimeStamp) const;
+
+	/** The fire RPC of Seq waits for its move (UVeloxGameplayAbility_FireProjectile keeps the validated shot). */
+	void AddPendingRpcShot(uint8 Seq, float FireMoveTimeStamp, UVeloxGameplayAbility_FireProjectile* Ability);
+	void RemovePendingRpcShot(uint8 Seq, const UVeloxGameplayAbility_FireProjectile* Ability);
+	bool HasPendingRpcShot(uint8 Seq) const;
+
+	/** Records whose RPC never came, this binding (an M6 anti-cheat signal). */
+	int32 GetNumMoveShotOrphans() const { return NumMoveShotOrphans; }
+	int32 GetNumMoveShotRecords() const { return ServerMoveShots.Num(); }
+	/** Last client move time stamp the bound move stream processed; false before the first move. */
+	bool GetLastProcessedMoveStamp(float& OutStamp) const { OutStamp = LastProcessedMoveStamp; return bServerMoveStreamSeen; }
+
+	/** Drops every record and pending RPC shot (ResetToLoadout, rebinding); pending abilities end cancelled. */
+	void ClearMoveShots();
+
+	/** Records kept per life (ring). */
+	static constexpr int32 MaxMoveShotRecords = 8;
+
 	// --- Owning client ---
 	/** Local prediction of a switch result; replaced by the replicated value when it arrives or after PredictionTimeout. */
 	void PredictCurrentIndex(int32 Index);
@@ -251,4 +337,28 @@ private:
 
 	double RejectLogWindowStart = -1.0;
 	int32 RejectLogCount = 0;
+
+	// --- Server: move-carried projectile shot (ADR 0003 B35) ---
+	struct FPendingRpcShot
+	{
+		uint8 ShotSeq = 0;
+		float FireMoveTimeStamp = 0.f;
+		TWeakObjectPtr<UVeloxGameplayAbility_FireProjectile> Ability;
+	};
+
+	int32 FindMoveShotRecordIndex(uint8 Seq) const;
+	/** Logs and counts an expired or evicted record that was never adopted. */
+	void NoteMoveShotOrphan(const FVeloxMoveShotRecord& Record, const TCHAR* Why);
+	/** Seconds a record waits for its RPC: FireRateJitterToleranceSeconds + MaxRewindSeconds. */
+	double GetMoveShotOrphanSeconds() const;
+
+	/** Oldest first; at most MaxMoveShotRecords. */
+	TArray<FVeloxMoveShotRecord, TInlineAllocator<MaxMoveShotRecords>> ServerMoveShots;
+	TArray<FPendingRpcShot, TInlineAllocator<2>> PendingRpcShots;
+	TWeakObjectPtr<UVeloxMovementComponent> BoundServerMovement;
+	FDelegateHandle MoveShotHandle;
+	FDelegateHandle MoveProcessedHandle;
+	float LastProcessedMoveStamp = 0.f;
+	bool bServerMoveStreamSeen = false;
+	int32 NumMoveShotOrphans = 0;
 };

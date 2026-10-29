@@ -79,10 +79,11 @@ namespace VeloxShotValidation
 	/**
 	 * Validates Raw received at Now for a weapon of Interval: bucket (Capacity = FVeloxFireRateBucket::CapacityFor, B32)
 	 * then payload. On None, OutShot holds the shot; OutShot.ShotSeq is filled whenever the
-	 * struct type is right (logs), 0 otherwise.
+	 * struct type is right (logs), 0 otherwise. bConsumeBucket false (ADR 0003 B35): the shot's token was already taken
+	 * when its fire move carried it (UVeloxGameplayAbility_Fire::ServerConsumeMoveShotToken); the payload is still checked.
 	 */
 	VELOX_API EVeloxShotReject Validate(const FGameplayAbilityTargetData* Raw, FVeloxFireRateBucket& Bucket, double Now, float Interval, float Capacity,
-		FVeloxValidatedShot& OutShot);
+		FVeloxValidatedShot& OutShot, bool bConsumeBucket = true);
 
 	/**
 	 * ADR 0003 B15 step 1 (shared by TraceShot and the projectile ability, B26): the client origin, or the shooter's

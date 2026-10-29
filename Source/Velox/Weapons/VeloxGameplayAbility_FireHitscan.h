@@ -103,10 +103,6 @@ protected:
 
 	FDelegateHandle TargetDataDelegateHandle;
 
-	/** Non-shipping server test hook velox.combat.DebugHoldShotRpc (ADR 0003 B36 section 9): the held target data's release. */
-	FTimerHandle HeldShotTimer;
-	bool bReleasingHeldShot = false;
-
 	uint8 LastServerPatternSeq = 0;
 	TArray<FVector, TInlineAllocator<1>> LastServerDirs;
 };

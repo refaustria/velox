@@ -90,49 +90,6 @@ namespace VeloxHitscanPrivate
 	}
 }
 
-#if !UE_BUILD_SHIPPING
-// ADR 0003 B36 section 9 / review m2-late-rpc section 4: a deterministic stand-in for a reliable RPC resend. The server
-// holds the next Count hitscan target-data RPCs of weapon Slot for Ms before OnServerTargetData runs; the ability
-// instance waits as it does for a real resend. Faithful only for weapons whose fire interval exceeds the hold (RG).
-// Same command form as task 08f's projectile hold (one command; whichever lands second adopts the other's state).
-namespace VeloxShotRpcHold
-{
-	float HoldSeconds = 0.f;
-	int32 HoldSlot = 0;
-	int32 HoldRemaining = 0;
-
-	void Set(const TArray<FString>& Args)
-	{
-		if (Args.Num() < 2)
-		{
-			UE_LOG(LogVeloxCombat, Display, TEXT("velox.combat.DebugHoldShotRpc <ms> <slot> [count=1]; now ms=%.0f slot=%d left=%d"), HoldSeconds * 1000.f, HoldSlot,
-				HoldRemaining);
-			return;
-		}
-		HoldSeconds = FMath::Max(FCString::Atof(*Args[0]), 0.f) / 1000.f;
-		HoldSlot = FCString::Atoi(*Args[1]);
-		HoldRemaining = Args.Num() >= 3 ? FMath::Max(FCString::Atoi(*Args[2]), 0) : 1;
-		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotRpcHold armed ms=%.0f slot=%d count=%d"), HoldSeconds * 1000.f, HoldSlot, HoldRemaining);
-	}
-
-	FAutoConsoleCommand SetCommand(TEXT("velox.combat.DebugHoldShotRpc"),
-		TEXT("Server, non-shipping: hold the next <count> (default 1) hitscan target-data RPCs of weapon <slot> for <ms> before they are processed."),
-		FConsoleCommandWithArgsDelegate::CreateStatic(&Set));
-
-	/** True (and the hold in seconds) when this shot of Slot is to be held; counts it down. */
-	bool Take(int32 Slot, float& OutSeconds)
-	{
-		if (HoldRemaining <= 0 || Slot != HoldSlot || HoldSeconds <= 0.f)
-		{
-			return false;
-		}
-		--HoldRemaining;
-		OutSeconds = HoldSeconds;
-		return true;
-	}
-}
-#endif
-
 UVeloxGameplayAbility_FireHitscan::UVeloxGameplayAbility_FireHitscan(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -254,15 +211,6 @@ void UVeloxGameplayAbility_FireHitscan::EndAbility(const FGameplayAbilitySpecHan
 		}
 		TargetDataDelegateHandle.Reset();
 	}
-	if (HeldShotTimer.IsValid())
-	{
-		// A held shot (velox.combat.DebugHoldShotRpc) dies with its activation, like a resend that never comes.
-		if (const UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(HeldShotTimer);
-		}
-		HeldShotTimer.Invalidate();
-	}
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
@@ -293,26 +241,16 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 	{
 		return;
 	}
+	// velox.combat.DebugHoldShotRpc (non-shipping, ADR 0003 B35 forced loss): process this target data later.
+	if (DebugHoldServerTargetData(Data, [this, Data, ApplicationTag]() { OnServerTargetData(Data, ApplicationTag); }))
+	{
+		return;
+	}
 	ASC->ConsumeClientReplicatedTargetData(CurrentSpecHandle, CurrentActivationInfo.GetActivationPredictionKey());
 
 	const UVeloxWeaponDefinition* Definition = GetCurrentDefinition();
 	const UWorld* World = GetWorld();
 	const FGameplayAbilityTargetData* Raw = Data.Num() > 0 ? Data.Get(0) : nullptr;
-#if !UE_BUILD_SHIPPING
-	float HoldSeconds = 0.f;
-	if (!bReleasingHeldShot && Definition && World && VeloxShotRpcHold::Take(Definition->Slot, HoldSeconds))
-	{
-		const uint8 HeldSeq = (Raw && Raw->GetScriptStruct() == FGameplayAbilityTargetData_VeloxShot::StaticStruct())
-			? static_cast<const FGameplayAbilityTargetData_VeloxShot*>(Raw)->ShotSeq : 0;
-		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotRpcHold seq=%u weapon=%s ms=%.0f"), HeldSeq, *GetNameSafe(Definition), HoldSeconds * 1000.f);
-		World->GetTimerManager().SetTimer(HeldShotTimer, FTimerDelegate::CreateWeakLambda(this, [this, Data, ApplicationTag]()
-		{
-			TGuardValue<bool> Releasing(bReleasingHeldShot, true);
-			OnServerTargetData(Data, ApplicationTag);
-		}), HoldSeconds, false);
-		return;
-	}
-#endif
 	if (!Definition || !World)
 	{
 		Reject(0, TEXT("no_weapon"));

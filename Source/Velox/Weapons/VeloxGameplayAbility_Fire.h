@@ -74,8 +74,17 @@ public:
 
 	const FVeloxServerShotInfo& GetLastServerShot() const { return LastServerShot; }
 
+	/** Server for a remote shooter: the receive-time fire-rate bucket (tests). */
+	const FVeloxFireRateBucket& GetServerBucket() const { return ServerBucket; }
+
 	/** True on the server for a shooter controlled by a remote client (validation by the B32 token bucket, switch by tolerance). */
 	static bool IsServerForRemoteShooter(const FGameplayAbilityActorInfo* ActorInfo);
+
+	/**
+	 * ADR 0003 B35, server for a remote shooter: the fire move of a projectile shot takes the weapon's fire-rate token
+	 * (the same ServerBucket the fire RPC uses; that RPC then validates with bConsumeBucket = false). False: bucket empty.
+	 */
+	bool ServerConsumeMoveShotToken(double Now, const UVeloxWeaponDefinition& Definition) { return ConsumeServerFireToken(Now, Definition); }
 
 	/** Seconds left on ASC's longest active GE_WeaponSwitching (Velox.State.WeaponSwitching); 0 without one. */
 	static double GetSwitchRemaining(const UAbilitySystemComponent* ASC);
@@ -109,8 +118,20 @@ protected:
 	/** Server receive-time rate check only (token bucket, B32); logs nothing. */
 	bool ConsumeServerFireToken(double Now, const UVeloxWeaponDefinition& Definition);
 
-	/** Server for a remote shooter: VeloxShotValidation::Validate with this weapon's bucket and the combat settings. */
-	EVeloxShotReject ValidateServerShot(const FGameplayAbilityTargetData* Raw, double Now, const UVeloxWeaponDefinition& Definition, FVeloxValidatedShot& OutShot);
+	/**
+	 * Server for a remote shooter: VeloxShotValidation::Validate with this weapon's bucket and the combat settings.
+	 * bConsumeBucket false: the shot's fire move already took its token (ADR 0003 B35).
+	 */
+	EVeloxShotReject ValidateServerShot(const FGameplayAbilityTargetData* Raw, double Now, const UVeloxWeaponDefinition& Definition, FVeloxValidatedShot& OutShot,
+		bool bConsumeBucket = true);
+
+	/**
+	 * Non-shipping (velox.combat.DebugHoldShotRpc, ADR 0003 B35 forced loss): true when the target data of this weapon's
+	 * slot must be held; Resume (re-entering OnServerTargetData with the stashed data) then runs after the hold on a
+	 * world timer of this instance (EndAbility clears it: a held shot dies with its activation, like a resend that never comes). Never holds the
+	 * resumed call itself. Logs VeloxShotRpcHeld seq= (FireRunHold, RocketJumpRunHold). Always false in shipping.
+	 */
+	bool DebugHoldServerTargetData(const FGameplayAbilityTargetDataHandle& Data, TFunction<void()>&& Resume);
 
 	/** Server, accepted shot (B18): if Definition is the pending weapon of a running switch, it becomes current now. */
 	void FinalisePendingSwitch(const UVeloxWeaponDefinition& Definition) const;
@@ -131,4 +152,7 @@ protected:
 	double LastAcceptedReceiveTime = -1.0e9;
 	FVeloxFireRateBucket ServerBucket;
 	FVeloxServerShotInfo LastServerShot;
+
+	/** DebugHoldServerTargetData: set while the held target data re-enters OnServerTargetData. */
+	bool bReleasingHeldTargetData = false;
 };

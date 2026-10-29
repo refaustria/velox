@@ -17,7 +17,10 @@
 #include "GameplayCueInterface.h"
 #include "GameFramework/Character.h"
 #include "Movement/VeloxMovementComponent.h"
+#include "TimerManager.h"
 #include "Weapons/VeloxFireTiming.h"
+#include "Weapons/VeloxShotTargetData.h"
+#include "Weapons/VeloxWeaponCheats.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
 
@@ -216,13 +219,44 @@ bool UVeloxGameplayAbility_Fire::ConsumeServerFireToken(double Now, const UVelox
 	return ServerBucket.TryConsume(Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.GetFireRateJitterToleranceSeconds()));
 }
 
-EVeloxShotReject UVeloxGameplayAbility_Fire::ValidateServerShot(const FGameplayAbilityTargetData* Raw, double Now, const UVeloxWeaponDefinition& Definition, FVeloxValidatedShot& OutShot)
+EVeloxShotReject UVeloxGameplayAbility_Fire::ValidateServerShot(const FGameplayAbilityTargetData* Raw, double Now, const UVeloxWeaponDefinition& Definition, FVeloxValidatedShot& OutShot,
+	bool bConsumeBucket)
 {
 	const UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
 	const float Interval = GetHasteFireInterval(CurrentActorInfo, Definition.GetSafeFireInterval());
 	return VeloxShotValidation::Validate(Raw, ServerBucket, Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.GetFireRateJitterToleranceSeconds()),
-		OutShot);
+		OutShot, bConsumeBucket);
+}
+
+bool UVeloxGameplayAbility_Fire::DebugHoldServerTargetData(const FGameplayAbilityTargetDataHandle& Data, TFunction<void()>&& Resume)
+{
+#if UE_BUILD_SHIPPING
+	return false;
+#else
+	const UVeloxWeaponDefinition* Definition = GetCurrentDefinition();
+	UWorld* World = GetWorld();
+	float HoldSeconds = 0.f;
+	if (bReleasingHeldTargetData || !Definition || !World || !VeloxWeaponCheats::ConsumeShotRpcHold(Definition->Slot, HoldSeconds))
+	{
+		return false;
+	}
+	// Hitscan and projectile payloads both derive from FGameplayAbilityTargetData_VeloxShot (nettest reads seq= of held shots).
+	const FGameplayAbilityTargetData* Raw = Data.Num() > 0 ? Data.Get(0) : nullptr;
+	const UScriptStruct* RawType = Raw ? Raw->GetScriptStruct() : nullptr;
+	const uint8 HeldSeq = RawType && RawType->IsChildOf(FGameplayAbilityTargetData_VeloxShot::StaticStruct())
+		? static_cast<const FGameplayAbilityTargetData_VeloxShot*>(Raw)->ShotSeq : 0;
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotRpcHeld seq=%u weapon=%s slot=%d ms=%.0f t=%.3f"), HeldSeq, *GetNameSafe(Definition), Definition->Slot, HoldSeconds * 1000.f,
+		World->GetTimeSeconds());
+	FTimerHandle Handle;
+	World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this, Resume = MoveTemp(Resume)]()
+	{
+		bReleasingHeldTargetData = true;
+		Resume();
+		bReleasingHeldTargetData = false;
+	}), FMath::Max(HoldSeconds, UE_KINDA_SMALL_NUMBER), false);
+	return true;
+#endif
 }
 
 void UVeloxGameplayAbility_Fire::FinalisePendingSwitch(const UVeloxWeaponDefinition& Definition) const

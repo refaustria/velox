@@ -27,6 +27,36 @@
 
 namespace VeloxWeaponCheats
 {
+	namespace
+	{
+		struct FShotRpcHold
+		{
+			float Seconds = 0.f;
+			int32 Slot = INDEX_NONE;
+			int32 Count = 0;
+		};
+		FShotRpcHold GShotRpcHold;
+	}
+
+	void SetShotRpcHold(float Seconds, int32 Slot, int32 Count)
+	{
+		GShotRpcHold.Seconds = FMath::Max(Seconds, 0.f);
+		GShotRpcHold.Slot = Slot;
+		GShotRpcHold.Count = Seconds > 0.f ? FMath::Max(Count, 0) : 0;
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotRpcHold armed ms=%.0f slot=%d count=%d"), GShotRpcHold.Seconds * 1000.f, GShotRpcHold.Slot, GShotRpcHold.Count);
+	}
+
+	bool ConsumeShotRpcHold(int32 Slot, float& OutSeconds)
+	{
+		if (GShotRpcHold.Count <= 0 || GShotRpcHold.Slot != Slot || GShotRpcHold.Seconds <= 0.f)
+		{
+			return false;
+		}
+		--GShotRpcHold.Count;
+		OutSeconds = GShotRpcHold.Seconds;
+		return true;
+	}
+
 	int32 ResolveWeapon(const UVeloxWeaponTable& Table, const FString& Name)
 	{
 		static const TMap<FString, FString> Short = {
@@ -373,6 +403,22 @@ namespace VeloxWeaponCheats
 		TEXT("velox.combat.GiveAllWeapons"),
 		TEXT("velox.combat.GiveAllWeapons: the local player (listen server / standalone) owns every weapon of the table with ammo at the cap. Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&GiveAllWeaponsCommand));
+
+	void DebugHoldShotRpcCommand(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 2 || !Args[0].IsNumeric() || !Args[1].IsNumeric())
+		{
+			UE_LOG(LogVeloxCombat, Warning, TEXT("Usage: velox.combat.DebugHoldShotRpc <ms> <slot> [count=1]"));
+			return;
+		}
+		const int32 Count = Args.Num() >= 3 && Args[2].IsNumeric() ? FCString::Atoi(*Args[2]) : 1;
+		SetShotRpcHold(FCString::Atof(*Args[0]) / 1000.f, FCString::Atoi(*Args[1]), Count);
+	}
+
+	FAutoConsoleCommand DebugHoldShotRpcCmd(
+		TEXT("velox.combat.DebugHoldShotRpc"),
+		TEXT("velox.combat.DebugHoldShotRpc <ms> <slot> [count=1]: server, the next <count> fire target-data RPCs of the weapon in <slot> are processed <ms> later (forced late fire RPC, ADR 0003 B35). Faithful for RL/RG, whose fire intervals exceed the hold. Non-shipping."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&DebugHoldShotRpcCommand));
 
 	FAutoConsoleCommandWithWorldAndArgs FireTestCmd(
 		TEXT("velox.combat.FireTest"),

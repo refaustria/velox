@@ -259,6 +259,10 @@ void AVeloxCharacter::UnPossessed()
 	{
 		ASC->InitAbilityActorInfo(VeloxPS, nullptr);
 	}
+	if (UVeloxWeaponInventoryComponent* Inventory = VeloxPS ? VeloxPS->GetWeaponInventory() : nullptr)
+	{
+		Inventory->UnbindServerMoveStream(GetVeloxMovementComponent());
+	}
 	if (HealthComponent)
 	{
 		HealthComponent->UninitializeFromAbilitySystem();
@@ -338,6 +342,11 @@ void AVeloxCharacter::InitAbilityActorInfo()
 			// ADR 0004 section 3: powerup GEs drive the move timeline from now on; sync what is already active.
 			BindPowerupMoveTimes(*ASC);
 			ServerRefreshPowerupMoveTimes();
+			// ADR 0003 B35: the inventory registers the owner's projectile self splash from this pawn's move stream.
+			if (UVeloxWeaponInventoryComponent* Inventory = VeloxPS->GetWeaponInventory())
+			{
+				Inventory->BindServerMoveStream(GetVeloxMovementComponent());
+			}
 		}
 	}
 }
