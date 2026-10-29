@@ -568,12 +568,15 @@ bool FVeloxCombatRenderedStampTest::RunTest(const FString& Parameters)
 	// Blocked extrapolation: the capsule did not move although time passed (wall): the newest anchor's stamp.
 	TestEqual(TEXT("blocked capsule -> newest stamp"), RenderedStamp(Line, NewestLoc, 0.0, NewestLoc, 10.0), Newest, Tol);
 
-	// D5: the replicated server time is on average half the shorter of update period and GameState send period old.
-	TestEqual(TEXT("staleness 0.1 s timer, 10 Hz GameState -> 50 ms"), VeloxLagComp::ExpectedServerTimeStaleness(0.1f, 10.f), 0.05, Tol);
-	TestEqual(TEXT("staleness 0.1 s timer, 100 Hz GameState -> 5 ms"), VeloxLagComp::ExpectedServerTimeStaleness(0.1f, 100.f), 0.005, Tol);
-	TestEqual(TEXT("staleness 0.5 s timer, 10 Hz -> 50 ms"), VeloxLagComp::ExpectedServerTimeStaleness(0.5f, 10.f), 0.05, Tol);
-	TestEqual(TEXT("staleness timer off -> 0"), VeloxLagComp::ExpectedServerTimeStaleness(0.f, 10.f), 0.0);
-	TestEqual(TEXT("staleness no net updates -> 0"), VeloxLagComp::ExpectedServerTimeStaleness(0.1f, 0.f), 0.0);
+	// B30 fallback delay: a fresh measurement is reused for 2 s, then the constant.
+	VeloxLagComp::FDelayMemory Memory;
+	TestEqual(TEXT("no measurement yet -> constant"), VeloxLagComp::ResolveFallbackDelay(Memory, 100.0, 0.03f), 0.03f);
+	Memory.Delay = 0.012f;
+	Memory.Time = 100.0;
+	TestEqual(TEXT("same frame -> measurement"), VeloxLagComp::ResolveFallbackDelay(Memory, 100.0, 0.03f), 0.012f);
+	TestEqual(TEXT("1.9 s later -> measurement"), VeloxLagComp::ResolveFallbackDelay(Memory, 101.9, 0.03f), 0.012f);
+	TestEqual(TEXT("2.0 s later -> constant"), VeloxLagComp::ResolveFallbackDelay(Memory, 102.0, 0.03f), 0.03f);
+	TestEqual(TEXT("measurement from the future (world reset) -> constant"), VeloxLagComp::ResolveFallbackDelay(Memory, 99.0, 0.03f), 0.03f);
 	return true;
 }
 

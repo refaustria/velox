@@ -3,6 +3,7 @@
 #pragma once
 
 #include "GameFramework/PlayerController.h"
+#include "Net/VeloxLagCompensationSubsystem.h"
 
 #include "VeloxPlayerController.generated.h"
 
@@ -88,4 +89,6 @@ private:
 	double PawnLostTime = -1.0;
 	TWeakObjectPtr<APawn> LastPawn;
 	double LastRespawnRequestTime = -1e9;
+	/** Last measured interpolation delay (ADR 0003 B30 fallback); BuildShotTiming is const. */
+	mutable VeloxLagComp::FDelayMemory ShotDelayMemory;
 };
