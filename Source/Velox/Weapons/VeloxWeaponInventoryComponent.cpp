@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
+#include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameplayPrediction.h"
 #include "Net/UnrealNetwork.h"
@@ -137,17 +138,15 @@ int32 UVeloxWeaponInventoryComponent::ResolveSelectInput(const FGameplayTag& Inp
 	const int32 From = GetPendingIndex() != INDEX_NONE ? GetPendingIndex() : GetCurrentIndex();
 	if (InputTag == InputTag_Weapon_Next)
 	{
-		return UVeloxWeaponTable::CycleOwned(OwnedMask, Table->Num(), From, +1);
+		return UVeloxWeaponTable::CycleOwned(GetEffectiveOwnedMask(), Table->Num(), From, +1);
 	}
 	if (InputTag == InputTag_Weapon_Prev)
 	{
-		return UVeloxWeaponTable::CycleOwned(OwnedMask, Table->Num(), From, -1);
+		return UVeloxWeaponTable::CycleOwned(GetEffectiveOwnedMask(), Table->Num(), From, -1);
 	}
-	const FGameplayTag SlotTags[] = { InputTag_Weapon_Slot1, InputTag_Weapon_Slot2, InputTag_Weapon_Slot3, InputTag_Weapon_Slot4, InputTag_Weapon_Slot5,
-		InputTag_Weapon_Slot6, InputTag_Weapon_Slot7, InputTag_Weapon_Slot8, InputTag_Weapon_Slot9 };
-	for (int32 Slot = 1; Slot <= UE_ARRAY_COUNT(SlotTags); ++Slot)
+	for (int32 Slot = 1; Slot <= 9; ++Slot)
 	{
-		if (InputTag == SlotTags[Slot - 1])
+		if (InputTag == SlotInputTag(Slot))
 		{
 			const int32 Index = Table->FindBySlot(Slot);
 			return OwnsIndex(Index) ? Index : INDEX_NONE;
@@ -215,7 +214,7 @@ bool UVeloxWeaponInventoryComponent::AddWeapon(const UVeloxWeaponDefinition* Def
 		return false;
 	}
 	GrantSwitchAbility();
-	const bool bNew = !OwnsIndex(Index);
+	const bool bNew = (OwnedMask & (1u << Index)) == 0;
 	if (bNew)
 	{
 		OwnedMask |= static_cast<uint16>(1u << Index);
@@ -434,6 +433,109 @@ void UVeloxWeaponInventoryComponent::OnRep_CurrentIndex(uint8 OldIndex)
 	}
 }
 
-void UVeloxWeaponInventoryComponent::OnRep_OwnedMask()
+uint16 UVeloxWeaponInventoryComponent::GetEffectiveOwnedMask() const
 {
+	if (PredictedOwnedMask == 0)
+	{
+		return OwnedMask;
+	}
+	const UWorld* World = GetWorld();
+	const double Now = World ? World->GetTimeSeconds() : 0.0;
+	uint16 Predicted = 0;
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(PredictedOwnedUntil); ++Index)
+	{
+		if ((PredictedOwnedMask & (1u << Index)) != 0 && Now < PredictedOwnedUntil[Index])
+		{
+			Predicted |= static_cast<uint16>(1u << Index);
+		}
+	}
+	return OwnedMask | Predicted;
+}
+
+void UVeloxWeaponInventoryComponent::PredictOwned(int32 Index, double Until)
+{
+	if (Index < 0 || Index >= UE_ARRAY_COUNT(PredictedOwnedUntil) || (GetOwner() && GetOwner()->HasAuthority()))
+	{
+		return;
+	}
+	PredictedOwnedMask |= static_cast<uint16>(1u << Index);
+	PredictedOwnedUntil[Index] = Until;
+	UE_LOG(LogVeloxCombat, Log, TEXT("%s: PredictOwned index=%d until=%.3f owned=0x%04x effective=0x%04x"), *GetNameSafe(GetOwner()), Index, Until, OwnedMask, GetEffectiveOwnedMask());
+}
+
+void UVeloxWeaponInventoryComponent::DropPredictedOwned(int32 Index)
+{
+	if (Index < 0 || Index >= UE_ARRAY_COUNT(PredictedOwnedUntil) || (PredictedOwnedMask & (1u << Index)) == 0)
+	{
+		return;
+	}
+	PredictedOwnedMask &= static_cast<uint16>(~(1u << Index));
+	PredictedOwnedUntil[Index] = 0.0;
+	UE_LOG(LogVeloxCombat, Log, TEXT("%s: DropPredictedOwned index=%d owned=0x%04x"), *GetNameSafe(GetOwner()), Index, OwnedMask);
+}
+
+FGameplayTag UVeloxWeaponInventoryComponent::SlotInputTag(int32 Slot)
+{
+	using namespace VeloxGameplayTags;
+	switch (Slot)
+	{
+	case 1: return InputTag_Weapon_Slot1;
+	case 2: return InputTag_Weapon_Slot2;
+	case 3: return InputTag_Weapon_Slot3;
+	case 4: return InputTag_Weapon_Slot4;
+	case 5: return InputTag_Weapon_Slot5;
+	case 6: return InputTag_Weapon_Slot6;
+	case 7: return InputTag_Weapon_Slot7;
+	case 8: return InputTag_Weapon_Slot8;
+	case 9: return InputTag_Weapon_Slot9;
+	default: return FGameplayTag();
+	}
+}
+
+bool UVeloxWeaponInventoryComponent::AllowsAutoSwitchFrom(const UVeloxWeaponDefinition* Current)
+{
+	return !Current || Current->WeaponTag.MatchesTagExact(VeloxGameplayTags::Weapon_MachineGun) || Current->WeaponTag.MatchesTagExact(VeloxGameplayTags::Weapon_Gauntlet);
+}
+
+int32 UVeloxWeaponInventoryComponent::SelectAutoSwitchTarget(bool bEnabled, bool bCurrentAllowsAutoSwitch, int32 CurrentIndex, uint16 OldMask, uint16 NewMask)
+{
+	const uint16 Added = static_cast<uint16>(NewMask & ~OldMask);
+	if (!bEnabled || !bCurrentAllowsAutoSwitch || OldMask == 0 || Added == 0 || FMath::CountBits(Added) != 1)
+	{
+		return INDEX_NONE;
+	}
+	const int32 Target = FMath::CountTrailingZeros(static_cast<uint32>(Added));
+	return Target == CurrentIndex ? INDEX_NONE : Target;
+}
+
+void UVeloxWeaponInventoryComponent::RunAutoSwitch(uint16 OldMask, uint16 NewMask)
+{
+	const AVeloxPlayerState* PlayerState = Cast<AVeloxPlayerState>(GetOwner());
+	const AVeloxPlayerController* Controller = PlayerState ? Cast<AVeloxPlayerController>(PlayerState->GetPlayerController()) : nullptr;
+	UVeloxAbilitySystemComponent* ASC = GetVeloxASC();
+	if (!Controller || !Controller->IsLocalController() || !ASC || !Controller->GetPawn())
+	{
+		return;
+	}
+	const int32 Current = GetCurrentIndex();
+	const int32 Target = SelectAutoSwitchTarget(Controller->ShouldAutoSwitchOnPickup(), AllowsAutoSwitchFrom(GetDefinition(Current)), Current, OldMask, NewMask);
+	const UVeloxWeaponDefinition* TargetDefinition = GetDefinition(Target);
+	const FGameplayTag SlotTag = TargetDefinition ? SlotInputTag(TargetDefinition->Slot) : FGameplayTag();
+	if (!SlotTag.IsValid())
+	{
+		return;
+	}
+	// One switch path: a slot press through the ASC input (processed in AVeloxPlayerController::PlayerTick), predicted
+	// and validated like a key press. Pressed and released in one frame, like a tap.
+	UE_LOG(LogVeloxCombat, Log, TEXT("%s: autoswitch %s -> %s (owned 0x%04x -> 0x%04x)"), *GetNameSafe(GetOwner()), *GetNameSafe(GetDefinition(Current)), *GetNameSafe(TargetDefinition),
+		OldMask, NewMask);
+	ASC->AbilityInputTagPressed(SlotTag);
+	ASC->AbilityInputTagReleased(SlotTag);
+}
+
+void UVeloxWeaponInventoryComponent::OnRep_OwnedMask(uint16 OldMask)
+{
+	// Predicted bits the server now confirms are no longer predictions.
+	PredictedOwnedMask &= static_cast<uint16>(~OwnedMask);
+	RunAutoSwitch(OldMask, OwnedMask);
 }
