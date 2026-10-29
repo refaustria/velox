@@ -22,6 +22,7 @@ void AVeloxGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxGameState, TimeLimitSeconds, Params);
 	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxGameState, OvertimeCount, Params);
 	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxGameState, WinnerPlayerState, Params);
+	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxGameState, KillFeed, Params);
 
 	FDoRepLifetimeParams InitialParams;
 	InitialParams.bIsPushBased = true;

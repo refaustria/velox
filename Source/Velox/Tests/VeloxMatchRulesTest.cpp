@@ -3,13 +3,24 @@
 //                                    (Duel) / draw (FFA), sudden death, timed overtime repeat, countdown requires ready in
 //                                    Duel and not in FFA, AI counts as ready, countdown aborts below MinPlayers, forfeit,
 //                                    intermission end / all ready, empty server, phase names.
+//   Velox.GameMode.KillFeed          (task 06) sequence wrap, ordering, damage tag choice; PlayerDied -> Kills/Deaths/Score, feed
+//                                    entry with snapshotted names, trimming to KillFeedLength, Reset zeroes.
 //   Velox.GameMode.ModeDefinitions   DA_GameMode_FFA / DA_GameMode_Duel carry the ADR 0004 defaults and map to the rules.
 
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Core/VeloxGameplayTags.h"
+#include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "GameFramework/WorldSettings.h"
+#include "GameModes/VeloxGameMode.h"
 #include "GameModes/VeloxGameModeDefinition.h"
+#include "GameModes/VeloxGameState.h"
+#include "GameModes/VeloxKillFeed.h"
+#include "GameModes/VeloxPlayerState.h"
 #include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxMatchRules.h"
 
@@ -50,6 +61,60 @@ namespace VeloxMatchRulesTest
 		P.bHuman = bHuman;
 		return P;
 	}
+
+	/** A world with an AVeloxGameMode (match rules off: no definition) and so a GameState. */
+	class FKillFeedTestWorld
+	{
+	public:
+		FKillFeedTestWorld()
+		{
+			const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("VeloxKillFeedTestWorld"), EUniqueObjectNameOptions::GloballyUnique);
+			FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+			World = UWorld::CreateWorld(EWorldType::Game, false, WorldName, GetTransientPackage());
+			check(World);
+			World->AddToRoot();
+			Context.SetCurrentWorld(World);
+			GameInstance = NewObject<UGameInstance>(GEngine);
+			GameInstance->AddToRoot();
+			Context.OwningGameInstance = GameInstance;
+			World->SetGameInstance(GameInstance);
+			World->GetWorldSettings()->DefaultGameMode = AVeloxGameMode::StaticClass();
+			World->SetGameMode(FURL());
+			World->InitializeActorsForPlay(FURL());
+			World->GetWorldSettings()->NotifyBeginPlay();
+		}
+
+		~FKillFeedTestWorld()
+		{
+			if (World)
+			{
+				World->EndPlay(EEndPlayReason::LevelTransition);
+				GEngine->ShutdownWorldNetDriver(World);
+				World->DestroyWorld(true);
+				World->SetPhysicsScene(nullptr);
+				GEngine->DestroyWorldContext(World);
+				World->RemoveFromRoot();
+				World = nullptr;
+			}
+			if (GameInstance)
+			{
+				GameInstance->RemoveFromRoot();
+			}
+		}
+
+		AVeloxPlayerState* NewPlayer(const TCHAR* Name)
+		{
+			AVeloxPlayerState* PlayerState = World->SpawnActor<AVeloxPlayerState>();
+			if (PlayerState)
+			{
+				PlayerState->SetPlayerName(Name);
+			}
+			return PlayerState;
+		}
+
+		UWorld* World = nullptr;
+		UGameInstance* GameInstance = nullptr;
+	};
 
 	FVeloxMatchInput Input(const FVeloxMatchRulesConfig& Rules, EVeloxMatchPhase Phase, double Now, double PhaseEnd, TArray<FVeloxMatchPlayer> Players)
 	{
@@ -256,6 +321,136 @@ bool FVeloxModeDefinitionsTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("rules ready"), Rules.bRequireReady, Def->bRequireReady);
 		TestEqual(TEXT("rules forfeit"), Rules.bLeaverForfeits, Def->bLeaverForfeits);
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxKillFeedTest, "Velox.GameMode.KillFeed", VeloxMatchRulesTest::Flags)
+
+bool FVeloxKillFeedTest::RunTest(const FString& Parameters)
+{
+	// World-free helpers.
+	TestTrue(TEXT("SeqLess 1 < 2"), VeloxKillFeed::SeqLess(1, 2));
+	TestFalse(TEXT("SeqLess 2 < 1"), VeloxKillFeed::SeqLess(2, 1));
+	TestFalse(TEXT("SeqLess equal"), VeloxKillFeed::SeqLess(5, 5));
+	TestTrue(TEXT("SeqLess wraps: 65535 < 0"), VeloxKillFeed::SeqLess(65535, 0));
+	TestTrue(TEXT("SeqLess wraps: 65530 < 3"), VeloxKillFeed::SeqLess(65530, 3));
+	{
+		TArray<FVeloxKillFeedEntry> Entries;
+		for (const uint16 Seq : {static_cast<uint16>(1), static_cast<uint16>(65534), static_cast<uint16>(0), static_cast<uint16>(65535)})
+		{
+			Entries.AddDefaulted_GetRef().Seq = Seq;
+		}
+		const TArray<FVeloxKillFeedEntry> Sorted = VeloxKillFeed::SortedBySeq(Entries);
+		TestEqual(TEXT("sorted count"), Sorted.Num(), 4);
+		if (Sorted.Num() == 4)
+		{
+			TestEqual(TEXT("sorted[0] = 65534"), static_cast<int32>(Sorted[0].Seq), 65534);
+			TestEqual(TEXT("sorted[1] = 65535"), static_cast<int32>(Sorted[1].Seq), 65535);
+			TestEqual(TEXT("sorted[2] = 0"), static_cast<int32>(Sorted[2].Seq), 0);
+			TestEqual(TEXT("sorted[3] = 1"), static_cast<int32>(Sorted[3].Seq), 1);
+		}
+		TestEqual(TEXT("oldest index = the 65534 entry"), VeloxKillFeed::OldestIndex(Entries), 1);
+		TestEqual(TEXT("oldest of nothing"), VeloxKillFeed::OldestIndex(TArray<FVeloxKillFeedEntry>()), static_cast<int32>(INDEX_NONE));
+	}
+	{
+		FGameplayTagContainer Tags(VeloxGameplayTags::Damage_Self);
+		Tags.AddTag(VeloxGameplayTags::Damage_Rocket);
+		TestTrue(TEXT("tag: weapon wins over Self"), VeloxKillFeed::PickDamageTag(Tags) == VeloxGameplayTags::Damage_Rocket.GetTag());
+		TestTrue(TEXT("tag: Self alone is kept"), VeloxKillFeed::PickDamageTag(FGameplayTagContainer(VeloxGameplayTags::Damage_Self)) == VeloxGameplayTags::Damage_Self.GetTag());
+		TestFalse(TEXT("tag: none"), VeloxKillFeed::PickDamageTag(FGameplayTagContainer()).IsValid());
+	}
+
+	// PlayerDied -> counters, score and feed (server path).
+	VeloxMatchRulesTest::FKillFeedTestWorld W;
+	AVeloxGameMode* GameMode = W.World->GetAuthGameMode<AVeloxGameMode>();
+	AVeloxGameState* GameState = GameMode ? GameMode->GetGameState<AVeloxGameState>() : nullptr;
+	if (!TestNotNull(TEXT("game mode"), GameMode) || !TestNotNull(TEXT("game state"), GameState))
+	{
+		return false;
+	}
+	AVeloxPlayerState* Alice = W.NewPlayer(TEXT("Alice"));
+	AVeloxPlayerState* Bob = W.NewPlayer(TEXT("Bob"));
+	if (!TestNotNull(TEXT("players"), Alice) || !TestNotNull(TEXT("players"), Bob))
+	{
+		return false;
+	}
+	TArray<FVeloxKillFeedEntry> Seen;
+	GameState->OnKillFeedEntry.AddLambda([&Seen](const FVeloxKillFeedEntry& Entry) { Seen.Add(Entry); });
+	int32 BotEvents = 0;
+	GameState->OnKill.AddLambda([&BotEvents](const FVeloxKillEvent&) { ++BotEvents; });
+
+	GameMode->PlayerDied(Bob, Alice, FGameplayTagContainer(VeloxGameplayTags::Damage_Rail));
+	TestEqual(TEXT("Alice kills"), Alice->GetKills(), 1);
+	TestEqual(TEXT("Alice deaths"), Alice->GetDeaths(), 0);
+	TestEqual(TEXT("Bob deaths"), Bob->GetDeaths(), 1);
+	TestEqual(TEXT("Alice score"), Alice->GetScore(), 1.f);
+	TestEqual(TEXT("OnKill (server-only event) still fires"), BotEvents, 1);
+	TestEqual(TEXT("feed delegate fired once on the server"), Seen.Num(), 1);
+	if (Seen.Num() == 1)
+	{
+		TestEqual(TEXT("entry killer"), Seen[0].KillerName, FString(TEXT("Alice")));
+		TestEqual(TEXT("entry victim"), Seen[0].VictimName, FString(TEXT("Bob")));
+		TestTrue(TEXT("entry tag"), Seen[0].DamageTag == VeloxGameplayTags::Damage_Rail.GetTag());
+		TestFalse(TEXT("entry not suicide"), Seen[0].bSuicide);
+	}
+
+	// Suicide: a death and -1, no kill; killer name = victim name.
+	GameMode->PlayerDied(Bob, nullptr, FGameplayTagContainer(VeloxGameplayTags::Damage_Rocket));
+	TestEqual(TEXT("suicide: no kill"), Bob->GetKills(), 0);
+	TestEqual(TEXT("suicide: deaths"), Bob->GetDeaths(), 2);
+	TestEqual(TEXT("suicide: score -1"), Bob->GetScore(), -1.f);
+	if (Seen.Num() == 2)
+	{
+		TestTrue(TEXT("suicide entry flagged"), Seen[1].bSuicide);
+		TestEqual(TEXT("suicide entry killer = victim"), Seen[1].KillerName, FString(TEXT("Bob")));
+		TestTrue(TEXT("suicide entry has the weapon tag"), Seen[1].DamageTag == VeloxGameplayTags::Damage_Rocket.GetTag());
+		TestEqual(TEXT("seq increases"), static_cast<int32>(Seen[1].Seq), static_cast<int32>(Seen[0].Seq) + 1);
+	}
+
+	// Names are snapshotted: the feed outlives the PlayerState.
+	Alice->Destroy();
+	{
+		const TArray<FVeloxKillFeedEntry> Feed = GameState->GetKillFeedOldestFirst();
+		TestEqual(TEXT("feed holds both"), Feed.Num(), 2);
+		if (Feed.Num() == 2)
+		{
+			TestEqual(TEXT("name survives the PlayerState"), Feed[0].KillerName, FString(TEXT("Alice")));
+		}
+	}
+
+	// Trimming to KillFeedLength (default 8): 12 more frags keep the newest 8, oldest first.
+	AVeloxPlayerState* Carol = W.NewPlayer(TEXT("Carol"));
+	for (int32 Index = 0; Index < 12; ++Index)
+	{
+		GameMode->PlayerDied(Bob, Carol, FGameplayTagContainer(VeloxGameplayTags::Damage_Plasma));
+	}
+	{
+		const TArray<FVeloxKillFeedEntry> Feed = GameState->GetKillFeedOldestFirst();
+		TestEqual(TEXT("feed trimmed to KillFeedLength"), Feed.Num(), GameState->GetKillFeedLength());
+		TestEqual(TEXT("KillFeedLength default"), GameState->GetKillFeedLength(), 8);
+		bool bOrdered = true;
+		for (int32 Index = 1; Index < Feed.Num(); ++Index)
+		{
+			bOrdered &= Feed[Index].Seq == static_cast<uint16>(Feed[Index - 1].Seq + 1);
+		}
+		TestTrue(TEXT("trimmed feed is a contiguous run, oldest first"), bOrdered);
+		TestTrue(TEXT("newest entry is the last frag"), !Feed.IsEmpty() && Feed.Last().KillerName == TEXT("Carol") && Feed.Last().Seq == 13);
+	}
+	TestEqual(TEXT("Carol kills"), Carol->GetKills(), 12);
+	TestEqual(TEXT("Bob deaths"), Bob->GetDeaths(), 14);
+
+	// Reset zeroes kills, deaths, score (engine) and ready.
+	Carol->SetReady(true);
+	Carol->Reset();
+	TestEqual(TEXT("Reset: kills"), Carol->GetKills(), 0);
+	TestEqual(TEXT("Reset: deaths"), Carol->GetDeaths(), 0);
+	TestEqual(TEXT("Reset: score"), Carol->GetScore(), 0.f);
+	TestFalse(TEXT("Reset: ready"), Carol->IsReady());
+	Bob->Reset();
+	TestEqual(TEXT("Reset: Bob deaths"), Bob->GetDeaths(), 0);
+
+	GameState->ClearKillFeed();
+	TestTrue(TEXT("ClearKillFeed"), GameState->GetKillFeed().Entries.IsEmpty());
 	return true;
 }
 
