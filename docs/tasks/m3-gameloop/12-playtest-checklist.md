@@ -2,7 +2,7 @@
 
 **Milestone:** M3 Game loop
 **Agent:** dev
-**Status:** todo
+**Status:** done (checklist only; ROADMAP/STATUS ticks left to the lead, not run: no build, docs only)
 **Depends on:** all others (last); ADR 0004 (and accepted ADRs 0001-0003)
 **Estimate:** 1 h; Wave 5
 
