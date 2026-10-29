@@ -8,6 +8,7 @@
 
 class UInputAction;
 class UInputMappingContext;
+class UEnhancedInputUserSettings;
 struct FVeloxShotTiming;
 
 /** Flags of AVeloxPlayerController::ClientConfirmHit. */
@@ -54,8 +55,8 @@ public:
 	bool IsWaitingForRespawn() const { return GetPawn() == nullptr && PawnLostTime >= 0.0; }
 	double GetPawnLostTime() const { return PawnLostTime; }
 
-	/** Q3 cg_autoswitch (ADR 0004 section 2). Task 09 wires UVeloxGameUserSettings::bAutoSwitchOnPickup; on until then. */
-	bool ShouldAutoSwitchOnPickup() const { return bAutoSwitchOnPickup; }
+	/** Q3 cg_autoswitch (ADR 0004 section 2): UVeloxGameUserSettings::bAutoSwitchOnPickup, read live. */
+	bool ShouldAutoSwitchOnPickup() const;
 
 	//~AController interface
 	virtual void SetPawn(APawn* InPawn) override;
@@ -122,12 +123,12 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Input")
 	TArray<TSoftObjectPtr<UInputAction>> RespawnInputActions;
 
-	/** Select a newly picked-up weapon while holding the machine gun / gauntlet. Replaced by the user setting in task 09. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Velox|Input")
-	bool bAutoSwitchOnPickup = true;
-
 private:
 	void OnRespawnInput();
+
+	/** Registers the mapping context with the Enhanced Input user settings once the subsystem has created them. */
+	UFUNCTION()
+	void OnInputUserSettingsInitialized(const UEnhancedInputUserSettings* Settings);
 
 	double LastHitConfirmTime = -1.0;
 	uint8 LastHitConfirmDamage = 0;

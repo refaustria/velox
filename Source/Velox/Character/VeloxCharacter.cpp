@@ -4,6 +4,7 @@
 
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Camera/CameraTypes.h"
+#include "UI/VeloxGameUserSettings.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxGameplayEffects.h"
@@ -395,11 +396,12 @@ void AVeloxCharacter::Input_MoveCompleted(const FInputActionValue& InputActionVa
 
 void AVeloxCharacter::Input_LookMouse(const FInputActionValue& InputActionValue)
 {
-	// Raw mouse delta, no smoothing or acceleration. Sensitivity and invert-Y come from user settings in M3.
-	const FVector2D Value = InputActionValue.Get<FVector2D>();
+	// Raw mouse delta, no smoothing or acceleration, scaled the Q3 way: degrees = counts x 0.022 x sensitivity (ADR 0004 section 7).
+	const UVeloxGameUserSettings& Settings = UVeloxGameUserSettings::GetOrDefault();
+	const FVector2D Degrees = VeloxSettingsMath::MouseDeltaToDegrees(InputActionValue.Get<FVector2D>(), Settings.MouseSensitivity, Settings.bInvertMouseY);
 
-	AddControllerYawInput(Value.X);
-	AddControllerPitchInput(Value.Y);
+	AddControllerYawInput(Degrees.X);
+	AddControllerPitchInput(Degrees.Y);
 }
 
 void AVeloxCharacter::Input_JumpStarted(const FInputActionValue& InputActionValue)
@@ -695,6 +697,7 @@ void AVeloxCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 	if (!bIsCorpse)
 	{
 		Super::CalcCamera(DeltaTime, OutResult);
+		ApplyViewSettings(OutResult);
 		return;
 	}
 	// Death camera (Q3 shows the body): in front of the corpse at DeathCamDistanceCm, looking down at its eyes.
@@ -713,4 +716,12 @@ void AVeloxCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 	}
 	OutResult.Location = CameraLocation;
 	OutResult.Rotation = (Pivot - CameraLocation).Rotation();
+	ApplyViewSettings(OutResult);
+}
+
+void AVeloxCharacter::ApplyViewSettings(FMinimalViewInfo& OutResult) const
+{
+	// The viewer's own setting, also while spectating another pawn: horizontal FOV, whatever the aspect ratio.
+	OutResult.FOV = VeloxSettingsMath::ClampFieldOfView(UVeloxGameUserSettings::GetOrDefault().FieldOfView);
+	OutResult.AspectRatioAxisConstraint = AspectRatio_MaintainXFOV;
 }

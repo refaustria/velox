@@ -100,6 +100,8 @@ public:
 	//~AActor interface
 	/** Corpses are viewed from a death camera: in front of the body, looking down at it (ADR 0003 section 8). */
 	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult) override;
+	/** Field of view and aspect constraint from the user settings (ADR 0004 section 7). */
+	void ApplyViewSettings(FMinimalViewInfo& OutResult) const;
 	/** Pits: 1000 environment damage on the pawn's own ASC (Q3: the world kills); a corpse that fell is left to its timer. */
 	virtual void FellOutOfWorld(const UDamageType& DmgType) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
