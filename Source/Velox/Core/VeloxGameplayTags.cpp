@@ -12,6 +12,8 @@ namespace VeloxGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Fire, "InputTag.Fire", "Fire the current weapon.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Zoom, "InputTag.Zoom", "Zoom.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Scoreboard, "InputTag.Scoreboard", "Show the scoreboard.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Ready, "InputTag.Ready", "Toggle ready-up (warmup / intermission).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Menu, "InputTag.Menu", "Open the in-game menu.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Weapon_Next, "InputTag.Weapon.Next", "Switch to the next weapon.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Weapon_Prev, "InputTag.Weapon.Prev", "Switch to the previous weapon.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Weapon_Slot1, "InputTag.Weapon.Slot1", "Select weapon slot 1.");

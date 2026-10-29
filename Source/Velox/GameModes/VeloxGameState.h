@@ -3,6 +3,7 @@
 #pragma once
 
 #include "GameFramework/GameState.h"
+#include "GameModes/VeloxKillFeed.h"
 #include "GameModes/VeloxMatchRules.h"
 #include "GameplayTagContainer.h"
 
@@ -48,8 +49,25 @@ class VELOX_API AVeloxGameState : public AGameState
 public:
 	AVeloxGameState(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
-	/** Server-local in M2 (ADR 0003 section 8); M3 replicates the frag feed and the scoreboard. */
+	/** Server-only, the richer event for M4 bots (ADR 0003 section 8, B29: unchanged). Clients use OnKillFeedEntry. */
 	FOnVeloxKill OnKill;
+
+	// ---- Kill feed (ADR 0004 section 6; task 06) ----
+	/** Server: at the frag. Clients: for every replicated entry, including the earlier ones a late joiner receives. */
+	FOnVeloxKillFeedEntry OnKillFeedEntry;
+
+	/** The replicated feed, unordered on clients; use GetKillFeedOldestFirst for display. */
+	const FVeloxKillFeed& GetKillFeed() const { return KillFeed; }
+	TArray<FVeloxKillFeedEntry> GetKillFeedOldestFirst() const { return VeloxKillFeed::SortedBySeq(KillFeed.Entries); }
+	int32 GetKillFeedLength() const { return FMath::Max(KillFeedLength, 1); }
+
+	/**
+	 * Server (AVeloxGameMode::PlayerDied): stamps Seq and ServerTime, drops the oldest entry beyond KillFeedLength,
+	 * replicates and broadcasts OnKillFeedEntry locally. Returns the stored entry.
+	 */
+	const FVeloxKillFeedEntry& AppendKillFeedEntry(FVeloxKillFeedEntry Entry);
+	/** Server: forgets the feed (not done by a level reset; the feed spans the intermission on purpose). */
+	void ClearKillFeed();
 
 	// ---- Match phase (ADR 0004 section 5; task 05). Clients compute every clock from GetServerWorldTimeSeconds(). ----
 public:
@@ -112,4 +130,13 @@ private:
 
 	UPROPERTY(Replicated)
 	TObjectPtr<const UVeloxCombatSettings> CombatSettingsOverride;
+
+	/** Entries kept (and so sent to a late joiner). DefaultGame.ini [/Script/Velox.VeloxGameState]. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|KillFeed", meta = (ClampMin = "1"))
+	int32 KillFeedLength = 8;
+
+	UPROPERTY(Replicated)
+	FVeloxKillFeed KillFeed;
+
+	uint16 NextKillFeedSeq = 0;
 };

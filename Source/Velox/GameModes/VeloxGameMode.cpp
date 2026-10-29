@@ -51,6 +51,8 @@ void AVeloxGameMode::PlayerDied(AVeloxPlayerState* Victim, AVeloxPlayerState* Ki
 		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxKill victim=%s killer=%s ignored (PostMatch)"), *AVeloxPlayerState::VeloxPlayerLabel(Victim), *AVeloxPlayerState::VeloxPlayerLabel(Killer));
 		return;
 	}
+	// Kills count real frags only (ADR 0004 section 6); a suicide is a death and -1 score, as in Q3.
+	Victim->AddDeath();
 	if (bSuicide)
 	{
 		Victim->SetScore(Victim->GetScore() - 1.f);
@@ -58,12 +60,23 @@ void AVeloxGameMode::PlayerDied(AVeloxPlayerState* Victim, AVeloxPlayerState* Ki
 	else
 	{
 		Killer->SetScore(Killer->GetScore() + 1.f);
+		Killer->AddKill();
 	}
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxKill victim=%s killer=%s suicide=%d tags=[%s] score_killer=%.0f score_victim=%.0f"), *AVeloxPlayerState::VeloxPlayerLabel(Victim),
-		*AVeloxPlayerState::VeloxPlayerLabel(Killer), bSuicide ? 1 : 0, *DamageTags.ToStringSimple(), Killer ? Killer->GetScore() : 0.f, Victim->GetScore());
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxKill victim=%s killer=%s suicide=%d tags=[%s] score_killer=%.0f score_victim=%.0f kills_killer=%d deaths_victim=%d"), *AVeloxPlayerState::VeloxPlayerLabel(Victim),
+		*AVeloxPlayerState::VeloxPlayerLabel(Killer), bSuicide ? 1 : 0, *DamageTags.ToStringSimple(), Killer ? Killer->GetScore() : 0.f, Victim->GetScore(), Killer ? Killer->GetKills() : 0,
+		Victim->GetDeaths());
 
 	if (AVeloxGameState* VeloxGameState = GetGameState<AVeloxGameState>())
 	{
+		FVeloxKillFeedEntry FeedEntry;
+		FeedEntry.VictimName = AVeloxPlayerState::VeloxPlayerLabel(Victim);
+		FeedEntry.KillerName = bSuicide ? FeedEntry.VictimName : AVeloxPlayerState::VeloxPlayerLabel(Killer);
+		FeedEntry.VictimColor = Victim->GetPlayerColorIndex();
+		FeedEntry.KillerColor = bSuicide ? FeedEntry.VictimColor : Killer->GetPlayerColorIndex();
+		FeedEntry.DamageTag = VeloxKillFeed::PickDamageTag(DamageTags);
+		FeedEntry.bSuicide = bSuicide;
+		VeloxGameState->AppendKillFeedEntry(MoveTemp(FeedEntry));
+
 		FVeloxKillEvent Event;
 		Event.Victim = Victim;
 		Event.Killer = Killer ? Killer : Victim;

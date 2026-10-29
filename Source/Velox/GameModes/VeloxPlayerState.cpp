@@ -72,12 +72,28 @@ void AVeloxPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AVeloxPlayerState, PlayerColorIndex);
 	DOREPLIFETIME(AVeloxPlayerState, bReady);
+	DOREPLIFETIME(AVeloxPlayerState, Kills);
+	DOREPLIFETIME(AVeloxPlayerState, Deaths);
 }
 
 void AVeloxPlayerState::Reset()
 {
 	Super::Reset();
 	bReady = false;
+	Kills = 0;
+	Deaths = 0;
+}
+
+void AVeloxPlayerState::AddKill()
+{
+	++Kills;
+	ForceNetUpdate();
+}
+
+void AVeloxPlayerState::AddDeath()
+{
+	++Deaths;
+	ForceNetUpdate();
 }
 
 bool AVeloxPlayerState::SetReady(bool bInReady)

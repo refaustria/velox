@@ -73,6 +73,10 @@ def build_input():
         "IA_Jump": make_action("IA_Jump", VT.BOOLEAN),
         "IA_Crouch": make_action("IA_Crouch", VT.BOOLEAN),
         "IA_Fire": make_action("IA_Fire", VT.BOOLEAN),
+        # ADR 0004 section 6/7 (task 06): UI actions, bound by the player controller / HUD (tasks 08, 10), not by abilities.
+        "IA_Ready": make_action("IA_Ready", VT.BOOLEAN),
+        "IA_Scoreboard": make_action("IA_Scoreboard", VT.BOOLEAN),
+        "IA_Menu": make_action("IA_Menu", VT.BOOLEAN),
     }
     # ADR 0003 section 4: Q3 weapon select (keys 1-9 = slot, mouse wheel = weapnext/weapprev).
     for slot in range(1, 10):
@@ -104,6 +108,9 @@ def build_input():
     imc.map_key(actions["IA_Jump"], key("SpaceBar"))
     imc.map_key(actions["IA_Crouch"], key("LeftControl"))
     imc.map_key(actions["IA_Fire"], key("LeftMouseButton"))
+    imc.map_key(actions["IA_Ready"], key("F3"))
+    imc.map_key(actions["IA_Scoreboard"], key("Tab"))
+    imc.map_key(actions["IA_Menu"], key("Escape"))
     slot_keys = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"]
     for slot, key_name in enumerate(slot_keys, start=1):
         imc.map_key(actions[f"IA_Weapon_Slot{slot}"], key(key_name))
@@ -191,6 +198,9 @@ def build_data(actions):
             entry(actions["IA_Look"], "InputTag.Look.Mouse"),
             entry(actions["IA_Jump"], "InputTag.Jump"),
             entry(actions["IA_Crouch"], "InputTag.Crouch"),
+            entry(actions["IA_Ready"], "InputTag.Ready"),
+            entry(actions["IA_Scoreboard"], "InputTag.Scoreboard"),
+            entry(actions["IA_Menu"], "InputTag.Menu"),
         ])
         ability = [entry(actions["IA_Fire"], "InputTag.Fire")]
         ability += [entry(actions[f"IA_Weapon_Slot{slot}"], f"InputTag.Weapon.Slot{slot}") for slot in range(1, 10)]
