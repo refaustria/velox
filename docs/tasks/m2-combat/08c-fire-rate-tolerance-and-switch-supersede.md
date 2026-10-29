@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged into m2-combat; follow-ups in 08e)
 **Depends on:** 08b (2876aba), ADR 0003 B32, B33, B34; review `docs/reviews/m2-08b-m1-07-review.md` defects 1 and 2
 
 ## Goal
