@@ -564,7 +564,8 @@ elif script in ("FireRun", "FireRunControl", "FireRunHold"):
     control = script == "FireRunControl"
     hold_run = script == "FireRunHold"
     # Task 08g / B36: shots the server held (velox.combat.DebugHoldShotRpc); judged separately from the FireRun rules.
-    held = [kv(l).get("seq") for l in S if "VeloxShotRpcHeld seq=" in l]
+    held_lines = [kv(l) for l in S if "VeloxShotRpcHeld seq=" in l]
+    held = [d.get("seq") for d in held_lines]
     WALL_RE = re.compile(r"^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]")
     def wall(line):
         m = WALL_RE.match(line)
@@ -624,19 +625,30 @@ elif script in ("FireRun", "FireRunControl", "FireRunHold"):
         fails.append("%d VeloxShotOriginSnap line(s), max err_cm %.1f: %s" % (len(snap_lines), max(num(d, "err_cm") for d in snap_lines),
             ["seq=%s err_cm=%s reason=%s late_ms=%s" % (d.get("seq"), d.get("err_cm"), d.get("reason"), d.get("late_ms")) for d in snap_lines[:4]]))
     if hold_run:
-        # Task 08g: the three held rails are processed 300 ms late; late_ms in [280, 360], no snap, no rejection; their
-        # hit / miss and rewind_ms (clamped at MaxRewindSeconds) are reported, not asserted.
+        # Task 08j / B39: late_ms at release = lateness at hold time (VeloxShotRpcHeld late_ms=, 0 unless the RPC was a resend,
+        # RTT + ~80 ms after a lost packet) + the hold + timer/move-stream quantisation. Assert the delta = hold +- 50 ms (hold
+        # = the ms= of the held line = the DebugHoldShotRpc argument) and late_pre <= RTT + 150; hit / rewind_ms are reported.
         rows = []
-        for seq in held:
+        for hd in held_lines:
+            seq = hd.get("seq")
             s_ = srv.get(seq)
             if s_ is None:
                 rows.append("seq=%s:no_server_line" % seq)
                 fails.append("held rail seq=%s has no server VeloxShot line" % seq)
                 continue
             late = s_.get("late_ms")
-            rows.append("seq=%s:late=%s/rewind=%s/hint=%s/hit=%s" % (seq, late, s_.get("rewind_ms"), s_.get("hint"), s_.get("hit")))
-            if late in (None, "na") or not (280.0 <= num(s_, "late_ms") <= 360.0):
-                fails.append("held rail seq=%s late_ms=%s not in [280, 360]" % (seq, late))
+            pre = hd.get("late_ms")
+            hold = num(hd, "ms", 300.0)
+            if late in (None, "na") or pre in (None, "na"):
+                fails.append("held rail seq=%s late_pre=%s late_final=%s (want numbers)" % (seq, pre, late))
+                rows.append("seq=%s:late_pre=%s/late_final=%s" % (seq, pre, late))
+                continue
+            delta = num(s_, "late_ms") - num(hd, "late_ms")
+            rows.append("seq=%s:late_pre=%s/late_final=%s/delta=%.1f/rewind=%s/hint=%s/hit=%s" % (seq, pre, late, delta, s_.get("rewind_ms"), s_.get("hint"), s_.get("hit")))
+            if not (hold - 50.0 <= delta <= hold + 50.0):
+                fails.append("held rail seq=%s late_final - late_pre = %.1f not in [%.0f, %.0f] (late_pre %s, late_final %s)" % (seq, delta, hold - 50.0, hold + 50.0, pre, late))
+            if num(hd, "late_ms") > rtt * 1000.0 + 150.0:
+                fails.append("held rail seq=%s late_pre %s > RTT %.0f + 150" % (seq, pre, rtt * 1000.0))
         detail.append("held=[%s]" % " ".join(rows))
         if len(held) != 3:
             fails.append("expected 3 held rail RPCs (VeloxShotRpcHeld seq=), got %d" % len(held))
@@ -746,6 +758,7 @@ elif script in ("RocketJumpRun", "RocketJumpRunHold"):
             fails.append("VeloxSelfSplash dist server %s client %s differ by > 1 cm" % (a.get("dist"), b.get("dist")))
     if any("VeloxSelfSplash" in l and "forced by the deadline" in l for l in S):
         fails.append("VeloxSelfSplash forced by the deadline (no owner move reached the event)")
+    S_held = [kv(l) for l in S if "VeloxShotRpcHeld seq=" in l]
     shots = [kv(l) for l in S if "VeloxProjectileShot seq=" in l and "client_ts=" in l]
     if not shots:
         fails.append("no VeloxProjectileShot line on the server")
@@ -762,8 +775,17 @@ elif script in ("RocketJumpRun", "RocketJumpRunHold"):
             gap = abs(num(d, "client_ts") - num(d, "last_ts"))
             if gap > 1.0 / 60.0 + rtt:
                 fails.append("VeloxProjectileShot seq=%s |client_ts - last_ts| %.4f > 1/60 + RTT %.3f" % (d.get("seq"), gap, rtt))
-        if script == "RocketJumpRunHold" and not (280.0 <= num(d, "late_ms", -1.0) <= 360.0):
-            fails.append("RocketJumpRunHold: VeloxProjectileShot seq=%s late_ms=%s not in [280, 360] (hold not applied?)" % (d.get("seq"), d.get("late_ms")))
+        if script == "RocketJumpRunHold":
+            hd = next((h for h in S_held if h.get("seq") == d.get("seq")), None)
+            if hd is None or hd.get("late_ms") in (None, "na") or "late_ms" not in d:
+                fails.append("RocketJumpRunHold: seq=%s has no held-line late_ms / shot late_ms (hold not applied?)" % d.get("seq"))
+            else:
+                pre, fin, hold = num(hd, "late_ms"), num(d, "late_ms"), num(hd, "ms", 300.0)
+                detail.append("late_pre=%.1f late_final=%.1f delta=%.1f" % (pre, fin, fin - pre))
+                if not (hold - 50.0 <= fin - pre <= hold + 50.0):
+                    fails.append("RocketJumpRunHold: late_final - late_pre = %.1f not in [%.0f, %.0f]" % (fin - pre, hold - 50.0, hold + 50.0))
+                if pre > rtt * 1000.0 + 150.0:
+                    fails.append("RocketJumpRunHold: late_pre %.1f > RTT %.0f + 150" % (pre, rtt * 1000.0))
     if script == "RocketJumpRunHold" and not any("VeloxShotRpcHeld" in l for l in S):
         fails.append("RocketJumpRunHold: no VeloxShotRpcHeld line on the server (velox.combat.DebugHoldShotRpc did not act)")
     for tag in ("VeloxShotLate", "VeloxMoveShotOrphan", "VeloxShotOriginSnap", "VeloxMoveShotMismatch"):

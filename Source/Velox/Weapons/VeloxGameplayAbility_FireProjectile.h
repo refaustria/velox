@@ -78,12 +78,6 @@ public:
 	/** "move" or "rpc": where the self splash of the last server-side remote shot came from (tests, logs); "" otherwise. */
 	const TCHAR* GetLastServerShotSource() const { return LastServerShotSource; }
 
-	/**
-	 * ADR 0003 B35: how far (ms) the owner's processed move stream (LastMoveStamp) is past a shot's fire stamp, wrap-aware
-	 * over ResetPeriod (MinTimeBetweenTimeStampResets). The late_ms of the VeloxProjectileShot line.
-	 */
-	static double ComputeShotLateMs(float LastMoveStamp, float FireMoveTimeStamp, float ResetPeriod);
-
 	/** A source=rpc shot later than one 60 Hz move + 40 ms jitter is reported as VeloxShotLate (B35). */
 	static bool IsShotLate(double LateMs) { return LateMs > 1000.0 / 60.0 + 40.0; }
 

@@ -91,16 +91,6 @@ UVeloxGameplayAbility_FireProjectile::UVeloxGameplayAbility_FireProjectile(const
 {
 }
 
-double UVeloxGameplayAbility_FireProjectile::ComputeShotLateMs(float LastMoveStamp, float FireMoveTimeStamp, float ResetPeriod)
-{
-	double Delta = static_cast<double>(LastMoveStamp) - static_cast<double>(FireMoveTimeStamp);
-	if (Delta < -0.5 * ResetPeriod)
-	{
-		Delta += ResetPeriod; // a time stamp reset in between
-	}
-	return Delta * 1000.0;
-}
-
 void UVeloxGameplayAbility_FireProjectile::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {

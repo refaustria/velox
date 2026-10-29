@@ -4,6 +4,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAmmoSet.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
@@ -229,6 +230,16 @@ EVeloxShotReject UVeloxGameplayAbility_Fire::ValidateServerShot(const FGameplayA
 		OutShot, bConsumeBucket);
 }
 
+double UVeloxGameplayAbility_Fire::ComputeShotLateMs(float LastMoveStamp, float FireMoveTimeStamp, float ResetPeriod)
+{
+	double Delta = static_cast<double>(LastMoveStamp) - static_cast<double>(FireMoveTimeStamp);
+	if (Delta < -0.5 * ResetPeriod)
+	{
+		Delta += ResetPeriod; // a time stamp reset in between
+	}
+	return Delta * 1000.0;
+}
+
 bool UVeloxGameplayAbility_Fire::DebugHoldServerTargetData(const FGameplayAbilityTargetDataHandle& Data, TFunction<void()>&& Resume)
 {
 #if UE_BUILD_SHIPPING
@@ -246,8 +257,17 @@ bool UVeloxGameplayAbility_Fire::DebugHoldServerTargetData(const FGameplayAbilit
 	const UScriptStruct* RawType = Raw ? Raw->GetScriptStruct() : nullptr;
 	const uint8 HeldSeq = RawType && RawType->IsChildOf(FGameplayAbilityTargetData_VeloxShot::StaticStruct())
 		? static_cast<const FGameplayAbilityTargetData_VeloxShot*>(Raw)->ShotSeq : 0;
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotRpcHeld seq=%u weapon=%s slot=%d ms=%.0f t=%.3f"), HeldSeq, *GetNameSafe(Definition), Definition->Slot, HoldSeconds * 1000.f,
-		World->GetTimeSeconds());
+	// Lateness the RPC already has at hold time (0 unless it was a resend): the scripts assert late_final - late_pre ~ hold (08j, B39).
+	FString LateText = TEXT("na");
+	const AVeloxCharacter* Character = Cast<AVeloxCharacter>(GetShooterPawn());
+	const UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
+	if (Movement && RawType && RawType->IsChildOf(FGameplayAbilityTargetData_VeloxShot::StaticStruct()))
+	{
+		LateText = FString::Printf(TEXT("%.1f"), ComputeShotLateMs(Movement->GetServerClientMoveTimeStamp(),
+			static_cast<const FGameplayAbilityTargetData_VeloxShot*>(Raw)->FireMoveTimeStamp, Movement->MinTimeBetweenTimeStampResets));
+	}
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotRpcHeld seq=%u weapon=%s slot=%d ms=%.0f t=%.3f late_ms=%s"), HeldSeq, *GetNameSafe(Definition), Definition->Slot, HoldSeconds * 1000.f,
+		World->GetTimeSeconds(), *LateText);
 	FTimerHandle Handle;
 	World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this, Resume = MoveTemp(Resume)]()
 	{
