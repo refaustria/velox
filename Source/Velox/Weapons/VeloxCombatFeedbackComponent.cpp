@@ -14,6 +14,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Items/VeloxPowerupEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "UI/VeloxHUDFormat.h"
 #include "Weapons/VeloxProjectile.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxCombatFeedbackComponent)
@@ -36,6 +37,14 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 {
 	if (HandlePowerupCue(CueTag, EventType))
 	{
+		return;
+	}
+	if (CueTag == VeloxGameplayTags::GameplayCue_Character_Damage)
+	{
+		if (EventType == EGameplayCueEvent::Executed && GetOwner())
+		{
+			RecordDamageDirection(GetOwner()->GetActorLocation(), Parameters.Location, GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0);
+		}
 		return;
 	}
 	const FVector Start = Parameters.EffectContext.IsValid() && Parameters.EffectContext.HasOrigin() ? Parameters.EffectContext.GetOrigin() : Parameters.Location;
@@ -83,6 +92,19 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 		DrawDebugSphere(World, Parameters.Location, Parameters.RawMagnitude > 0.f ? Parameters.RawMagnitude : 6.f, 8, FColor::Orange, false, 0.5f);
 	}
 #endif
+}
+
+void UVeloxCombatFeedbackComponent::RecordDamageDirection(const FVector& OwnerLocation, const FVector& SourceLocation, double Now)
+{
+	FVeloxDamageDirection& Record = DamageDirections.AddDefaulted_GetRef();
+	Record.WorldYaw = VeloxHUDFormat::YawFromTo(OwnerLocation, SourceLocation);
+	Record.Distance2D = static_cast<float>(FVector::Dist2D(OwnerLocation, SourceLocation));
+	Record.Time = Now;
+	const int32 Excess = DamageDirections.Num() - FMath::Max(MaxDamageDirections, 1);
+	if (Excess > 0)
+	{
+		DamageDirections.RemoveAt(0, Excess, EAllowShrinking::No);
+	}
 }
 
 void UVeloxCombatFeedbackComponent::OnHitConfirmed(uint8 ShotSeq, uint8 TotalDamage, uint8 ConfirmFlags)
