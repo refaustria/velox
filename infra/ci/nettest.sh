@@ -39,7 +39,8 @@ Usage: ${CI_SCRIPT_NAME} [options]
 
 Runs dedicated server + scripted -nullrhi client (100 ms / 2 % loss both directions) per script and checks the
 net-soak pass criteria. Exit code is non-zero if any script fails. FireRun, FireRunControl (FireRun.json with
-velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest.
+velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest. ItemRun runs on
+L_ItemTest. HasteRun (M3 task 03, not in the default list) runs on L_MovementTest.
 
 Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
@@ -720,6 +721,93 @@ elif script == "RocketJumpRun":
     elif not any(e.get("self") == "move_timed" for e in ex):
         fails.append("VeloxProjectileExplode self=%s (want move_timed)" % [e.get("self") for e in ex])
 
+elif script == "HasteRun":
+    # M3 task 03 / ADR 0004 sections 3 and 10: HasteRun.json on L_MovementTest. Client: VeloxNetSoak event=haste t= (the
+    # row that asks the server for 2.5 s of Haste), VeloxScript row lines (vel= at row start), VeloxHasteState role=client
+    # (live moves: active flips with ts, speed2d at the move start, peak2d), VeloxPowerupMoveTimes recv= (end times taken
+    # from a response). Server: VeloxNetSoak event=haste_server haste_end=, VeloxHasteState role=server.
+    # vel is FVector::ToCompactString: V(0) or V(X=.., Y=.., Z=..) with zero components left out.
+    ROW_RE = re.compile(r"VeloxScript: st=(\S+) row=(\d+) '([^']*)' pos=.* vel=(V\([^)]*\))")
+    def row_speed(label):
+        for l in C:
+            m = ROW_RE.search(l)
+            if m and m.group(3) == label:
+                comp = dict((a, float(b)) for a, b in re.findall(r"([XYZ])=(-?[0-9.]+)", m.group(4)))
+                return math.hypot(comp.get("X", 0.0), comp.get("Y", 0.0))
+        return None
+    def states(lines, role):
+        return [kv(l) for l in lines if "VeloxHasteState role=%s " % role in l]
+    hc = next((kv(l) for l in C if "VeloxNetSoak event=haste " in l), None)
+    hs = next((kv(l) for l in S if "VeloxNetSoak event=haste_server " in l), None)
+    cs, ss = states(C, "client"), states(S, "server")
+    c_on = [d for d in cs if d.get("active") == "1"]; c_off = [d for d in cs if d.get("active") == "0"]
+    s_on = [d for d in ss if d.get("active") == "1"]; s_off = [d for d in ss if d.get("active") == "0"]
+    if hc is None:
+        fails.append("no client 'VeloxNetSoak event=haste' line")
+    if hs is None:
+        fails.append("no server 'VeloxNetSoak event=haste_server' line (RPC rejected?)")
+    for name, on, off in (("client", c_on, c_off), ("server", s_on, s_off)):
+        if len(on) != 1 or len(off) != 1:
+            fails.append("%s: want exactly one VeloxHasteState active=1 and one active=0 line, got %d / %d" % (name, len(on), len(off)))
+    base, hasted, after = row_speed("haste"), row_speed("strafe hop"), row_speed("after expiry")
+    detail.append("client speed base=%s hasted=%s after=%s" % tuple(("%.1f" % v) if v is not None else "-" for v in (base, hasted, after)))
+    TOL = 0.995   # steady-state convergence of the ground speed (Q3 accel/friction substeps)
+    scale = 1.3
+    if None in (base, hasted, after):
+        fails.append("missing VeloxScript row lines (haste / strafe hop / after expiry)")
+    else:
+        if hasted < scale * base * TOL:
+            fails.append("client hasted ground speed %.1f < 1.3 x baseline %.1f" % (hasted, base))
+        if after > 1.01 * base or after < 0.99 * base:
+            fails.append("client speed 1 s after the expiry %.1f not back at the baseline %.1f (+- 1 %%)" % (after, base))
+    if len(s_on) == 1 and len(s_off) == 1:
+        sb, sh = num(s_on[0], "speed2d"), num(s_off[0], "speed2d")
+        detail.append("server speed base=%.1f at_expiry=%.1f peak=%s" % (sb, sh, s_off[0].get("peak2d")))
+        if sh < scale * sb * TOL:
+            fails.append("server hasted ground speed at the expiry %.1f < 1.3 x its speed at the pickup move %.1f" % (sh, sb))
+    if len(c_off) == 1 and base is not None:
+        ch = num(c_off[0], "speed2d")
+        if ch < scale * base * TOL:
+            fails.append("client hasted ground speed at the expiry %.1f < 1.3 x baseline %.1f" % (ch, base))
+    # The end time the server set is the one the client received (full float precision through acks and corrections).
+    recv = [kv(l) for l in C if "VeloxPowerupMoveTimes recv=" in l]
+    got = [d for d in recv if num(d, "haste_end") != 0.0]
+    if hs is not None:
+        if not got:
+            fails.append("client never received a non-zero haste_end (VeloxPowerupMoveTimes recv=)")
+        elif got[0].get("haste_end") != hs.get("haste_end"):
+            fails.append("client received haste_end=%s, server set %s" % (got[0].get("haste_end"), hs.get("haste_end")))
+        else:
+            detail.append("haste_end=%s via %s after %.0f ms" % (hs.get("haste_end"), got[0].get("recv"), (num(got[0], "t") - num(hc, "t")) * 1000.0 if hc else -1.0))
+    # Expiry: exact in the move timeline - the first non-hasted move starts at the same boundary on both ends. The client
+    # logs its live move, which it may combine with the next one before sending (the server then simulates the combined
+    # move), so the start stamps ts - dt are compared, not the end stamps.
+    if len(c_off) == 1 and len(s_off) == 1:
+        cts = num(c_off[0], "ts") - num(c_off[0], "dt")
+        sts = num(s_off[0], "ts") - num(s_off[0], "dt")
+        detail.append("expiry_boundary client=%.6f server=%.6f" % (cts, sts))
+        if abs(cts - sts) > 1e-5:
+            g = next((g for g in gaps if num(g, "ts") - num(g, "dt") < cts + 1e-6 and cts <= num(g, "ts") + 1e-6), None)
+            if g is not None:
+                notes.append("expiry move merged on the server (VeloxMoveGap ts=%s dt=%s): client ts=%s server ts=%s" % (g.get("ts"), g.get("dt"), c_off[0].get("ts"), s_off[0].get("ts")))
+            else:
+                fails.append("expiry at different move boundaries: client ts=%s dt=%s server ts=%s dt=%s" % (c_off[0].get("ts"), c_off[0].get("dt"), s_off[0].get("ts"), s_off[0].get("dt")))
+    # Windows (client world time). t_pickup = the server's grant in client time: the request row + one-way lag.
+    if hc is not None:
+        th = num(hc, "t")
+        t_pick_end = th + rtt / 2.0 + 0.3
+        w = in_window(th, t_pick_end)
+        detail.append("pickup_window=[%.2f,%.2f] corr=%s" % (th, t_pick_end, fmt(w)))
+        if len(w) > 1 or any(c[1] > 30.0 for c in w):
+            fails.append("pickup: non-echo corrections in [t_h, t_h + RTT/2 + 0.3]: %s (allowed: at most one <= 30 cm)" % fmt(w))
+        excluded.extend(w)
+    if len(c_off) == 1:
+        te = num(c_off[0], "t")
+        around = [c for c in corr if te - 1.0 <= c[0] <= te + 1.0]
+        detail.append("expiry t=%.2f corr_2s=%d" % (te, len(around)))
+        if around:
+            fails.append("corrections in the 2 s around the expiry (want 0): %s" % fmt(around))
+
 elif script == "ItemRun":
     # M3 task 04 / ADR 0004 section 10: the client runs over Health.Small, Armor.Shard and Ammo.Bullets (ItemRun.json, L_ItemTest).
     # Client lines: VeloxPickupPredict item= t= (the predicted take), VeloxPickupPredict{Confirmed,Lost,Refused} item= ms=,
@@ -825,7 +913,7 @@ rest = [c for c in nonecho if c not in excluded]
 xs = [c[1] for c in rest]
 x = max(xs) if xs else 0.0
 y = sum(xs) / len(xs) if xs else 0.0
-if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl"):
+if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "HasteRun"):
     if len(rest) > 3 * Lexp:
         fails.append("corrections C=%d > 3 x L_exp (%.1f)" % (len(rest), 3 * Lexp))
     if x > 30.0:

@@ -154,4 +154,13 @@ public:
 	/** Allow the engine to combine saved moves while falling (ADR 0002 section 5). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Integration")
 	bool bCombineAirMoves = false;
+
+	// --- Powerups (ADR 0004 section 3) ---
+
+	/**
+	 * Haste: scale of the wish-speed caps MaxGroundSpeed and AirMaxWishSpeed while Haste is active in the move timeline
+	 * (Q3 g_speed x 1.3). Air strafe cap, accelerations, friction, StopSpeed and JumpVelocity are not scaled.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Powerups", Meta = (ClampMin = "1.0"))
+	float HasteSpeedScale = 1.3f;
 };

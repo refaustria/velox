@@ -23,6 +23,9 @@ class UVeloxHitboxComponent;
 class UVeloxMovementComponent;
 class UVeloxScriptedInputComponent;
 class UVeloxPawnData;
+struct FActiveGameplayEffectHandle;
+struct FGameplayEffectRemovalInfo;
+struct FGameplayEffectSpec;
 struct FInputActionValue;
 struct FVeloxDamageEvent;
 
@@ -77,6 +80,21 @@ public:
 	/** Test hook: the body's current colour parameter value (black when there is no body material). */
 	FLinearColor GetBodyColor() const;
 
+	/**
+	 * Server (ADR 0004 section 3): writes the remaining time of the active Haste and Quad effects on the PlayerState ASC into
+	 * the movement component's move timeline (UVeloxMovementComponent::ServerSetPowerupRemaining). A powerup without an
+	 * active effect keeps its end time (a natural expiry happens in the move timeline itself, exactly on both ends); a
+	 * premature removal clears it (the GE removal delegate). Called by the pickup grant and the powerup cheats; the GE
+	 * delegates bound in InitAbilityActorInfo (applied, duration changed, removed) call it as well.
+	 */
+	void ServerRefreshPowerupMoveTimes();
+
+	/**
+	 * Server, non-shipping test hook (velox.move.Haste, the HasteRun soak's "serverHaste" row): Haste with exactly Seconds
+	 * remaining through VeloxPowerups::GrantOrExtend, i.e. the pickup's GE path. Logs `VeloxNetSoak event=haste_server`.
+	 */
+	void ServerGiveTestHaste(float Seconds);
+
 	//~IGameplayCueInterface
 	/** Native cue handling (ADR 0003 section 5): forwards to UVeloxCombatFeedbackComponent, then to the interface default. */
 	virtual void HandleGameplayCue(UObject* Self, FGameplayTag GameplayCueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters) override;
@@ -110,6 +128,7 @@ public:
 protected:
 	//~AActor interface
 	virtual void PostInitializeComponents() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	//~End of AActor interface
 
 	//~APawn interface
@@ -197,4 +216,18 @@ private:
 	/** Test tooling (task 05): scripted input replay and test knockback RPC. Created in non-shipping builds only. */
 	UPROPERTY()
 	TObjectPtr<UVeloxScriptedInputComponent> ScriptedInput;
+
+	// ADR 0004 section 3, server: the PlayerState ASC's powerup GEs drive the move timeline (ServerRefreshPowerupMoveTimes).
+	void BindPowerupMoveTimes(UAbilitySystemComponent& ASC);
+	void UnbindPowerupMoveTimes();
+	/** Per active Haste/Quad effect: duration changes (in-place extension) and removal (premature: clear the end time). */
+	void BindPowerupEffectHandle(UAbilitySystemComponent& ASC, const FActiveGameplayEffectHandle& Handle);
+	void OnPowerupEffectApplied(UAbilitySystemComponent* ASC, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle Handle);
+	void OnPowerupEffectTimeChanged(FActiveGameplayEffectHandle Handle, float NewStartTime, float NewDuration);
+	void OnPowerupEffectRemoved(const FGameplayEffectRemovalInfo& Info);
+	/** This pawn is the avatar of ASC on the authority (a corpse's late callbacks are ignored). */
+	bool IsPowerupAvatarOf(const UAbilitySystemComponent* ASC) const;
+
+	TWeakObjectPtr<UAbilitySystemComponent> PowerupWatchedASC;
+	FDelegateHandle PowerupAppliedHandle;
 };

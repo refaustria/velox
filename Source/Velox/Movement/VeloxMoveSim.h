@@ -56,13 +56,25 @@ struct FVeloxMoveParams
 	float FixedStep = 0.f;                 // s
 	bool bFixedStepIntegration = false;
 	bool bCombineAirMoves = false;
+
+	// Powerups (ADR 0004 section 3)
+	float HasteSpeedScale = 0.f;           // x, wish-speed caps while Haste is active (FVeloxMoveInput::SpeedScale)
 };
 
-/** One move's input. WishDir is unit XY or zero; WishSpeed in [0, MaxGroundSpeed] (Q3 wishvel = WishDir * WishSpeed). */
+/**
+ * One move's input. WishDir is unit XY or zero; WishSpeed in [0, MaxGroundSpeed * SpeedScale] (Q3 wishvel = WishDir *
+ * WishSpeed).
+ */
 struct FVeloxMoveInput
 {
 	FVector WishDir = FVector::ZeroVector;
 	float WishSpeed = 0.f;
+	/**
+	 * ADR 0004 section 3 (Haste): scales the wish-speed caps MaxGroundSpeed and AirMaxWishSpeed, i.e. Q3 ps->speed, which
+	 * enters only through PM_CmdScale (wishspeed). AirStrafeMaxWishSpeed (CPM constant), accelerations, friction, StopSpeed
+	 * and JumpVelocity are untouched. The caller scales WishSpeed by the same factor. Values <= 0 count as 1.
+	 */
+	float SpeedScale = 1.f;
 	bool bHasForwardInput = false;
 	bool bHasSideInput = false;
 	bool bJumpHeld = false;
@@ -78,6 +90,9 @@ struct FVeloxMoveState
 
 namespace VeloxMoveSim
 {
+	/** FVeloxMoveInput::SpeedScale with the "<= 0 counts as 1" rule (ADR 0004 section 3, Haste). */
+	inline float EffectiveSpeedScale(const FVeloxMoveInput& In) { return In.SpeedScale > 0.f ? In.SpeedScale : 1.f; }
+
 	/** Number of velocity-integration substeps for a move of length Dt: ceil(Dt / FixedStep), 1 if fixed step is off. */
 	VELOX_API int32 NumSubsteps(float Dt, const FVeloxMoveParams& P);
 

@@ -504,6 +504,7 @@ namespace VeloxPowerupCheats
 			{
 				// Like a pickup: remaining + Seconds.
 				VeloxPowerups::GrantOrExtend(*ASC, Class, VeloxPowerups::GetRemainingSeconds(*ASC, Class) + Seconds);
+				It->ServerRefreshPowerupMoveTimes();
 			}
 		}
 	}

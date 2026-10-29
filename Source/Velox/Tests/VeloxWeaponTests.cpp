@@ -315,6 +315,73 @@ bool FVeloxCombatFireTimingTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxWeaponsHasteFireRateTest, "Velox.Weapons.HasteFireRate", VeloxWeaponTest::Flags)
+
+bool FVeloxWeaponsHasteFireRateTest::RunTest(const FString& Parameters)
+{
+	// ADR 0004 section 3 (task 03): Haste divides the fire interval by HasteFireRateScale on the shooter's machine (client
+	// rule) and in the server's bucket (refill rate, capacity, spacing).
+	using namespace VeloxFireTiming;
+	const float Scale = GetDefault<UVeloxCombatSettings>()->HasteFireRateScale;
+	TestEqual(TEXT("HasteFireRateScale default 1.3 (Q3)"), Scale, 1.3f);
+	TestEqual(TEXT("haste: interval / scale"), HasteFireInterval(0.1, true, Scale), 0.1 / Scale, 1e-12);
+	TestEqual(TEXT("no haste: interval unchanged"), HasteFireInterval(0.1, false, Scale), 0.1, 1e-12);
+	TestEqual(TEXT("scale <= 0 ignored"), HasteFireInterval(0.1, true, 0.0), 0.1, 1e-12);
+
+	// Client rule: held fire for 10 s at 120 Hz frames. MG 0.1 s -> 100 shots, hasted 130 (Q3 addTime / 1.3).
+	auto CountShots = [](double Interval, double Seconds, double FrameHz)
+	{
+		const double Dt = 1.0 / FrameHz;
+		double Next = -1.0e9;
+		int32 Shots = 0;
+		for (int64 Frame = 0; static_cast<double>(Frame) * Dt < Seconds - 1e-9; ++Frame)
+		{
+			const double Now = 50.0 + static_cast<double>(Frame) * Dt;
+			if (Now >= Next)
+			{
+				Next = AdvanceNextFireTime(Next, Now, Interval, Dt);
+				++Shots;
+			}
+		}
+		return Shots;
+	};
+	for (const double Interval : { 0.1, 1.5 })
+	{
+		const int32 Plain = CountShots(HasteFireInterval(Interval, false, Scale), 30.0, 120.0);
+		const int32 Hasted = CountShots(HasteFireInterval(Interval, true, Scale), 30.0, 120.0);
+		const double Want = 30.0 / Interval;
+		TestTrue(FString::Printf(TEXT("client %.2f s: %d plain shots in 30 s (want %.0f +- 1)"), Interval, Plain, Want), FMath::Abs(Plain - Want) <= 1.0);
+		TestTrue(FString::Printf(TEXT("client %.2f s: %d hasted shots in 30 s (want %.0f +- 1)"), Interval, Hasted, Want * Scale), FMath::Abs(Hasted - Want * Scale) <= 1.0);
+	}
+
+	// Server rule: a remote shooter firing at the hasted rate (receive times exact, 30 s). The bucket with the hasted
+	// interval accepts every shot; the plain interval rejects the excess (Rate) once the burst is spent.
+	const UVeloxCombatSettings& Settings = *GetDefault<UVeloxCombatSettings>();
+	for (const float Interval : { 0.1f, 1.5f })
+	{
+		const float Hasted = static_cast<float>(HasteFireInterval(Interval, true, Scale));
+		auto Run = [&Settings](float BucketInterval, float ShotInterval)
+		{
+			FVeloxFireRateBucket Bucket;
+			const float Capacity = FVeloxFireRateBucket::CapacityFor(BucketInterval, Settings.FireRateBurstAllowance, Settings.GetFireRateJitterToleranceSeconds());
+			const float Spacing = FVeloxFireRateBucket::MinSpacingFor(BucketInterval, Settings.GetFireRateSpacingTolerance());
+			int32 Accepted = 0;
+			const int32 N = FMath::CeilToInt32(30.f / ShotInterval);
+			for (int32 I = 0; I < N; ++I)
+			{
+				Accepted += Bucket.TryConsume(10.0 + static_cast<double>(I) * ShotInterval, BucketInterval, Capacity, Spacing) ? 1 : 0;
+			}
+			return TPair<int32, int32>(Accepted, N);
+		};
+		const TPair<int32, int32> WithHaste = Run(Hasted, Hasted);
+		const TPair<int32, int32> WithoutHaste = Run(Interval, Hasted);
+		TestEqual(FString::Printf(TEXT("server %.2f s: hasted stream, hasted bucket accepts all"), Interval), WithHaste.Key, WithHaste.Value);
+		TestTrue(FString::Printf(TEXT("server %.2f s: hasted stream, plain bucket rejects the excess (%d of %d accepted)"), Interval, WithoutHaste.Key, WithoutHaste.Value),
+			WithoutHaste.Key < WithHaste.Value - 1);
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatShotValidationTest, "Velox.Combat.ShotValidation", VeloxWeaponTest::Flags)
 
 bool FVeloxCombatShotValidationTest::RunTest(const FString& Parameters)

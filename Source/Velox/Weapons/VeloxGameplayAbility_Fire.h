@@ -68,6 +68,15 @@ public:
 	/** Seconds left on ASC's longest active GE_WeaponSwitching (Velox.State.WeaponSwitching); 0 without one. */
 	static double GetSwitchRemaining(const UAbilitySystemComponent* ASC);
 
+	/**
+	 * ADR 0004 section 3: Haste for the fire interval. Shooter's machine (owning client, listen host, bots): the move
+	 * timeline (UVeloxMovementComponent::IsHasteActive); server for a remote shooter: its Velox.Powerup.Haste tag.
+	 */
+	static bool IsShooterHasteActive(const FGameplayAbilityActorInfo* ActorInfo);
+
+	/** Interval / HasteFireRateScale while IsShooterHasteActive (VeloxFireTiming::HasteFireInterval), else Interval. */
+	float GetHasteFireInterval(const FGameplayAbilityActorInfo* ActorInfo, float Interval) const;
+
 	//~UGameplayAbility interface
 	virtual bool CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags = nullptr,
 		const FGameplayTagContainer* TargetTags = nullptr, FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;

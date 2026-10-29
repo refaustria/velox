@@ -31,4 +31,15 @@ namespace VeloxFireTiming
 	{
 		return bLocal ? Now >= SwitchEndTime : SwitchRemaining <= FMath::Max(Tolerance, 0.0);
 	}
+
+	/**
+	 * ADR 0004 section 3, Haste (Q3 PM_Weapon: addTime /= 1.3): the fire interval while Haste is active, Interval /
+	 * HasteFireRateScale. The shooter's machine passes its move-timeline Haste state (the same move stamps its movement
+	 * uses), the server for a remote shooter its own Haste tag (the bucket refill rate and the spacing rule); the <= RTT
+	 * disagreement at the edges lies inside FireRateJitterToleranceSeconds. A scale <= 0 is ignored.
+	 */
+	inline double HasteFireInterval(double Interval, bool bHaste, double HasteFireRateScale)
+	{
+		return bHaste && HasteFireRateScale > 0.0 ? Interval / HasteFireRateScale : Interval;
+	}
 }

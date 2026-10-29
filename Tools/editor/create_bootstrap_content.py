@@ -174,6 +174,7 @@ def build_data(actions):
             "fixed_step": 0.008,
             "fixed_step_integration": True,
             "combine_air_moves": False,
+            "haste_speed_scale": 1.3,  # ADR 0004 section 3 (M3 task 03)
         }
         for k, v in values.items():
             try:

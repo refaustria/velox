@@ -7,7 +7,9 @@
 
 #include "Math/RandomStream.h"
 #include "Movement/VeloxMoveSim.h"
+#include "Movement/VeloxMovementComponent.h"
 #include "Movement/VeloxMovementSettings.h"
+#include "Movement/VeloxNetworkMoveData.h"
 
 namespace VeloxMoveSimTest
 {
@@ -79,6 +81,126 @@ bool FVeloxMovementSettingsDefaultsTest::RunTest(const FString& Parameters)
 	FVeloxMoveParams Off = P;
 	Off.bFixedStepIntegration = false;
 	TestEqual(TEXT("NumSubsteps with fixed step off == 1"), VeloxMoveSim::NumSubsteps(0.05f, Off), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementHasteScaleTest, "Velox.Movement.HasteScale", VeloxMoveSimTest::MoveSimFlags)
+
+bool FVeloxMovementHasteScaleTest::RunTest(const FString& Parameters)
+{
+	// ADR 0004 section 3 (task 03): Haste scales the wish-speed caps MaxGroundSpeed and AirMaxWishSpeed (Q3 ps->speed via
+	// PM_CmdScale); air strafe cap, accelerations, friction, StopSpeed and JumpVelocity are untouched. The CMC passes
+	// WishSpeed = min(|Acceleration|, MaxGroundSpeed) x SpeedScale and SpeedScale.
+	using namespace VeloxMoveSimTest;
+	const FVeloxMoveParams P = DefaultParams();
+	const float S = P.HasteSpeedScale;
+	TestEqual(TEXT("HasteSpeedScale default 1.3"), S, 1.3f);
+	const FVector X(1.0, 0.0, 0.0);
+
+	auto Hasted = [S](FVeloxMoveInput In)
+	{
+		In.WishSpeed *= S;
+		In.SpeedScale = S;
+		return In;
+	};
+	// Ground: 2 s from rest at full input converges to MaxGroundSpeed x scale; a raised WishSpeed alone stays capped.
+	{
+		FVector Plain = FVector::ZeroVector, Haste = FVector::ZeroVector, Uncapped = FVector::ZeroVector;
+		const FVeloxMoveInput In = Wish(X, P.MaxGroundSpeed, true, false);
+		FVeloxMoveInput Raised = In;
+		Raised.WishSpeed = P.MaxGroundSpeed * S;
+		for (int32 I = 0; I < 250; ++I)
+		{
+			Plain = VeloxMoveSim::GroundMove(Plain, In, Dt, 0.f, P);
+			Haste = VeloxMoveSim::GroundMove(Haste, Hasted(In), Dt, 0.f, P);
+			Uncapped = VeloxMoveSim::GroundMove(Uncapped, Raised, Dt, 0.f, P);
+		}
+		TestEqual(TEXT("ground plain -> MaxGroundSpeed"), Speed2D(Plain), static_cast<double>(P.MaxGroundSpeed), 0.5);
+		TestEqual(TEXT("ground hasted -> MaxGroundSpeed x 1.3"), Speed2D(Haste), static_cast<double>(P.MaxGroundSpeed * S), 0.5);
+		TestEqual(TEXT("ground WishSpeed x 1.3 without SpeedScale stays capped"), Speed2D(Uncapped), static_cast<double>(P.MaxGroundSpeed), 0.5);
+		// Friction and StopSpeed: no input, same decay with and without the scale.
+		FVeloxMoveInput None = Wish(FVector::ZeroVector, 0.f, false, false);
+		const FVector A = VeloxMoveSim::GroundMove(FVector(1000.0, 0.0, 0.0), None, Dt, 0.f, P);
+		const FVector B = VeloxMoveSim::GroundMove(FVector(1000.0, 0.0, 0.0), Hasted(None), Dt, 0.f, P);
+		TestTrue(TEXT("friction untouched by the scale"), A.Equals(B, 0.0));
+	}
+	// Vanilla air: forward-only from rest approaches AirMaxWishSpeed x scale along the wish direction.
+	{
+		FVector Plain = FVector::ZeroVector, Haste = FVector::ZeroVector;
+		const FVeloxMoveInput In = Wish(X, P.MaxGroundSpeed, true, false);
+		for (int32 I = 0; I < 2500; ++I)
+		{
+			Plain = VeloxMoveSim::AirMove(Plain, In, Dt, P);
+			Haste = VeloxMoveSim::AirMove(Haste, Hasted(In), Dt, P);
+		}
+		TestEqual(TEXT("air plain -> AirMaxWishSpeed"), Speed2D(Plain), static_cast<double>(P.AirMaxWishSpeed), 1.0);
+		TestEqual(TEXT("air hasted -> AirMaxWishSpeed x 1.3"), Speed2D(Haste), static_cast<double>(P.AirMaxWishSpeed * S), 1.0);
+	}
+	// CPM side-only strafe: capped by AirStrafeMaxWishSpeed whatever the scale (bitwise identical).
+	{
+		FVeloxMoveParams Cpm = P;
+		Cpm.bAirControl = true;
+		const FVector V(800.0, 0.0, 0.0);
+		const FVeloxMoveInput Side = Wish(RotatedFrom(V, FMath::DegreesToRadians(80.0)), P.MaxGroundSpeed, false, true);
+		const FVector A = VeloxMoveSim::AirMove(V, Side, Dt, Cpm);
+		const FVector B = VeloxMoveSim::AirMove(V, Hasted(Side), Dt, Cpm);
+		TestTrue(TEXT("CPM air strafe cap unchanged by Haste"), FMemory::Memcmp(&A, &B, sizeof(FVector)) == 0);
+	}
+	// Jump velocity untouched.
+	{
+		FVeloxMoveState Plain, Haste;
+		Plain.bOnGround = Haste.bOnGround = true;
+		FVeloxMoveInput In = Wish(X, P.MaxGroundSpeed, true, false);
+		In.bJumpHeld = true;
+		VeloxMoveSim::StepFrame(Plain, In, Dt, P);
+		VeloxMoveSim::StepFrame(Haste, Hasted(In), Dt, P);
+		TestEqual(TEXT("jump Vz unchanged"), Haste.Velocity.Z, Plain.Velocity.Z);
+	}
+
+	// IsPowerupActive / PowerupTimeLeft in the wrapped time-stamp domain (MinTimeBetweenTimeStampResets).
+	const float R = GetDefault<UVeloxMovementComponent>()->MinTimeBetweenTimeStampResets;
+	TestEqual(TEXT("engine reset period 240 s"), R, 240.f);
+	TestFalse(TEXT("end 0 = none"), UVeloxMovementComponent::IsPowerupActive(0.f, 10.f, R));
+	TestTrue(TEXT("before the end"), UVeloxMovementComponent::IsPowerupActive(100.f, 99.99f, R));
+	TestFalse(TEXT("at the end (a move ending at End is not hasted)"), UVeloxMovementComponent::IsPowerupActive(100.f, 100.f, R));
+	TestFalse(TEXT("after the end"), UVeloxMovementComponent::IsPowerupActive(100.f, 100.01f, R));
+	// Picked up at 225 for 20 s: end 245 -> 5 after the wrap. Active up to the client's reset and after it, until 5.
+	const float Wrapped = UVeloxMovementComponent::MakePowerupEnd(225.0, 20.f, R);
+	TestEqual(TEXT("end normalised into the period"), Wrapped, 5.f, 1e-4f);
+	for (const float End : { Wrapped, 245.f })
+	{
+		TestTrue(FString::Printf(TEXT("end %.0f: active at 239 (before the reset)"), End), UVeloxMovementComponent::IsPowerupActive(End, 239.f, R));
+		TestTrue(FString::Printf(TEXT("end %.0f: active at 240.004 (the move that triggers the reset)"), End), UVeloxMovementComponent::IsPowerupActive(End, 240.004f, R));
+		TestTrue(FString::Printf(TEXT("end %.0f: active at 0.5 (after the reset)"), End), UVeloxMovementComponent::IsPowerupActive(End, 0.5f, R));
+		TestFalse(TEXT("inactive at 5.01 after the reset"), UVeloxMovementComponent::IsPowerupActive(End, 5.01f, R));
+	}
+	TestEqual(TEXT("time left across the wrap"), UVeloxMovementComponent::PowerupTimeLeft(Wrapped, 239.f, R), 6.f, 1e-3f);
+	TestEqual(TEXT("an end exactly at the period stays non-zero"), UVeloxMovementComponent::MakePowerupEnd(210.0, 30.f, R), R);
+	TestEqual(TEXT("no remaining time -> 0"), UVeloxMovementComponent::MakePowerupEnd(10.0, 0.f, R), 0.f);
+	TestEqual(TEXT("remaining clamped to 0.45 x period"), UVeloxMovementComponent::MakePowerupEnd(0.0, 500.f, R), 0.45f * R, 1e-3f);
+	// Bots / listen host: world time, wrapped the same way.
+	const float BotEnd = UVeloxMovementComponent::MakePowerupEnd(3600.25, 30.f, R);
+	TestTrue(TEXT("world-time domain: active 10 s after the grant"), UVeloxMovementComponent::IsPowerupActive(BotEnd, static_cast<float>(FMath::Fmod(3610.25, 240.0)), R));
+	TestFalse(TEXT("world-time domain: inactive 30.1 s after the grant"), UVeloxMovementComponent::IsPowerupActive(BotEnd, static_cast<float>(FMath::Fmod(3630.35, 240.0)), R));
+	// Stale ends are dropped (non-replayed moves) long before PowerupTimeLeft wraps back to positive.
+	TestTrue(TEXT("stale threshold before the wrap"), UVeloxMovementComponent::PowerupStaleSeconds(R) < 0.5f * R && UVeloxMovementComponent::PowerupMaxRemainingSeconds(R) < 0.5f * R);
+	TestTrue(TEXT("60.1 s after the end: stale"), UVeloxMovementComponent::PowerupTimeLeft(100.f, 160.1f, R) < -UVeloxMovementComponent::PowerupStaleSeconds(R));
+	TestFalse(TEXT("59.9 s after the end: not stale yet, inactive"), UVeloxMovementComponent::PowerupTimeLeft(100.f, 159.9f, R) < -UVeloxMovementComponent::PowerupStaleSeconds(R)
+		|| UVeloxMovementComponent::IsPowerupActive(100.f, 159.9f, R));
+
+	// Saved moves on different sides of the Haste end never combine.
+	{
+		FSavedMove_Velox Old, New;
+		Old.Clear();
+		New.Clear();
+		Old.StartPackedMovementMode = New.StartPackedMovementMode = MOVE_Walking;
+		Old.bSavedHasteActive = true;
+		New.bSavedHasteActive = true;
+		TestTrue(TEXT("both hasted: combine"), Old.CanCombineVeloxState(New, true));
+		New.bSavedHasteActive = false;
+		TestFalse(TEXT("hasted + plain: no combine"), Old.CanCombineVeloxState(New, true));
+		TestFalse(TEXT("plain + hasted: no combine"), New.CanCombineVeloxState(Old, true));
+	}
 	return true;
 }
 

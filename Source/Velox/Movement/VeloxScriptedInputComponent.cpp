@@ -37,6 +37,8 @@ namespace VeloxScriptedInput
 {
 	/** A knockback larger than this many ground speeds is refused by the RPC validation (task 05 spec). */
 	constexpr float MaxKnockbackInGroundSpeeds = 20.f;
+	// Upper bound of the test Haste RPC (s): the move timeline holds at most 0.45 x the 240 s reset period.
+	constexpr float MaxTestHasteSeconds = 60.f;
 
 	/** Seconds the locally controlled pawn must stand on the ground before a requested script starts (settle after spawn). */
 	constexpr double SettleTime = 0.5;
@@ -311,6 +313,7 @@ bool UVeloxScriptedInputComponent::LoadScriptFromJson(const FString& Json, const
 			}
 		}
 		VeloxScriptedInput::ReadVector(Obj, TEXT("serverKnockback"), Row.ServerKnockback);
+		Obj->TryGetNumberField(TEXT("serverHaste"), Row.ServerHasteSeconds);
 		Obj->TryGetNumberField(TEXT("weapon"), Row.WeaponSlot);
 		Obj->TryGetBoolField(TEXT("fire"), Row.bFire);
 		Obj->TryGetNumberField(TEXT("shots"), Row.Shots);
@@ -563,6 +566,10 @@ void UVeloxScriptedInputComponent::StepScript(float DeltaTime)
 		if (Entered.ServerKnockback.IsSet())
 		{
 			SendTestKnockback(Entered.ServerKnockback.GetValue(), Entered.bKnockbackOverride);
+		}
+		if (Entered.ServerHasteSeconds > 0.f)
+		{
+			RequestTestHaste(Entered.ServerHasteSeconds);
 		}
 		RowStartShotCount = VeloxFireDebug::GetLocalShotCount();
 		if (Entered.WeaponSlot > 0)
@@ -886,6 +893,48 @@ void UVeloxScriptedInputComponent::ServerApplyTestKnockback_Implementation(FVect
 			UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=knockback_server t=%.3f impulse=%s override=%d"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, *Impulse.ToCompactString(), bOverride);
 			Movement->AddKnockback(Impulse, bOverride);
 		}
+	}
+#endif
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Test Haste (ADR 0004 section 3, HasteRun)
+
+void UVeloxScriptedInputComponent::RequestTestHaste(float Seconds)
+{
+	AVeloxCharacter* Character = GetVeloxCharacter();
+	const UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
+	if (!Movement)
+	{
+		return;
+	}
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=haste t=%.3f st=%.3f seconds=%.3f clock=%.6f"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, ScriptTime, Seconds,
+		Movement->GetPowerupClockNow());
+	if (GetOwner()->HasAuthority())
+	{
+		Character->ServerGiveTestHaste(Seconds);
+	}
+	else
+	{
+		ServerGiveTestHaste(Seconds);
+	}
+}
+
+bool UVeloxScriptedInputComponent::ServerGiveTestHaste_Validate(float Seconds)
+{
+#if UE_BUILD_SHIPPING
+	return false;
+#else
+	return Seconds > 0.f && Seconds <= VeloxScriptedInput::MaxTestHasteSeconds;
+#endif
+}
+
+void UVeloxScriptedInputComponent::ServerGiveTestHaste_Implementation(float Seconds)
+{
+#if !UE_BUILD_SHIPPING
+	if (AVeloxCharacter* Character = GetVeloxCharacter())
+	{
+		Character->ServerGiveTestHaste(Seconds);
 	}
 #endif
 }

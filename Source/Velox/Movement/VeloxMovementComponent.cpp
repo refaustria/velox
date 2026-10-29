@@ -128,7 +128,8 @@ float UVeloxMovementComponent::GetMaxSpeed() const
 	{
 		// Crouch scale applies to ground wish speed only (Q3 PM_WalkMove, ADR 0002 A10).
 		const bool bCrouchScaled = IsCrouching() && VeloxMovementConstants::IsGroundMovementMode(MovementMode);
-		return SimParams.MaxGroundSpeed * (bCrouchScaled ? SimParams.CrouchSpeedScale : 1.f);
+		// Haste scales the wish-speed cap like the sim (ADR 0004 section 3); navigation and AI read it here.
+		return SimParams.MaxGroundSpeed * (bCrouchScaled ? SimParams.CrouchSpeedScale : 1.f) * GetHasteSpeedScale();
 	}
 	return Super::GetMaxSpeed();
 }
@@ -173,6 +174,14 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 	SimParams = MovementSettings->BuildSimParams();
 	RampExitVelocityZ = 0.f;
 
+	// ADR 0004 section 3: Haste in the move timeline, evaluated at this move's time stamp on both ends. A replay recomputes
+	// it from the replayed move's stamp and the end times of the response it replays from (nothing is restored per move).
+	const float PowerupClock = GetPowerupClockNow();
+	MoveSpeedScale = IsPowerupActiveAt(PowerupMoveTimes.HasteEnd, PowerupClock) && SimParams.HasteSpeedScale > 0.f ? SimParams.HasteSpeedScale : 1.f;
+#if !UE_BUILD_SHIPPING
+	const float StartSpeed2D = Velocity.Size2D();
+#endif
+
 	// VQ3 clears PMF_JUMP_HELD on the first frame without jump (A12). The move's own flag, so the server and a replay
 	// derive the same value. A jump started by CheckJumpInput before this call has held = true and keeps the latch.
 	bJumpLatched = JumpLatchAtMoveStart(bJumpLatched, bWantsJumpHeld);
@@ -215,6 +224,13 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 	if (!bInClientReplay && MoveTimedEvents.Num() > 0 && CharacterOwner && CharacterOwner->GetLocalRole() != ROLE_SimulatedProxy)
 	{
 		RunDueMoveTimedEvents(GetCurrentMoveTimeStamp());
+	}
+	if (!bInClientReplay && CharacterOwner && CharacterOwner->GetLocalRole() != ROLE_SimulatedProxy)
+	{
+		DropStalePowerupMoveTimes(PowerupClock);
+#if !UE_BUILD_SHIPPING
+		LogHasteStateChange(PowerupClock, DeltaSeconds, StartSpeed2D);
+#endif
 	}
 
 #if !UE_BUILD_SHIPPING
@@ -417,6 +433,142 @@ float UVeloxMovementComponent::GetCurrentMoveTimeStamp() const
 	return ClientData ? ClientData->CurrentTimeStamp : 0.f;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Powerups in the move timeline (ADR 0004 section 3)
+
+float UVeloxMovementComponent::PowerupTimeLeft(float End, float MoveTime, float ResetPeriod)
+{
+	double Diff = static_cast<double>(End) - static_cast<double>(MoveTime);
+	if (ResetPeriod > 0.f)
+	{
+		const double Period = ResetPeriod;
+		Diff = FMath::Fmod(Diff, Period);
+		if (Diff > 0.5 * Period)
+		{
+			Diff -= Period;
+		}
+		else if (Diff <= -0.5 * Period)
+		{
+			Diff += Period;
+		}
+	}
+	return static_cast<float>(Diff);
+}
+
+float UVeloxMovementComponent::MakePowerupEnd(double Now, float RemainingSeconds, float ResetPeriod)
+{
+	if (RemainingSeconds <= 0.f)
+	{
+		return 0.f;
+	}
+	const float Remaining = ResetPeriod > 0.f ? FMath::Min(RemainingSeconds, PowerupMaxRemainingSeconds(ResetPeriod)) : RemainingSeconds;
+	double End = Now + Remaining;
+	if (ResetPeriod > 0.f)
+	{
+		End = FMath::Fmod(End, static_cast<double>(ResetPeriod));
+		if (End <= 0.0)
+		{
+			// 0 means "none"; the same instant one period later is equivalent in the wrapped domain.
+			End += ResetPeriod;
+		}
+	}
+	return static_cast<float>(End);
+}
+
+float UVeloxMovementComponent::GetPowerupClockNow() const
+{
+	if (!CharacterOwner)
+	{
+		return 0.f;
+	}
+	const ENetRole Role = CharacterOwner->GetLocalRole();
+	const bool bRemoteOwner = Role == ROLE_Authority && CharacterOwner->GetRemoteRole() == ROLE_AutonomousProxy && !CharacterOwner->IsLocallyControlled();
+	if (Role == ROLE_AutonomousProxy || bRemoteOwner)
+	{
+		// Client stamps (B25 domain): the move being simulated, or the end of the last one.
+		return GetCurrentMoveTimeStamp();
+	}
+	// Bots, listen host, standalone, simulated proxies: no client stamps, world time (B12), wrapped like client stamps.
+	const UWorld* World = GetWorld();
+	const double Now = World ? World->GetTimeSeconds() : 0.0;
+	return MinTimeBetweenTimeStampResets > 0.f ? static_cast<float>(FMath::Fmod(Now, static_cast<double>(MinTimeBetweenTimeStampResets))) : static_cast<float>(Now);
+}
+
+bool UVeloxMovementComponent::IsPowerupActiveNow(EVeloxMovePowerup Powerup) const
+{
+	const float End = Powerup == EVeloxMovePowerup::Haste ? PowerupMoveTimes.HasteEnd : PowerupMoveTimes.QuadEnd;
+	return End != 0.f && IsPowerupActiveAt(End, GetPowerupClockNow());
+}
+
+float UVeloxMovementComponent::GetHasteSpeedScale() const
+{
+	return HasVeloxPhysics() && SimParams.HasteSpeedScale > 0.f && IsPowerupActiveNow(EVeloxMovePowerup::Haste) ? SimParams.HasteSpeedScale : 1.f;
+}
+
+void UVeloxMovementComponent::ServerSetPowerupRemaining(EVeloxMovePowerup Powerup, float RemainingSeconds)
+{
+	if (!CharacterOwner || CharacterOwner->GetLocalRole() != ROLE_Authority)
+	{
+		return;
+	}
+	const float Clock = GetPowerupClockNow();
+	const float End = MakePowerupEnd(Clock, RemainingSeconds, MinTimeBetweenTimeStampResets);
+	float& Slot = Powerup == EVeloxMovePowerup::Haste ? PowerupMoveTimes.HasteEnd : PowerupMoveTimes.QuadEnd;
+	if (Slot != End)
+	{
+		Slot = End;
+		UE_LOG(LogVeloxMovement, Log, TEXT("VeloxPowerupMoveTime powerup=%s pawn=%s t=%.3f clock=%.6f remaining=%.3f end=%.6f"), Powerup == EVeloxMovePowerup::Haste ? TEXT("haste") : TEXT("quad"),
+			*GetNameSafe(CharacterOwner), GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0, Clock, RemainingSeconds, End);
+	}
+}
+
+void UVeloxMovementComponent::ApplyReceivedPowerupMoveTimes(const FVeloxPowerupMoveTimes& InTimes, float TimeStamp, const TCHAR* Kind)
+{
+	if (InTimes == PowerupMoveTimes)
+	{
+		return;
+	}
+	PowerupMoveTimes = InTimes;
+	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxPowerupMoveTimes recv=%s t=%.3f ts=%.6f haste_end=%.6f quad_end=%.6f"), Kind, GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0, TimeStamp,
+		PowerupMoveTimes.HasteEnd, PowerupMoveTimes.QuadEnd);
+}
+
+void UVeloxMovementComponent::DropStalePowerupMoveTimes(float MoveClock)
+{
+	const float Stale = -PowerupStaleSeconds(MinTimeBetweenTimeStampResets);
+	for (float* End : { &PowerupMoveTimes.HasteEnd, &PowerupMoveTimes.QuadEnd })
+	{
+		if (*End != 0.f && PowerupTimeLeft(*End, MoveClock, MinTimeBetweenTimeStampResets) < Stale)
+		{
+			*End = 0.f;
+		}
+	}
+}
+
+#if !UE_BUILD_SHIPPING
+void UVeloxMovementComponent::LogHasteStateChange(float MoveClock, float DeltaSeconds, float StartSpeed2D)
+{
+	const bool bActive = MoveSpeedScale != 1.f;
+	if (bActive)
+	{
+		SoakHastePeak2D = FMath::Max(SoakHastePeak2D, static_cast<float>(Velocity.Size2D()));
+	}
+	if (bActive == bSoakHasteActive)
+	{
+		return;
+	}
+	bSoakHasteActive = bActive;
+	const bool bServer = CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority;
+	// dt: a combined client move or a merged server move starts at ts - dt; the boundary both ends must share.
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxHasteState role=%s t=%.3f ts=%.6f dt=%.6f active=%d speed2d=%.1f peak2d=%.1f end=%.6f scale=%.3f"), bServer ? TEXT("server") : TEXT("client"),
+		GetWorld() ? GetWorld()->GetTimeSeconds() : -1.0, MoveClock, DeltaSeconds, bActive ? 1 : 0, StartSpeed2D, bActive ? 0.f : SoakHastePeak2D, PowerupMoveTimes.HasteEnd, MoveSpeedScale);
+	if (bActive)
+	{
+		SoakHastePeak2D = static_cast<float>(Velocity.Size2D());
+	}
+}
+#endif
+
 const TCHAR* UVeloxMovementComponent::GetMoveSourceName() const
 {
 	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority)
@@ -502,7 +654,10 @@ void UVeloxMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool
 
 	FVeloxMoveInput Input;
 	Input.WishDir = Acceleration.GetSafeNormal2D();
-	Input.WishSpeed = FMath::Min(static_cast<float>(Acceleration.Size2D()), SimParams.MaxGroundSpeed);
+	// Acceleration encodes the input fraction x MaxGroundSpeed (GetMaxAcceleration, never scaled, so a client cannot
+	// raise its own cap); Haste scales the wish speed and the caps by the move's own scale (Q3 PM_CmdScale x ps->speed).
+	Input.WishSpeed = FMath::Min(static_cast<float>(Acceleration.Size2D()), SimParams.MaxGroundSpeed) * MoveSpeedScale;
+	Input.SpeedScale = MoveSpeedScale;
 	if (bOnGround && IsCrouching())
 	{
 		// Q3 PM_WalkMove applies pm_duckScale on the ground only.
@@ -901,10 +1056,12 @@ void UVeloxMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_
 	PendingKnockback = Response.PendingKnockback;
 	// The replay's PrepMoveFor drops recorded predictions the server has resolved (ADR 0003 section 3).
 	ConfirmedSelfKnockbackSeq = Response.ConfirmedSelfKnockbackSeq;
+	// ADR 0004 section 3: the replay evaluates every move against the end times of the correction's check time (A18).
+	ApplyReceivedPowerupMoveTimes(Response.PowerupMoveTimes, TimeStamp, TEXT("correction"));
 #if !UE_BUILD_SHIPPING
 	// Net soak (infra/ci/nettest.sh): what the server's response container delivered, before the replay consumes it.
-	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxCorrectionResponse t=%.3f ts=%.6f grace=%.6f latch=%d svel=%.1f kseq=%u"), LastCorrectionTime, TimeStamp, KnockbackGrace, bJumpLatched ? 1 : 0, NewVelocity.Size(),
-		ConfirmedSelfKnockbackSeq);
+	UE_LOG(LogVeloxMovement, Log, TEXT("VeloxCorrectionResponse t=%.3f ts=%.6f grace=%.6f latch=%d svel=%.1f kseq=%u haste_end=%.6f"), LastCorrectionTime, TimeStamp, KnockbackGrace, bJumpLatched ? 1 : 0,
+		NewVelocity.Size(), ConfirmedSelfKnockbackSeq, PowerupMoveTimes.HasteEnd);
 #endif
 
 	// ClientAdjustPosition teleports the pawn after this call; its overlaps must not queue knockback (A19).
@@ -1019,6 +1176,14 @@ void UVeloxMovementComponent::ClientAckGoodMove_Implementation(float TimeStamp)
 		UE_LOG(LogVeloxMovement, Verbose, TEXT("ClientAckGoodMove %.3f ignored: correction pending replay (correction ts %.3f)"), TimeStamp, PendingCorrectionTimeStamp);
 		return;
 	}
+	// ADR 0004 section 3: an ack carries the server's live end times after the acked move. Every later move (live, or a
+	// replay after a later correction, which brings its own values) is newer than the acked one. Skipped with the ack
+	// above: the pending replay must use the correction's snapshot. The container holds this ack on the packed path only.
+	const FVeloxMoveResponseDataContainer& Response = static_cast<const FVeloxMoveResponseDataContainer&>(GetMoveResponseDataContainer());
+	if (Response.IsGoodMove() && Response.ClientAdjustment.TimeStamp == TimeStamp)
+	{
+		ApplyReceivedPowerupMoveTimes(Response.PowerupMoveTimes, TimeStamp, TEXT("ack"));
+	}
 	Super::ClientAckGoodMove_Implementation(TimeStamp);
 }
 
@@ -1036,6 +1201,7 @@ void UVeloxMovementComponent::ServerMoveHandleClientError(float ClientTimeStamp,
 		ServerCorrectionState.bJumpLatched = bJumpLatched;
 		ServerCorrectionState.PendingKnockback = PendingKnockback;
 		ServerCorrectionState.ConfirmedSelfKnockbackSeq = ConfirmedSelfKnockbackSeq;
+		ServerCorrectionState.PowerupMoveTimes = PowerupMoveTimes;
 	}
 }
 
