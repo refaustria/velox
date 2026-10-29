@@ -17,6 +17,8 @@ bool FGameplayAbilityTargetData_VeloxShot::NetSerialize(FArchive& Ar, UPackageMa
 	bOk &= bPart;
 	Ar << ViewServerTime;
 	Ar << ShotSeq;
+	// Full precision (B36): the server looks up the eye ring by this exact value (the end stamp of a processed move).
+	Ar << FireMoveTimeStamp;
 
 	// The hint needs the package map to name the actor; without one (tests, a broken connection) it is dropped.
 	uint8 bHint = (bHasHint && Map && HintTarget.IsValid()) ? 1 : 0;
@@ -51,6 +53,6 @@ bool FGameplayAbilityTargetData_VeloxShot::NetSerialize(FArchive& Ar, UPackageMa
 
 FString FGameplayAbilityTargetData_VeloxShot::ToString() const
 {
-	return FString::Printf(TEXT("VeloxShot seq=%u origin=%s dir=%s view=%.3f hint=%s stamp=%.3f"), ShotSeq, *Origin.ToCompactString(), *Dir.ToCompactString(),
-		ViewServerTime, bHasHint ? *GetNameSafe(HintTarget.Get()) : TEXT("none"), HintTargetStamp);
+	return FString::Printf(TEXT("VeloxShot seq=%u origin=%s dir=%s view=%.3f fire_ts=%.6f hint=%s stamp=%.3f"), ShotSeq, *Origin.ToCompactString(), *Dir.ToCompactString(),
+		ViewServerTime, FireMoveTimeStamp, bHasHint ? *GetNameSafe(HintTarget.Get()) : TEXT("none"), HintTargetStamp);
 }

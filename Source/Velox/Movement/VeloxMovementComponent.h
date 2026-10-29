@@ -42,6 +42,44 @@ namespace VeloxProxySmoothing
 		double MinStamp);
 }
 
+/** ADR 0003 B36 / ADR 0002 A36: the shooter's eye after one processed client move (server), keyed by the move's end stamp. */
+struct FVeloxEyeSample
+{
+	float Stamp = 0.f;
+	FVector Eye = FVector::ZeroVector;
+};
+
+/**
+ * Fixed ring of the last Capacity eye samples, oldest first, strictly increasing stamps (128 entries = 1.07 s at 120 Hz).
+ * A push with a stamp below the newest resets the ring (new client time-stamp domain after a reset); an equal stamp
+ * replaces the newest entry. No allocation.
+ */
+struct FVeloxEyeRing
+{
+	static constexpr int32 Capacity = 128;
+
+	VELOX_API void Push(float Stamp, const FVector& Eye);
+	void Reset() { Head = 0; Count = 0; }
+	int32 Num() const { return Count; }
+	/** Index-th oldest sample, 0 <= Index < Num(). */
+	const FVeloxEyeSample& Get(int32 Index) const { return Samples[(Head + Index) % Capacity]; }
+
+private:
+	FVeloxEyeSample Samples[Capacity];
+	/** Slot of the oldest sample. */
+	int32 Head = 0;
+	int32 Count = 0;
+};
+
+namespace VeloxEyeRing
+{
+	/**
+	 * World-free lookup (B36): exact entry; between two entries -> linear interpolation; older than the oldest -> the
+	 * oldest; newer than the newest or an empty ring -> false (the caller uses the live eye).
+	 */
+	VELOX_API bool Lookup(const FVeloxEyeRing& Ring, float Stamp, FVector& OutEye);
+}
+
 /**
  * Where a knockback comes from (ADR 0003 section 3, ADR 0002 A17). Overlap (pads) and Server (every server-side impulse:
  * damage, the server's own self-knockback) accumulate into the chained PendingKnockback. Predicted (the owning client's
@@ -204,6 +242,12 @@ public:
 
 	/** Server: time stamp of the last client move processed (ServerData->CurrentClientTimeStamp); 0 without server data. */
 	float GetServerClientMoveTimeStamp() const;
+
+	/**
+	 * Server (ADR 0003 B36): the eye (GetPawnViewLocation) after the processed client move that ended at Stamp, from
+	 * the per-move ring pushed in MoveAutonomous; VeloxEyeRing::Lookup semantics (false: use the live eye).
+	 */
+	bool GetServerEyeAtMoveTime(float Stamp, FVector& OutEye) const { return VeloxEyeRing::Lookup(ServerEyeRing, Stamp, OutEye); }
 
 	const FVeloxPendingKnockback& GetPendingKnockback() const { return PendingKnockback; }
 
@@ -490,6 +534,9 @@ protected:
 
 	/** ClientTimeStamp of the last MoveAutonomous (server, client replay); A28(iii) instrumentation. */
 	float LastMoveAutonomousTimeStamp = 0.f;
+
+	/** Authority: (ClientTimeStamp, eye) after every MoveAutonomous of a remote client (ADR 0003 B36). ~4 KB. */
+	FVeloxEyeRing ServerEyeRing;
 
 	/** DoJump succeeded in the current move (take-off or landing jump); cleared where a move begins (A29, task M1-07). */
 	uint8 bJumpedThisMove : 1;

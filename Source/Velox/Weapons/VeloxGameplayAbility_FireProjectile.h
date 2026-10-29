@@ -23,17 +23,13 @@ class UVeloxWeaponDefinition;
 struct FGameplayAbilityTargetDataHandle;
 
 /**
- * Projectile shot: the hitscan payload (origin, direction, view time, sequence) plus the shooter's move time stamp at
- * fire time, so the server can evaluate the owner's self splash at the same move as the predicting client (~4 bytes).
+ * Projectile shot: the hitscan payload (origin, direction, view time, sequence, FireMoveTimeStamp). Its own type so the
+ * server tells a projectile shot from a hitscan one (B26); since B36 the move time stamp lives in the base struct.
  */
 USTRUCT()
 struct VELOX_API FGameplayAbilityTargetData_VeloxProjectileShot : public FGameplayAbilityTargetData_VeloxShot
 {
 	GENERATED_BODY()
-
-	/** UVeloxMovementComponent::GetClientMoveTimeStamp() at fire time (end of the last move, B6: before the frame's move). */
-	UPROPERTY()
-	float FireMoveTimeStamp = 0.f;
 
 	bool NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess);
 

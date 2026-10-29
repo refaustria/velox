@@ -632,6 +632,74 @@ void UVeloxMovementComponent::MoveAutonomous(float ClientTimeStamp, float DeltaT
 	}
 #endif
 	Super::MoveAutonomous(ClientTimeStamp, DeltaTime, CompressedFlags, NewAccel);
+	// ADR 0003 B36 / ADR 0002 A36: the eye after this move, keyed by its end stamp, for the shot-origin validation.
+	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority)
+	{
+		ServerEyeRing.Push(ClientTimeStamp, CharacterOwner->GetPawnViewLocation());
+	}
+}
+
+void FVeloxEyeRing::Push(float Stamp, const FVector& Eye)
+{
+	if (Count > 0)
+	{
+		FVeloxEyeSample& Newest = Samples[(Head + Count - 1) % Capacity];
+		if (Stamp == Newest.Stamp)
+		{
+			Newest.Eye = Eye;
+			return;
+		}
+		if (Stamp < Newest.Stamp)
+		{
+			Reset();
+		}
+	}
+	if (Count == Capacity)
+	{
+		Head = (Head + 1) % Capacity;
+		--Count;
+	}
+	Samples[(Head + Count) % Capacity] = FVeloxEyeSample{Stamp, Eye};
+	++Count;
+}
+
+bool VeloxEyeRing::Lookup(const FVeloxEyeRing& Ring, float Stamp, FVector& OutEye)
+{
+	const int32 Num = Ring.Num();
+	if (Num == 0 || !FMath::IsFinite(Stamp) || Stamp > Ring.Get(Num - 1).Stamp)
+	{
+		return false;
+	}
+	if (Stamp <= Ring.Get(0).Stamp)
+	{
+		OutEye = Ring.Get(0).Eye;
+		return true;
+	}
+	// First entry with a stamp >= Stamp (exists: the newest is >= Stamp); entry 0 is < Stamp, so Low >= 1.
+	int32 Low = 1;
+	int32 High = Num - 1;
+	while (Low < High)
+	{
+		const int32 Mid = (Low + High) / 2;
+		if (Ring.Get(Mid).Stamp < Stamp)
+		{
+			Low = Mid + 1;
+		}
+		else
+		{
+			High = Mid;
+		}
+	}
+	const FVeloxEyeSample& After = Ring.Get(Low);
+	if (After.Stamp == Stamp)
+	{
+		OutEye = After.Eye;
+		return true;
+	}
+	const FVeloxEyeSample& Before = Ring.Get(Low - 1);
+	const float Alpha = (Stamp - Before.Stamp) / (After.Stamp - Before.Stamp);
+	OutEye = FMath::Lerp(Before.Eye, After.Eye, static_cast<double>(Alpha));
+	return true;
 }
 
 void UVeloxMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration)

@@ -19,6 +19,7 @@
 #pragma once
 
 #include "Combat/VeloxHitMath.h"
+#include "Engine/TimerHandle.h"
 #include "Weapons/VeloxGameplayAbility_Fire.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 
@@ -85,6 +86,9 @@ protected:
 		TWeakObjectPtr<AActor> HintTarget;
 		float HintTargetStamp = 0.f;
 		uint8 ShotSeq = 0;
+		/** B36: the payload's move time stamp; set for a remote shooter only (origin checked against the eye at it). */
+		float FireMoveTimeStamp = 0.f;
+		bool bHasFireMoveTimeStamp = false;
 	};
 
 	void OnServerTargetData(const FGameplayAbilityTargetDataHandle& Data, FGameplayTag ApplicationTag);
@@ -98,6 +102,10 @@ protected:
 	void Reject(uint8 ShotSeq, const TCHAR* Reason);
 
 	FDelegateHandle TargetDataDelegateHandle;
+
+	/** Non-shipping server test hook velox.combat.DebugHoldShotRpc (ADR 0003 B36 section 9): the held target data's release. */
+	FTimerHandle HeldShotTimer;
+	bool bReleasingHeldShot = false;
 
 	uint8 LastServerPatternSeq = 0;
 	TArray<FVector, TInlineAllocator<1>> LastServerDirs;

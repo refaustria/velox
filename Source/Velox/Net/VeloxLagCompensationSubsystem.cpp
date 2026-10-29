@@ -656,20 +656,28 @@ void UVeloxLagCompensationSubsystem::TraceShot(const FVeloxShotRequest& Request,
 	const AActor* Hint = Request.HintTarget.Get();
 	const int32 DebugLevel = VeloxLagCompCVars::Debug();
 
-	// Origin validation (ADR 0003 section 5, B15): the fire RPC and the move RPC of one client frame may arrive in
-	// either order, so the client origin is accepted within MaxOriginErrorCm of the server eye, provided nothing on
-	// the Weapon channel lies between the eye and it. A non-finite origin is always replaced. One implementation of the rule
-	// for hitscan and projectiles: VeloxShotValidation::ValidateOrigin (B26).
+	// Origin validation (ADR 0003 B15, B36): the client origin is accepted within MaxOriginErrorCm of the shooter's eye at
+	// the shot's FireMoveTimeStamp (the server's per-move eye ring; a reliable fire RPC delayed by a resend no longer
+	// meets the eye of a later move), provided nothing on the Weapon channel lies between that eye and it. A non-finite
+	// origin is always replaced. One implementation of the rule for hitscan and projectiles:
+	// VeloxShotValidation::ValidateOrigin (B26).
 	OutResult.Origin = Request.Origin;
 	const bool bNanOrigin = Request.Origin.ContainsNaN();
-	if (const APawn* ShooterPawn = Cast<APawn>(Shooter); ShooterPawn && (Request.bValidateOrigin || bNanOrigin))
+	const APawn* ShooterPawn = Cast<APawn>(Shooter);
+	FVeloxShotEye ShotEye;
+	if (ShooterPawn)
+	{
+		ShotEye = VeloxShotValidation::ResolveShotEye(*ShooterPawn, Request.bHasFireMoveTimeStamp, Request.FireMoveTimeStamp, Request.MaxRewindSeconds);
+	}
+	const FString LateMs = ShotEye.bHasLate ? FString::Printf(TEXT("%.1f"), ShotEye.LateMs) : FString(TEXT("na"));
+	if (ShooterPawn && (Request.bValidateOrigin || bNanOrigin))
 	{
 		const TCHAR* SnapReason = nullptr;
-		const FVector Validated = VeloxShotValidation::ValidateOrigin(*World, *ShooterPawn, Request.Origin, Request.MaxOriginErrorCm, SnapReason);
+		const FVector Validated = VeloxShotValidation::ValidateOrigin(*World, *ShooterPawn, ShotEye.Eye, Request.Origin, Request.MaxOriginErrorCm, SnapReason);
 		if (SnapReason)
 		{
-			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s"), Request.ShotSeq, *GetNameSafe(Shooter),
-				bNanOrigin ? -1.0 : FVector::Dist(Request.Origin, Validated), SnapReason);
+			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s late_ms=%s eye=%s"), Request.ShotSeq, *GetNameSafe(Shooter),
+				bNanOrigin ? -1.0 : FVector::Dist(Request.Origin, Validated), SnapReason, *LateMs, ShotEye.bFromRing ? TEXT("ring") : TEXT("live"));
 			OutResult.Origin = Validated;
 			OutResult.bOriginSnapped = true;
 			OutResult.OriginSnapReason = SnapReason;
@@ -766,7 +774,7 @@ void UVeloxLagCompensationSubsystem::TraceShot(const FVeloxShotRequest& Request,
 
 	const TCHAR* HintName = !Hint ? TEXT("none") : OutResult.HintMode == EVeloxRewindMode::Stamp ? TEXT("stamp") : TEXT("fallback");
 	const double DistCm = OutResult.Hits.Num() > 0 ? OutResult.Hits[0].Dist : (OutResult.Rays.Num() > 0 ? OutResult.Rays[0].WorldDist : 0.0);
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShot seq=%u shooter=%s hit=%s rewind_ms=%.1f view_ms=%.1f hint=%s dist_cm=%.1f hits=%d rays=%d snap=%d"),
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShot seq=%u shooter=%s hit=%s rewind_ms=%.1f view_ms=%.1f hint=%s dist_cm=%.1f hits=%d rays=%d snap=%d late_ms=%s"),
 		Request.ShotSeq, *GetNameSafe(Shooter), OutResult.Hits.Num() > 0 ? *GetNameSafe(OutResult.Hits[0].Pawn) : TEXT("none"),
-		OutResult.RewindMs, OutResult.ViewMs, HintName, DistCm, OutResult.Hits.Num(), OutResult.Rays.Num(), OutResult.bOriginSnapped ? 1 : 0);
+		OutResult.RewindMs, OutResult.ViewMs, HintName, DistCm, OutResult.Hits.Num(), OutResult.Rays.Num(), OutResult.bOriginSnapped ? 1 : 0, *LateMs);
 }

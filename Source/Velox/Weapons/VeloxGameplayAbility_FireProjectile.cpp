@@ -41,11 +41,8 @@
 
 bool FGameplayAbilityTargetData_VeloxProjectileShot::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bOutSuccess)
 {
-	FGameplayAbilityTargetData_VeloxShot::NetSerialize(Ar, Map, bOutSuccess);
-	// Full precision: the server schedules the owner's self splash at FireMoveTimeStamp + flight time, like the client.
-	Ar << FireMoveTimeStamp;
-	bOutSuccess = bOutSuccess && !Ar.IsError();
-	return true;
+	// B36: FireMoveTimeStamp (full precision) is serialised by the base struct.
+	return FGameplayAbilityTargetData_VeloxShot::NetSerialize(Ar, Map, bOutSuccess);
 }
 
 void FGameplayAbilityTargetData_VeloxProjectileShot::Quantize()
@@ -61,7 +58,8 @@ void FGameplayAbilityTargetData_VeloxProjectileShot::Quantize()
 
 FString FGameplayAbilityTargetData_VeloxProjectileShot::ToString() const
 {
-	return FString::Printf(TEXT("%s fire_ts=%.6f"), *FGameplayAbilityTargetData_VeloxShot::ToString(), FireMoveTimeStamp);
+	// The base line carries fire_ts since B36.
+	return FString::Printf(TEXT("%s projectile=1"), *FGameplayAbilityTargetData_VeloxShot::ToString());
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -282,13 +280,15 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 		return;
 	}
 
-	// Origin validation, the B15 rule shared with TraceShot (B26).
+	// Origin validation, the B15 rule shared with TraceShot (B26), against the eye at the fire stamp for a remote shot (B36).
+	const FVeloxShotEye ShotEye = VeloxShotValidation::ResolveShotEye(*Shooter, bRemote, ClientFireMoveTimeStamp, Settings.MaxRewindSeconds);
+	const FString LateMs = ShotEye.bHasLate ? FString::Printf(TEXT("%.1f"), ShotEye.LateMs) : FString(TEXT("na"));
 	const TCHAR* SnapReason = nullptr;
-	const FVector Origin = VeloxShotValidation::ValidateOrigin(*World, *Shooter, ClientOrigin, Settings.MaxOriginErrorCm, SnapReason);
+	const FVector Origin = VeloxShotValidation::ValidateOrigin(*World, *Shooter, ShotEye.Eye, ClientOrigin, Settings.MaxOriginErrorCm, SnapReason);
 	if (SnapReason)
 	{
-		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s"), ShotSeq, *GetNameSafe(Shooter),
-			ClientOrigin.ContainsNaN() ? -1.0 : FVector::Dist(ClientOrigin, Origin), SnapReason);
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s late_ms=%s eye=%s"), ShotSeq, *GetNameSafe(Shooter),
+			ClientOrigin.ContainsNaN() ? -1.0 : FVector::Dist(ClientOrigin, Origin), SnapReason, *LateMs, ShotEye.bFromRing ? TEXT("ring") : TEXT("live"));
 	}
 
 	FVeloxProjectileLaunch Launch;
@@ -336,8 +336,8 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 			// as the predicting client does; the projectile's damage to others keeps the server tag (Launch.bQuad).
 			const bool bSelfSplashQuad = Movement->IsPowerupActiveAt(Movement->GetPowerupMoveTimes().QuadEnd, FireMoveTimeStamp);
 			Launch.SelfSplashEventId = AVeloxProjectile::ScheduleOwnerSelfSplash(*Movement, Definition, ASC, EventTime, SplashOrigin, ShotSeq, false, bSelfSplashQuad);
-			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShot seq=%u weapon=%s fire_ts=%.6f client_ts=%.6f last_ts=%.6f flight_ms=%.1f event_ts=%.6f splash_origin=%s"), ShotSeq,
-				*GetNameSafe(&Definition), FireMoveTimeStamp, ClientFireMoveTimeStamp, LastMoveTimeStamp, Flight * 1000.0, EventTime, *SplashOrigin.ToCompactString());
+			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShot seq=%u weapon=%s fire_ts=%.6f client_ts=%.6f last_ts=%.6f flight_ms=%.1f event_ts=%.6f splash_origin=%s late_ms=%s"), ShotSeq,
+				*GetNameSafe(&Definition), FireMoveTimeStamp, ClientFireMoveTimeStamp, LastMoveTimeStamp, Flight * 1000.0, EventTime, *SplashOrigin.ToCompactString(), *LateMs);
 		}
 		else if (Movement)
 		{
