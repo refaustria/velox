@@ -37,7 +37,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **Resumed 2026-10-29.** Running: sanity build + 10-round KnockbackRun soak (dev, main checkout, port 7811) and architect review of 05+06 (docs only). Sequential work only while disk is low (see open question 17).
+- **Resumed 2026-10-29.** Running: sanity build + 10-round KnockbackRun soak (dev, main checkout, port 7811) and architect review of 05+06 (docs only). Disk freed 2026-10-29 (docker build cache 22 GB, home caches, build artefacts; human's standing OK): 33 GB free.
 - **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`.
 
 ## Blocked
@@ -53,7 +53,6 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
 
 ## Open questions for the human
-17. **Disk (2026-10-29)**: only 6.1 GB free (was 32 GB on 2026-10-25). The growth is `/var/lib/containerd` (28 GB, container images from outside Velox), not the repo (Velox 2.4 GB). Builds work, but parallel agent worktrees (~2 GB each) and the 04c/review-fix tasks need room. Can you free ~15 GB (e.g. unused container images via `sudo ctr`/`nerdctl` or `docker image prune`), or tell me which of your directories I may clean? I touch nothing outside the repo without your OK.
 12. **M2 weapon numbers**: ADR 0003 defaults to Q3 vanilla (weapon switch waits for refire). CPMA numbers instead?
 13. **Spawn protection**: Q3 has none; ADR default 0 s (mechanism exists, test map uses 2 s). Keep 0?
 14. **Inventory model**: ADR rejects Lyra's equipment/weapon-instance pattern in favour of a bitmask inventory + granted fire abilities. OK?
