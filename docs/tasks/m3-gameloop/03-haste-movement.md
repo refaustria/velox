@@ -2,7 +2,7 @@
 
 **Milestone:** M3 Game loop
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged f32cff9; architect-reviewed, docs/reviews/m3-gameplay-review.md)
 **Depends on:** 01 (parallel with 02); ADR 0004 (and accepted ADRs 0001-0003)
 **Estimate:** 2-3 h; Wave 2
 
