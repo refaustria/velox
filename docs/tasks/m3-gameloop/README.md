@@ -16,6 +16,7 @@ Spec: `docs/adr/0004-game-loop-items-modes-ui.md` (ADR 0004; implementation note
 | 10 | [menus](10-menus.md) | dev | 2-3 h | 07, 09 | Wave 4 (parallel with 08) | todo |
 | 11 | [gauntlet](11-gauntlet.md) | dev | 1 h | none (optional, parallel) | Wave 1 | todo |
 | 12 | [playtest-checklist](12-playtest-checklist.md) | dev | 1 h | all others (last) | Wave 5 | todo |
+| 13 | [gameplay-review-fixes](13-gameplay-review-fixes.md) | dev | 2 h | 01, 02, 03, 05 merged; `docs/reviews/m3-gameplay-review.md` | Wave 5 (before 12) | todo |
 
 ## Wave plan (from ADR 0004)
 - **Wave 1:** 01 || 05 || 04 (script authoring) || 09 || 11

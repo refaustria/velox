@@ -14,7 +14,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 GREP=/usr/bin/grep   # the interactive shell's grep is a ugrep wrapper; use the real one
 PORT=7777
-SCRIPTS_ARG="StrafeRun,PadRun,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun"
+SCRIPTS_ARG="StrafeRun,PadRun,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun"
 REPEAT=1
 KEEP_GOING=0
 CLIENT_TIMEOUT="${VELOX_NETTEST_TIMEOUT:-120}"
@@ -40,7 +40,7 @@ Usage: ${CI_SCRIPT_NAME} [options]
 Runs dedicated server + scripted -nullrhi client (100 ms / 2 % loss both directions) per script and checks the
 net-soak pass criteria. Exit code is non-zero if any script fails. FireRun, FireRunControl (FireRun.json with
 velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest. ItemRun runs on
-L_ItemTest. HasteRun (M3 task 03, not in the default list) runs on L_MovementTest.
+L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest.
 
 Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
