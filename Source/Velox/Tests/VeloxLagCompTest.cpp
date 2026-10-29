@@ -517,6 +517,73 @@ bool FVeloxCombatLagCompTraceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatEyeRingTest, "Velox.Combat.EyeRing", VeloxLagCompTest::Flags)
+
+bool FVeloxCombatEyeRingTest::RunTest(const FString& Parameters)
+{
+	// ADR 0003 B36: the server's per-move eye ring (VeloxEyeRing::Lookup), moves of 1/120 s, eye x = 1000 * stamp.
+	constexpr float MoveDt = 1.f / 120.f;
+	auto EyeAt = [](float Stamp) { return FVector(1000.0 * Stamp, 0.0, 64.0); };
+	FVeloxEyeRing Ring;
+	FVector Eye;
+	TestFalse(TEXT("empty ring -> false"), VeloxEyeRing::Lookup(Ring, 1.f, Eye));
+
+	const float Base = 2.5f;
+	for (int32 Index = 0; Index < 10; ++Index)
+	{
+		const float Stamp = Base + Index * MoveDt;
+		Ring.Push(Stamp, EyeAt(Stamp));
+	}
+	const float S3 = Base + 3 * MoveDt;
+	TestTrue(TEXT("exact stamp found"), VeloxEyeRing::Lookup(Ring, S3, Eye));
+	TestTrue(TEXT("exact stamp -> its eye verbatim"), Eye.Equals(EyeAt(S3), 0.0));
+	const float S4 = Base + 4 * MoveDt;
+	const float Between = S3 + 0.25f * (S4 - S3);
+	TestTrue(TEXT("between two entries found"), VeloxEyeRing::Lookup(Ring, Between, Eye));
+	TestTrue(FString::Printf(TEXT("between -> linear interpolation (x %.4f, want %.4f)"), Eye.X, EyeAt(S3).X + 0.25 * (EyeAt(S4).X - EyeAt(S3).X)),
+		FMath::IsNearlyEqual(Eye.X, EyeAt(S3).X + 0.25 * (EyeAt(S4).X - EyeAt(S3).X), 1e-3));
+	const float Newest = Base + 9 * MoveDt;
+	TestTrue(TEXT("newest stamp exact"), VeloxEyeRing::Lookup(Ring, Newest, Eye) && Eye.Equals(EyeAt(Newest), 0.0));
+	Eye = FVector(-7.0);
+	TestFalse(TEXT("newer than the newest -> false (caller uses the live eye)"), VeloxEyeRing::Lookup(Ring, Newest + 0.001f, Eye));
+	TestTrue(TEXT("newer: OutEye untouched"), Eye.Equals(FVector(-7.0), 0.0));
+	TestTrue(TEXT("older than the oldest -> true"), VeloxEyeRing::Lookup(Ring, Base - 0.5f, Eye));
+	TestTrue(TEXT("older than the oldest -> the oldest"), Eye.Equals(EyeAt(Base), 0.0));
+	TestFalse(TEXT("NaN stamp -> false"), VeloxEyeRing::Lookup(Ring, std::numeric_limits<float>::quiet_NaN(), Eye));
+
+	// An equal stamp replaces the newest entry (no duplicate, no reset).
+	Ring.Push(Newest, FVector(1.0, 2.0, 3.0));
+	TestEqual(TEXT("equal stamp: count unchanged"), Ring.Num(), 10);
+	TestTrue(TEXT("equal stamp: newest replaced"), VeloxEyeRing::Lookup(Ring, Newest, Eye) && Eye.Equals(FVector(1.0, 2.0, 3.0), 0.0));
+
+	// A lower stamp (client time-stamp reset, new life) resets the ring.
+	Ring.Push(0.01f, EyeAt(0.01f));
+	TestEqual(TEXT("lower stamp resets: one entry"), Ring.Num(), 1);
+	TestFalse(TEXT("after reset: an old stamp is newer than the newest -> false"), VeloxEyeRing::Lookup(Ring, S3, Eye));
+	TestTrue(TEXT("after reset: the new entry found"), VeloxEyeRing::Lookup(Ring, 0.01f, Eye) && Eye.Equals(EyeAt(0.01f), 0.0));
+
+	// 130 pushes keep the newest 128.
+	Ring.Reset();
+	for (int32 Index = 0; Index < 130; ++Index)
+	{
+		const float Stamp = 10.f + Index * MoveDt;
+		Ring.Push(Stamp, EyeAt(Stamp));
+	}
+	TestEqual(TEXT("130 pushes: 128 kept"), Ring.Num(), FVeloxEyeRing::Capacity);
+	const float Third = 10.f + 2 * MoveDt;
+	TestEqual(TEXT("130 pushes: the oldest is push #3"), Ring.Get(0).Stamp, Third);
+	TestEqual(TEXT("130 pushes: the newest is push #130"), Ring.Get(Ring.Num() - 1).Stamp, 10.f + 129 * MoveDt);
+	TestTrue(TEXT("130 pushes: push #1 dropped -> the oldest"), VeloxEyeRing::Lookup(Ring, 10.f, Eye) && Eye.Equals(EyeAt(Third), 0.0));
+	bool bAllExact = true;
+	for (int32 Index = 2; Index < 130; ++Index)
+	{
+		const float Stamp = 10.f + Index * MoveDt;
+		bAllExact &= VeloxEyeRing::Lookup(Ring, Stamp, Eye) && Eye.Equals(EyeAt(Stamp), 0.0);
+	}
+	TestTrue(TEXT("130 pushes: every kept stamp found exactly (wrapped storage)"), bAllExact);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatRenderedStampTest, "Velox.Combat.RenderedStamp", VeloxLagCompTest::Flags)
 
 bool FVeloxCombatRenderedStampTest::RunTest(const FString& Parameters)

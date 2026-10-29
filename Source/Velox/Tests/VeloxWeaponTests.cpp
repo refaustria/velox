@@ -465,6 +465,16 @@ bool FVeloxCombatShotValidationTest::RunTest(const FString& Parameters)
 		Bad.ViewServerTime = 12.5f;
 		Bad.HintTargetStamp = FNaN;
 		Check(TEXT("NaN hint stamp"), &Bad, EVeloxShotReject::Time);
+		// B36: the hitscan payload carries FireMoveTimeStamp too.
+		Bad.HintTargetStamp = 7.f;
+		Bad.FireMoveTimeStamp = FNaN;
+		Check(TEXT("hitscan: NaN fire stamp"), &Bad, EVeloxShotReject::Time);
+		Bad.FireMoveTimeStamp = FInf;
+		Check(TEXT("hitscan: +inf fire stamp"), &Bad, EVeloxShotReject::Time);
+		Bad.FireMoveTimeStamp = -FInf;
+		Check(TEXT("hitscan: -inf fire stamp"), &Bad, EVeloxShotReject::Time);
+		Bad.FireMoveTimeStamp = 41.5f;
+		TestEqual(TEXT("hitscan: fire stamp carried into the validated shot"), Check(TEXT("hitscan: finite fire stamp"), &Bad, EVeloxShotReject::None).FireMoveTimeStamp, 41.5f);
 	}
 
 	// Over-rate: MG (0.1 s, capacity 3) four shots in one frame -> the fourth is rate.
@@ -629,6 +639,7 @@ bool FVeloxCombatTargetDataSerializeTest::RunTest(const FString& Parameters)
 	In.ViewServerTime = 1834.21875f;
 	In.ShotSeq = 251;
 	In.HintTargetStamp = 77.123456f;
+	In.FireMoveTimeStamp = 183.0258331f;
 
 	// Struct NetSerialize without a package map: the hint cannot be named and is dropped (one bit).
 	FBitWriter Writer(1024, true);
@@ -645,6 +656,7 @@ bool FVeloxCombatTargetDataSerializeTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("dir to 1e-4"), Out.Dir.Equals(In.Dir, 1e-4));
 	TestEqual(TEXT("view time exact float"), Out.ViewServerTime, In.ViewServerTime);
 	TestEqual(TEXT("shot seq"), static_cast<int32>(Out.ShotSeq), 251);
+	TestEqual(TEXT("fire move time stamp exact float (B36)"), Out.FireMoveTimeStamp, In.FireMoveTimeStamp);
 	TestFalse(TEXT("no hint"), Out.bHasHint);
 
 	// The hint bit with a stamp round-trips exactly as a float (B12): checked on the stamp field directly.
@@ -832,6 +844,40 @@ namespace VeloxWeaponTest
 		const FVector Far = Eye + FVector(0.0, MaxErrorCm + 25.0, 0.0);
 		Test.TestTrue(TEXT("origin: beyond MaxOriginErrorCm -> eye"), VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, Far, MaxErrorCm, Reason).Equals(Eye, 1e-6));
 		Test.TestTrue(TEXT("origin: beyond -> reason distance"), Reason && FCString::Strcmp(Reason, TEXT("distance")) == 0);
+
+		// ADR 0003 B36: the overload against the eye at the fire stamp. The pawn has moved 180 cm since that eye (the
+		// round-4 shape: a late reliable RPC meets the eye of a later move).
+		const FVector StampedEye = Eye + FVector(0.0, -180.0, 0.0);
+		Test.TestTrue(TEXT("stamped eye: origin = stamped eye -> unchanged"),
+			VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, StampedEye, StampedEye, MaxErrorCm, Reason).Equals(StampedEye, 1e-6) && !Reason);
+		Test.TestTrue(TEXT("live eye (pre-B36): the same origin -> snapped to the live eye"),
+			VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, StampedEye, MaxErrorCm, Reason).Equals(Eye, 1e-6));
+		Test.TestTrue(TEXT("live eye (pre-B36): reason distance"), Reason && FCString::Strcmp(Reason, TEXT("distance")) == 0);
+		const FVector Behind = StampedEye + FVector(0.0, -30.0, 0.0);
+		Test.TestTrue(TEXT("stamped eye: 30 cm off, nothing in between -> unchanged"),
+			VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, StampedEye, Behind, MaxErrorCm, Reason).Equals(Behind, 1e-6) && !Reason);
+		// The occlusion trace runs from the stamped eye: a 10 cm wall between it and the origin 30 cm away.
+		UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+		if (Test.TestNotNull(TEXT("origin: cube mesh"), Cube))
+		{
+			AStaticMeshActor* Wall = W.World->SpawnActor<AStaticMeshActor>(StampedEye + FVector(0.0, -15.0, 0.0), FRotator::ZeroRotator);
+			Wall->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
+			Wall->GetStaticMeshComponent()->SetStaticMesh(Cube);
+			Wall->SetActorScale3D(FVector(4.0, 0.1, 4.0)); // 10 cm thick, 400 cm wide, between y = -10 and -20 of the stamped eye
+			Test.TestTrue(TEXT("stamped eye: wall between it and the origin -> snapped to the stamped eye"),
+				VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, StampedEye, Behind, MaxErrorCm, Reason).Equals(StampedEye, 1e-6));
+			Test.TestTrue(TEXT("stamped eye: reason occluded"), Reason && FCString::Strcmp(Reason, TEXT("occluded")) == 0);
+			const FVector Ahead = StampedEye + FVector(30.0, 0.0, 0.0);
+			Test.TestTrue(TEXT("stamped eye: 30 cm the other way, wall not in between -> unchanged"),
+				VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, StampedEye, Ahead, MaxErrorCm, Reason).Equals(Ahead, 1e-6) && !Reason);
+			Wall->Destroy();
+		}
+
+		// ResolveShotEye without a ring entry or a stamp: the live eye, late only with a stamp on the authority.
+		const FVeloxShotEye NoStamp = VeloxShotValidation::ResolveShotEye(*Shooter, false, 0.f, 0.3f);
+		Test.TestTrue(TEXT("resolve: no stamp -> live eye, no late"), NoStamp.Eye.Equals(Eye, 1e-6) && !NoStamp.bHasLate && !NoStamp.bFromRing);
+		const FVeloxShotEye EmptyRing = VeloxShotValidation::ResolveShotEye(*Shooter, true, 0.f, 0.3f);
+		Test.TestTrue(TEXT("resolve: empty ring -> live eye"), EmptyRing.Eye.Equals(Eye, 1e-6) && !EmptyRing.bFromRing);
 	}
 }
 

@@ -29,7 +29,7 @@ FIRE_LAG_MS=50
 LAG_OVERRIDE=""
 PKT_ARGS=()
 # Scripts on L_CombatTest (task 08); everything else runs on L_MovementTest.
-COMBAT_SCRIPTS=" FireRun FireRunControl RocketJumpRun "
+COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun "
 # Scripts on L_ItemTest (M3 task 04); the client runs velox.items.Watch.
 ITEM_SCRIPTS=" ItemRun "
 
@@ -40,7 +40,8 @@ Usage: ${CI_SCRIPT_NAME} [options]
 Runs dedicated server + scripted -nullrhi client (100 ms / 2 % loss both directions) per script and checks the
 net-soak pass criteria. Exit code is non-zero if any script fails. FireRun, FireRunControl (FireRun.json with
 velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest. ItemRun runs on
-L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest.
+L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest. FireRunHold (task 08g, not in the default list) is FireRun
+with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3).
 
 Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
@@ -84,7 +85,7 @@ trap 'exit 130' INT TERM
 script_lag() {
   if [[ -n "$LAG_OVERRIDE" ]]; then echo "$LAG_OVERRIDE"; return; fi
   case "$1" in
-    FireRun|FireRunControl) echo "$FIRE_LAG_MS" ;;
+    FireRun|FireRunControl|FireRunHold) echo "$FIRE_LAG_MS" ;;
     *) echo "$LAG_MS" ;;
   esac
 }
@@ -110,13 +111,16 @@ run_one() {
     map="L_ItemTest"; cexec="$cexec, velox.items.Watch"
   fi
   case "$script" in
-    FireRun|FireRunControl)
+    FireRun|FireRunControl|FireRunHold)
       # Task 08: invulnerable strafing target at FireRun.json's dummyLocation, every weapon, per-pawn rewind lines.
+      # FireRunHold (task 08g, ADR 0003 B36): FireRun with the server holding the first three rail target-data RPCs
+      # (slot 7) for 300 ms each, a deterministic stand-in for a reliable resend.
       local dummy lagcomp=1
       dummy="$(python3 -I -c 'import json,sys; print(" ".join("%g" % v for v in json.load(open(sys.argv[1]))["dummyLocation"]))' \
         "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json")" || { echo "FAILED: FireRun.json has no dummyLocation" >&2; return 1; }
       [[ "$script" == FireRunControl ]] && lagcomp=0
       sexec="velox.combat.GiveAllWeapons, velox.combat.SpawnDummy $dummy invulnerable, velox.lagcomp.Debug 1, velox.combat.LagComp $lagcomp"
+      [[ "$script" == FireRunHold ]] && sexec="$sexec, velox.combat.DebugHoldShotRpc 300 7 3"
       script_args=(-VeloxScript=FireRun) ;;
     RocketJumpRun)
       # Task 08 / ADR 0003 B25: wraps the task-05 test command; VeloxCorrection lines come from velox.move.LogCorrections.
@@ -547,12 +551,15 @@ elif script == "LatchRun":
                 notes.append("%s: no friction drop (%.1f -> %.1f)" % (name, before, after))
             stray_only(t, t + 0.3, name)
 
-elif script in ("FireRun", "FireRunControl"):
+elif script in ("FireRun", "FireRunControl", "FireRunHold"):
     # Task 08 / ADR 0003 section 9, B17, B24, B25: FireRun.json against the invulnerable strafing dummy. Client lines:
     # VeloxShotFired (seq, weapon, aim_err_cm, view_delay_ms, server_est), VeloxHitConfirm (new=), ClientActivateAbilityFailed
     # (GAS, Display). Server lines: VeloxShot (seq, hit, rewind_ms, view_ms, hint, hits, snap), VeloxShotRejected,
     # VeloxProjectileExplode, SpawnDummy, VeloxLagCompRegister/VeloxLagCompRewind (velox.lagcomp.Debug 1).
     control = script == "FireRunControl"
+    hold_run = script == "FireRunHold"
+    # Task 08g / B36: shots the server held (velox.combat.DebugHoldShotRpc); judged separately from the FireRun rules.
+    held = [kv(l).get("seq") for l in S if "VeloxShotRpcHold seq=" in l]
     WALL_RE = re.compile(r"^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]")
     def wall(line):
         m = WALL_RE.match(line)
@@ -583,7 +590,7 @@ elif script in ("FireRun", "FireRunControl"):
     if t_possess is None:
         notes.append("no VeloxShotSeqReset line: warm-up not applied")
     warm = [d for d in fired.values() if not judged(d)]
-    rails = [d for d in fired.values() if "Railgun" in d.get("weapon", "") and judged(d)]
+    rails = [d for d in fired.values() if "Railgun" in d.get("weapon", "") and judged(d) and d.get("seq") not in held]
     mgs = [d for d in fired.values() if "MachineGun" in d.get("weapon", "") and judged(d)]
     rails.sort(key=lambda d: num(d, "t")); mgs.sort(key=lambda d: num(d, "t"))
     rail_srv = [(d, srv.get(d.get("seq"))) for d in rails]
@@ -600,12 +607,41 @@ elif script in ("FireRun", "FireRunControl"):
         len(rails), hit_n, stamp_n, ("%.1f" % statistics.median(rew)) if rew else "-", ("%.1f" % (sum(dif) / len(dif))) if dif else "-",
         ("%.1f" % max(aim)) if aim else "-", ("%.1f" % statistics.median(delays)) if delays else "-", len(mgs), len(rejected), len(act_failed),
         confirms, hits_srv, ",".join("direct=%s/victims=%s/sent=%s" % (e.get("direct"), e.get("confirm_victims"), e.get("confirm_sent")) for e in explodes) or "none", len(warm)))
+    # B36: late_ms = (last processed move stamp - FireMoveTimeStamp) on every server shot line; VeloxShotOriginSnap (any
+    # weapon, err_cm against the eye at the fire stamp) must not occur for an honest client.
+    lates = [(seq, num(s_, "late_ms")) for seq, s_ in srv.items() if seq not in held and s_.get("late_ms") not in (None, "na")]
+    over40 = [(seq, round(v, 1)) for seq, v in lates if v > 40.0]
+    detail.append("late_max=%s late_gt40=%d" % (("%.1f" % max(v for _, v in lates)) if lates else "-", len(over40)))
+    if over40:
+        notes.append("non-held shots with late_ms > 40 (a lost RPC resent, RTT + ~80 ms): %s" % over40[:6])
+    snap_lines = [kv(l) for l in S if "VeloxShotOriginSnap seq=" in l]
+    if snap_lines:
+        fails.append("%d VeloxShotOriginSnap line(s), max err_cm %.1f: %s" % (len(snap_lines), max(num(d, "err_cm") for d in snap_lines),
+            ["seq=%s err_cm=%s reason=%s late_ms=%s" % (d.get("seq"), d.get("err_cm"), d.get("reason"), d.get("late_ms")) for d in snap_lines[:4]]))
+    if hold_run:
+        # Task 08g: the three held rails are processed 300 ms late; late_ms in [280, 360], no snap, no rejection; their
+        # hit / miss and rewind_ms (clamped at MaxRewindSeconds) are reported, not asserted.
+        rows = []
+        for seq in held:
+            s_ = srv.get(seq)
+            if s_ is None:
+                rows.append("seq=%s:no_server_line" % seq)
+                fails.append("held rail seq=%s has no server VeloxShot line" % seq)
+                continue
+            late = s_.get("late_ms")
+            rows.append("seq=%s:late=%s/rewind=%s/hint=%s/hit=%s" % (seq, late, s_.get("rewind_ms"), s_.get("hint"), s_.get("hit")))
+            if late in (None, "na") or not (280.0 <= num(s_, "late_ms") <= 360.0):
+                fails.append("held rail seq=%s late_ms=%s not in [280, 360]" % (seq, late))
+        detail.append("held=[%s]" % " ".join(rows))
+        if len(held) != 3:
+            fails.append("expected 3 held rail RPCs (VeloxShotRpcHold seq=), got %d" % len(held))
     railfile = os.path.join(out_dir, "FireRun.railhits")
     if not control:
-        with open(railfile, "w") as rf:
-            rf.write("%d %d\n" % (hit_n, len(rails)))
-        if len(rails) < 10:
-            fails.append("expected >= 10 judged rail shots, got %d" % len(rails))
+        if not hold_run:
+            with open(railfile, "w") as rf:
+                rf.write("%d %d\n" % (hit_n, len(rails)))
+        if len(rails) < (10 - len(held)):
+            fails.append("expected >= %d judged rail shots, got %d" % (10 - len(held), len(rails)))
         missing = [d.get("seq") for d, s_ in rail_srv if s_ is None]
         if missing:
             fails.append("rail shots without a server VeloxShot line (rejected or lost): seq %s" % missing)
@@ -616,9 +652,12 @@ elif script in ("FireRun", "FireRunControl"):
             fails.append("rail hits on the dummy %d of %d (want >= n - 1)" % (hit_n, len(rails)))
         if rails and stamp_n < len(rails) - 1:
             fails.append("hint=stamp on %d of %d rail shots (want >= n - 1): %s" % (stamp_n, len(rails), [s_.get("hint") for _, s_ in rail_srv if s_]))
-        out_rew = [(s_.get("seq"), num(s_, "rewind_ms")) for _, s_ in rail_srv if s_ and not (60.0 <= num(s_, "rewind_ms") <= 250.0)]
+        # Task 08g / B36: a rail whose RPC was resent is processed late_ms later, so its needed rewind grows by late_ms (and
+        # is clamped at MaxRewindSeconds, accepted by B36): the upper bound is 250 + max(0, late_ms).
+        out_rew = [(s_.get("seq"), num(s_, "rewind_ms"), s_.get("late_ms")) for _, s_ in rail_srv
+                   if s_ and not (60.0 <= num(s_, "rewind_ms") <= 250.0 + max(0.0, num(s_, "late_ms")))]
         if out_rew:
-            fails.append("rail rewind_ms outside [60, 250]: %s" % out_rew)
+            fails.append("rail rewind_ms outside [60, 250 + late_ms] (seq, rewind, late): %s" % out_rew)
         big = [(s_.get("seq"), round(num(s_, "rewind_ms") - num(s_, "view_ms"), 1)) for _, s_ in rail_srv if s_ and abs(num(s_, "rewind_ms") - num(s_, "view_ms")) > 60.0]
         if big:
             fails.append("|rewind_ms - view_ms| > 60 ms: %s" % big)
@@ -915,7 +954,7 @@ rest = [c for c in nonecho if c not in excluded]
 xs = [c[1] for c in rest]
 x = max(xs) if xs else 0.0
 y = sum(xs) / len(xs) if xs else 0.0
-if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "HasteRun"):
+if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "FireRunHold", "HasteRun"):
     if len(rest) > 3 * Lexp:
         fails.append("corrections C=%d > 3 x L_exp (%.1f)" % (len(rest), 3 * Lexp))
     if x > 30.0:
@@ -984,7 +1023,7 @@ main() {
   info "Net soak: scripts=${scripts[*]} rounds=$REPEAT port=$PORT lag=${lag_desc} logs=$base_dir"
   for s in "${scripts[@]}"; do
     case "$s" in
-      FireRunControl) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "FireRunControl needs FireRun.json" ;;
+      FireRunControl|FireRunHold) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "$s needs FireRun.json" ;;
       RocketJumpRun) ;;   # drives velox.combat.RocketJumpTest, no JSON script
       *) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/$s.json" ]] || die "unknown script '$s'" ;;
     esac
