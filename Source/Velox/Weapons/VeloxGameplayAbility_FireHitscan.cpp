@@ -276,7 +276,8 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 			Shot.HintTargetStamp = Valid.HintTargetStamp;
 			Shot.ShotSeq = Valid.ShotSeq;
 			ResolveServerShot(*Definition, Shot);
-			AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+			// B37: no NextFireTime carry on receive time; the switch's refire wait reads this instead.
+			NoteAcceptedRemoteShot(Now);
 		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);

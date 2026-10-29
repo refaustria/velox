@@ -11,7 +11,7 @@
 //   Velox.Combat.ProjectileServerPath private game world, the server path for a remote shooter (a player controller
 //                                    without a local player is not local in a world without a net driver): the
 //                                    activation RPC and the target data RPC run on the authority; a shot of the pending
-//                                    RL within SwitchTimingToleranceSeconds finalises the switch (B18/B26), the rocket
+//                                    RL within FireRateJitterToleranceSeconds finalises the switch (B18/B26/B37), the rocket
 //                                    confirms its direct hit to the controller, a NaN origin is rejected (B26).
 
 #include "Misc/AutomationTest.h"
@@ -510,8 +510,8 @@ bool FVeloxCombatProjectileServerPathTest::RunTest(const FString& Parameters)
 
 	// 1. A running switch MG -> RL in its raise-free tail: RL pending, GE_WeaponSwitching remaining inside the tolerance.
 	Inventory->SetCurrentIndex(MG);
-	Inventory->SetPendingIndex(RL);
-	const float Remaining = FMath::Max(Settings.GetSwitchTimingToleranceSeconds() - 0.05f, 0.01f);
+	const float Remaining = FMath::Max(Settings.GetFireRateJitterToleranceSeconds() - 0.05f, 0.01f);
+	Inventory->SetPendingIndex(RL, Remaining); // B37: the inventory's drop timer is armed; the shot below completes first
 	ASC->ApplyGameplayEffectSpecToSelf(*VeloxEffects::MakeDurationSpec(ASC, UVeloxGE_WeaponSwitching::StaticClass(), Remaining).Data.Get());
 	TestEqual(TEXT("pending: current MG"), Inventory->GetCurrentIndex(), MG);
 	TestEqual(TEXT("pending: RL pending"), Inventory->GetPendingIndex(), RL);
@@ -522,6 +522,7 @@ bool FVeloxCombatProjectileServerPathTest::RunTest(const FString& Parameters)
 	RemoteShot(Eye, AimDir, 1);
 	TestEqual(TEXT("pending switch: the RL shot finalised it (current RL right after the shot)"), Inventory->GetCurrentIndex(), RL);
 	TestEqual(TEXT("pending switch: nothing pending"), Inventory->GetPendingIndex(), INDEX_NONE);
+	TestFalse(TEXT("pending switch: the inventory's drop timer cleared by the finalising shot (B37)"), Inventory->IsPendingDropTimerActive());
 	const UVeloxGameplayAbility_FireProjectile* RLFire = Cast<UVeloxGameplayAbility_FireProjectile>(RLSpec->GetPrimaryInstance());
 	TestTrue(TEXT("pending switch: shot accepted"), RLFire && !RLFire->GetLastServerShot().bRejected && RLFire->GetLastServerShot().ShotSeq == 1);
 

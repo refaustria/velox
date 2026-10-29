@@ -130,9 +130,10 @@ bool UVeloxGameplayAbility_Fire::CanActivateAbility(const FGameplayAbilitySpecHa
 	const double Now = World->GetTimeSeconds();
 	const bool bRemote = IsServerForRemoteShooter(ActorInfo);
 
-	// B18: switch timing. Shooter's machine: its own switch end; server for a remote shooter: the GE with a tolerance.
+	// B18: switch timing. Shooter's machine: its own switch end; server for a remote shooter: the GE with the one resend
+	// tolerance (B37: the skew between a switch RPC and a later fire RPC is bounded by the resend compression).
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory->GetCombatSettings());
-	if (!VeloxFireTiming::IsSwitchFireAllowed(!bRemote, Now, Inventory->GetSwitchEndTime(), bRemote ? GetSwitchRemaining(ASC) : 0.0, Settings.GetSwitchTimingToleranceSeconds()))
+	if (!VeloxFireTiming::IsSwitchFireAllowed(!bRemote, Now, Inventory->GetSwitchEndTime(), bRemote ? GetSwitchRemaining(ASC) : 0.0, Settings.GetFireRateJitterToleranceSeconds()))
 	{
 		if (OptionalRelevantTags)
 		{

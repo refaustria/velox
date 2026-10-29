@@ -6,7 +6,7 @@
 // Tol = (Capacity - 1) x FireInterval: a client firing exactly at the rate is never rejected while every shot's receive
 // delay lies within Tol of the others' (a reliable resend compresses by about RTT + 80 ms, 330 ms at the 250 ms RTT
 // limit, so Tol 0.5 s covers one loss there), and after a full bucket two shots cannot be accepted closer than
-// FireInterval - Tol, which is the minimum spacing B19 patched in separately (that rule rejected honest rails after one
+// FireInterval - Tol, which is the spacing floor B19 had patched in as a separate rule (it rejected honest rails after one
 // lost packet at the ping limit and is gone). The long-term rate is bounded exactly by 1 / FireInterval. Capacities at
 // Tol 0.5 s: MG 6, LG 11, SG 1.5, RL 1.625, RG 1.333 (two rails 1.0 s apart once, then 1.5 s on average).
 

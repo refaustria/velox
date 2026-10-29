@@ -258,7 +258,8 @@ void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbi
 		{
 			FinalisePendingSwitch(*Definition);
 			LaunchServerShot(*Definition, Valid.Origin, Valid.Dir, Valid.ShotSeq, true, Valid.FireMoveTimeStamp);
-			AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+			// B37: no NextFireTime carry on receive time; the switch's refire wait reads this instead.
+			NoteAcceptedRemoteShot(Now);
 		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);

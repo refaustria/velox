@@ -136,9 +136,20 @@ public:
 	 */
 	void ResetToLoadout();
 	void RemoveAllWeapons();
-	/** Server: the authoritative current weapon (also used by tests and cheats to skip the switch). Clears the pending index. */
+	/**
+	 * Server: the authoritative current weapon (also used by tests and cheats to skip the switch). Clears the pending
+	 * index and the pending drop timer.
+	 */
 	void SetCurrentIndex(int32 Index);
-	void SetPendingIndex(int32 Index);
+	/**
+	 * Server (ADR 0003 B37 iii): Index becomes the target of a running switch whose drop ends DropEndSeconds from now. The
+	 * inventory owns that drop end: PendingDropTimer runs CompletePendingDrop then (DropEndSeconds <= 0: at once), so a
+	 * superseding switch activation that ends the switch instance (B33) cannot orphan the pending switch. GE_WeaponSwitching
+	 * keeps running through the raise; SwitchEndTime is not touched. INDEX_NONE clears the pending index and the timer.
+	 */
+	void SetPendingIndex(int32 Index, float DropEndSeconds);
+	/** Tests and logs: the server's pending drop timer is armed. */
+	bool IsPendingDropTimerActive() const;
 	/**
 	 * Server (B18, task 08b D4): an accepted shot of the pending weapon completes the running switch: the pending index
 	 * becomes current, the switch ability instance still waiting for its (latency-shifted) drop end is ended, and
@@ -171,6 +182,8 @@ public:
 
 	//~UActorComponent interface
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	/** Clears the pending drop timer (B37) and the beam timer. */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	//~End of UActorComponent interface
 
 protected:
@@ -199,6 +212,9 @@ private:
 	void RemoveFireAbility(int32 Index);
 	void GrantSwitchAbility();
 	void StopBeamOf(int32 Index);
+	/** B37 (iii), PendingDropTimer: Target becomes current if it is still the pending index. */
+	void CompletePendingDrop(int32 Target);
+	void ClearPendingDropTimer();
 
 	/** Bit i = weapon table index i is owned. Owner only. */
 	UPROPERTY(ReplicatedUsing = OnRep_OwnedMask)
@@ -215,6 +231,8 @@ private:
 	FGameplayAbilitySpecHandle SwitchSpecHandle;
 
 	FTimerHandle BeamTimer;
+	/** Server: the drop end of the pending switch (B37 iii). */
+	FTimerHandle PendingDropTimer;
 	FGameplayTag ActiveBeamCueTag;
 
 	int32 PredictedIndex = INDEX_NONE;

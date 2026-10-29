@@ -2,13 +2,16 @@
 // the WhileInputActive re-try. Granted per owned weapon by UVeloxWeaponInventoryComponent with SourceObject = the
 // UVeloxWeaponDefinition, which supplies every number.
 //
-// Fire rate: no cooldown GE. Each side keeps NextFireTime in its own world time (the shooter's machine: client, listen
-// host, bot server) with Q3's one-frame carry (B19, VeloxFireTiming); the server for a remote shooter validates with
-// FVeloxFireRateBucket (token bucket, B32: capacity 1 + tolerance / interval, no separate spacing rule) on receive time instead, since receive jitter would otherwise
-// reject legitimate shots.
-// Switch timing (B18): the shooter's machine fires only at or after the inventory's local SwitchEndTime; the server for
-// a remote shooter accepts a shot while GE_WeaponSwitching has <= SwitchTimingToleranceSeconds left, also for the
-// pending weapon, whose accepted shot finalises the switch. Velox.State.WeaponSwitching does not block activation.
+// Fire rate: no cooldown GE. The shooter's machine (client, listen host, bot server) keeps NextFireTime in its own world
+// time with Q3's one-frame carry (B19, VeloxFireTiming). The server for a remote shooter keeps no NextFireTime (B37: the
+// carry is a local-rhythm rule; on receive time bunched resends would push it ahead): it validates with the
+// FVeloxFireRateBucket token bucket (B32: capacity 1 + tolerance / interval, no separate spacing rule, one tolerance
+// FireRateJitterToleranceSeconds) and records the receive time of the last accepted shot (LastAcceptedReceiveTime) for
+// the switch's refire wait. Both sides use the Haste-scaled interval (GetHasteFireInterval, ADR 0004 section 3).
+// Switch timing (B18, B37): the shooter's machine fires only at or after the inventory's local SwitchEndTime; the server
+// for a remote shooter accepts a shot while GE_WeaponSwitching has <= FireRateJitterToleranceSeconds left (the one
+// resend tolerance), also for the pending weapon, whose accepted shot finalises the switch.
+// Velox.State.WeaponSwitching does not block activation.
 
 #pragma once
 
@@ -57,8 +60,17 @@ public:
 	static const UVeloxWeaponDefinition* GetDefinition(const FGameplayAbilitySpec* Spec);
 	const UVeloxWeaponDefinition* GetCurrentDefinition() const;
 
-	/** Local world time of the next allowed shot on this machine (also read by the switch's refire wait). */
+	/**
+	 * Shooter's machine only: local world time of the next allowed shot (also read by the switch's refire wait there).
+	 * Never advanced on the server for a remote shooter (B37), see GetLastAcceptedReceiveTime.
+	 */
 	double GetNextFireTime() const { return NextFireTime; }
+
+	/**
+	 * Server for a remote shooter (B37): server world time at which this weapon's last shot was accepted (receive time);
+	 * a very negative value before the first one. The switch's refire wait there is max(0, this + Interval - Now).
+	 */
+	double GetLastAcceptedReceiveTime() const { return LastAcceptedReceiveTime; }
 
 	const FVeloxServerShotInfo& GetLastServerShot() const { return LastServerShot; }
 
@@ -85,8 +97,14 @@ public:
 	//~End of UGameplayAbility interface
 
 protected:
-	/** B19, Q3 weapon time: a shot within one frame (this frame's delta) of its schedule carries, a later one restarts. */
+	/**
+	 * B19, Q3 weapon time: a shot within one frame (this frame's delta) of its schedule carries, a later one restarts.
+	 * Shooter's machine only (client, listen host, bots); never on the server's remote path (B37).
+	 */
 	void AdvanceNextFireTime(double Now, float Interval);
+
+	/** Server for a remote shooter, accepted shot (B37): records Now as LastAcceptedReceiveTime. */
+	void NoteAcceptedRemoteShot(double Now) { LastAcceptedReceiveTime = Now; }
 
 	/** Server receive-time rate check only (token bucket, B32); logs nothing. */
 	bool ConsumeServerFireToken(double Now, const UVeloxWeaponDefinition& Definition);
@@ -109,6 +127,8 @@ protected:
 	UVeloxWeaponInventoryComponent* GetInventory() const;
 
 	double NextFireTime = -1.0e9;
+	/** B37, server for a remote shooter only. */
+	double LastAcceptedReceiveTime = -1.0e9;
 	FVeloxFireRateBucket ServerBucket;
 	FVeloxServerShotInfo LastServerShot;
 };

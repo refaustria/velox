@@ -5,7 +5,7 @@
 //                                    old 3-token bucket and B19's spacing rule do reject the same arrivals), a 2x MG
 //                                    cheat rejected within 1 s.
 //   Velox.Combat.FireTiming          Q3 one-frame carry of NextFireTime (no banked double tap) and the switch gate (B18,
-//                                    B19; world-free).
+//                                    B19; world-free); B37: the server's RemoteRefireWait and the 0.5 s gate rows.
 //   Velox.Combat.ShotValidation      every server reject reason from its input, a valid shot normalised (world-free),
 //                                    the projectile payload (B26), the fire time-stamp clamp (B25) and the shared B15
 //                                    origin rule (a private world for ValidateOrigin; the occlusion row is in LagCompTrace).
@@ -15,7 +15,12 @@
 //                                    FVeloxGameplayEffectContext round trip incl. PatternSeq (B21).
 //   Velox.Combat.Inventory           loadout, AddWeapon, fire routing to the current weapon, switch drop/raise timing
 //                                    and refire wait, the local SwitchEndTime gate (B18), through the ASC input path
-//                                    (private game world).
+//                                    (private game world); B33 supersede rows and the inventory-owned drop end (B37 iii:
+//                                    a rejected supersede still lands at the drop end, a completing shot clears the timer,
+//                                    a reset cancels it).
+//   Velox.Combat.RemoteSwitchTimeline B37 on the server for a remote shooter: six bunched MG shots -> refire wait
+//                                    <= one interval, rail wait 1.1 s at T + 0.4, the switch gate at 0.55 / 0.35 s left
+//                                    with the 0.5 s resend tolerance, the completing rail clears the drop timer.
 //   Velox.Combat.HitscanDummy        RG / MG / SG / LG FireTest at a dummy (AVeloxDummyController) 10 m away: the
 //                                    Q3 damage reaches its health and armor through TraceShot and GE_Damage; one fire
 //                                    and one impact cue per shot on the shooter's feedback component; the server pattern
@@ -44,6 +49,7 @@
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/WorldSettings.h"
+#include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
 #include "Serialization/BitReader.h"
@@ -334,6 +340,36 @@ bool FVeloxCombatFireTimingTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("server: remaining 0.26 blocked"), IsSwitchFireAllowed(false, 0.0, 0.0, 0.26, 0.25));
 	TestTrue(TEXT("server: no GE (remaining 0) allowed"), IsSwitchFireAllowed(false, 0.0, 0.0, 0.0, 0.25));
 	TestTrue(TEXT("server: ignores the local switch end"), IsSwitchFireAllowed(false, 0.0, 1.0e9, 0.1, 0.25));
+
+	// B37 (ii): the server gate uses the one resend tolerance 0.5 s. A switch RPC delayed 0.33 s by a resend (fire RPC on
+	// time): the rail meets the server's GE with 0.33 + 0.02 jitter left -> accepted; 0.55 left -> rejected.
+	TestTrue(TEXT("B37: server, remaining 0.35 under the 0.5 tolerance -> allowed (rejected under the old 0.25)"), IsSwitchFireAllowed(false, 0.0, 0.0, 0.35, 0.5));
+	TestFalse(TEXT("B37: server, remaining 0.55 -> blocked"), IsSwitchFireAllowed(false, 0.0, 0.0, 0.55, 0.5));
+
+	// B37 (i): the server's refire wait for a remote shooter, from the last accepted receive time; no carry.
+	{
+		constexpr double MGInterval = 0.1;
+		constexpr double T = 50.0;
+		constexpr double Frame = 1.0 / 60.0;
+		// Six bunched MG shots accepted in one server frame: B19's carry on receive time pushed NextFireTime +0.6 s
+		// (08c: server wait 0.373 vs client 0.090); every accepted shot now sets the same receive time.
+		double Carried = -1.0e9;
+		double LastAccepted = -1.0e9;
+		for (int32 Shot = 0; Shot < 6; ++Shot)
+		{
+			Carried = AdvanceNextFireTime(Carried, T, MGInterval, Frame);
+			LastAccepted = T;
+		}
+		AddInfo(FString::Printf(TEXT("B37: six bunched MG shots: old carried wait %.3f s, new wait %.3f s"), FMath::Max(Carried - (T + Frame), 0.0),
+			RemoteRefireWait(LastAccepted, MGInterval, T + Frame)));
+		TestTrue(TEXT("B37: the old receive-time carry inflated the wait beyond one interval (the defect)"), Carried - (T + Frame) > MGInterval);
+		const double Wait = RemoteRefireWait(LastAccepted, MGInterval, T + Frame);
+		TestTrue(TEXT("B37: six bunched MG shots -> server wait in the next frame <= Interval (0.1)"), Wait <= MGInterval + 1e-9 && Wait > 0.0);
+		TestEqual(TEXT("B37: ... = Interval - one frame"), Wait, MGInterval - Frame, 1e-9);
+	}
+	TestEqual(TEXT("B37: rail accepted at T -> wait at T + 0.4 = 1.1"), RemoteRefireWait(10.0, 1.5, 10.4), 1.1, 1e-9);
+	TestEqual(TEXT("B37: rail accepted at T -> wait at T + 2 = 0"), RemoteRefireWait(10.0, 1.5, 12.0), 0.0, 1e-12);
+	TestEqual(TEXT("B37: no shot accepted yet -> 0"), RemoteRefireWait(-1.0e9, 1.5, 3.0), 0.0, 1e-12);
 	return true;
 }
 
@@ -611,8 +647,7 @@ bool FVeloxCombatWeaponTableTest::RunTest(const FString& Parameters)
 	const UVeloxCombatSettings* Settings = LoadObject<UVeloxCombatSettings>(nullptr, TEXT("/Game/Data/DA_CombatSettings_Default.DA_CombatSettings_Default"));
 	if (TestNotNull(TEXT("DA_CombatSettings_Default"), Settings))
 	{
-		TestEqual(TEXT("SwitchTimingToleranceSeconds 0.25"), Settings->SwitchTimingToleranceSeconds, 0.25f);
-		TestEqual(TEXT("FireRateJitterToleranceSeconds 0.5 (B32)"), Settings->FireRateJitterToleranceSeconds, 0.5f);
+		TestEqual(TEXT("FireRateJitterToleranceSeconds 0.5 (B32, also the switch tolerance B37)"), Settings->FireRateJitterToleranceSeconds, 0.5f);
 		TestEqual(TEXT("MaxRewindSeconds 0.30 (B34)"), Settings->MaxRewindSeconds, 0.30f);
 		TestEqual(TEXT("BeamKeepAliveSeconds 0.25"), Settings->BeamKeepAliveSeconds, 0.25f);
 	}
@@ -773,6 +808,28 @@ namespace VeloxWeaponTest
 			{
 				*OutController = Controller;
 			}
+			return Pawn;
+		}
+
+		/**
+		 * Pawn possessed by an AVeloxPlayerController without a local player: in a world without a net driver it is not a
+		 * local controller, so the ASC treats it as a remote client's (the server-for-remote-shooter path; as in
+		 * VeloxProjectileTest).
+		 */
+		AVeloxCharacter* SpawnRemoteShooter(const FVector& Location, AVeloxPlayerController*& OutController)
+		{
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			AVeloxCharacter* Pawn = World->SpawnActor<AVeloxCharacter>(AVeloxCharacter::StaticClass(), Location, FRotator::ZeroRotator, Params);
+			AVeloxPlayerState* PlayerState = World->SpawnActor<AVeloxPlayerState>();
+			OutController = World->SpawnActor<AVeloxPlayerController>(AVeloxPlayerController::StaticClass(), FTransform::Identity, Params);
+			if (!Pawn || !PlayerState || !OutController)
+			{
+				return nullptr;
+			}
+			OutController->PlayerState = PlayerState;
+			PlayerState->SetOwner(OutController);
+			OutController->Possess(Pawn);
 			return Pawn;
 		}
 
@@ -1000,13 +1057,15 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("D4: no switch running after its drop"), SwitchActive());
 	W.Advance(0.3f);
 
-	// Task 08c (ADR 0003 B33): a superseding server activation first completes the pending switch if its remaining time
-	// is <= Raise + SwitchTimingTolerance (the superseded drop has ended within the tolerance), else it is rejected and
-	// the pending switch is left as it is. Defaults: Raise 0.25 + Tol 0.25 = 0.5 s; drop 0.2 s.
+	// Task 08c (ADR 0003 B33) with B37: a superseding server activation first completes the pending switch if its
+	// remaining time is <= Raise + FireRateJitterTolerance (the superseded drop has ended within the one resend
+	// tolerance), else it is rejected and the pending switch completes at its own drop end through the inventory's timer
+	// (B37 iii). Defaults: Raise 0.25 + Tol 0.5 = 0.75 s; drop 0.2 s.
 	{
 		const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory->GetCombatSettings());
 		const double Raise = Settings.WeaponRaiseTime;
-		const double Limit = Raise + Settings.GetSwitchTimingToleranceSeconds();
+		const double Drop = Settings.WeaponDropTime;
+		const double Limit = Raise + Settings.GetFireRateJitterToleranceSeconds();
 		auto ServerSwitch = [&](int32 Target)
 		{
 			FGameplayEventData Event;
@@ -1020,12 +1079,20 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 			ASC->RemoveActiveGameplayEffectBySourceEffect(UVeloxGE_WeaponSwitching::StaticClass(), nullptr);
 			W.Advance(1.6f); // every refire wait (rail 1.5 s) over
 		};
+		auto FirePress = [&]()
+		{
+			ASC->AbilityInputTagPressed(InputTag_Fire);
+			ASC->ProcessAbilityInput(1.f / 60.f, false);
+			ASC->AbilityInputTagReleased(InputTag_Fire);
+			ASC->ProcessAbilityInput(1.f / 60.f, false);
+		};
 
 		// (a) MG -> RG on the server, 0.1 s later (its drop still running on the server, i.e. the client's drop end has
 		// passed and the raise runs there) the server receives RG -> MG: accepted, the RG switch completes first.
 		ClearSwitch();
 		ServerSwitch(RG);
 		TestTrue(TEXT("B33 (a): MG -> RG running, pending RG"), SwitchActive() && Inventory->GetPendingIndex() == RG && Inventory->GetCurrentIndex() == MG);
+		TestTrue(TEXT("B37: SetPendingIndex armed the inventory's drop timer"), Inventory->IsPendingDropTimerActive());
 		W.Advance(0.1f);
 		const double RemainingA = UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC);
 		AddInfo(FString::Printf(TEXT("B33 (a): remaining %.3f s at the switch-back (limit %.3f, raise %.3f)"), RemainingA, Limit, Raise));
@@ -1039,51 +1106,216 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("B33 (a): the switch-back lands on MG"), Inventory->GetCurrentIndex(), MG);
 		TestFalse(TEXT("B33 (a): no switch running after it"), SwitchActive());
 
-		// (b) MG fired (refire wait 0.1 s), MG -> RG on the server: remaining 0.55 s > 0.5 s; a press in the same frame
-		// (during the drop) is rejected, back to MG and to a third weapon alike; current, pending and GE unchanged.
+		// (b) RG current, rail fired (refire wait 1.5 s), RG -> MG on the server: remaining 1.95 s > 0.75 s; a press in
+		// the same frame (during the drop) is rejected, back to RG and to a third weapon alike; current, pending and GE
+		// unchanged.
 		ClearSwitch();
-		const float BulletsB = PlayerState->GetAmmoSet()->GetBullets();
-		ASC->AbilityInputTagPressed(InputTag_Fire);
-		ASC->ProcessAbilityInput(1.f / 60.f, false);
-		ASC->AbilityInputTagReleased(InputTag_Fire);
-		ASC->ProcessAbilityInput(1.f / 60.f, false);
-		TestEqual(TEXT("B33 (b): MG fired (refire wait 0.1 s)"), PlayerState->GetAmmoSet()->GetBullets(), BulletsB - 1.f);
-		ServerSwitch(RG);
+		Inventory->SetCurrentIndex(RG);
+		const float SlugsB = PlayerState->GetAmmoSet()->GetSlugs();
+		FirePress();
+		TestEqual(TEXT("B33 (b): rail fired (refire wait 1.5 s)"), PlayerState->GetAmmoSet()->GetSlugs(), SlugsB - 1.f);
+		const double TB = W.World->GetTimeSeconds();
+		ServerSwitch(MG);
 		const double RemainingB = UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC);
 		AddInfo(FString::Printf(TEXT("B33 (b): remaining %.3f s at the press (limit %.3f)"), RemainingB, Limit));
-		TestTrue(TEXT("B33 (b): MG -> RG running, remaining > raise + tol"), Inventory->GetPendingIndex() == RG && RemainingB > Limit);
-		ServerSwitch(MG);
-		TestEqual(TEXT("B33 (b): RG -> MG during the drop rejected -> current MG"), Inventory->GetCurrentIndex(), MG);
-		TestEqual(TEXT("B33 (b): pending RG untouched"), Inventory->GetPendingIndex(), RG);
+		TestTrue(TEXT("B33 (b): RG -> MG running, remaining > raise + tol"), Inventory->GetPendingIndex() == MG && RemainingB > Limit);
+		ServerSwitch(RG);
+		TestEqual(TEXT("B33 (b): MG -> RG during the drop rejected -> current RG"), Inventory->GetCurrentIndex(), RG);
+		TestEqual(TEXT("B33 (b): pending MG untouched"), Inventory->GetPendingIndex(), MG);
 		TestTrue(TEXT("B33 (b): GE_WeaponSwitching still active, same remaining"), ASC->HasMatchingGameplayTag(State_WeaponSwitching)
 			&& FMath::IsNearlyEqual(UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC), RemainingB, 1e-3));
 		ServerSwitch(RL);
-		TestTrue(TEXT("B33 (b): a third weapon during the drop rejected too (current MG, pending RG)"), Inventory->GetCurrentIndex() == MG && Inventory->GetPendingIndex() == RG);
+		TestTrue(TEXT("B33 (b): a third weapon during the drop rejected too (current RG, pending MG)"), Inventory->GetCurrentIndex() == RG && Inventory->GetPendingIndex() == MG);
 		TestFalse(TEXT("B33 (b): no switch instance running after the rejection"), SwitchActive());
-		// The engine's retrigger ended the superseded instance before the rejection, so its drop end never runs: the RG
-		// switch stays pending until the next switch (or an accepted RG shot, B18) completes it.
-		W.Advance(0.6f);
-		AddInfo(FString::Printf(TEXT("B33 (b): after the GE expired: current %d pending %d"), Inventory->GetCurrentIndex(), Inventory->GetPendingIndex()));
-		ServerSwitch(RL);
-		TestEqual(TEXT("B33 (b): the next switch completes the stale RG switch and runs -> pending RL"), Inventory->GetPendingIndex(), RL);
+
+		// (c) B37 iii (08e item 2): the engine's retrigger ended the superseded instance, but the inventory's own timer
+		// still completes the switch at its drop end (refire 1.5 + drop 0.2) without any further RPC; the GE keeps
+		// running through the raise.
+		TestTrue(TEXT("B37 (c): the superseded switch's drop timer is still armed after the rejection"), Inventory->IsPendingDropTimerActive());
+		const double DropEndC = TB + 1.5 + Drop;
+		W.AdvanceTo(DropEndC - 0.05);
+		TestTrue(TEXT("B37 (c): before the drop end: current RG, pending MG"), Inventory->GetCurrentIndex() == RG && Inventory->GetPendingIndex() == MG);
+		W.AdvanceTo(DropEndC + 1.0 / 60.0);
+		TestEqual(TEXT("B37 (c): at the drop end, no RPC -> current MG"), Inventory->GetCurrentIndex(), MG);
+		TestEqual(TEXT("B37 (c): ... pending none"), Inventory->GetPendingIndex(), static_cast<int32>(INDEX_NONE));
+		TestFalse(TEXT("B37 (c): ... timer done"), Inventory->IsPendingDropTimerActive());
+		const double RemainingC = UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC);
+		AddInfo(FString::Printf(TEXT("B37 (c): GE remaining %.3f s after the drop end (raise %.3f)"), RemainingC, Raise));
+		TestTrue(TEXT("B37 (c): ... GE_WeaponSwitching still active through the raise"), ASC->HasMatchingGameplayTag(State_WeaponSwitching) && RemainingC > 0.0 && RemainingC <= Raise);
 		W.Advance(0.3f);
-		TestEqual(TEXT("B33 (b): ... and lands on RL"), Inventory->GetCurrentIndex(), RL);
+		TestFalse(TEXT("B37 (c): GE gone after the raise"), ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+
+		// (d) B37 iii: an accepted shot of the pending weapon before the drop end (FinalisePendingSwitch ->
+		// CompletePendingSwitch) completes the switch and clears the timer: exactly one weapon change, none at the old
+		// drop end.
+		ClearSwitch();
+		int32 Changes = 0;
+		const FDelegateHandle ChangeHandle = Inventory->OnCurrentWeaponChanged.AddLambda([&Changes](int32, int32) { ++Changes; });
+		ServerSwitch(RG);
+		TestTrue(TEXT("B37 (d): MG -> RG running, timer armed"), Inventory->GetPendingIndex() == RG && Inventory->IsPendingDropTimerActive());
+		W.Advance(0.1f);
+		Inventory->CompletePendingSwitch();
+		TestTrue(TEXT("B37 (d): the shot completed it -> current RG, nothing pending"), Inventory->GetCurrentIndex() == RG && Inventory->GetPendingIndex() == INDEX_NONE);
+		TestFalse(TEXT("B37 (d): ... and cleared the drop timer"), Inventory->IsPendingDropTimerActive());
+		W.Advance(0.3f); // past the old drop end
+		TestEqual(TEXT("B37 (d): one weapon change only (no second SetCurrentIndex at the old drop end)"), Changes, 1);
+		TestEqual(TEXT("B37 (d): still RG"), Inventory->GetCurrentIndex(), RG);
+		Inventory->OnCurrentWeaponChanged.Remove(ChangeHandle);
 		W.Advance(0.3f);
 	}
 
-	// Respawn semantics: the loadout again, RG/RL taken away, a running switch's local end cleared.
-	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot2);
+	// Respawn semantics: the loadout again, RG/RL taken away, a running switch's local end cleared and its drop end
+	// cancelled (B37: the inventory's timer must not land a weapon of the old life).
+	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot5);
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
-	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot2);
-	TestTrue(TEXT("switch back to MG running"), Inventory->GetSwitchEndTime() > W.World->GetTimeSeconds());
+	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot5);
+	TestTrue(TEXT("switch to RL running"), Inventory->GetSwitchEndTime() > W.World->GetTimeSeconds() && Inventory->GetPendingIndex() == RL);
 	Inventory->ResetToLoadout();
 	TestEqual(TEXT("reset clears SwitchEndTime"), Inventory->GetSwitchEndTime(), 0.0);
+	TestFalse(TEXT("reset clears the pending drop timer (B37)"), Inventory->IsPendingDropTimerActive());
 	// B25: the shot counter restarts per life (an MG and a rail shot were fired above).
 	TestEqual(TEXT("reset: next shot sequence is 1"), static_cast<int32>(Inventory->AllocateShotSeq()), 1);
 	TestEqual(TEXT("reset: MG only"), static_cast<int32>(Inventory->GetOwnedMask()), 1 << MG);
 	TestNull(TEXT("reset: RG spec removed"), Inventory->FindFireSpec(RG));
 	TestNotNull(TEXT("reset: MG spec kept"), Inventory->FindFireSpec(MG));
 	TestEqual(TEXT("reset: MG selected"), Inventory->GetCurrentIndex(), MG);
+	W.Advance(0.5f);
+	TestEqual(TEXT("reset: the pre-reset switch to RL never lands"), Inventory->GetCurrentIndex(), MG);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatRemoteSwitchTimelineTest, "Velox.Combat.RemoteSwitchTimeline", VeloxWeaponTest::Flags)
+
+bool FVeloxCombatRemoteSwitchTimelineTest::RunTest(const FString& Parameters)
+{
+	// ADR 0003 B37 on the real abilities, server for a remote shooter (activation and target data RPCs run on this
+	// authority): (i) bunched accepted MG shots do not inflate the switch's refire wait (no receive-time NextFireTime);
+	// (ii) the switch gate uses the 0.5 s resend tolerance; (iii) an accepted shot of the pending weapon clears the drop
+	// timer.
+	using namespace VeloxWeaponTest;
+	using namespace VeloxGameplayTags;
+
+	FWeaponWorld W;
+	AVeloxPlayerController* ShooterPC = nullptr;
+	AVeloxCharacter* Shooter = W.SpawnRemoteShooter(FVector(0, 0, 100), ShooterPC);
+	if (!TestNotNull(TEXT("remote shooter"), Shooter) || !PS(Shooter))
+	{
+		return false;
+	}
+	W.Advance(0.3f);
+	TestTrue(TEXT("give all"), VeloxWeaponCheats::GiveAllWeapons(*PS(Shooter)));
+	UVeloxAbilitySystemComponent* ASC = PS(Shooter)->GetVeloxAbilitySystemComponent();
+	UVeloxWeaponInventoryComponent* Inventory = PS(Shooter)->GetWeaponInventory();
+	const UVeloxWeaponTable* Table = Inventory ? Inventory->GetWeaponTable() : nullptr;
+	if (!TestNotNull(TEXT("inventory"), Inventory) || !TestNotNull(TEXT("table"), Table) || !ASC)
+	{
+		return false;
+	}
+	const FGameplayAbilityActorInfo* ActorInfo = ASC->AbilityActorInfo.Get();
+	if (!TestTrue(TEXT("remote shooter path"), UVeloxGameplayAbility_Fire::IsServerForRemoteShooter(ActorInfo)))
+	{
+		return false;
+	}
+	const int32 MG = Table->FindBySlot(2);
+	const int32 RG = Table->FindBySlot(7);
+	const int32 RL = Table->FindBySlot(5);
+	FGameplayAbilitySpec* MGSpec = Inventory->FindFireSpec(MG);
+	FGameplayAbilitySpec* RGSpec = Inventory->FindFireSpec(RG);
+	const FGameplayAbilitySpec* SwitchSpec = ASC->FindAbilitySpecFromClass(UVeloxGameplayAbility_WeaponSwitch::StaticClass());
+	if (!TestNotNull(TEXT("MG spec"), MGSpec) || !TestNotNull(TEXT("RG spec"), RGSpec) || !TestNotNull(TEXT("switch spec"), SwitchSpec))
+	{
+		return false;
+	}
+	const FGameplayAbilitySpecHandle MGHandle = MGSpec->Handle;
+	const FGameplayAbilitySpecHandle RGHandle = RGSpec->Handle;
+	const FGameplayAbilitySpecHandle SwitchHandle = SwitchSpec->Handle;
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory->GetCombatSettings());
+	const double Tol = Settings.GetFireRateJitterToleranceSeconds();
+	int16 NextKey = 100;
+
+	// One remote hitscan shot: the client's activation RPC, then its target data (into empty space, +Y).
+	auto RemoteShot = [&](FGameplayAbilitySpecHandle Handle, uint8 Seq)
+	{
+		FPredictionKey Key;
+		Key.Current = NextKey++;
+		ASC->CallServerTryActivateAbility(Handle, true, Key);
+		FGameplayAbilityTargetData_VeloxShot* Data = new FGameplayAbilityTargetData_VeloxShot();
+		Data->Origin = Shooter->GetPawnViewLocation();
+		Data->Dir = FVector(0.0, 1.0, 0.0);
+		Data->ViewServerTime = static_cast<float>(W.World->GetTimeSeconds());
+		Data->ShotSeq = Seq;
+		ASC->CallServerSetReplicatedTargetData(Handle, Key, FGameplayAbilityTargetDataHandle(Data), FGameplayTag(), Key);
+	};
+	// The client's switch press arriving at the server (LocalPredicted, valid prediction key).
+	auto RemoteSwitch = [&](int32 Target)
+	{
+		FPredictionKey Key;
+		Key.Current = NextKey++;
+		FGameplayEventData Event;
+		Event.EventTag = InputTag_Weapon_Slot7;
+		Event.EventMagnitude = static_cast<float>(Target);
+		return ASC->InternalTryActivateAbility(SwitchHandle, Key, nullptr, nullptr, &Event);
+	};
+	auto Refire = [&]() { return UVeloxGameplayAbility_WeaponSwitch::RefireWait(ActorInfo, true); };
+	const UVeloxGameplayAbility_Fire* MGFire = Cast<UVeloxGameplayAbility_Fire>(MGSpec->GetPrimaryInstance());
+	const UVeloxGameplayAbility_Fire* RGFire = Cast<UVeloxGameplayAbility_Fire>(RGSpec->GetPrimaryInstance());
+
+	// No shot of the current weapon yet -> 0.
+	Inventory->SetCurrentIndex(RL);
+	TestEqual(TEXT("B37: no shot accepted -> refire wait 0"), Refire(), 0.0, 1e-9);
+
+	// (i) Six MG shots accepted in one server frame (a bunched resend; the bucket holds 6).
+	Inventory->SetCurrentIndex(MG);
+	const float Bullets0 = PS(Shooter)->GetAmmoSet()->GetBullets();
+	const double TMG = W.World->GetTimeSeconds();
+	for (uint8 Seq = 1; Seq <= 6; ++Seq)
+	{
+		RemoteShot(MGHandle, Seq);
+	}
+	MGFire = Cast<UVeloxGameplayAbility_Fire>(Inventory->FindFireSpec(MG)->GetPrimaryInstance());
+	TestEqual(TEXT("B37 (i): six bunched MG shots accepted (six bullets)"), PS(Shooter)->GetAmmoSet()->GetBullets(), Bullets0 - 6.f);
+	TestTrue(TEXT("B37 (i): last accepted receive time = this frame"), MGFire && FMath::IsNearlyEqual(MGFire->GetLastAcceptedReceiveTime(), TMG, 1e-9));
+	TestTrue(TEXT("B37 (i): no NextFireTime carried on the server"), MGFire && MGFire->GetNextFireTime() < 0.0);
+	W.Advance(1.f / 60.f);
+	const double WaitBunched = Refire();
+	AddInfo(FString::Printf(TEXT("B37 (i): refire wait one frame after six bunched MG shots: %.4f s (08c: 0.373 under the carry)"), WaitBunched));
+	TestTrue(TEXT("B37 (i): refire wait in the next frame <= Interval (0.1), not 0.6"), WaitBunched > 0.0 && WaitBunched <= 0.1 + 1e-6);
+
+	// (ii) Switch gate with the 0.5 s resend tolerance. One MG shot, the switch MG -> RG in the same frame: wait 0.1 +
+	// drop 0.2 + raise 0.25 = 0.55 s left > 0.5 -> a rail now is rejected.
+	W.Advance(0.5f);
+	RemoteShot(MGHandle, 7);
+	TestEqual(TEXT("B37: single MG shot -> refire wait = Interval"), Refire(), 0.1, 1e-6);
+	const double TS = W.World->GetTimeSeconds();
+	TestTrue(TEXT("B37 (ii): server switch MG -> RG activates"), RemoteSwitch(RG));
+	const double Remaining055 = UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC);
+	TestTrue(TEXT("B37 (ii): GE remaining 0.55, pending RG, timer armed"), FMath::IsNearlyEqual(Remaining055, 0.55, 1e-3) && Inventory->GetPendingIndex() == RG
+		&& Inventory->IsPendingDropTimerActive());
+	const float Slugs0 = PS(Shooter)->GetAmmoSet()->GetSlugs();
+	RemoteShot(RGHandle, 8);
+	TestEqual(TEXT("B37 (ii): rail at remaining 0.55 > 0.5 rejected (no slug)"), PS(Shooter)->GetAmmoSet()->GetSlugs(), Slugs0);
+	TestEqual(TEXT("B37 (ii): ... switch still pending"), Inventory->GetPendingIndex(), RG);
+	// The switch RPC was 0.33 s late relative to the client's: the rail meets the GE with 0.33 + 0.02 left -> accepted
+	// (rejected under the former 0.25). The shot of the pending weapon completes the switch before the drop end (0.3 s).
+	W.AdvanceTo(TS + 0.55 - (0.33 + 0.02));
+	const double Remaining035 = UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC);
+	AddInfo(FString::Printf(TEXT("B37 (ii): remaining %.4f at the late rail (tolerance %.2f)"), Remaining035, Tol));
+	TestTrue(TEXT("B37 (ii): remaining ~0.35, still pending (drop end at 0.3)"), FMath::IsNearlyEqual(Remaining035, 0.35, 2e-3) && Inventory->GetPendingIndex() == RG);
+	const double TR = W.World->GetTimeSeconds();
+	RemoteShot(RGHandle, 9);
+	RGFire = Cast<UVeloxGameplayAbility_Fire>(Inventory->FindFireSpec(RG)->GetPrimaryInstance());
+	TestEqual(TEXT("B37 (ii): rail at remaining 0.35 <= 0.5 accepted"), PS(Shooter)->GetAmmoSet()->GetSlugs(), Slugs0 - 1.f);
+	TestTrue(TEXT("B37 (iii): the accepted rail completed the switch (current RG, nothing pending)"), Inventory->GetCurrentIndex() == RG && Inventory->GetPendingIndex() == INDEX_NONE);
+	TestFalse(TEXT("B37 (iii): ... and cleared the drop timer"), Inventory->IsPendingDropTimerActive());
+
+	// (i) Rail accepted at T -> server refire wait at T + 0.4 = 1.1 s.
+	TestTrue(TEXT("B37: rail receive time recorded"), RGFire && FMath::IsNearlyEqual(RGFire->GetLastAcceptedReceiveTime(), TR, 1e-9));
+	W.AdvanceTo(TR + 0.4);
+	const double WaitRail = Refire();
+	AddInfo(FString::Printf(TEXT("B37: rail refire wait 0.4 s after the shot: %.4f"), WaitRail));
+	TestEqual(TEXT("B37: rail accepted at T -> wait at T + 0.4 = 1.1"), WaitRail, 1.1, 2e-3);
+	W.Advance(0.3f);
+	TestEqual(TEXT("B37: still RG after the old drop end (no second index change)"), Inventory->GetCurrentIndex(), RG);
 	return true;
 }
 

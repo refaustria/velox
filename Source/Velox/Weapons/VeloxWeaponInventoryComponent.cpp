@@ -38,6 +38,16 @@ void UVeloxWeaponInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetime
 	DOREPLIFETIME(UVeloxWeaponInventoryComponent, CurrentIndex);
 }
 
+void UVeloxWeaponInventoryComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	ClearPendingDropTimer();
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(BeamTimer);
+	}
+	Super::EndPlay(EndPlayReason);
+}
+
 UVeloxWeaponInventoryComponent* UVeloxWeaponInventoryComponent::Find(const AActor* Actor)
 {
 	if (!Actor)
@@ -291,6 +301,8 @@ void UVeloxWeaponInventoryComponent::ResetToLoadout()
 	}
 	OwnedMask = Desired;
 	SwitchEndTime = 0.0;
+	// B37: a switch running at death must not land on a weapon of the old life (SetCurrentIndex clears it too).
+	ClearPendingDropTimer();
 	ResetShotSeq();
 	SetCurrentIndex(First);
 	UE_LOG(LogVeloxCombat, Log, TEXT("%s: ResetToLoadout owned=0x%04x current=%s (%d entries)"), *GetNameSafe(GetOwner()), OwnedMask, *GetNameSafe(GetDefinition(First)),
@@ -358,6 +370,7 @@ void UVeloxWeaponInventoryComponent::SetCurrentIndex(int32 Index)
 {
 	const uint8 NewIndex = (Index >= 0 && Index < UVeloxWeaponTable::MaxWeapons) ? static_cast<uint8>(Index) : NoWeapon;
 	PendingIndex = NoWeapon;
+	ClearPendingDropTimer();
 	if (!GetOwner() || !GetOwner()->HasAuthority() || NewIndex == CurrentIndex)
 	{
 		return;
@@ -369,9 +382,52 @@ void UVeloxWeaponInventoryComponent::SetCurrentIndex(int32 Index)
 	OnCurrentWeaponChanged.Broadcast(Old, GetAuthoritativeIndex());
 }
 
-void UVeloxWeaponInventoryComponent::SetPendingIndex(int32 Index)
+void UVeloxWeaponInventoryComponent::SetPendingIndex(int32 Index, float DropEndSeconds)
 {
 	PendingIndex = (Index >= 0 && Index < UVeloxWeaponTable::MaxWeapons) ? static_cast<uint8>(Index) : NoWeapon;
+	ClearPendingDropTimer();
+	if (PendingIndex == NoWeapon || !GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	if (!World || !(DropEndSeconds > 0.f))
+	{
+		CompletePendingDrop(PendingIndex);
+		return;
+	}
+	World->GetTimerManager().SetTimer(PendingDropTimer, FTimerDelegate::CreateUObject(this, &ThisClass::CompletePendingDrop, static_cast<int32>(PendingIndex)), DropEndSeconds,
+		false);
+}
+
+bool UVeloxWeaponInventoryComponent::IsPendingDropTimerActive() const
+{
+	const UWorld* World = GetWorld();
+	return World && World->GetTimerManager().IsTimerActive(PendingDropTimer);
+}
+
+void UVeloxWeaponInventoryComponent::CompletePendingDrop(int32 Target)
+{
+	PendingDropTimer.Invalidate();
+	if (GetPendingIndex() != Target || Target == INDEX_NONE)
+	{
+		return;
+	}
+	UE_LOG(LogVeloxCombat, Verbose, TEXT("%s: VeloxWeaponSwitch drop end (inventory) -> current %d (was %d)"), *GetNameSafe(GetOwner()), Target, GetAuthoritativeIndex());
+	SetCurrentIndex(Target);
+}
+
+void UVeloxWeaponInventoryComponent::ClearPendingDropTimer()
+{
+	if (!PendingDropTimer.IsValid())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PendingDropTimer);
+	}
+	PendingDropTimer.Invalidate();
 }
 
 void UVeloxWeaponInventoryComponent::CompletePendingSwitch()
@@ -380,6 +436,7 @@ void UVeloxWeaponInventoryComponent::CompletePendingSwitch()
 	{
 		return;
 	}
+	ClearPendingDropTimer();
 	if (UVeloxAbilitySystemComponent* ASC = GetVeloxASC())
 	{
 		if (const FGameplayAbilitySpec* Spec = SwitchSpecHandle.IsValid() ? ASC->FindAbilitySpecFromHandle(SwitchSpecHandle) : nullptr; Spec && Spec->IsActive())
@@ -403,6 +460,7 @@ void UVeloxWeaponInventoryComponent::CompletePendingSwitchIndexOnly()
 		return;
 	}
 	const int32 Target = PendingIndex;
+	ClearPendingDropTimer();
 	if (UVeloxAbilitySystemComponent* ASC = GetVeloxASC())
 	{
 		ASC->RemoveActiveGameplayEffectBySourceEffect(UVeloxGE_WeaponSwitching::StaticClass(), nullptr);
