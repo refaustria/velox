@@ -61,6 +61,46 @@ public:
 	virtual void SetPawn(APawn* InPawn) override;
 	//~End of AController interface
 
+	// ---- Match flow (ADR 0004 section 5; task 05) ----
+
+	/** Client -> server: ready-up (IA_Ready / scoreboard button / `Ready` console command). Spectators are ignored. */
+	UFUNCTION(Server, Reliable)
+	void ServerSetReady(bool bInReady);
+
+	/** Client -> server: a spectator takes a free player slot (Duel: only in Warmup/PostMatch). */
+	UFUNCTION(Server, Reliable)
+	void ServerRequestJoin();
+
+	/** Console: toggles ready (soaks, headless tests, until IA_Ready lands in task 06). */
+	UFUNCTION(Exec)
+	void Ready();
+
+	/** Console: leave spectating for a free slot. */
+	UFUNCTION(Exec)
+	void Join();
+
+	/**
+	 * Server -> client at PostMatch: view ViewTarget (the map's intermission camera, else the own pawn), freeze local
+	 * movement input (the server has frozen the pawn) and flag the intermission (task 08 forces the scoreboard open).
+	 */
+	UFUNCTION(Client, Reliable)
+	void ClientEnterIntermission(AActor* ViewTarget);
+
+	/** Owning client and server: between ClientEnterIntermission and the level reset. */
+	bool IsInIntermission() const { return bInIntermission; }
+
+	/** Server side of ClientEnterIntermission (state and view target; the RPC is sent by the caller). */
+	void EnterIntermission(AActor* ViewTarget);
+
+	//~AActor interface
+	/** Level reset (match restart): leaves the intermission. */
+	virtual void Reset() override;
+	//~End of AActor interface
+
+	//~APlayerController interface
+	virtual void ClientReset_Implementation() override;
+	//~End of APlayerController interface
+
 protected:
 	//~APlayerController interface
 	virtual void SetupInputComponent() override;
@@ -95,4 +135,5 @@ private:
 	double PawnLostTime = -1.0;
 	TWeakObjectPtr<APawn> LastPawn;
 	double LastRespawnRequestTime = -1e9;
+	bool bInIntermission = false;
 };
