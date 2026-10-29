@@ -55,6 +55,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
 
 ## Open questions for the human
+18. **Fable (architect) usage limit (2026-10-29)**: three architect runs today hit "You've reached your Fable limit". Blocked on it: ADR 0004 for M3 (game loop), review of 08b (6 rulings). Options: (a) wait until the limit resets (`/usage-credits` shows when), (b) let `dev-hard` (Opus) draft ADR 0004 and have the architect review it later — a deviation from CLAUDE.md §3 that only you can approve. Until you answer I wait for (a) and keep non-architect work going.
 - (answered 2026-10-29) Mac is **Intel**. UE 5.8's UBT still builds x86_64: `DefaultArchitecture=MacTargetArchitectureHost` in BaseEngine.ini picks x64 on an Intel host, so `build-mac.sh` needs no change. Requirements per Epic's 5.8 docs: macOS Sonoma 14.5+ and Xcode 26.0 or 26.1.1 (Xcode 26.4 is incompatible). Epic does not explicitly confirm Intel for 5.8; verify on the Mac that the Launcher installs and the editor starts.
 12. **M2 weapon numbers**: ADR 0003 defaults to Q3 vanilla (weapon switch waits for refire). CPMA numbers instead?
 13. **Spawn protection**: Q3 has none; ADR default 0 s (mechanism exists, test map uses 2 s). Keep 0?
