@@ -71,6 +71,24 @@ void AVeloxPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AVeloxPlayerState, PlayerColorIndex);
+	DOREPLIFETIME(AVeloxPlayerState, bReady);
+}
+
+void AVeloxPlayerState::Reset()
+{
+	Super::Reset();
+	bReady = false;
+}
+
+bool AVeloxPlayerState::SetReady(bool bInReady)
+{
+	if (bReady == bInReady)
+	{
+		return false;
+	}
+	bReady = bInReady;
+	ForceNetUpdate();
+	return true;
 }
 
 FColor AVeloxPlayerState::GetPlayerColor() const

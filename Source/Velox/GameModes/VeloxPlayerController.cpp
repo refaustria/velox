@@ -14,6 +14,9 @@
 #include "GameModes/VeloxPlayerState.h"
 #include "Engine/LocalPlayer.h"
 #include "EnhancedInputSubsystems.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/Character.h"
+#include "GameModes/VeloxMatchRules.h"
 #include "InputMappingContext.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
 
@@ -66,6 +69,73 @@ void AVeloxPlayerController::ServerRequestRespawn_Implementation()
 	{
 		GameMode->TryRespawn(this, false);
 	}
+}
+
+void AVeloxPlayerController::ServerSetReady_Implementation(bool bInReady)
+{
+	if (AVeloxGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AVeloxGameMode>() : nullptr)
+	{
+		GameMode->SetPlayerReady(this, bInReady);
+	}
+}
+
+void AVeloxPlayerController::ServerRequestJoin_Implementation()
+{
+	if (AVeloxGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AVeloxGameMode>() : nullptr)
+	{
+		GameMode->RequestJoin(this);
+	}
+}
+
+void AVeloxPlayerController::Ready()
+{
+	const AVeloxPlayerState* VeloxPS = GetPlayerState<AVeloxPlayerState>();
+	ServerSetReady(!(VeloxPS && VeloxPS->IsReady()));
+}
+
+void AVeloxPlayerController::Join()
+{
+	ServerRequestJoin();
+}
+
+void AVeloxPlayerController::EnterIntermission(AActor* ViewTarget)
+{
+	bInIntermission = true;
+	SetIgnoreMoveInput(true);
+	if (ViewTarget)
+	{
+		SetViewTarget(ViewTarget);
+	}
+}
+
+void AVeloxPlayerController::ClientEnterIntermission_Implementation(AActor* ViewTarget)
+{
+	EnterIntermission(ViewTarget);
+	// The server has disabled the pawn's movement; doing the same locally keeps the predicted client from running into a
+	// correction while it still holds a move key.
+	if (const ACharacter* MyCharacter = Cast<ACharacter>(GetPawn()))
+	{
+		if (UCharacterMovementComponent* Movement = MyCharacter->GetCharacterMovement())
+		{
+			Movement->StopMovementImmediately();
+			Movement->DisableMovement();
+		}
+	}
+	UE_LOG(LogVeloxMatch, Log, TEXT("VeloxMatch intermission player=%s view=%s"), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState), *GetNameSafe(ViewTarget));
+}
+
+void AVeloxPlayerController::Reset()
+{
+	bInIntermission = false;
+	ResetIgnoreMoveInput();
+	Super::Reset();
+}
+
+void AVeloxPlayerController::ClientReset_Implementation()
+{
+	bInIntermission = false;
+	ResetIgnoreMoveInput();
+	Super::ClientReset_Implementation();
 }
 
 void AVeloxPlayerController::OnRespawnInput()

@@ -35,6 +35,8 @@ public:
 	/** Server: asks the game mode for a player colour (dummies and bots get a PlayerState too). */
 	virtual void BeginPlay() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	/** AGameModeBase::ResetLevel (match restart, ADR 0004 section 5): the engine zeroes Score; this also clears ready. */
+	virtual void Reset() override;
 	//~End of AActor interface
 
 	//~IAbilitySystemInterface
@@ -94,6 +96,11 @@ public:
 	/** Server: sets the index and refreshes the pawn's body. */
 	void SetPlayerColorIndex(uint8 InIndex);
 
+	/** Ready-up (ADR 0004 section 5): replicated, cleared by the game mode on phase changes and by Reset. */
+	bool IsReady() const { return bReady; }
+	/** Server. Returns true if the value changed. */
+	bool SetReady(bool bInReady);
+
 protected:
 	/**
 	 * Replication rate for this PlayerState (Hz). The 1 Hz engine default is far too low because the ASC lives here;
@@ -115,6 +122,9 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_PlayerColorIndex)
 	uint8 PlayerColorIndex = NoPlayerColor;
+
+	UPROPERTY(Replicated)
+	bool bReady = false;
 
 	UPROPERTY(VisibleAnywhere, Category = "Velox|PlayerState")
 	TObjectPtr<UVeloxAbilitySystemComponent> AbilitySystemComponent;
