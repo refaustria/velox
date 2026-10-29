@@ -38,7 +38,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **Resumed 2026-10-29.** 04c, 05b, 06b merged; merged head build OK 49 tests (`Saved/CI/20261029-121917-3206569`), death flow verified headless. Soak 3 rounds: 2/3, the failure is KnockbackGroundRun's fixed grace rule (0.133 = 0.2 − 4/60, correction equal to intended 83.3 cm) — review defect 9 class, rule replaced in 08. Running: 08 fire/rocket-jump soak (dev-hard, main checkout) and 09 playtest checklist (dev, docs only).
+- **2026-10-29:** 04c/05b/06b merged (49 tests). 09 playtest checklist done (`docs/playtests/m2-combat-checklist.md`). 08 soak tooling committed (83ad004): all scripts 5/5 at 100 ms / 2 % including RocketJumpRun (0 corrections) and both knockback scripts under the exact grace rule, **except FireRun 0/5** → defects D1 hint stamp ~55 ms too old, D2 rewind budget < RTT + interp at 200 ms RTT, D3 MG bucket rate rejections, D4 switch rejected after finalise (`docs/tasks/m2-combat/notes/08-report.md`). Running: architect root-cause pass → task 08b. `m2-combat` → `main` merge waits for FireRun 5/5.
 - **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`.
 
 ## Blocked
