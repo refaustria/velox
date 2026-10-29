@@ -14,8 +14,10 @@
 #include "Items/VeloxPowerupEffects.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
+#include "GameplayPrediction.h"
 #include "Serialization/BitReader.h"
 #include "Serialization/BitWriter.h"
+#include "TimerManager.h"
 #include "Weapons/VeloxProjectile.h"
 #include "Weapons/VeloxProjectileSim.h"
 #include "Weapons/VeloxShotValidation.h"
@@ -74,11 +76,31 @@ namespace VeloxFireProjectilePrivate
 		const AVeloxCharacter* Character = Cast<AVeloxCharacter>(Pawn);
 		return Character ? Character->GetVeloxMovementComponent() : nullptr;
 	}
+
+	double LateMs(float LastMoveStamp, float FireMoveTimeStamp, float ResetPeriod)
+	{
+		return UVeloxGameplayAbility_FireProjectile::ComputeShotLateMs(LastMoveStamp, FireMoveTimeStamp, ResetPeriod);
+	}
+
+	/** The fire RPC's values must equal the move-shot's (same quantized shot): 1 cm, 1e-5 s, ~0.08 deg. */
+	constexpr double MoveShotOriginToleranceCm = 1.0;
+	constexpr float MoveShotStampTolerance = 1e-5f;
+	constexpr double MoveShotDirDotTolerance = 1e-6;
 }
 
 UVeloxGameplayAbility_FireProjectile::UVeloxGameplayAbility_FireProjectile(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+}
+
+double UVeloxGameplayAbility_FireProjectile::ComputeShotLateMs(float LastMoveStamp, float FireMoveTimeStamp, float ResetPeriod)
+{
+	double Delta = static_cast<double>(LastMoveStamp) - static_cast<double>(FireMoveTimeStamp);
+	if (Delta < -0.5 * ResetPeriod)
+	{
+		Delta += ResetPeriod; // a time stamp reset in between
+	}
+	return Delta * 1000.0;
 }
 
 void UVeloxGameplayAbility_FireProjectile::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
@@ -148,6 +170,22 @@ void UVeloxGameplayAbility_FireProjectile::ActivateAbility(const FGameplayAbilit
 	const FVector Origin = Data->Origin;
 	const FVector Dir = FVector(Data->Dir).GetSafeNormal();
 	const float FireMoveTimeStamp = Data->FireMoveTimeStamp;
+	if (Movement && Inventory && Definition->SplashRadiusCm > 0.f && Definition->ProjectileClass)
+	{
+		// ADR 0003 B35 / ADR 0002 A36: the fire move carries the shot, so the server schedules the self splash from the move
+		// stream even if this frame's packet (and the reliable RPC in it) is lost. The values are the RPC's quantized ones.
+		const int32 WeaponIndex = Inventory->IndexOf(Definition);
+		if (WeaponIndex >= 0 && WeaponIndex <= FVeloxMoveShot::MaxWeaponIndex)
+		{
+			FVeloxMoveShot MoveShot;
+			MoveShot.ShotSeq = ShotSeq;
+			MoveShot.WeaponIndex = static_cast<uint8>(WeaponIndex);
+			MoveShot.FireMoveTimeStamp = FireMoveTimeStamp;
+			MoveShot.Origin = Data->Origin;
+			MoveShot.Dir = Data->Dir;
+			Movement->QueueMoveShot(MoveShot);
+		}
+	}
 
 	FVeloxProjectileLaunch Launch;
 	Launch.Definition = Definition;
@@ -189,6 +227,24 @@ void UVeloxGameplayAbility_FireProjectile::ActivateAbility(const FGameplayAbilit
 void UVeloxGameplayAbility_FireProjectile::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
+	if (bHasPendingServerShot)
+	{
+		if (bWasCancelled)
+		{
+			// Death / reset: the shot is dropped with its life (the move stream's record, if any, expires as an orphan).
+			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShotDropped seq=%u reason=cancelled (fire RPC waiting for its move)"), PendingServerShot.ShotSeq);
+			bHasPendingServerShot = false;
+			if (UVeloxWeaponInventoryComponent* Inventory = GetInventory())
+			{
+				Inventory->RemovePendingRpcShot(PendingServerShot.ShotSeq, this);
+			}
+		}
+		else
+		{
+			// Superseded (retrigger) while waiting: launch now rather than lose an honest shot.
+			LaunchPendingServerShot();
+		}
+	}
 	if (TargetDataDelegateHandle.IsValid())
 	{
 		if (UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr)
@@ -225,7 +281,12 @@ void UVeloxGameplayAbility_FireProjectile::Reject(uint8 ShotSeq, const TCHAR* Re
 void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbilityTargetDataHandle& Data, FGameplayTag ApplicationTag)
 {
 	UAbilitySystemComponent* ASC = CurrentActorInfo ? CurrentActorInfo->AbilitySystemComponent.Get() : nullptr;
-	if (!ASC || !IsActive())
+	if (!ASC || !IsActive() || bHasPendingServerShot)
+	{
+		return;
+	}
+	// velox.combat.DebugHoldShotRpc (non-shipping): process this target data later, as a reliable resend would.
+	if (DebugHoldServerTargetData([this, Data, ApplicationTag]() { OnServerTargetData(Data, ApplicationTag); }))
 	{
 		return;
 	}
@@ -234,17 +295,22 @@ void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbi
 	const UVeloxWeaponDefinition* Definition = GetCurrentDefinition();
 	const UWorld* World = GetWorld();
 	const FGameplayAbilityTargetData* Raw = Data.Num() > 0 ? Data.Get(0) : nullptr;
+	UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	if (!Definition || !World)
 	{
 		Reject(0, TEXT("no_weapon"));
 	}
 	else
 	{
+		// ADR 0003 B35: a shot whose fire move was already registered paid its fire-rate token there.
+		const bool bProjectilePayload = Raw && Raw->GetScriptStruct() == FGameplayAbilityTargetData_VeloxProjectileShot::StaticStruct();
+		const bool bRecorded = bProjectilePayload && Inventory && Inventory->FindMoveShotRecord(static_cast<const FGameplayAbilityTargetData_VeloxProjectileShot*>(Raw)->ShotSeq);
+
 		// B26: the hitscan machinery (bucket + spacing, then type, NaN origin, direction, finite times incl. the move
 		// time stamp), then the pending switch (B18), then the launch with the shared B15 origin rule.
 		const double Now = World->GetTimeSeconds();
 		FVeloxValidatedShot Valid;
-		const EVeloxShotReject Reason = ValidateServerShot(Raw, Now, *Definition, Valid);
+		const EVeloxShotReject Reason = ValidateServerShot(Raw, Now, *Definition, Valid, !bRecorded);
 		if (Reason != EVeloxShotReject::None)
 		{
 			Reject(Valid.ShotSeq, LexToString(Reason));
@@ -257,14 +323,100 @@ void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbi
 		else
 		{
 			FinalisePendingSwitch(*Definition);
-			LaunchServerShot(*Definition, Valid.Origin, Valid.Dir, Valid.ShotSeq, true, Valid.FireMoveTimeStamp);
 			AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+			FVeloxMoveShotRecord Record;
+			if (bRecorded && Inventory->AdoptMoveShotRecord(Valid.ShotSeq, Record))
+			{
+				LaunchServerShot(*Definition, Valid.Origin, Valid.Dir, Valid.ShotSeq, true, Valid.FireMoveTimeStamp, &Record);
+			}
+			else if (Definition->SplashRadiusCm > 0.f && Definition->ProjectileClass && Inventory && Inventory->ShouldWaitForMoveShot(Valid.FireMoveTimeStamp))
+			{
+				// The RPC overtook its fire move (normally inside one packet: the ability's RPCs are queued before the CMC's
+				// ServerMove of the same frame). Wait for the move: the inventory resumes this shot after the move that
+				// carries it (source=move) or after the first move past the stamp without it (source=rpc). The timeout
+				// covers a move stream that stops.
+				bHasPendingServerShot = true;
+				PendingServerShot = Valid;
+				PendingServerShotDefinition = Definition;
+				Inventory->AddPendingRpcShot(Valid.ShotSeq, Valid.FireMoveTimeStamp, this);
+				const AVeloxPlayerState* PlayerState = CurrentActorInfo ? Cast<AVeloxPlayerState>(CurrentActorInfo->OwnerActor.Get()) : nullptr;
+				const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PlayerState ? PlayerState->GetCombatSettings() : nullptr);
+				FTimerHandle Timeout;
+				GetWorld()->GetTimerManager().SetTimer(Timeout, FTimerDelegate::CreateUObject(this, &ThisClass::OnPendingServerShotTimeout),
+					FMath::Max(Settings.MaxRewindSeconds, UE_KINDA_SMALL_NUMBER), false);
+				UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxProjectileShotPending seq=%u fire_ts=%.6f"), Valid.ShotSeq, Valid.FireMoveTimeStamp);
+				return;
+			}
+			else
+			{
+				LaunchServerShot(*Definition, Valid.Origin, Valid.Dir, Valid.ShotSeq, true, Valid.FireMoveTimeStamp);
+			}
 		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);
 }
 
-void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDefinition& Definition, const FVector& ClientOrigin, const FVector& Dir, uint8 ShotSeq, bool bRemote, float ClientFireMoveTimeStamp)
+void UVeloxGameplayAbility_FireProjectile::LaunchPendingServerShot()
+{
+	if (!bHasPendingServerShot)
+	{
+		return;
+	}
+	bHasPendingServerShot = false;
+	const FVeloxValidatedShot Shot = PendingServerShot;
+	UVeloxWeaponInventoryComponent* Inventory = GetInventory();
+	if (Inventory)
+	{
+		Inventory->RemovePendingRpcShot(Shot.ShotSeq, this);
+	}
+	const UVeloxWeaponDefinition* Definition = PendingServerShotDefinition.Get();
+	UAbilitySystemComponent* ASC = CurrentActorInfo ? CurrentActorInfo->AbilitySystemComponent.Get() : nullptr;
+	if (!Definition || !ASC)
+	{
+		return;
+	}
+	// The activation's prediction key, as inside OnServerTargetData: the predicting client skips the fire cue echo and
+	// reconciles its predicted GE_AmmoCost with this one.
+	FScopedPredictionWindow ScopedPrediction(ASC, CurrentActivationInfo.GetActivationPredictionKey(), false);
+	FVeloxMoveShotRecord Record;
+	const bool bAdopted = Inventory && Inventory->AdoptMoveShotRecord(Shot.ShotSeq, Record);
+	LaunchServerShot(*Definition, Shot.Origin, Shot.Dir, Shot.ShotSeq, true, Shot.FireMoveTimeStamp, bAdopted ? &Record : nullptr);
+}
+
+void UVeloxGameplayAbility_FireProjectile::ResumePendingServerShot()
+{
+	if (!bHasPendingServerShot)
+	{
+		return;
+	}
+	LaunchPendingServerShot();
+	if (IsActive())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);
+	}
+}
+
+void UVeloxGameplayAbility_FireProjectile::CancelPendingServerShot()
+{
+	if (bHasPendingServerShot && IsActive())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, true);
+	}
+	bHasPendingServerShot = false;
+}
+
+void UVeloxGameplayAbility_FireProjectile::OnPendingServerShotTimeout()
+{
+	if (bHasPendingServerShot)
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShotPendingTimeout seq=%u fire_ts=%.6f (no owner move reached the fire stamp)"), PendingServerShot.ShotSeq,
+			PendingServerShot.FireMoveTimeStamp);
+		ResumePendingServerShot();
+	}
+}
+
+void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDefinition& Definition, const FVector& ClientOrigin, const FVector& ClientDir, uint8 ShotSeq, bool bRemote,
+	float ClientFireMoveTimeStamp, const FVeloxMoveShotRecord* Record)
 {
 	using namespace VeloxFireProjectilePrivate;
 
@@ -275,19 +427,43 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PlayerState ? PlayerState->GetCombatSettings() : nullptr);
 	LastServerShot = FVeloxServerShotInfo();
 	LastServerShot.ShotSeq = ShotSeq;
+	LastServerShotSource = TEXT("");
 	if (!ASC || !World)
 	{
 		LastServerShot.bRejected = true;
 		return;
 	}
-
-	// Origin validation, the B15 rule shared with TraceShot (B26).
-	const TCHAR* SnapReason = nullptr;
-	const FVector Origin = VeloxShotValidation::ValidateOrigin(*World, *Shooter, ClientOrigin, Settings.MaxOriginErrorCm, SnapReason);
-	if (SnapReason)
+	UVeloxMovementComponent* Movement = MovementOf(Shooter);
+	// ADR 0003 B35: a shot adopted from the move stream keeps the record's (validated) origin and direction; the fire
+	// RPC's values are cross-checked only (the record wins: its self splash is already scheduled).
+	const bool bAdopted = bRemote && Record && Movement;
+	FVector Dir = ClientDir;
+	FVector Origin = ClientOrigin;
+	if (bAdopted)
 	{
-		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s"), ShotSeq, *GetNameSafe(Shooter),
-			ClientOrigin.ContainsNaN() ? -1.0 : FVector::Dist(ClientOrigin, Origin), SnapReason);
+		const bool bWeaponMismatch = World && GetInventory() && GetInventory()->IndexOf(&Definition) != Record->WeaponIndex;
+		if (bWeaponMismatch || ClientOrigin.ContainsNaN() || FVector::Dist(ClientOrigin, Record->ClientOrigin) > MoveShotOriginToleranceCm
+			|| FVector::DotProduct(ClientDir, Record->ClientDir) < 1.0 - MoveShotDirDotTolerance
+			|| FMath::Abs(ClientFireMoveTimeStamp - Record->ClientFireMoveTimeStamp) > MoveShotStampTolerance)
+		{
+			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxMoveShotMismatch seq=%u weapon=%s record_weapon=%d rpc_origin=%s move_origin=%s rpc_dir=%s move_dir=%s rpc_ts=%.6f move_ts=%.6f (record wins)"),
+				ShotSeq, *GetNameSafe(&Definition), Record->WeaponIndex, *ClientOrigin.ToCompactString(), *Record->ClientOrigin.ToCompactString(), *ClientDir.ToCompactString(),
+				*Record->ClientDir.ToCompactString(), ClientFireMoveTimeStamp, Record->ClientFireMoveTimeStamp);
+		}
+		Origin = Record->Origin;
+		Dir = Record->Dir;
+	}
+	else
+	{
+		// Origin validation, the B15 rule shared with TraceShot (B26).
+		const TCHAR* SnapReason = nullptr;
+		Origin = VeloxShotValidation::ValidateOrigin(*World, *Shooter, ClientOrigin, Settings.MaxOriginErrorCm, SnapReason);
+		if (SnapReason)
+		{
+			const double LateForLog = bRemote && Movement ? LateMs(Movement->GetServerClientMoveTimeStamp(), ClientFireMoveTimeStamp, Movement->MinTimeBetweenTimeStampResets) : 0.0;
+			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s source=rpc late_ms=%.1f"), ShotSeq, *GetNameSafe(Shooter),
+				ClientOrigin.ContainsNaN() ? -1.0 : FVector::Dist(ClientOrigin, Origin), SnapReason, LateForLog);
+		}
 	}
 
 	FVeloxProjectileLaunch Launch;
@@ -300,13 +476,26 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 	// ADR 0004 section 3: Quad at fire from the shooter ASC's tag on the server (Q3 stores the factor in the missile).
 	Launch.bQuad = VeloxPowerups::HasQuad(ASC);
 
-	UVeloxMovementComponent* Movement = MovementOf(Shooter);
 	float FireMoveTimeStamp = 0.f;
 	if (bRemote)
 	{
 		// ADR 0003 section 7: forward simulation by half the ping, capped.
 		Launch.ForwardSimSeconds = FVeloxProjectileSim::ForwardSimSeconds(PlayerState ? PlayerState->GetPingInMilliseconds() : 0.f, Settings.ProjectileForwardPredictionMax);
-		if (Movement && Definition.SplashRadiusCm > 0.f)
+		if (bAdopted)
+		{
+			// The owner's self splash was scheduled when the fire move was simulated (UVeloxWeaponInventoryComponent::
+			// HandleServerMoveShot); the projectile only takes the event (skips the owner at a matching explosion).
+			FireMoveTimeStamp = Record->FireMoveTimeStamp;
+			Launch.OwnerMovement = Movement;
+			Launch.SelfSplashOrigin = Record->SplashOrigin;
+			Launch.SelfSplashEventId = Record->EventId;
+			LastServerShotSource = TEXT("move");
+			const float LastMoveTimeStamp = Movement->GetServerClientMoveTimeStamp();
+			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShot seq=%u weapon=%s fire_ts=%.6f client_ts=%.6f last_ts=%.6f event_id=%d splash_origin=%s source=move late_ms=%.1f"), ShotSeq,
+				*GetNameSafe(&Definition), FireMoveTimeStamp, ClientFireMoveTimeStamp, LastMoveTimeStamp, Record->EventId, *Record->SplashOrigin.ToCompactString(),
+				LateMs(LastMoveTimeStamp, FireMoveTimeStamp, Movement->MinTimeBetweenTimeStampResets));
+		}
+		else if (Movement && Definition.SplashRadiusCm > 0.f)
 		{
 			// The owner's self splash in its own move stream (what the predicting client does), never in server time.
 			// The client's stamp is trusted within MaxRewindSeconds of the last move processed (a later one would only
@@ -335,8 +524,15 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 			// as the predicting client does; the projectile's damage to others keeps the server tag (Launch.bQuad).
 			const bool bSelfSplashQuad = Movement->IsPowerupActiveAt(Movement->GetPowerupMoveTimes().QuadEnd, FireMoveTimeStamp);
 			Launch.SelfSplashEventId = AVeloxProjectile::ScheduleOwnerSelfSplash(*Movement, Definition, ASC, EventTime, SplashOrigin, ShotSeq, false, bSelfSplashQuad);
-			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShot seq=%u weapon=%s fire_ts=%.6f client_ts=%.6f last_ts=%.6f flight_ms=%.1f event_ts=%.6f splash_origin=%s"), ShotSeq,
-				*GetNameSafe(&Definition), FireMoveTimeStamp, ClientFireMoveTimeStamp, LastMoveTimeStamp, Flight * 1000.0, EventTime, *SplashOrigin.ToCompactString());
+			// ADR 0003 B35: no move-shot for this sequence (the fire move merged in a burst loss, or no move stream).
+			LastServerShotSource = TEXT("rpc");
+			const double Late = LateMs(LastMoveTimeStamp, ClientFireMoveTimeStamp, Movement->MinTimeBetweenTimeStampResets);
+			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShot seq=%u weapon=%s fire_ts=%.6f client_ts=%.6f last_ts=%.6f flight_ms=%.1f event_ts=%.6f splash_origin=%s source=rpc late_ms=%.1f"), ShotSeq,
+				*GetNameSafe(&Definition), FireMoveTimeStamp, ClientFireMoveTimeStamp, LastMoveTimeStamp, Flight * 1000.0, EventTime, *SplashOrigin.ToCompactString(), Late);
+			if (IsShotLate(Late))
+			{
+				UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotLate seq=%u weapon=%s late_ms=%.1f (fire RPC after its move without a move-shot)"), ShotSeq, *GetNameSafe(&Definition), Late);
+			}
 		}
 		else if (Movement)
 		{

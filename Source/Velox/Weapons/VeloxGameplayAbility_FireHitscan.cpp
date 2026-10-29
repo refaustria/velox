@@ -236,6 +236,11 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 	{
 		return;
 	}
+	// velox.combat.DebugHoldShotRpc (non-shipping, ADR 0003 B35 forced loss): process this target data later.
+	if (DebugHoldServerTargetData([this, Data, ApplicationTag]() { OnServerTargetData(Data, ApplicationTag); }))
+	{
+		return;
+	}
 	ASC->ConsumeClientReplicatedTargetData(CurrentSpecHandle, CurrentActivationInfo.GetActivationPredictionKey());
 
 	const UVeloxWeaponDefinition* Definition = GetCurrentDefinition();

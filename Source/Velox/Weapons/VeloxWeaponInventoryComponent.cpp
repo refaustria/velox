@@ -11,13 +11,18 @@
 #include "Engine/World.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
+#include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameplayPrediction.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
+#include "Movement/VeloxMovementComponent.h"
 #include "Weapons/VeloxGameplayAbility_Fire.h"
+#include "Weapons/VeloxGameplayAbility_FireProjectile.h"
 #include "Weapons/VeloxGameplayAbility_WeaponSwitch.h"
+#include "Weapons/VeloxProjectile.h"
+#include "Weapons/VeloxShotValidation.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponTable.h"
 
@@ -292,6 +297,8 @@ void UVeloxWeaponInventoryComponent::ResetToLoadout()
 	OwnedMask = Desired;
 	SwitchEndTime = 0.0;
 	ResetShotSeq();
+	// ADR 0003 B35: move-shot records and waiting fire RPCs belong to the shot sequence of the old life.
+	ClearMoveShots();
 	SetCurrentIndex(First);
 	UE_LOG(LogVeloxCombat, Log, TEXT("%s: ResetToLoadout owned=0x%04x current=%s (%d entries)"), *GetNameSafe(GetOwner()), OwnedMask, *GetNameSafe(GetDefinition(First)),
 		Settings.SpawnLoadout.Num());
@@ -550,4 +557,304 @@ void UVeloxWeaponInventoryComponent::OnRep_OwnedMask(uint16 OldMask)
 	// Predicted bits the server now confirms are no longer predictions.
 	PredictedOwnedMask &= static_cast<uint16>(~OwnedMask);
 	RunAutoSwitch(OldMask, OwnedMask);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Server: the move-carried projectile shot (ADR 0003 B35, ADR 0002 A36)
+
+UVeloxMovementComponent* UVeloxWeaponInventoryComponent::GetBoundServerMovement() const
+{
+	return BoundServerMovement.Get();
+}
+
+void UVeloxWeaponInventoryComponent::BindServerMoveStream(UVeloxMovementComponent* Movement)
+{
+	if (Movement && BoundServerMovement.Get() == Movement)
+	{
+		return;
+	}
+	if (UVeloxMovementComponent* Old = BoundServerMovement.Get())
+	{
+		Old->OnServerMoveShot.Remove(MoveShotHandle);
+		Old->OnServerMoveProcessed.Remove(MoveProcessedHandle);
+	}
+	MoveShotHandle.Reset();
+	MoveProcessedHandle.Reset();
+	BoundServerMovement = Movement;
+	// A new pawn is a new move stream (and a new life): nothing of the previous one carries over.
+	ClearMoveShots();
+	bServerMoveStreamSeen = false;
+	LastProcessedMoveStamp = 0.f;
+	if (Movement && GetOwner() && GetOwner()->HasAuthority())
+	{
+		MoveShotHandle = Movement->OnServerMoveShot.AddUObject(this, &ThisClass::HandleServerMoveShot);
+		MoveProcessedHandle = Movement->OnServerMoveProcessed.AddUObject(this, &ThisClass::HandleServerMoveProcessed);
+	}
+}
+
+void UVeloxWeaponInventoryComponent::UnbindServerMoveStream(const UVeloxMovementComponent* Movement)
+{
+	if (Movement && BoundServerMovement.Get() == Movement)
+	{
+		BindServerMoveStream(nullptr);
+	}
+}
+
+int32 UVeloxWeaponInventoryComponent::FindMoveShotRecordIndex(uint8 Seq) const
+{
+	return ServerMoveShots.IndexOfByPredicate([Seq](const FVeloxMoveShotRecord& R) { return R.ShotSeq == Seq; });
+}
+
+const FVeloxMoveShotRecord* UVeloxWeaponInventoryComponent::FindMoveShotRecord(uint8 Seq) const
+{
+	const int32 Index = FindMoveShotRecordIndex(Seq);
+	return Index != INDEX_NONE && !ServerMoveShots[Index].bAdopted ? &ServerMoveShots[Index] : nullptr;
+}
+
+bool UVeloxWeaponInventoryComponent::AdoptMoveShotRecord(uint8 Seq, FVeloxMoveShotRecord& OutRecord)
+{
+	const int32 Index = FindMoveShotRecordIndex(Seq);
+	if (Index == INDEX_NONE || ServerMoveShots[Index].bAdopted)
+	{
+		return false;
+	}
+	ServerMoveShots[Index].bAdopted = true;
+	OutRecord = ServerMoveShots[Index];
+	return true;
+}
+
+bool UVeloxWeaponInventoryComponent::ShouldWaitForMoveShot(float FireMoveTimeStamp) const
+{
+	const UVeloxMovementComponent* Movement = BoundServerMovement.Get();
+	if (!Movement || !bServerMoveStreamSeen)
+	{
+		return false; // no move stream (yet): the RPC path as before B35
+	}
+	const bool bPassed = LastProcessedMoveStamp != FireMoveTimeStamp
+		&& UVeloxMovementComponent::IsMoveTimeDue(FireMoveTimeStamp, LastProcessedMoveStamp, Movement->MinTimeBetweenTimeStampResets);
+	return !bPassed;
+}
+
+void UVeloxWeaponInventoryComponent::AddPendingRpcShot(uint8 Seq, float FireMoveTimeStamp, UVeloxGameplayAbility_FireProjectile* Ability)
+{
+	PendingRpcShots.RemoveAll([Seq](const FPendingRpcShot& P) { return P.ShotSeq == Seq; });
+	FPendingRpcShot& Pending = PendingRpcShots.AddDefaulted_GetRef();
+	Pending.ShotSeq = Seq;
+	Pending.FireMoveTimeStamp = FireMoveTimeStamp;
+	Pending.Ability = Ability;
+}
+
+void UVeloxWeaponInventoryComponent::RemovePendingRpcShot(uint8 Seq, const UVeloxGameplayAbility_FireProjectile* Ability)
+{
+	PendingRpcShots.RemoveAll([Seq, Ability](const FPendingRpcShot& P) { return P.ShotSeq == Seq && (!Ability || P.Ability.Get() == Ability); });
+}
+
+bool UVeloxWeaponInventoryComponent::HasPendingRpcShot(uint8 Seq) const
+{
+	return PendingRpcShots.ContainsByPredicate([Seq](const FPendingRpcShot& P) { return P.ShotSeq == Seq && P.Ability.IsValid(); });
+}
+
+double UVeloxWeaponInventoryComponent::GetMoveShotOrphanSeconds() const
+{
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(GetCombatSettings());
+	return static_cast<double>(Settings.GetFireRateJitterToleranceSeconds()) + static_cast<double>(Settings.MaxRewindSeconds);
+}
+
+void UVeloxWeaponInventoryComponent::NoteMoveShotOrphan(const FVeloxMoveShotRecord& Record, const TCHAR* Why)
+{
+	++NumMoveShotOrphans;
+	const UWorld* World = GetWorld();
+	const double Now = World ? World->GetTimeSeconds() : 0.0;
+	// B35 asks for Verbose; the first lines per second go to Log through the rejection throttle so the soaks can count them.
+	const FString Line = FString::Printf(TEXT("VeloxMoveShotOrphan seq=%u weapon=%s age_ms=%.0f why=%s count=%d (move-shot whose fire RPC never came)"), Record.ShotSeq,
+		*GetNameSafe(GetDefinition(Record.WeaponIndex)), (Now - Record.ReceiveTime) * 1000.0, Why, NumMoveShotOrphans);
+	if (ShouldLogRejectionAtLog(Now))
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("%s"), *Line);
+	}
+	else
+	{
+		UE_LOG(LogVeloxCombat, Verbose, TEXT("%s"), *Line);
+	}
+}
+
+void UVeloxWeaponInventoryComponent::ClearMoveShots()
+{
+	ServerMoveShots.Reset();
+	const TArray<FPendingRpcShot, TInlineAllocator<2>> Pending = PendingRpcShots;
+	PendingRpcShots.Reset();
+	for (const FPendingRpcShot& P : Pending)
+	{
+		if (UVeloxGameplayAbility_FireProjectile* Ability = P.Ability.Get())
+		{
+			Ability->CancelPendingServerShot();
+		}
+	}
+}
+
+void UVeloxWeaponInventoryComponent::HandleServerMoveShot(const FVeloxMoveShot& Shot, float MoveEndStamp, float MoveDeltaTime)
+{
+	UVeloxMovementComponent* Movement = BoundServerMovement.Get();
+	APawn* Pawn = Movement ? Cast<APawn>(Movement->GetOwner()) : nullptr;
+	UVeloxAbilitySystemComponent* ASC = GetVeloxASC();
+	UWorld* World = GetWorld();
+	if (!Movement || !Pawn || !ASC || !World || !GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return;
+	}
+	const double Now = World->GetTimeSeconds();
+	const int32 Index = Shot.WeaponIndex;
+	const UVeloxWeaponDefinition* Definition = GetDefinition(Index);
+	FGameplayAbilitySpec* Spec = nullptr;
+	UVeloxGameplayAbility_FireProjectile* Ability = nullptr;
+	const FVector ShotDir(Shot.Dir);
+	const TCHAR* Ignore = nullptr;
+	// (1) An owned projectile weapon with splash; not necessarily the current one (its switch RPC may still be in flight;
+	// the current/pending check stays on the fire RPC, B18).
+	if (!Definition || !OwnsIndex(Index))
+	{
+		Ignore = TEXT("not_owned");
+	}
+	else if (!Definition->ProjectileClass || Definition->SplashRadiusCm <= 0.f || Definition->ProjectileSpeed <= 0.f)
+	{
+		Ignore = TEXT("no_splash");
+	}
+	else if (!(Spec = FindFireSpec(Index)) || !(Ability = Cast<UVeloxGameplayAbility_FireProjectile>(Spec->GetPrimaryInstance())))
+	{
+		Ignore = TEXT("no_ability");
+	}
+	else if (ASC->HasMatchingGameplayTag(VeloxGameplayTags::State_Dead) || ASC->HasMatchingGameplayTag(VeloxMatchTags::State_MatchFrozen))
+	{
+		Ignore = TEXT("blocked");
+	}
+	// (2) Not yet recorded.
+	else if (FindMoveShotRecordIndex(Shot.ShotSeq) != INDEX_NONE)
+	{
+		Ignore = TEXT("duplicate");
+	}
+	else if (Shot.Origin.ContainsNaN() || ShotDir.ContainsNaN() || ShotDir.IsNearlyZero() || !FMath::IsFinite(Shot.FireMoveTimeStamp))
+	{
+		Ignore = TEXT("payload");
+	}
+	else
+	{
+		// (5) A fire RPC that overtook this move validated the shot already (token, ammo through CanActivate/CheckCost).
+		const bool bRpcPaid = HasPendingRpcShot(Shot.ShotSeq);
+		if (!bRpcPaid && !Ability->CheckCost(Spec->Handle, ASC->AbilityActorInfo.Get()))
+		{
+			Ignore = TEXT("ammo");
+		}
+		else if (!bRpcPaid && !Ability->ServerConsumeMoveShotToken(Now, *Definition))
+		{
+			Ignore = TEXT("rate");
+		}
+	}
+	if (Ignore)
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxMoveShotIgnored seq=%u weapon=%d (%s) move_ts=%.6f reason=%s"), Shot.ShotSeq, Index, *GetNameSafe(Definition), MoveEndStamp, Ignore);
+		return;
+	}
+
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(GetCombatSettings());
+	// (3) The stamp against the move's start (the explicit stamp keeps a merged predecessor from shifting it).
+	const float MoveStart = MoveEndStamp - MoveDeltaTime;
+	EVeloxFireStampClamp StampResult = EVeloxFireStampClamp::None;
+	const float FireStamp = VeloxShotValidation::ClampFireMoveTimeStamp(Shot.FireMoveTimeStamp, MoveStart, Settings.MaxRewindSeconds, Movement->MinTimeBetweenTimeStampResets,
+		StampResult);
+	if (StampResult == EVeloxFireStampClamp::Clamped)
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotTimeClamp seq=%u client_ts=%.6f last_ts=%.6f clamped_ts=%.6f source=move"), Shot.ShotSeq, Shot.FireMoveTimeStamp, MoveStart, FireStamp);
+	}
+	else if (StampResult == EVeloxFireStampClamp::Reset)
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotTimeReset seq=%u client_ts=%.6f last_ts=%.6f source=move (time stamp reset in between, client value kept)"), Shot.ShotSeq,
+			Shot.FireMoveTimeStamp, MoveStart);
+	}
+	// (4) The B15 origin rule against the live eye: the fire move has not run yet, so the pawn is at its start.
+	const TCHAR* SnapReason = nullptr;
+	const FVector ClientOrigin(Shot.Origin);
+	const FVector Origin = VeloxShotValidation::ValidateOrigin(*World, *Pawn, ClientOrigin, Settings.MaxOriginErrorCm, SnapReason);
+	if (SnapReason)
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s source=move late_ms=0.0"), Shot.ShotSeq, *GetNameSafe(Pawn),
+			FVector::Dist(ClientOrigin, Origin), SnapReason);
+	}
+	// (6) Exactly what the predicting client schedules: world-only flight from the quantized shot, Quad from the move
+	// timeline at the fire stamp (ADR 0004 section 3).
+	const FVector Dir = ShotDir.GetSafeNormal();
+	FVector SplashOrigin;
+	const double Flight = AVeloxProjectile::ComputeWorldFlight(*World, *Definition, Origin, Dir, Pawn, SplashOrigin);
+	const float EventTime = FireStamp + static_cast<float>(Flight);
+	const bool bQuad = Movement->IsPowerupActiveAt(Movement->GetPowerupMoveTimes().QuadEnd, FireStamp);
+	const int32 EventId = AVeloxProjectile::ScheduleOwnerSelfSplash(*Movement, *Definition, ASC, EventTime, SplashOrigin, Shot.ShotSeq, false, bQuad);
+
+	if (ServerMoveShots.Num() >= MaxMoveShotRecords)
+	{
+		if (!ServerMoveShots[0].bAdopted)
+		{
+			NoteMoveShotOrphan(ServerMoveShots[0], TEXT("evicted"));
+		}
+		ServerMoveShots.RemoveAt(0);
+	}
+	FVeloxMoveShotRecord& Record = ServerMoveShots.AddDefaulted_GetRef();
+	Record.ShotSeq = Shot.ShotSeq;
+	Record.WeaponIndex = Index;
+	Record.Origin = Origin;
+	Record.Dir = Dir;
+	Record.ClientOrigin = ClientOrigin;
+	Record.ClientDir = Dir;
+	Record.ClientFireMoveTimeStamp = Shot.FireMoveTimeStamp;
+	Record.FireMoveTimeStamp = FireStamp;
+	Record.EventId = EventId;
+	Record.SplashOrigin = SplashOrigin;
+	Record.ReceiveTime = Now;
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxMoveShot seq=%u weapon=%s fire_ts=%.6f move_ts=%.6f move_dt=%.6f flight_ms=%.1f event_ts=%.6f splash_origin=%s rpc_first=%d quad=%d"), Shot.ShotSeq,
+		*GetNameSafe(Definition), FireStamp, MoveEndStamp, MoveDeltaTime, Flight * 1000.0, EventTime, *SplashOrigin.ToCompactString(), HasPendingRpcShot(Shot.ShotSeq) ? 1 : 0,
+		bQuad ? 1 : 0);
+}
+
+void UVeloxWeaponInventoryComponent::HandleServerMoveProcessed(float MoveEndStamp)
+{
+	const UVeloxMovementComponent* Movement = BoundServerMovement.Get();
+	LastProcessedMoveStamp = MoveEndStamp;
+	bServerMoveStreamSeen = true;
+
+	// Fire RPCs that overtook their move: adopt the record the move just created, or fall back once the stream passed the
+	// fire stamp without one.
+	if (PendingRpcShots.Num() > 0 && Movement)
+	{
+		const TArray<FPendingRpcShot, TInlineAllocator<2>> Pending = PendingRpcShots;
+		for (const FPendingRpcShot& P : Pending)
+		{
+			UVeloxGameplayAbility_FireProjectile* Ability = P.Ability.Get();
+			if (!Ability)
+			{
+				RemovePendingRpcShot(P.ShotSeq, nullptr);
+				continue;
+			}
+			const bool bRecorded = FindMoveShotRecord(P.ShotSeq) != nullptr;
+			const bool bPassed = MoveEndStamp != P.FireMoveTimeStamp && UVeloxMovementComponent::IsMoveTimeDue(P.FireMoveTimeStamp, MoveEndStamp, Movement->MinTimeBetweenTimeStampResets);
+			if (bRecorded || bPassed)
+			{
+				Ability->ResumePendingServerShot();
+			}
+		}
+	}
+
+	// Records whose fire RPC never came.
+	const UWorld* World = GetWorld();
+	if (World && ServerMoveShots.Num() > 0)
+	{
+		const double Now = World->GetTimeSeconds();
+		const double Expiry = GetMoveShotOrphanSeconds();
+		for (int32 I = ServerMoveShots.Num() - 1; I >= 0; --I)
+		{
+			const FVeloxMoveShotRecord& Record = ServerMoveShots[I];
+			if (!Record.bAdopted && Now - Record.ReceiveTime > Expiry)
+			{
+				NoteMoveShotOrphan(Record, TEXT("expired"));
+				ServerMoveShots.RemoveAt(I);
+			}
+		}
+	}
 }

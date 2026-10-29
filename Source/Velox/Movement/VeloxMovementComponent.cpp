@@ -339,6 +339,35 @@ void UVeloxMovementComponent::ServerNoteShot(uint8 Seq)
 	}
 }
 
+bool UVeloxMovementComponent::QueueMoveShot(const FVeloxMoveShot& Shot)
+{
+	if (!CharacterOwner || CharacterOwner->GetLocalRole() != ROLE_AutonomousProxy)
+	{
+		// Listen host, bots, standalone: no move stream; the fire RPC path is unchanged there (ADR 0003 B35).
+		return false;
+	}
+	if (bHasPendingMoveShot)
+	{
+		UE_LOG(LogVeloxNet, Warning, TEXT("VeloxMoveShotOverwritten seq=%u by seq=%u (two shots before one move; the first one falls back to the fire RPC)"),
+			PendingMoveShot.ShotSeq, Shot.ShotSeq);
+	}
+	PendingMoveShot = Shot;
+	bHasPendingMoveShot = true;
+	return true;
+}
+
+bool UVeloxMovementComponent::ConsumePendingMoveShot(FVeloxMoveShot& OutShot)
+{
+	if (!bHasPendingMoveShot)
+	{
+		return false;
+	}
+	OutShot = PendingMoveShot;
+	PendingMoveShot = FVeloxMoveShot();
+	bHasPendingMoveShot = false;
+	return true;
+}
+
 int32 UVeloxMovementComponent::AddMoveTimedEvent(float MoveTime, FVeloxMoveTimedCallback&& Callback)
 {
 	FMoveTimedEvent& Event = MoveTimedEvents.AddDefaulted_GetRef();
@@ -374,6 +403,13 @@ int32 UVeloxMovementComponent::CancelAllMoveTimedEvents()
 	const int32 Count = MoveTimedEvents.Num();
 	MoveTimedEvents.Reset();
 	return Count;
+}
+
+bool UVeloxMovementComponent::GetMoveTimedEventTime(int32 EventId, float& OutMoveTime) const
+{
+	const FMoveTimedEvent* Event = MoveTimedEvents.FindByPredicate([EventId](const FMoveTimedEvent& E) { return E.Id == EventId; });
+	OutMoveTime = Event ? Event->MoveTime : 0.f;
+	return Event != nullptr;
 }
 
 bool UVeloxMovementComponent::HasMoveTimedEvent(int32 EventId) const
@@ -631,7 +667,22 @@ void UVeloxMovementComponent::MoveAutonomous(float ClientTimeStamp, float DeltaT
 		}
 	}
 #endif
+	// ADR 0002 A36 / ADR 0003 B35: the fire move's shot is registered before the move is simulated, so an event due inside
+	// it (a point-blank plasma) runs at its end like on the client. Only moves of this component's own container carry one.
+	const bool bServerMove = CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority;
+	if (bServerMove && OnServerMoveShot.IsBound())
+	{
+		const FVeloxNetworkMoveData* VeloxMoveData = VeloxNetworkMoveDataContainer.AsVeloxMoveData(GetCurrentNetworkMoveData());
+		if (VeloxMoveData && VeloxMoveData->bHasShot)
+		{
+			OnServerMoveShot.Broadcast(VeloxMoveData->Shot, ClientTimeStamp, DeltaTime);
+		}
+	}
 	Super::MoveAutonomous(ClientTimeStamp, DeltaTime, CompressedFlags, NewAccel);
+	if (bServerMove)
+	{
+		OnServerMoveProcessed.Broadcast(ClientTimeStamp);
+	}
 }
 
 void UVeloxMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration)

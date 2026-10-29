@@ -25,7 +25,7 @@ const TCHAR* LexToString(EVeloxShotReject Reason)
 }
 
 EVeloxShotReject VeloxShotValidation::Validate(const FGameplayAbilityTargetData* Raw, FVeloxFireRateBucket& Bucket, double Now, float Interval, float Capacity,
-	FVeloxValidatedShot& OutShot)
+	FVeloxValidatedShot& OutShot, bool bConsumeBucket)
 {
 	OutShot = FVeloxValidatedShot();
 	// Exact struct types only (no IsChildOf): the payload of a foreign subclass would be read with the wrong layout.
@@ -36,7 +36,7 @@ EVeloxShotReject VeloxShotValidation::Validate(const FGameplayAbilityTargetData*
 	const FGameplayAbilityTargetData_VeloxProjectileShot* ProjectileData = bProjectile ? static_cast<const FGameplayAbilityTargetData_VeloxProjectileShot*>(Raw) : nullptr;
 	OutShot.ShotSeq = ShotData ? ShotData->ShotSeq : 0;
 
-	if (Bucket.Consume(Now, Interval, Capacity) != EVeloxFireRateResult::Accepted)
+	if (bConsumeBucket && Bucket.Consume(Now, Interval, Capacity) != EVeloxFireRateResult::Accepted)
 	{
 		return EVeloxShotReject::Rate;
 	}
