@@ -22,6 +22,8 @@
 #include "Input/VeloxInputConfig.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
 #include "UI/VeloxGameUserSettings.h"
+#include "UI/VeloxPauseMenuWidget.h"
+#include "UI/VeloxUISettings.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxPlayerController)
@@ -29,6 +31,7 @@
 AVeloxPlayerController::AVeloxPlayerController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	PauseMenuWidgetClass = UVeloxPauseMenuWidget::StaticClass();
 }
 
 FVeloxShotTiming AVeloxPlayerController::BuildShotTiming(const FVector& Origin, const FVector& Dir, float RangeCm) const
@@ -125,6 +128,7 @@ void AVeloxPlayerController::ClientEnterIntermission_Implementation(AActor* View
 			Movement->DisableMovement();
 		}
 	}
+	ApplyUIInputMode();
 	UE_LOG(LogVeloxMatch, Log, TEXT("VeloxMatch intermission player=%s view=%s"), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState), *GetNameSafe(ViewTarget));
 }
 
@@ -140,6 +144,7 @@ void AVeloxPlayerController::ClientReset_Implementation()
 	bInIntermission = false;
 	ResetIgnoreMoveInput();
 	Super::ClientReset_Implementation();
+	ApplyUIInputMode();
 }
 
 void AVeloxPlayerController::OnRespawnInput()
@@ -181,6 +186,7 @@ void AVeloxPlayerController::SetupInputComponent()
 			}
 		}
 		BindUIInput(*EnhancedInput);
+		BindMenuInput(EnhancedInput);
 	}
 
 	if (DefaultMappingContext.IsNull())
@@ -271,5 +277,94 @@ void AVeloxPlayerController::PlayerTick(float DeltaTime)
 		{
 			ASC->ProcessAbilityInput(DeltaTime, DeltaTime == 0.f);
 		}
+	}
+}
+
+// ---- In-game menu (task M3-10) ----
+
+void AVeloxPlayerController::BindMenuInput(UEnhancedInputComponent* EnhancedInput)
+{
+	// InputTag.Menu: IA_Menu (Escape) toggles the in-game menu. Bound on the controller so it works while dead or spectating.
+	if (const UInputAction* MenuAction = MenuInputAction.LoadSynchronous())
+	{
+		EnhancedInput->BindAction(MenuAction, ETriggerEvent::Started, this, &ThisClass::OnMenuInput);
+	}
+}
+
+bool AVeloxPlayerController::IsMenuOpen() const
+{
+	return PauseMenu && PauseMenu->IsInViewport();
+}
+
+void AVeloxPlayerController::OnMenuInput()
+{
+	ToggleMenu();
+}
+
+void AVeloxPlayerController::ToggleMenu()
+{
+	if (IsMenuOpen())
+	{
+		CloseMenu();
+	}
+	else
+	{
+		OpenMenu();
+	}
+}
+
+void AVeloxPlayerController::OpenMenu()
+{
+	if (!IsLocalPlayerController() || !PauseMenuWidgetClass)
+	{
+		return;
+	}
+	if (!PauseMenu)
+	{
+		PauseMenu = CreateWidget<UVeloxPauseMenuWidget>(this, PauseMenuWidgetClass);
+		if (!PauseMenu)
+		{
+			return;
+		}
+		PauseMenu->OnResume.AddUObject(this, &ThisClass::CloseMenu);
+	}
+	PauseMenu->AddToViewport(UVeloxUISettings::Get().PauseMenuZOrder);
+	// UI-only input stops the game actions (and flushes held keys); Escape then reaches the widget, which resumes.
+	FInputModeUIOnly InputMode;
+	InputMode.SetWidgetToFocus(PauseMenu->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	SetInputMode(InputMode);
+	bShowMouseCursor = true;
+	UE_LOG(LogVelox, Log, TEXT("VeloxMenu pause menu opened"));
+}
+
+void AVeloxPlayerController::CloseMenu()
+{
+	if (PauseMenu)
+	{
+		PauseMenu->RemoveFromParent();
+	}
+	ApplyUIInputMode();
+	UE_LOG(LogVelox, Log, TEXT("VeloxMenu pause menu closed"));
+}
+
+void AVeloxPlayerController::ApplyUIInputMode()
+{
+	if (!IsLocalPlayerController() || IsMenuOpen())
+	{
+		return;
+	}
+	// The scoreboard's Ready button needs the cursor at the intermission; otherwise pure game input.
+	bShowMouseCursor = bInIntermission;
+	if (bInIntermission)
+	{
+		FInputModeGameAndUI InputMode;
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		InputMode.SetHideCursorDuringCapture(false);
+		SetInputMode(InputMode);
+	}
+	else
+	{
+		SetInputMode(FInputModeGameOnly());
 	}
 }

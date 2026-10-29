@@ -19,6 +19,7 @@
 #include "VeloxUserWidget.generated.h"
 
 class AVeloxPlayerController;
+class UButton;
 class UCanvasPanel;
 class UTextBlock;
 class UWidget;
@@ -32,6 +33,9 @@ public:
 	/** The local player controller that owns this widget (null for a widget created without a player context). */
 	UFUNCTION(BlueprintPure, Category = "Velox|UI")
 	AVeloxPlayerController* GetVeloxPlayerController() const;
+
+	/** The label text block MakeButton put into Button (null for a foreign button). */
+	static UTextBlock* GetButtonLabel(const UButton* Button);
 
 protected:
 	//~UUserWidget interface
@@ -50,4 +54,8 @@ protected:
 
 	/** A text block with the engine's default font at Size, Color, and the text Text. */
 	UTextBlock* MakeText(FName Name, int32 Size, const FLinearColor& Color, const FString& Text = FString());
+
+	/** A flat menu button (colours from UVeloxUISettings) with a text label child (GetButtonLabel). */
+	UButton* MakeButton(FName Name, const FString& Label);
+
 };

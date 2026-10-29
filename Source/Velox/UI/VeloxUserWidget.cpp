@@ -2,7 +2,10 @@
 
 #include "UI/VeloxUserWidget.h"
 
+#include "Brushes/SlateColorBrush.h"
+#include "Components/Button.h"
 #include "Components/TextBlock.h"
+#include "UI/VeloxUISettings.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "Styling/CoreStyle.h"
 
@@ -23,6 +26,35 @@ TSharedRef<SWidget> UVeloxUserWidget::RebuildWidget()
 		WidgetTree->RootWidget = BuildDefaultTree();
 	}
 	return Super::RebuildWidget();
+}
+
+UButton* UVeloxUserWidget::MakeButton(FName Name, const FString& Label)
+{
+	const UVeloxUISettings& UI = UVeloxUISettings::Get();
+	UButton* Button = MakeWidget<UButton>(Name);
+	if (!Button)
+	{
+		return nullptr;
+	}
+	FButtonStyle Style;
+	Style.SetNormal(FSlateColorBrush(UI.MenuButtonColor));
+	Style.SetHovered(FSlateColorBrush(UI.MenuButtonHoverColor));
+	Style.SetPressed(FSlateColorBrush(UI.MenuButtonColor));
+	Style.SetDisabled(FSlateColorBrush(UI.MenuPanelColor));
+	Style.SetNormalPadding(FMargin(UI.MenuRowPadding * 2.f, UI.MenuRowPadding));
+	Style.SetPressedPadding(FMargin(UI.MenuRowPadding * 2.f, UI.MenuRowPadding));
+	Button->SetStyle(Style);
+	if (UTextBlock* Text = MakeText(FName(*(Name.ToString() + TEXT("_Label"))), UI.MenuFontSize, UI.MenuTextColor, Label))
+	{
+		Text->SetJustification(ETextJustify::Center);
+		Button->AddChild(Text);
+	}
+	return Button;
+}
+
+UTextBlock* UVeloxUserWidget::GetButtonLabel(const UButton* Button)
+{
+	return Button ? Cast<UTextBlock>(Button->GetContent()) : nullptr;
 }
 
 UTextBlock* UVeloxUserWidget::MakeText(FName Name, int32 Size, const FLinearColor& Color, const FString& Text)
