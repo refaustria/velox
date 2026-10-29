@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat (follow-up)
 **Agent:** dev-hard
-**Status:** ready
+**Status:** done (merged 81ea0de; 76 tests; FireRunHold late_ms window → architect)
 **Depends on:** ADR 0003 B36, ADR 0002 A36 (eye ring paragraph), review `docs/reviews/m2-late-rpc-review.md` (ruling 5, defect 2); 08c/08d merged. Touches `ValidateOrigin` like 08f — rebase on whichever merges first.
 
 ## Goal
@@ -42,3 +42,8 @@ Standard format. Quote the held rails' `VeloxShot` lines (`late_ms`, `rewind_ms`
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+## Open for the architect (lead, 2026-10-29)
+- FireRunHold fails only the `late_ms ∈ [280, 360]` window (B36 §9): values 275.0 (move-stream loss around the release, ~1.5 server frames) and 466.7 (held RPC also resent). Proposal: lower bound hold − 2 server frames, upper 360 + resend allowance (RTT + ~80 ms) when the held seq shows a resend. 0 snaps and 0 rejections in every round.
+- 08g departure 1: stamp clamped to last move ± MaxRewindSeconds before the eye lookup (prevents checking against an eye up to ~1 s old; honest cost ≤ ~12 cm when late_ms > 300).
+- Held rails miss (rewind clamped at 0.30, `hint=fallback`, 2/12 hit) → B35 "hitscan in the move stream" trigger; also STATUS question 19.
