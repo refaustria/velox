@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev-hard (first attempt; architect review afterwards — the architect's root-cause pass on 2026-10-29 was cut off by the Fable usage limit before it wrote anything)
-**Status:** todo
+**Status:** done (FireRun 5/5; architect review pending; report notes/08b-report.md)
 **Depends on:** 08 (tooling, commit 83ad004)
 
 ## Goal

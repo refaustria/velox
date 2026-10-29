@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev
-**Status:** partial (tooling committed 83ad004; FireRun 0/5 → defects D1–D4, see notes/08-report.md)
+**Status:** done with 08b (FireRun 5/5)
 **Depends on:** 03b, 04, 05, 07
 
 ## Goal
