@@ -203,7 +203,11 @@ public:
 	/** A knockback is queued for the start of the next move (A28: the move that queued it is an important move). */
 	bool HasPendingKnockback() const { return PendingKnockback.IsPending(); }
 
-	/** DoJump succeeded during the current/last PerformMovement (A29: a held-jump landing jump makes the move important). */
+	/**
+	 * DoJump succeeded in the current/last move (A29): the take-off jump CheckJumpInput starts right before PerformMovement
+	 * or a landing jump inside it. Cleared where a move begins (ControlledCharacterMove, MoveAutonomous). With jump held it
+	 * makes the move an event move (FSavedMove_Velox::bSavedJumpedHeld, task M1-07).
+	 */
 	bool JumpedThisMove() const { return bJumpedThisMove; }
 
 	/**
@@ -255,6 +259,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Velox|Movement|Net")
 	int32 GetNumServerMoveRPCs() const { return NumServerMoveRPCs; }
+
+	/** Owning client: RPCs that also carried an extra old move (task M1-07, A32's deferred cl_packetdup 2). */
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement|Net")
+	int32 GetNumExtraResentMoves() const { return NumExtraResentMoves; }
 
 	/** The `showdebug VeloxMovement` block (non-shipping; empty in shipping). */
 	void DisplayVeloxDebug(class UCanvas* Canvas, float& YL, float& YPos) const;
@@ -323,6 +331,16 @@ protected:
 	 */
 	virtual void MoveAutonomous(float ClientTimeStamp, float DeltaTime, uint8 CompressedFlags, const FVector& NewAccel) override;
 
+	/** Clears bJumpedThisMove before the engine's CheckJumpInput of the live (locally controlled) move. */
+	virtual void ControlledCharacterMove(const FVector& InputVector, float DeltaSeconds) override;
+
+	/**
+	 * Task M1-07 (A32's deferred cl_packetdup 2): simulates the Velox extra old move of the RPC, if any, before the engine
+	 * handles old, pending and new move. It goes through ServerMove_PerformMovement as an old move (time stamp check, no
+	 * client error check), so a duplicate is rejected like a duplicate OldMove.
+	 */
+	virtual void ServerMove_HandleMoveData(const FCharacterNetworkMoveDataContainer& MoveDataContainer) override;
+
 	/**
 	 * A31: PhysWalking calls this right after "make velocity reflect actual move" (and at the top/end of every iteration);
 	 * restores the end velocity of the ground update after the engine integrated the mean velocity.
@@ -332,7 +350,8 @@ protected:
 	/**
 	 * A32 (Quake cl_packetdup 1): replaces the engine's OldMove by FSavedMove_Velox::ChooseOldMove before sending, so the
 	 * previous RPC's move (or an unacked event move) rides along with every RPC and a single lost RPC is repaired in its
-	 * original move partition. Non-shipping: logs VeloxResend / VeloxSend (LogVeloxNet) per RPC.
+	 * original move partition. Task M1-07: also packs FSavedMove_Velox::ChooseExtraOldMove (the move before the OldMove)
+	 * into the container's extra slot. Non-shipping: logs VeloxResend / VeloxSend (LogVeloxNet) per RPC.
 	 */
 	virtual void CallServerMovePacked(const FSavedMove_Character* NewMove, const FSavedMove_Character* PendingMove, const FSavedMove_Character* OldMove) override;
 	//~End of UCharacterMovementComponent interface
@@ -402,7 +421,7 @@ protected:
 	/** ClientTimeStamp of the last MoveAutonomous (server, client replay); A28(iii) instrumentation. */
 	float LastMoveAutonomousTimeStamp = 0.f;
 
-	/** DoJump succeeded in the current move; cleared at the start of PerformMovement (A29). */
+	/** DoJump succeeded in the current move (take-off or landing jump); cleared where a move begins (A29, task M1-07). */
 	uint8 bJumpedThisMove : 1;
 
 	/** Owning client: inside Super::ClientUpdatePositionAfterServerUpdate (the replay of saved moves); A28(iii). */
@@ -478,6 +497,9 @@ protected:
 	/** Owning client: RPCs sent with an OldMove (A32 resend), and RPCs sent in total. Net soak / debugging. */
 	int32 NumResentMoves = 0;
 	int32 NumServerMoveRPCs = 0;
+
+	/** Owning client: RPCs that also carried an extra old move (task M1-07). Net soak / debugging. */
+	int32 NumExtraResentMoves = 0;
 
 	/** Simulated proxy: ring of received server updates (D1); SmoothingAnchors[(SmoothingAnchorHead + i) % MaxAnchors], i < SmoothingAnchorCount, oldest first. */
 	FVeloxSmoothingAnchor SmoothingAnchors[VeloxProxySmoothing::MaxAnchors];

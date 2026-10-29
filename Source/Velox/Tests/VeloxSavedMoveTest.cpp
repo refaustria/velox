@@ -10,6 +10,8 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Serialization/BitReader.h"
+#include "Serialization/BitWriter.h"
 #include "Movement/VeloxMoveSim.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "Movement/VeloxMovementSettings.h"
@@ -367,6 +369,163 @@ bool FVeloxMovementChooseOldMoveTest::RunTest(const FString& Parameters)
 		const FSavedMove_Character* Pending = M.Add(1.0083f, /*bEnteredTrigger*/ true);
 		const FSavedMove_Character* New = M.Add(1.0166f, false, /*bJumpedHeld*/ true);
 		TestTrue(TEXT("NewMove/PendingMove never returned"), FSavedMove_Velox::ChooseOldMove(M.Saved, M.LastAcked, New, Pending, nullptr) == nullptr);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementChooseExtraOldMoveTest, "Velox.Movement.SavedMove.ChooseExtraOldMove", VeloxSavedMoveTest::Flags)
+bool FVeloxMovementChooseExtraOldMoveTest::RunTest(const FString& Parameters)
+{
+	// Task M1-07 (A32's deferred cl_packetdup 2): the move right before the OldMove rides along in the extra slot.
+	TArray<FSavedMovePtr> Saved;
+	auto Add = [&Saved](float TimeStamp, bool bJumpedHeld = false, bool bBeforeReset = false) -> const FSavedMove_Character*
+	{
+		TSharedPtr<FSavedMove_Velox> Move = MakeShared<FSavedMove_Velox>();
+		Move->Clear();
+		Move->TimeStamp = TimeStamp;
+		Move->bSavedJumpedHeld = bJumpedHeld;
+		Move->bOldTimeStampBeforeReset = bBeforeReset;
+		Saved.Add(Move);
+		return Move.Get();
+	};
+	auto MakeAcked = [](float TimeStamp)
+	{
+		TSharedPtr<FSavedMove_Velox> Move = MakeShared<FSavedMove_Velox>();
+		Move->Clear();
+		Move->TimeStamp = TimeStamp;
+		return FSavedMovePtr(Move);
+	};
+
+	{
+		// The LatchRun 20261029-141000/r4 layout: ... 1.358427 acked by the server, RPC A (new 1.375095, ground 1/60) and
+		// RPC B (pending 1.383429 ground, new 1.391763 = take-off) lost; RPC C carries pending 1.400097, new 1.408430.
+		// Before the fix the server got only OldMove 1.391763 (dt 0.0333, take-off 25 ms early: 10.83 cm).
+		Saved.Reset();
+		const FSavedMovePtr Acked = MakeAcked(1.358427f);
+		Add(1.358427f);
+		const FSavedMove_Character* A = Add(1.375095f);
+		const FSavedMove_Character* P = Add(1.383429f);
+		const FSavedMove_Character* N = Add(1.391763f, /*bJumpedHeld (take-off)*/ true);
+		const FSavedMove_Character* Pending = Add(1.400097f);
+		const FSavedMove_Character* New = Add(1.408430f);
+		bool bEvent = false;
+		const FSavedMove_Character* Old = FSavedMove_Velox::ChooseOldMove(Saved, Acked, New, Pending, nullptr, &bEvent);
+		TestTrue(TEXT("take-off move is the OldMove (event)"), Old == N && bEvent);
+		TestTrue(TEXT("its start boundary (the move before it) is the extra old move"),
+			FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New, Pending, Old) == P);
+		// Later RPCs while the take-off is unacked keep both.
+		const FSavedMove_Character* Pending2 = Add(1.416764f);
+		const FSavedMove_Character* New2 = Add(1.425098f);
+		const FSavedMove_Character* Old2 = FSavedMove_Velox::ChooseOldMove(Saved, Acked, New2, Pending2, nullptr);
+		TestTrue(TEXT("later RPC: take-off still the OldMove"), Old2 == N);
+		TestTrue(TEXT("later RPC: its boundary still the extra"), FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New2, Pending2, Old2) == P);
+		(void)A;
+	}
+	{
+		// No event: OldMove = previous RPC's NewMove, extra = the previous RPC's pending half (dual) ...
+		Saved.Reset();
+		const FSavedMovePtr Acked = MakeAcked(1.0f);
+		Add(1.0083f);
+		const FSavedMove_Character* PrevPending = Add(1.0166f);
+		const FSavedMove_Character* PrevNew = Add(1.025f);
+		const FSavedMove_Character* Pending = Add(1.0333f);
+		const FSavedMove_Character* New = Add(1.0416f);
+		const FSavedMove_Character* Old = FSavedMove_Velox::ChooseOldMove(Saved, Acked, New, Pending, nullptr);
+		TestTrue(TEXT("dual: OldMove is the previous NewMove"), Old == PrevNew);
+		TestTrue(TEXT("dual: extra is the previous pending half"), FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New, Pending, Old) == PrevPending);
+	}
+	{
+		// ... or the NewMove of the RPC before (two-RPC burst of single-move RPCs).
+		Saved.Reset();
+		const FSavedMovePtr Acked = MakeAcked(1.0f);
+		const FSavedMove_Character* TwoBack = Add(1.0166f);
+		const FSavedMove_Character* Previous = Add(1.0333f);
+		const FSavedMove_Character* New = Add(1.05f);
+		const FSavedMove_Character* Old = FSavedMove_Velox::ChooseOldMove(Saved, Acked, New, nullptr, nullptr);
+		TestTrue(TEXT("single: OldMove is the previous move"), Old == Previous);
+		TestTrue(TEXT("single: extra is the move before it"), FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New, nullptr, Old) == TwoBack);
+	}
+	{
+		// Acked, reset-flagged, New and Pending are never the extra; nothing older -> none; no OldMove / no ack -> none.
+		Saved.Reset();
+		const FSavedMovePtr Acked = MakeAcked(1.02f);
+		Add(1.01f);
+		Add(1.02f);
+		const FSavedMove_Character* OnlyOld = Add(1.03f);
+		const FSavedMove_Character* Pending = Add(1.04f);
+		const FSavedMove_Character* New = Add(1.05f);
+		TestTrue(TEXT("acked moves are never the extra"), FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New, Pending, OnlyOld) == nullptr);
+		TestTrue(TEXT("no OldMove -> no extra"), FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New, Pending, nullptr) == nullptr);
+		TestTrue(TEXT("no acked move -> no extra"), FSavedMove_Velox::ChooseExtraOldMove(Saved, FSavedMovePtr(), New, Pending, OnlyOld) == nullptr);
+		Saved.Reset();
+		Add(1.03f, false, /*bBeforeReset*/ true);
+		const FSavedMove_Character* Old = Add(1.035f);
+		const FSavedMove_Character* New3 = Add(1.05f);
+		TestTrue(TEXT("reset-flagged moves are never the extra"), FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New3, nullptr, Old) == nullptr);
+		// A pending move older than the OldMove is never returned (cannot happen with ChooseOldMove, guarded anyway).
+		Saved.Reset();
+		const FSavedMove_Character* OddPending = Add(1.03f);
+		const FSavedMove_Character* Old4 = Add(1.04f);
+		const FSavedMove_Character* New4 = Add(1.05f);
+		TestTrue(TEXT("pending never the extra"), FSavedMove_Velox::ChooseExtraOldMove(Saved, Acked, New4, OddPending, Old4) == nullptr);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementExtraOldMoveSerializeTest, "Velox.Movement.SavedMove.ExtraOldMoveSerialize", VeloxSavedMoveTest::Flags)
+bool FVeloxMovementExtraOldMoveSerializeTest::RunTest(const FString& Parameters)
+{
+	// Task M1-07: the extra old move survives the packed-bits round trip after the engine's fields; absent costs one bit.
+	UVeloxMovementComponent& Movement = *GetMutableDefault<UVeloxMovementComponent>();
+	auto FillMove = [](FCharacterNetworkMoveData& Data, float TimeStamp, uint8 Flags)
+	{
+		Data.TimeStamp = TimeStamp;
+		Data.Acceleration = FVector(800.0, 0.0, 0.0);
+		Data.Location = FVector(466.6, 0.0, 72.15);
+		Data.ControlRotation = FRotator(0.0, 90.0, 0.0);
+		Data.CompressedMoveFlags = Flags;
+		Data.MovementMode = MOVE_Falling;
+	};
+	for (const bool bWithExtra : { true, false })
+	{
+		FVeloxNetworkMoveDataContainer Sent;
+		FillMove(*Sent.GetNewMoveData(), 1.408430f, FSavedMove_Velox::FLAG_JumpHeld);
+		Sent.bHasPendingMove = true;
+		FillMove(*Sent.GetPendingMoveData(), 1.400097f, FSavedMove_Velox::FLAG_JumpHeld);
+		Sent.bHasOldMove = true;
+		FillMove(*Sent.GetOldMoveData(), 1.391763f, FSavedMove_Velox::FLAG_JumpHeld | FSavedMove_Character::FLAG_JumpPressed);
+		Sent.SetHasExtraOldMove(bWithExtra);
+		FillMove(Sent.GetExtraOldMoveStorage(), 1.383429f, FSavedMove_Velox::FLAG_HasForwardInput);
+
+		FBitWriter Writer(0, /*bAllowResize*/ true);
+		TestTrue(TEXT("serialise"), Sent.Serialize(Movement, Writer, nullptr));
+		// A marker after the container: the reader must end exactly where the writer did.
+		uint32 Marker = 0xA5C3u;
+		Writer << Marker;
+
+		FBitReader Reader(Writer.GetData(), Writer.GetNumBits());
+		FVeloxNetworkMoveDataContainer Received;
+		TestTrue(TEXT("deserialise"), Received.Serialize(Movement, Reader, nullptr));
+		uint32 ReadMarker = 0;
+		Reader << ReadMarker;
+		TestEqual(TEXT("stream aligned after the container"), ReadMarker, Marker);
+		TestEqual(TEXT("old move kept"), Received.GetOldMoveData()->TimeStamp, 1.391763f);
+		TestTrue(TEXT("pending move kept"), Received.bHasPendingMove && Received.GetPendingMoveData()->TimeStamp == 1.400097f);
+		const FVeloxNetworkMoveData* Extra = Received.GetExtraOldMoveData();
+		if (bWithExtra)
+		{
+			if (TestNotNull(TEXT("extra old move received"), Extra))
+			{
+				TestEqual(TEXT("extra time stamp"), Extra->TimeStamp, 1.383429f);
+				TestEqual(TEXT("extra flags"), Extra->CompressedMoveFlags, static_cast<uint8>(FSavedMove_Velox::FLAG_HasForwardInput));
+				TestTrue(TEXT("extra acceleration"), Extra->Acceleration.Equals(FVector(800.0, 0.0, 0.0), 0.1));
+				TestTrue(TEXT("extra is an old move (no client error check on the server)"), Extra->NetworkMoveType == FCharacterNetworkMoveData::ENetworkMoveType::OldMove);
+			}
+		}
+		else
+		{
+			TestNull(TEXT("no extra old move"), Extra);
+		}
 	}
 	return true;
 }
