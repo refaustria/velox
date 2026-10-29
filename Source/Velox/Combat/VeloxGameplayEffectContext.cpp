@@ -46,6 +46,7 @@ bool FVeloxGameplayEffectContext::NetSerialize(FArchive& Ar, UPackageMap* Map, b
 	bSuccess &= bLocalSuccess;
 	Ar << KnockbackScale;
 	Ar << ShotSeq;
+	Ar << PatternSeq;
 	Ar << Flags;
 
 	bOutSuccess = bOutSuccess && bSuccess;
@@ -54,6 +55,6 @@ bool FVeloxGameplayEffectContext::NetSerialize(FArchive& Ar, UPackageMap* Map, b
 
 FString FVeloxGameplayEffectContext::ToString() const
 {
-	return FString::Printf(TEXT("%s dir=%s loc=%s kbscale=%.2f seq=%u flags=0x%02x"), *FGameplayEffectContext::ToString(),
-		*HitDirection.ToCompactString(), *HitLocation.ToCompactString(), KnockbackScale, ShotSeq, Flags);
+	return FString::Printf(TEXT("%s dir=%s loc=%s kbscale=%.2f seq=%u pattern=%u flags=0x%02x"), *FGameplayEffectContext::ToString(),
+		*HitDirection.ToCompactString(), *HitLocation.ToCompactString(), KnockbackScale, ShotSeq, PatternSeq, Flags);
 }

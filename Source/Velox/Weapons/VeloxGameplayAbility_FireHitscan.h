@@ -3,13 +3,17 @@
 // Shooter's machine (client, listen host, bot server), in ActivateAbility after CommitAbility:
 //   Origin = Pawn->GetPawnViewLocation(), Dir = Controller->GetControlRotation().Vector() (B6); BuildShotTiming once with
 //   the centre ray (B14). Client: cosmetic resolution against the rendered proxy capsules + world (never the
-//   subsystem, B10), target data -> CallServerSetReplicatedTargetData, predicted GE_AmmoCost, local fire/impact cues,
-//   NextFireTime, EndAbility (not replicated). Listen host / bot: ResolveServerShot directly (no RPC).
+//   subsystem, B10) of the centre ray only, target data -> CallServerSetReplicatedTargetData, predicted GE_AmmoCost, the
+//   predicted fire cue (no impact cue, B21), NextFireTime, EndAbility (not replicated). Listen host / bot:
+//   ResolveServerShot directly (no RPC).
 // Server for a remote client: AbilityTargetDataSetDelegate -> OnServerTargetData: VeloxShotValidation (bucket + spacing,
-//   then type and finite checks; VeloxShotRejected seq= reason=, throttled), the pending switch finalised, ResolveServerShot: TraceShot, one MakeDamageSpec per victim, GE_AmmoCost,
-//   fire cue + impact cue with the activation's prediction key (the predicting client skips them), the LG beam cue,
-//   ClientConfirmHit, EndAbility.
-// Ray directions on both ends: VeloxShotDirs (pellets / Q3 MG spread from FRandomStream(ShotSeq ^ PlayerId)).
+//   then type and finite checks; VeloxShotRejected seq= reason=, throttled), the pending switch finalised, ResolveServerShot:
+//   the server's own pattern seed (B21), TraceShot, one MakeDamageSpec per victim, GE_AmmoCost, the fire cue with the
+//   activation's prediction key (the predicting client skips it), one impact cue with no prediction key (every client,
+//   the owner included, receives it, ~RTT late at the true location as in Q3), the LG beam cue, ClientConfirmHit, EndAbility.
+// Ray directions: server only, VeloxShotDirs (pellets / Q3 MG spread from FRandomStream(ServerPatternSeq ^ PlayerId)).
+// Both hitscan cues carry PatternSeq and the centre direction (HitDirection) in the Velox context, so a receiver can
+// rebuild the pattern (M5 FX).
 
 #pragma once
 
@@ -26,7 +30,8 @@ namespace VeloxShotDirs
 {
 	/**
 	 * Ray directions of one shot around the unit centre direction Dir: PelletCount > 1 -> Q3 ShotgunPattern; else a
-	 * spread angle -> one Q3 Bullet_Fire direction (MG); else Dir. Deterministic for Seed (client tracers = server rays).
+	 * spread angle -> one Q3 Bullet_Fire direction (MG); else Dir. Deterministic for Seed (server rays = any receiver's
+	 * rebuild from the cue's PatternSeq).
 	 */
 	template <typename AllocatorType>
 	void Build(const UVeloxWeaponDefinition& Definition, const FVector& Dir, int32 Seed, TArray<FVector, AllocatorType>& OutDirs)
@@ -47,8 +52,8 @@ namespace VeloxShotDirs
 		}
 	}
 
-	/** ADR 0003 section 5: FRandomStream(ShotSeq ^ PlayerId). */
-	inline int32 MakeSeed(uint8 ShotSeq, int32 PlayerId) { return static_cast<int32>(ShotSeq) ^ PlayerId; }
+	/** ADR 0003 B21: FRandomStream(ServerPatternSeq ^ PlayerId); PatternSeq is the server's, never the client's ShotSeq. */
+	inline int32 MakeSeed(uint8 PatternSeq, int32 PlayerId) { return static_cast<int32>(PatternSeq) ^ PlayerId; }
 }
 
 UCLASS()
@@ -66,6 +71,10 @@ public:
 		bool bReplicateEndAbility, bool bWasCancelled) override;
 	//~End of UGameplayAbility interface
 
+	/** Server: the pattern seed and ray directions of the last shot this instance resolved (B21; logs, tests). */
+	uint8 GetLastServerPatternSeq() const { return LastServerPatternSeq; }
+	const TArray<FVector, TInlineAllocator<1>>& GetLastServerDirs() const { return LastServerDirs; }
+
 protected:
 	struct FShotInput
 	{
@@ -82,10 +91,13 @@ protected:
 	/** Server (remote shooter after validation, or local shooter directly): steps 2-5 of the review. */
 	void ResolveServerShot(const UVeloxWeaponDefinition& Definition, const FShotInput& Shot);
 
-	/** Client: cosmetic rays against rendered proxies + world, local fire and impact cues. */
+	/** Client: the centre ray against rendered proxies + world, the predicted fire cue only (B21: no impact cue). */
 	void PlayLocalShotCosmetics(const UVeloxWeaponDefinition& Definition, const FShotInput& Shot) const;
 
 	void Reject(uint8 ShotSeq, const TCHAR* Reason);
 
 	FDelegateHandle TargetDataDelegateHandle;
+
+	uint8 LastServerPatternSeq = 0;
+	TArray<FVector, TInlineAllocator<1>> LastServerDirs;
 };

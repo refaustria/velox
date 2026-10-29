@@ -28,7 +28,13 @@ public:
 	int32 GetNumHitConfirms() const { return NumHitConfirms; }
 	bool IsBeamActive() const { return bBeamActive; }
 
+	/** Executed weapon cues seen by this pawn since spawn (tests, logs; ADR 0003 B21: one .Impact per hitscan shot). */
+	int32 GetNumFireCues() const { return NumFireCues; }
+	int32 GetNumImpactCues() const { return NumImpactCues; }
+
 private:
+	int32 NumFireCues = 0;
+	int32 NumImpactCues = 0;
 	double LastHitConfirmTime = -1.0;
 	int32 NumHitConfirms = 0;
 	bool bBeamActive = false;

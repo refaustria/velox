@@ -62,6 +62,20 @@ public:
 	uint8 AllocateShotSeq() { return ++ShotSeqCounter; }
 
 	/**
+	 * ADR 0003 B21, server only: increments and returns the server's own pattern counter, once per accepted hitscan shot
+	 * (remote client, listen host and bots alike). It seeds the MG spread / SG pellet pattern (VeloxShotDirs::MakeSeed with
+	 * the PlayerId) and reaches receivers as FVeloxGameplayEffectContext::PatternSeq; the client's ShotSeq seeds nothing.
+	 * Not replicated.
+	 */
+	uint8 AllocateServerPatternSeq() { return ++ServerPatternSeqCounter; }
+
+	/** The last value AllocateServerPatternSeq returned (0 before the first shot). */
+	uint8 GetServerPatternSeq() const { return ServerPatternSeqCounter; }
+
+	/** Tests only: puts the server pattern counter into a known state (the next shot uses Value + 1). */
+	void SetServerPatternSeqForTest(uint8 Value) { ServerPatternSeqCounter = Value; }
+
+	/**
 	 * ADR 0003 B18: local world time at which the running switch ends on this machine (Now + Wait + Drop + Raise, set by
 	 * the switch ability on every machine that runs it); 0 = no switch. The shooter's machine fires only at or after it.
 	 * Not replicated.
@@ -154,6 +168,9 @@ private:
 	double PredictionExpireTime = 0.0;
 
 	uint8 ShotSeqCounter = 0;
+
+	/** B21: server-side pattern seed counter (never replicated, never driven by client data). */
+	uint8 ServerPatternSeqCounter = 0;
 
 	double SwitchEndTime = 0.0;
 

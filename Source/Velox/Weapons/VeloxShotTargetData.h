@@ -28,7 +28,11 @@ struct VELOX_API FGameplayAbilityTargetData_VeloxShot : public FGameplayAbilityT
 	UPROPERTY()
 	float ViewServerTime = 0.f;
 
-	/** Per-PlayerState shot counter (wraps); names the shot in logs, seeds the pellet pattern with the PlayerId. */
+	/**
+	 * Per-PlayerState shot counter of the shooter's machine (wraps). Names the shot in logs and matches the fake and real
+	 * projectile (ADR 0003 section 7). It never seeds anything on the server (B21: the MG spread / SG pattern comes from
+	 * UVeloxWeaponInventoryComponent::AllocateServerPatternSeq), so a client gains nothing by choosing it.
+	 */
 	UPROPERTY()
 	uint8 ShotSeq = 0;
 
