@@ -127,4 +127,74 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Death")
 	FLinearColor DeathTitleColor = FLinearColor(1.f, 0.1f, 0.1f, 1.f);
+
+	// ---- Menus (task M3-10): main menu, settings, pause menu ----
+
+	/** Viewport z-order of the pause menu (above the HUD at 0 and the scoreboard), and of the settings screen opened from a menu. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu")
+	int32 PauseMenuZOrder = 50;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu")
+	int32 SettingsZOrder = 60;
+
+	/** Full-screen backdrop of the main menu and settings screen; the pause menu dims the game with PauseDimColor. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Colors")
+	FLinearColor MenuBackgroundColor = FLinearColor(0.02f, 0.025f, 0.04f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Colors")
+	FLinearColor PauseDimColor = FLinearColor(0.f, 0.f, 0.f, 0.7f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Colors")
+	FLinearColor MenuTitleColor = FLinearColor(1.f, 0.85f, 0.f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Colors")
+	FLinearColor MenuTextColor = FLinearColor(0.9f, 0.92f, 0.95f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Colors")
+	FLinearColor MenuMutedTextColor = FLinearColor(0.55f, 0.58f, 0.65f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Colors")
+	FLinearColor MenuErrorColor = FLinearColor(1.f, 0.3f, 0.25f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Colors")
+	FLinearColor MenuButtonColor = FLinearColor(0.12f, 0.15f, 0.24f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Colors")
+	FLinearColor MenuButtonHoverColor = FLinearColor(0.25f, 0.32f, 0.55f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Colors")
+	FLinearColor MenuPanelColor = FLinearColor(0.06f, 0.07f, 0.11f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Fonts", Meta = (ClampMin = "8"))
+	int32 MenuTitleFontSize = 64;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Fonts", Meta = (ClampMin = "8"))
+	int32 MenuHeadingFontSize = 26;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Fonts", Meta = (ClampMin = "8"))
+	int32 MenuFontSize = 18;
+
+	/** Button width and the padding around menu rows (Slate units). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Layout", Meta = (ClampMin = "40"))
+	float MenuButtonWidth = 320.f;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Layout", Meta = (ClampMin = "0"))
+	float MenuRowPadding = 6.f;
+
+	/** Width of the settings screen's scrolling panel and of its label / key button columns. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Layout", Meta = (ClampMin = "200"))
+	float SettingsPanelWidth = 760.f;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Layout", Meta = (ClampMin = "100"))
+	float SettingsPanelMaxHeight = 640.f;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Layout", Meta = (ClampMin = "50"))
+	float SettingsLabelWidth = 260.f;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Layout", Meta = (ClampMin = "50"))
+	float SettingsControlWidth = 280.f;
+
+	/** Frame limits offered by the video section (0 = unlimited). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Video")
+	TArray<int32> FrameRateLimitChoices = {0, 60, 125, 144, 165, 240, 333};
 };

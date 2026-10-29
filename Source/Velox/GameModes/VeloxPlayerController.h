@@ -7,9 +7,11 @@
 
 #include "VeloxPlayerController.generated.h"
 
+class UEnhancedInputComponent;
 class UInputAction;
 class UInputMappingContext;
 class UEnhancedInputUserSettings;
+class UVeloxPauseMenuWidget;
 struct FVeloxShotTiming;
 
 /** Flags of AVeloxPlayerController::ClientConfirmHit. */
@@ -62,6 +64,15 @@ public:
 	//~AController interface
 	virtual void SetPawn(APawn* InPawn) override;
 	//~End of AController interface
+
+	// ---- In-game menu (ADR 0004 section 7; task M3-10) ----
+
+	/** IA_Menu (InputTag.Menu, Escape): opens the pause menu (resume, settings, disconnect), or closes it. */
+	UFUNCTION(BlueprintCallable, Category = "Velox|Menu")
+	void ToggleMenu();
+
+	bool IsMenuOpen() const;
+	UVeloxPauseMenuWidget* GetPauseMenuWidget() const { return PauseMenu; }
 
 	// ---- Match flow (ADR 0004 section 5; task 05) ----
 
@@ -124,7 +135,25 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Input")
 	TArray<TSoftObjectPtr<UInputAction>> RespawnInputActions;
 
+	/** The action (IA_Menu, tag InputTag.Menu) that toggles the in-game menu; bound natively here, never through the ASC. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Menu")
+	TSoftObjectPtr<UInputAction> MenuInputAction;
+
+	/** The pause menu widget class (a WBP_PauseMenu subclass once authored). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Menu")
+	TSubclassOf<UVeloxPauseMenuWidget> PauseMenuWidgetClass;
+
 private:
+	void BindMenuInput(UEnhancedInputComponent* EnhancedInput);
+	/** Cursor and input mode for the intermission (scoreboard Ready button) or plain game input; no-op while the menu is open. */
+	void ApplyUIInputMode();
+	void OnMenuInput();
+	void OpenMenu();
+	void CloseMenu();
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVeloxPauseMenuWidget> PauseMenu;
+
 	void OnRespawnInput();
 
 	/** Registers the mapping context with the Enhanced Input user settings once the subsystem has created them. */

@@ -194,7 +194,7 @@ void UVeloxGameUserSettings::GetKeyBindings(const UWorld* World, TArray<FVeloxKe
 {
 	OutBindings.Reset();
 	const UEnhancedInputUserSettings* InputSettings = FindInputUserSettings(World);
-	const UEnhancedPlayerMappableKeyProfile* Profile = InputSettings ? InputSettings->GetCurrentKeyProfile() : nullptr;
+	const UEnhancedPlayerMappableKeyProfile* Profile = InputSettings ? InputSettings->GetActiveKeyProfile() : nullptr;
 	if (!Profile)
 	{
 		return;
@@ -247,7 +247,7 @@ bool UVeloxGameUserSettings::RebindKey(const UWorld* World, FName MappingName, F
 bool UVeloxGameUserSettings::ResetKeyBindings(const UWorld* World)
 {
 	UEnhancedInputUserSettings* InputSettings = FindInputUserSettings(World);
-	const UEnhancedPlayerMappableKeyProfile* Profile = InputSettings ? InputSettings->GetCurrentKeyProfile() : nullptr;
+	const UEnhancedPlayerMappableKeyProfile* Profile = InputSettings ? InputSettings->GetActiveKeyProfile() : nullptr;
 	if (!Profile)
 	{
 		return false;

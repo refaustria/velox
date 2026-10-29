@@ -493,6 +493,32 @@ def build_map():
         fail("save_current_level failed")
 
 
+def build_menu_map():
+    """L_MainMenu (ADR 0004 section 7): the front-end map. Empty level, WorldSettings.DefaultGameMode = AVeloxMenuGameMode
+    (no pawn, AVeloxMenuPlayerController shows the main menu widget). GameDefaultMap in DefaultEngine.ini points here."""
+    ensure_dir("/Game/Maps")
+    path = "/Game/Maps/L_MainMenu"
+    if EAL.does_asset_exist(path):
+        log("L_MainMenu exists, skipping map creation (delete Content/Maps/L_MainMenu.umap to rebuild)")
+        return
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    if not les.new_level(path, False):
+        fail("new_level failed for " + path)
+        return
+    cls = getattr(unreal, "VeloxMenuGameMode", None)
+    if cls is None:
+        fail("unreal.VeloxMenuGameMode not available (build the editor module first)")
+        return
+    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
+    settings.set_editor_property("default_game_mode", cls)
+    got = settings.get_editor_property("default_game_mode")
+    log(f"L_MainMenu WorldSettings.DefaultGameMode = {got.get_name() if got else None}")
+    if got is None:
+        fail("could not set WorldSettings.DefaultGameMode on L_MainMenu")
+    if not les.save_current_level():
+        fail("save_current_level failed for " + path)
+
+
 def main():
     actions, _imc = build_input()
     build_audio()
@@ -501,6 +527,7 @@ def main():
     build_combat_settings(table, defs)
     build_player_material()
     build_map()
+    build_menu_map()
     if ERRORS:
         raise RuntimeError("bootstrap failed: " + "; ".join(ERRORS))
     log("done")
