@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat (follow-up)
 **Agent:** dev-hard
-**Status:** ready (ruling in ADR 0003 B37; supersedes `08e-switch-timing-remote-shooter.md` on `m2-combat`, which is to be marked "folded into 08h")
+**Status:** done (merged 2cf7270; 75 tests; FireRun+HasteRun 2/2) (ruling in ADR 0003 B37; supersedes `08e-switch-timing-remote-shooter.md` on `m2-combat`, which is to be marked "folded into 08h")
 **Depends on:** ADR 0003 B37, review `docs/reviews/m2-late-rpc-review.md` (rulings 6–9, defects 3–6); 08c merged. Independent of 08f/08g.
 
 ## Goal
@@ -43,3 +43,7 @@ Standard format; per item cause/fix/evidence; the regenerated `DA_CombatSettings
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+## Follow-ups (lead, 2026-10-29)
+- Add a test row: remote shooter with Haste → server refire wait ≤ the Haste interval (B37 under Haste is not covered).
+- Architect: annotate ADR 0003 B18/B33 text that still names `SwitchTimingToleranceSeconds` (superseded by B37).
