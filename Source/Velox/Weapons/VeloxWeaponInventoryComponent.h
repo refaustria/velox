@@ -40,8 +40,39 @@ public:
 	const UVeloxWeaponDefinition* GetDefinition(int32 Index) const;
 	int32 IndexOf(const UVeloxWeaponDefinition* Definition) const;
 
-	bool OwnsIndex(int32 Index) const { return Index >= 0 && Index < 16 && (OwnedMask & (1u << Index)) != 0; }
+	/** Owned per the replicated mask or, on the owning client, a pickup's unexpired prediction (PredictOwned). */
+	bool OwnsIndex(int32 Index) const { return Index >= 0 && Index < 16 && (GetEffectiveOwnedMask() & (1u << Index)) != 0; }
+	/** The replicated (server) mask. */
 	uint16 GetOwnedMask() const { return OwnedMask; }
+	/** OwnedMask | the unexpired predicted bits (owning client; equals OwnedMask on the server). */
+	uint16 GetEffectiveOwnedMask() const;
+
+	/**
+	 * Owning client (ADR 0004 section 2): a predicted weapon pickup owns Index until local world time Until or until the
+	 * replicated mask has it, so a slot press switches at once (Q3 predicts STAT_WEAPONS). The server validates the switch
+	 * against its own mask as always. DropPredictedOwned removes the bit (pickup taken by someone else / refused).
+	 */
+	void PredictOwned(int32 Index, double Until);
+	void DropPredictedOwned(int32 Index);
+
+	/**
+	 * Q3 cg_autoswitch (ADR 0004 section 2), world-free: the table index to select when the owned mask changes from
+	 * OldMask to NewMask, or INDEX_NONE. Exactly one newly owned weapon (a pickup; GiveAllWeapons and a first replication
+	 * from an empty mask never switch), the setting on, a current weapon that allows it (machine gun or gauntlet), and a
+	 * target other than the current weapon.
+	 */
+	static int32 SelectAutoSwitchTarget(bool bEnabled, bool bCurrentAllowsAutoSwitch, int32 CurrentIndex, uint16 OldMask, uint16 NewMask);
+	/** Weapons the autoswitch leaves (Q3 default behaviour: the machine gun and the gauntlet). */
+	static bool AllowsAutoSwitchFrom(const UVeloxWeaponDefinition* Current);
+	/** InputTag.Weapon.Slot<Slot> (1-9), invalid otherwise. */
+	static FGameplayTag SlotInputTag(int32 Slot);
+
+	/**
+	 * Owning machine with a local player controller: presses the slot of the SelectAutoSwitchTarget result through the
+	 * normal switch ability input. Clients: from OnRep_OwnedMask. Listen-server host / standalone (no OnRep on the
+	 * authority): the weapon pickup calls it after AddWeapon.
+	 */
+	void RunAutoSwitch(uint16 OldMask, uint16 NewMask);
 
 	/** Current weapon; on the owning client the locally predicted switch result until the server confirms it. */
 	int32 GetCurrentIndex() const;
@@ -139,8 +170,9 @@ protected:
 	UFUNCTION()
 	void OnRep_CurrentIndex(uint8 OldIndex);
 
+	/** Owning client: drops confirmed predicted bits and runs the autoswitch rule. */
 	UFUNCTION()
-	void OnRep_OwnedMask();
+	void OnRep_OwnedMask(uint16 OldMask);
 
 	/** Granted once per PlayerState (one spec bound to InputTag.Weapon.Slot1..9/Next/Prev). */
 	UPROPERTY(EditDefaultsOnly, Category = "Velox|Weapons")
@@ -180,6 +212,10 @@ private:
 
 	int32 PredictedIndex = INDEX_NONE;
 	double PredictionExpireTime = 0.0;
+
+	/** Owning client: weapons owned by a predicted pickup and the local world time each prediction expires. */
+	uint16 PredictedOwnedMask = 0;
+	double PredictedOwnedUntil[16] = {};
 
 	uint8 ShotSeqCounter = 0;
 

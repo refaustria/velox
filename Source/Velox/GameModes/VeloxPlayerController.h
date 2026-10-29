@@ -54,6 +54,9 @@ public:
 	bool IsWaitingForRespawn() const { return GetPawn() == nullptr && PawnLostTime >= 0.0; }
 	double GetPawnLostTime() const { return PawnLostTime; }
 
+	/** Q3 cg_autoswitch (ADR 0004 section 2). Task 09 wires UVeloxGameUserSettings::bAutoSwitchOnPickup; on until then. */
+	bool ShouldAutoSwitchOnPickup() const { return bAutoSwitchOnPickup; }
+
 	//~AController interface
 	virtual void SetPawn(APawn* InPawn) override;
 	//~End of AController interface
@@ -78,6 +81,10 @@ protected:
 	/** Actions (fire, jump) that request a respawn while the player has no pawn. Set in DefaultGame.ini. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Input")
 	TArray<TSoftObjectPtr<UInputAction>> RespawnInputActions;
+
+	/** Select a newly picked-up weapon while holding the machine gun / gauntlet. Replaced by the user setting in task 09. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Velox|Input")
+	bool bAutoSwitchOnPickup = true;
 
 private:
 	void OnRespawnInput();

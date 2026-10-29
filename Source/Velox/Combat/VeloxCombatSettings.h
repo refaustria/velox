@@ -244,6 +244,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Readability", Meta = (ClampMin = "0"))
 	float HitMarkerSize = 14.f;
 
+	/**
+	 * ADR 0004 section 2: seconds a client-predicted pickup (hidden item, predicted weapon slot) waits for the replicated
+	 * take before it is treated as refused and shown again. Two RTTs at the 250 ms ping limit.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Items", Meta = (ClampMin = "0", Units = "s"))
+	float PickupPredictionTimeout = 0.5f;
+
 	/** The six ammo types (attribute, cap). Filled with the Q3 defaults by the constructor. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Ammo")
 	TArray<FVeloxAmmoTypeInfo> AmmoTypes;
