@@ -2,7 +2,7 @@
 
 **Milestone:** M3 Game loop
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged; Quad/Haste rows in 02/03; notes/04-report.md)
 **Depends on:** 01 compiles for the final run (script authoring in wave 1 against §1 names); ADR 0004 (and accepted ADRs 0001-0003)
 **Estimate:** 2 h; Wave 1 (script) / Wave 2 (finish)
 
