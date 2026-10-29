@@ -9,6 +9,8 @@
 //                             replicated state + registry delegates, respawn at exactly +35 s and the standing pawn retakes
 //                             it, Reset; armor / ammo / weapon grants (weapon ammo top-up +1), mode respawn scale, a powerup
 //                             taken (tag, 30 s); client prediction (hide, predicted weapon slot, timeout -> shown).
+//   Velox.Items.PickupReset   M3-13 F1: Reset() defers the standing-pawn check one tick (live pawn takes it then, a pawn the
+//                             reset destroys does not). PickupRules also covers IsStaleTake (F2).
 //   Velox.Items.PowerupStacking  task 02: powerup GE layout, grant / in-place extension (ModifyActiveEffectStartTime) with
 //                             the rule's arithmetic, Quad x3 on a dummy, Battle Suit, Regen ticks and decay skip, loss on
 //                             GE_SpawnInit, no regen while dead, frozen = no damage, projectile
@@ -169,6 +171,12 @@ bool FVeloxItemsPickupRulesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("autoswitch from no weapon"), Inv::AllowsAutoSwitchFrom(nullptr));
 	TestTrue(TEXT("slot input tag 7"), Inv::SlotInputTag(7) == VeloxGameplayTags::InputTag_Weapon_Slot7.GetTag());
 	TestFalse(TEXT("slot input tag 0 invalid"), Inv::SlotInputTag(0).IsValid());
+	// F2 / ADR 0004 C10: IsStaleTake(ServerNow, RespawnServerTime, RespawnSeconds, MaxAge). Take at t = RespawnServerTime - RespawnSeconds.
+	TestFalse(TEXT("stale: fresh take (0.1 s old)"), IsStaleTake(100.1, 135.0, 35.0, 1.0));
+	TestTrue(TEXT("stale: 5 s old"), IsStaleTake(105.0, 135.0, 35.0, 1.0));
+	TestFalse(TEXT("stale: respawn 0 (weapon stay) never has an age"), IsStaleTake(500.0, 0.0, 0.0, 1.0));
+	TestFalse(TEXT("stale: respawn time 0 (available)"), IsStaleTake(500.0, 0.0, 35.0, 1.0));
+	TestFalse(TEXT("stale: exactly the threshold is fresh"), IsStaleTake(101.0, 135.0, 35.0, 1.0));
 	return true;
 }
 
@@ -624,6 +632,56 @@ bool FVeloxItemsPickupTest::RunTest(const FString& Parameters)
 	PS->SetRole(ROLE_Authority);
 	Inventory->PredictOwned(SG, W.World->GetTimeSeconds() + 10.0);
 	TestFalse(TEXT("PredictOwned is ignored on the server"), Inventory->OwnsIndex(SG));
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------------- PickupReset
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxItemsPickupResetTest, "Velox.Items.PickupReset", VeloxItemTest::Flags)
+
+bool FVeloxItemsPickupResetTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxItemTest;
+
+	// F1 (ADR 0004 C10): Reset() must not run the standing-pawn check synchronously. During ResetLevel a pawn that is
+	// still alive (AController::Reset does not unpossess) would take the item and then be destroyed by APawn::Reset.
+	const UVeloxItemDefinition* Medium = AVeloxPickup::LoadDefinitionByName(TEXT("Health.Medium"));
+	if (!TestNotNull(TEXT("item assets"), Medium))
+	{
+		return false;
+	}
+	FItemTestWorld W;
+	AVeloxCharacter* Pawn = W.SpawnPawn(FVector(0, 0, 100));
+	if (!TestNotNull(TEXT("pawn"), Pawn))
+	{
+		return false;
+	}
+	W.Advance(1.0f);
+	SetHealth(*Pawn, 50.f);
+	AVeloxPickup* Pickup = AVeloxPickup::SpawnPickup(W.World, Medium, FeetOf(*Pawn));
+	if (!TestNotNull(TEXT("pickup"), Pickup))
+	{
+		return false;
+	}
+	W.Advance(0.1f);
+	TestEqual(TEXT("taken once while standing in it"), static_cast<int32>(Pickup->GetTakeCount()), 1);
+
+	// Live pawn standing there: nothing at Reset(), taken one tick later.
+	SetHealth(*Pawn, 50.f);
+	Pickup->Reset();
+	TestTrue(TEXT("Reset: available right after"), Pickup->IsAvailable());
+	TestEqual(TEXT("Reset: TakeCount unchanged synchronously"), static_cast<int32>(Pickup->GetTakeCount()), 1);
+	W.Advance(2.f / 60.f);
+	TestEqual(TEXT("one tick later the live pawn takes it"), static_cast<int32>(Pickup->GetTakeCount()), 2);
+
+	// The pawn the reset destroys (before the next tick) does not take it.
+	SetHealth(*Pawn, 50.f);
+	Pickup->Reset();
+	TestEqual(TEXT("Reset 2: TakeCount unchanged"), static_cast<int32>(Pickup->GetTakeCount()), 2);
+	Pawn->Destroy();
+	W.Advance(2.f / 60.f);
+	TestEqual(TEXT("destroyed pawn takes nothing"), static_cast<int32>(Pickup->GetTakeCount()), 2);
+	TestTrue(TEXT("item still available"), Pickup->IsAvailable());
 	return true;
 }
 

@@ -4,7 +4,7 @@
 //
 // Fire rate: no cooldown GE. Each side keeps NextFireTime in its own world time (the shooter's machine: client, listen
 // host, bot server) with Q3's one-frame carry (B19, VeloxFireTiming); the server for a remote shooter validates with
-// FVeloxFireRateBucket (token bucket + minimum spacing) on receive time instead, since receive jitter would otherwise
+// FVeloxFireRateBucket (token bucket, B32: capacity 1 + tolerance / interval, no separate spacing rule) on receive time instead, since receive jitter would otherwise
 // reject legitimate shots.
 // Switch timing (B18): the shooter's machine fires only at or after the inventory's local SwitchEndTime; the server for
 // a remote shooter accepts a shot while GE_WeaponSwitching has <= SwitchTimingToleranceSeconds left, also for the
@@ -62,7 +62,7 @@ public:
 
 	const FVeloxServerShotInfo& GetLastServerShot() const { return LastServerShot; }
 
-	/** True on the server for a shooter controlled by a remote client (validation by bucket + spacing, switch by tolerance). */
+	/** True on the server for a shooter controlled by a remote client (validation by the B32 token bucket, switch by tolerance). */
 	static bool IsServerForRemoteShooter(const FGameplayAbilityActorInfo* ActorInfo);
 
 	/** Seconds left on ASC's longest active GE_WeaponSwitching (Velox.State.WeaponSwitching); 0 without one. */
@@ -88,7 +88,7 @@ protected:
 	/** B19, Q3 weapon time: a shot within one frame (this frame's delta) of its schedule carries, a later one restarts. */
 	void AdvanceNextFireTime(double Now, float Interval);
 
-	/** Server receive-time rate check only (bucket + minimum spacing, B19); logs nothing. */
+	/** Server receive-time rate check only (token bucket, B32); logs nothing. */
 	bool ConsumeServerFireToken(double Now, const UVeloxWeaponDefinition& Definition);
 
 	/** Server for a remote shooter: VeloxShotValidation::Validate with this weapon's bucket and the combat settings. */

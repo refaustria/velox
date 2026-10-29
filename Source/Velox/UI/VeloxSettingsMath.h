@@ -88,6 +88,13 @@ namespace VeloxSettingsMath
 		return Out.Left(MaxPlayerNameLength);
 	}
 
+	/** The login option `Name=<sanitised name>` (UVeloxLocalPlayer::GetGameLoginOptions); empty when nothing is left of the name. */
+	inline FString BuildNameLoginOption(const FString& PlayerName)
+	{
+		const FString Name = SanitizePlayerName(PlayerName);
+		return Name.IsEmpty() ? FString() : TEXT("Name=") + Name;
+	}
+
 	/** Address plus `?Name=<sanitised name>` (unchanged when the name is empty or the address already carries a Name option). */
 	inline FString AppendNameOption(const FString& Address, const FString& PlayerName)
 	{

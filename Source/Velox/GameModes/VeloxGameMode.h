@@ -11,6 +11,7 @@
 #include "VeloxGameMode.generated.h"
 
 class AVeloxCharacter;
+class AVeloxPlayerController;
 class AVeloxPlayerState;
 class UVeloxCombatSettings;
 class UVeloxGameModeDefinition;
@@ -145,6 +146,8 @@ private:
 	void RestartMatch(EVeloxMatchPhase NewPhase, EVeloxMatchReason Reason, double PhaseEndTime);
 	/** PostMatch: EndMatch, GE_MatchFrozen on every ASC, movement off, intermission view. */
 	void EnterPostMatch();
+	/** Intermission state and view for one controller (Camera, else its own pawn); local controllers get only the client half. */
+	void SendIntermissionTo(AVeloxPlayerController* PC, AActor* Camera);
 	void ClearAllPendingRespawns();
 	void ApplyMatchRulesToGameState();
 	AActor* FindIntermissionCamera() const;

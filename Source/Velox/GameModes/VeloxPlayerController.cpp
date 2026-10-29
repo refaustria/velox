@@ -8,6 +8,7 @@
 #include "EnhancedInputComponent.h"
 #include "Engine/World.h"
 #include "GameModes/VeloxGameMode.h"
+#include "GameModes/VeloxGameState.h"
 #include "InputAction.h"
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 #include "Core/VeloxLog.h"
@@ -103,6 +104,12 @@ void AVeloxPlayerController::Ready()
 void AVeloxPlayerController::Join()
 {
 	ServerRequestJoin();
+}
+
+bool AVeloxPlayerController::IsInIntermission() const
+{
+	const AVeloxGameState* VeloxGameState = GetWorld() ? GetWorld()->GetGameState<AVeloxGameState>() : nullptr;
+	return bInIntermission || (VeloxGameState && VeloxGameState->GetPhase() == EVeloxMatchPhase::PostMatch);
 }
 
 void AVeloxPlayerController::EnterIntermission(AActor* ViewTarget)

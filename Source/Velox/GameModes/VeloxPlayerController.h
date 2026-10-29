@@ -101,8 +101,8 @@ public:
 	UFUNCTION(Client, Reliable)
 	void ClientEnterIntermission(AActor* ViewTarget);
 
-	/** Owning client and server: between ClientEnterIntermission and the level reset. */
-	bool IsInIntermission() const { return bInIntermission; }
+	/** Owning client and server: between ClientEnterIntermission and the level reset, or while the replicated phase is PostMatch (a late joiner / lost RPC). */
+	bool IsInIntermission() const;
 
 	/** Scoreboard key (IA_Scoreboard, Tab) is held; the HUD view model shows the scoreboard while it is (ADR 0004 section 7). */
 	bool IsScoreboardHeld() const { return bScoreboardHeld; }

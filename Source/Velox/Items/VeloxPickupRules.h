@@ -56,6 +56,19 @@ namespace VeloxPickupRules
 {
 	inline int32 ToPoints(float Value) { return FMath::RoundToInt32(Value); }
 
+	/**
+	 * ADR 0004 C10: a take whose age (ServerNow minus the take time, which is RespawnServerTime - RespawnSeconds) exceeds
+	 * MaxAge is not announced on a client (late joiner's first update). Respawn 0 (never respawns / weapon stay) has no age.
+	 */
+	inline bool IsStaleTake(double ServerNow, double RespawnServerTime, double RespawnSeconds, double MaxAge)
+	{
+		if (RespawnServerTime <= 0.0 || RespawnSeconds <= 0.0)
+		{
+			return false;
+		}
+		return ServerNow - (RespawnServerTime - RespawnSeconds) > MaxAge;
+	}
+
 	/** The health cap of a health item for this taker. */
 	inline int32 HealthCapFor(const FVeloxPickupQuery& Q)
 	{

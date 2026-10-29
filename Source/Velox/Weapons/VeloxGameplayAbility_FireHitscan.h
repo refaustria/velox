@@ -6,7 +6,7 @@
 //   subsystem, B10) of the centre ray only, target data -> CallServerSetReplicatedTargetData, predicted GE_AmmoCost, the
 //   predicted fire cue (no impact cue, B21), NextFireTime, EndAbility (not replicated). Listen host / bot:
 //   ResolveServerShot directly (no RPC).
-// Server for a remote client: AbilityTargetDataSetDelegate -> OnServerTargetData: VeloxShotValidation (bucket + spacing,
+// Server for a remote client: AbilityTargetDataSetDelegate -> OnServerTargetData: VeloxShotValidation (B32 token bucket,
 //   then type and finite checks; VeloxShotRejected seq= reason=, throttled), the pending switch finalised, ResolveServerShot:
 //   the server's own pattern seed (B21), TraceShot, one MakeDamageSpec per victim, GE_AmmoCost, the fire cue with the
 //   activation's prediction key (the predicting client skips it), one impact cue with no prediction key (every client,

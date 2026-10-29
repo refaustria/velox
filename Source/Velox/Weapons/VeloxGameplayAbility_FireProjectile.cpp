@@ -240,7 +240,7 @@ void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbi
 	}
 	else
 	{
-		// B26: the hitscan machinery (bucket + spacing, then type, NaN origin, direction, finite times incl. the move
+		// B26: the hitscan machinery (B32 token bucket, then type, NaN origin, direction, finite times incl. the move
 		// time stamp), then the pending switch (B18), then the launch with the shared B15 origin rule.
 		const double Now = World->GetTimeSeconds();
 		FVeloxValidatedShot Valid;
