@@ -1362,6 +1362,26 @@ bool FVeloxCombatRemoteSwitchTimelineTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("B37: rail accepted at T -> wait at T + 0.4 = 1.1"), WaitRail, 1.1, 2e-3);
 	W.Advance(0.3f);
 	TestEqual(TEXT("B37: still RG after the old drop end (no second index change)"), Inventory->GetCurrentIndex(), RG);
+
+	// B41 / ADR 0004 section 3: the server's refire wait of a remote shooter uses the Haste interval (the server tag).
+	// Haste on, one MG shot accepted at T -> one frame later the wait is 0.1 / 1.3 - 1/60; tag removed, a new shot -> 0.1 - 1/60.
+	Inventory->SetCurrentIndex(MG);
+	W.Advance(1.0f); // the MG bucket is full again, no recent shot
+	ASC->AddLooseGameplayTag(Powerup_Haste);
+	const double THaste = W.World->GetTimeSeconds();
+	RemoteShot(MGHandle, 10);
+	W.AdvanceTo(THaste + 1.0 / 60.0);
+	const double WaitHaste = Refire();
+	AddInfo(FString::Printf(TEXT("B41: MG refire wait one frame after a shot under Haste: %.4f (want 0.0603)"), WaitHaste));
+	TestEqual(TEXT("B41: Haste: refire wait at T + 1/60 = 0.1 / 1.3 - 1/60"), WaitHaste, 0.1 / 1.3 - 1.0 / 60.0, 1e-3);
+	ASC->RemoveLooseGameplayTag(Powerup_Haste);
+	W.Advance(1.0f);
+	const double TNoHaste = W.World->GetTimeSeconds();
+	RemoteShot(MGHandle, 11);
+	W.AdvanceTo(TNoHaste + 1.0 / 60.0);
+	const double WaitNoHaste = Refire();
+	AddInfo(FString::Printf(TEXT("B41: MG refire wait one frame after a shot without Haste: %.4f (want 0.0833)"), WaitNoHaste));
+	TestEqual(TEXT("B41: no Haste: refire wait at T' + 1/60 = 0.1 - 1/60"), WaitNoHaste, 0.1 - 1.0 / 60.0, 1e-3);
 	return true;
 }
 
