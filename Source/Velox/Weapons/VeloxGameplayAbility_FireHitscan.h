@@ -6,11 +6,12 @@
 //   subsystem, B10) of the centre ray only, target data -> CallServerSetReplicatedTargetData, predicted GE_AmmoCost, the
 //   predicted fire cue (no impact cue, B21), NextFireTime, EndAbility (not replicated). Listen host / bot:
 //   ResolveServerShot directly (no RPC).
-// Server for a remote client: AbilityTargetDataSetDelegate -> OnServerTargetData: VeloxShotValidation (bucket + spacing,
+// Server for a remote client: AbilityTargetDataSetDelegate -> OnServerTargetData: VeloxShotValidation (token bucket B32,
 //   then type and finite checks; VeloxShotRejected seq= reason=, throttled), the pending switch finalised, ResolveServerShot:
 //   the server's own pattern seed (B21), TraceShot, one MakeDamageSpec per victim, GE_AmmoCost, the fire cue with the
 //   activation's prediction key (the predicting client skips it), one impact cue with no prediction key (every client,
-//   the owner included, receives it, ~RTT late at the true location as in Q3), the LG beam cue, ClientConfirmHit, EndAbility.
+//   the owner included, receives it, ~RTT late at the true location as in Q3), the LG beam cue, ClientConfirmHit,
+//   LastAcceptedReceiveTime (B37, no NextFireTime on this path), EndAbility.
 // Ray directions: server only, VeloxShotDirs (pellets / Q3 MG spread from FRandomStream(ServerPatternSeq ^ PlayerId)).
 // Both hitscan cues carry PatternSeq and the centre direction (HitDirection) in the Velox context, so a receiver can
 // rebuild the pattern (M5 FX).

@@ -115,20 +115,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons")
 	bool bSwitchWaitsForRefire = true;
 
-	/**
-	 * ADR 0003 B18: the server accepts a remote shooter's shot while its GE_WeaponSwitching has at most this many seconds
-	 * left (jitter and reliable-resend compression, <= 1 RTT at the 250 ms ping limit). The shooter's own machine gates
-	 * on its local switch end exactly.
-	 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons", Meta = (ClampMin = "0", Units = "s"))
-	float SwitchTimingToleranceSeconds = 0.25f;
+	// The B18 switch-timing tolerance of the server is FireRateJitterToleranceSeconds (ADR 0003 B37); the former separate
+	// 0.25 s switch tolerance was deleted in task 08h.
 
 	/** ADR 0003 B23: the LG beam cue stays this long after the last accepted shot (covers one lost packet's resend). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons", Meta = (ClampMin = "0", Units = "s"))
 	float BeamKeepAliveSeconds = 0.25f;
 
-	/** Fields above with the non-shipping `velox.combat.<Field>` cvars applied. */
-	float GetSwitchTimingToleranceSeconds() const;
+	/** BeamKeepAliveSeconds with the non-shipping `velox.combat.BeamKeepAliveSeconds` cvar applied. */
 	float GetBeamKeepAliveSeconds() const;
 
 	// Lag compensation (task 03).
@@ -163,6 +157,9 @@ public:
 	 * 250 ms RTT limit: MG 6, LG 11, SG 1.5, RL 1.625, RG 1.333 tokens. After a full bucket two shots are at least
 	 * FireInterval - this apart (no separate spacing rule); a client firing at 2x the rate is rejected after ~this many
 	 * seconds; the long-term rate stays exactly 1 / FireInterval.
+	 * The one resend tolerance (ADR 0003 B35, B37), used for both receive-time decisions on a remote shooter: (1) this
+	 * bucket; (2) the switch gate: the server accepts a shot while GE_WeaponSwitching has at most this left (B18), and a
+	 * superseding switch completes the pending one while at most WeaponRaiseTime + this is left (B33).
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation", Meta = (ClampMin = "0", Units = "s"))
 	float FireRateJitterToleranceSeconds = 0.5f;

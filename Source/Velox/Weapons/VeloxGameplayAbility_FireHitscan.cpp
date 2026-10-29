@@ -247,7 +247,7 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 	}
 	else
 	{
-		// Review server step 1 (world-free, Velox.Combat.ShotValidation): bucket + spacing first, then the payload.
+		// Review server step 1 (world-free, Velox.Combat.ShotValidation): token bucket (B32) first, then the payload.
 		// Nothing touches the subsystem on rejection.
 		const double Now = World->GetTimeSeconds();
 		FVeloxValidatedShot Valid;
@@ -276,7 +276,8 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 			Shot.HintTargetStamp = Valid.HintTargetStamp;
 			Shot.ShotSeq = Valid.ShotSeq;
 			ResolveServerShot(*Definition, Shot);
-			AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+			// B37: no NextFireTime carry on receive time; the switch's refire wait reads this instead.
+			NoteAcceptedRemoteShot(Now);
 		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);

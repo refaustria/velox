@@ -241,7 +241,7 @@ void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbi
 	}
 	else
 	{
-		// B26: the hitscan machinery (bucket + spacing, then type, NaN origin, direction, finite times incl. the move
+		// B26: the hitscan machinery (token bucket B32, then type, NaN origin, direction, finite times incl. the move
 		// time stamp), then the pending switch (B18), then the launch with the shared B15 origin rule.
 		const double Now = World->GetTimeSeconds();
 		FVeloxValidatedShot Valid;
@@ -259,7 +259,8 @@ void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbi
 		{
 			FinalisePendingSwitch(*Definition);
 			LaunchServerShot(*Definition, Valid.Origin, Valid.Dir, Valid.ShotSeq, true, Valid.FireMoveTimeStamp);
-			AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+			// B37: no NextFireTime carry on receive time; the switch's refire wait reads this instead.
+			NoteAcceptedRemoteShot(Now);
 		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);

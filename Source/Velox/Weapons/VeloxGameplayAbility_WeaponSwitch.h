@@ -1,12 +1,13 @@
 // Velox - weapon switch (ADR 0003 section 4): one spec per PlayerState bound to InputTag.Weapon.Slot1..9/Next/Prev,
 // OnInputTriggered, LocalPredicted. The press is resolved to a table index on the shooter's machine
 // (PrepareInputActivation) and travels to the server as event data (EventMagnitude = index); the server validates
-// ownership. Sequence: if bSwitchWaitsForRefire wait for the current weapon's NextFireTime, then GE_WeaponSwitching for
-// Drop + Raise (applied at activation with Wait + Drop + Raise, inside the prediction window), after Wait + Drop the
-// current index changes (server: authoritative; client: predicted until OnRep). B18: every machine that runs the
-// activation records the inventory's SwitchEndTime = Now + Wait + Drop + Raise; the shooter's machine fires only at or
-// after it, the server gates a remote shooter by the GE's remaining time with a tolerance (UVeloxGameplayAbility_Fire).
-// The tag stays on the GE for animation/UI and the server gate; it does not block fire activation.
+// ownership. Sequence: if bSwitchWaitsForRefire wait for the current weapon's refire (RefireWait), then
+// GE_WeaponSwitching for Drop + Raise (applied at activation with Wait + Drop + Raise, inside the prediction window),
+// after Wait + Drop the current index changes (server: authoritative, completed by the inventory's own drop timer, B37;
+// client: predicted by this instance until OnRep). B18: every machine that runs the activation records the inventory's
+// SwitchEndTime = Now + Wait + Drop + Raise; the shooter's machine fires only at or after it, the server gates a remote
+// shooter by the GE's remaining time with the one resend tolerance FireRateJitterToleranceSeconds (B37,
+// UVeloxGameplayAbility_Fire). The tag stays on the GE for animation/UI and the server gate; it does not block fire.
 // Task 08b (D4): a switch activation that reaches the server while its previous switch instance is still running (that
 // instance's drop end is shifted by the latency) supersedes it (bRetriggerInstancedAbility); the shooter's machine still
 // ignores a switch press during its own drop (PrepareInputActivation skips while the spec is active), as before.
@@ -31,7 +32,11 @@ public:
 	 */
 	void CompleteSwitchEarly();
 
-	/** Switch timing on this machine: seconds until the current weapon may fire (0 without bSwitchWaitsForRefire). */
+	/**
+	 * Switch timing on this machine: seconds until the current weapon may fire again (0 without bSwitchWaitsForRefire).
+	 * Shooter's machine: its NextFireTime. Server for a remote shooter (B37): max(0, LastAcceptedReceiveTime + Interval
+	 * - Now) of the current weapon's fire instance (VeloxFireTiming::RemoteRefireWait), never more than one interval.
+	 */
 	static double RefireWait(const FGameplayAbilityActorInfo* ActorInfo, bool bSwitchWaitsForRefire);
 
 	//~UVeloxGameplayAbility interface

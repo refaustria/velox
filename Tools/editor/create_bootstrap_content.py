@@ -381,7 +381,6 @@ def build_combat_settings(table, defs):
         "weapon_drop_time": 0.2,
         "weapon_raise_time": 0.25,
         "switch_waits_for_refire": True,
-        "switch_timing_tolerance_seconds": 0.25,  # ADR 0003 B18
         "beam_keep_alive_seconds": 0.25,  # B23
         "max_rewind_seconds": 0.30,  # ADR 0003 B34
         "history_window_seconds": 1.0,
