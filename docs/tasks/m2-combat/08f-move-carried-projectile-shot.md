@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat (follow-up)
 **Agent:** dev-hard
-**Status:** ready
+**Status:** done (merged affac1c; 79 tests; RocketJumpRun/Hold pass)
 **Depends on:** ADR 0003 B35, ADR 0002 A36, review `docs/reviews/m2-late-rpc-review.md` (rulings 1–4, defects 1 and 7); 08c/08d merged. Independent of 08g/08h (merge order free; 08g changes the same `ValidateOrigin` signature — rebase, do not fold).
 
 ## Goal
