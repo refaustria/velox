@@ -147,7 +147,7 @@ bool UVeloxGameplayAbility_Fire::CanActivateAbility(const FGameplayAbilitySpecHa
 	{
 		return false;
 	}
-	// NextFireTime only on the shooter's machine; the server for a remote shooter has the bucket + spacing (B19).
+	// NextFireTime only on the shooter's machine; the server for a remote shooter has the receive-time bucket (B32).
 	return bRemote || Now >= NextFireTime;
 }
 
@@ -185,8 +185,7 @@ bool UVeloxGameplayAbility_Fire::ConsumeServerFireToken(double Now, const UVelox
 	const UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
 	const float Interval = Definition.GetSafeFireInterval();
-	return ServerBucket.TryConsume(Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.FireRateBurstAllowance, Settings.GetFireRateJitterToleranceSeconds()),
-		FVeloxFireRateBucket::MinSpacingFor(Interval, Settings.GetFireRateSpacingTolerance()));
+	return ServerBucket.TryConsume(Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.GetFireRateJitterToleranceSeconds()));
 }
 
 EVeloxShotReject UVeloxGameplayAbility_Fire::ValidateServerShot(const FGameplayAbilityTargetData* Raw, double Now, const UVeloxWeaponDefinition& Definition, FVeloxValidatedShot& OutShot)
@@ -194,8 +193,8 @@ EVeloxShotReject UVeloxGameplayAbility_Fire::ValidateServerShot(const FGameplayA
 	const UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory ? Inventory->GetCombatSettings() : nullptr);
 	const float Interval = Definition.GetSafeFireInterval();
-	return VeloxShotValidation::Validate(Raw, ServerBucket, Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.FireRateBurstAllowance, Settings.GetFireRateJitterToleranceSeconds()),
-		Settings.GetFireRateSpacingTolerance(), OutShot);
+	return VeloxShotValidation::Validate(Raw, ServerBucket, Now, Interval, FVeloxFireRateBucket::CapacityFor(Interval, Settings.GetFireRateJitterToleranceSeconds()),
+		OutShot);
 }
 
 void UVeloxGameplayAbility_Fire::FinalisePendingSwitch(const UVeloxWeaponDefinition& Definition) const

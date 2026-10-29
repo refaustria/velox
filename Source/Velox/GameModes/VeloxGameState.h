@@ -139,4 +139,13 @@ private:
 	FVeloxKillFeed KillFeed;
 
 	uint16 NextKillFeedSeq = 0;
+
+	//~AActor interface
+	/**
+	 * ADR 0003 B31: stamps the replicated server time at send time. The engine refreshes it on a 0.1 s timer, so without
+	 * this the client's estimate carries a random 0..100 ms replication age (about 50 ms on average). The engine calls
+	 * PreReplication only in the frame the actor is actually sent.
+	 */
+	virtual void PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker) override;
+	//~End of AActor interface
 };

@@ -615,7 +615,7 @@ void AVeloxProjectile::TickProxy(float DeltaSeconds)
 		return;
 	}
 	// Dead reckoning in the server-time estimate; the world stops the visual, the impact cue shows the explosion.
-	const double Now = GameState ? GameState->GetServerWorldTimeSeconds() : World->GetTimeSeconds();
+	const double Now = GameState ? VeloxLagComp::EstimateServerTime(*GameState) : World->GetTimeSeconds();
 	const double Age = FMath::Clamp(Now - static_cast<double>(SpawnServerTime), 0.0, static_cast<double>(Definition->ProjectileLifetime));
 	const FVector Target = FVeloxProjectileSim::PositionAt(StartLocation, LaunchVelocity, Age);
 	double Dist = 0.0;

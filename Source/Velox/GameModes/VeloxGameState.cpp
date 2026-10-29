@@ -83,3 +83,13 @@ void AVeloxGameState::ClearKillFeed()
 	MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxGameState, KillFeed, this);
 	ForceNetUpdate();
 }
+
+void AVeloxGameState::PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker)
+{
+	Super::PreReplication(ChangedPropertyTracker);
+	// B31: the engine timer (UpdateServerTimeSeconds) stays as a fallback; this makes the value sent exactly "now".
+	if (const UWorld* World = GetWorld())
+	{
+		ReplicatedWorldTimeSecondsDouble = World->GetTimeSeconds();
+	}
+}

@@ -13,6 +13,7 @@
 #include "GameModes/VeloxPlayerState.h"
 #include "Items/VeloxPowerupEffects.h"
 #include "Movement/VeloxMovementComponent.h"
+#include "Net/VeloxLagCompensationSubsystem.h"
 #include "Serialization/BitReader.h"
 #include "Serialization/BitWriter.h"
 #include "Weapons/VeloxProjectile.h"
@@ -139,7 +140,7 @@ void UVeloxGameplayAbility_FireProjectile::ActivateAbility(const FGameplayAbilit
 	Data->Dir = AimDir;
 	// Projectiles are not rewound (Q3); the view time only names the shot in logs.
 	const AGameStateBase* GameState = World->GetGameState();
-	Data->ViewServerTime = static_cast<float>(GameState ? GameState->GetServerWorldTimeSeconds() : Now);
+	Data->ViewServerTime = static_cast<float>(GameState ? VeloxLagComp::EstimateServerTime(*GameState) : Now);
 	Data->ShotSeq = ShotSeq;
 	UVeloxMovementComponent* Movement = MovementOf(Pawn);
 	Data->FireMoveTimeStamp = Movement ? Movement->GetClientMoveTimeStamp() : 0.f;

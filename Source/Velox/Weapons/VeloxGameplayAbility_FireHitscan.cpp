@@ -178,7 +178,7 @@ void UVeloxGameplayAbility_FireHitscan::ActivateAbility(const FGameplayAbilitySp
 	{
 		// Task 08 / ADR 0003 B17, B24: the client side of the soak's per-shot record (the server logs VeloxShot with the
 		// same seq). aim_err_cm against the hinted proxy (else the proxy nearest the ray); view_delay_ms = the
-		// InterpolationDelay used, server_est = GetServerWorldTimeSeconds() at fire time (= view + delay).
+		// InterpolationDelay used, server_est = EstimateServerTime() at fire time (= view + delay).
 		FString AimTarget;
 		FVector AimCentre;
 		const float AimErr = VeloxHitscanPrivate::AimErrorCm(*World, Pawn, Shot.Origin, Shot.Dir, Shot.HintTarget.Get(), AimTarget, AimCentre);

@@ -132,8 +132,12 @@ public:
 	float GetBeamKeepAliveSeconds() const;
 
 	// Lag compensation (task 03).
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
-	float MaxRewindSeconds = 0.25f;
+	/**
+	 * Oldest server pose a shot may rewind to (s), also the B25 projectile fire-stamp window. ADR 0003 B34: a hinted shot
+	 * needs RTT + 20-40 ms of rewind, so 0.30 compensates the full 250 ms RTT limit (0.25 covered only ~210 ms).
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation", Meta = (ClampMin = "0", Units = "s"))
+	float MaxRewindSeconds = 0.30f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
 	float HistoryWindowSeconds = 1.0f;
@@ -151,34 +155,20 @@ public:
 	/** HitboxTeleportDistanceCm with the non-shipping `velox.combat.HitboxTeleportDistanceCm` cvar applied. */
 	float GetHitboxTeleportDistanceCm() const;
 
-	/** Minimum token capacity of the server fire-rate bucket (ADR 0003 B19); see FireRateJitterToleranceSeconds. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
-	float FireRateBurstAllowance = 3.f;
-
 	/**
-	 * Task 08b (D3): receive-time delay variation the fire-rate bucket absorbs (s). Capacity per weapon is
-	 * max(FireRateBurstAllowance, 1 + this / FireInterval) (FVeloxFireRateBucket::CapacityFor): a token bucket of capacity
-	 * C never rejects a client firing exactly at 1 / FireInterval whose shots arrive with a delay spread <= (C - 1) x
-	 * FireInterval, and the spread of a reliable resend is about RTT + 80 ms (task 08 evidence). 0.5 s covers a single
-	 * loss at the 250 ms RTT limit; the MG gets 6 tokens instead of 3 (3 tokens = 200 ms, below a resend at 100 ms RTT).
-	 * A client firing at 2x the rate is rejected after ~this many seconds; the long-term rate stays exactly 1 / FireInterval.
+	 * ADR 0003 B32: the one fire-rate tolerance (s), the receive-time delay variation the server bucket absorbs. Capacity
+	 * per weapon is 1 + this / FireInterval (FVeloxFireRateBucket::CapacityFor): a token bucket of capacity C never
+	 * rejects a client firing exactly at 1 / FireInterval whose shots arrive with a delay spread <= (C - 1) x FireInterval,
+	 * and the spread of a reliable resend is about RTT + 80 ms (task 08 evidence). 0.5 s covers a single loss at the
+	 * 250 ms RTT limit: MG 6, LG 11, SG 1.5, RL 1.625, RG 1.333 tokens. After a full bucket two shots are at least
+	 * FireInterval - this apart (no separate spacing rule); a client firing at 2x the rate is rejected after ~this many
+	 * seconds; the long-term rate stays exactly 1 / FireInterval.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation", Meta = (ClampMin = "0", Units = "s"))
 	float FireRateJitterToleranceSeconds = 0.5f;
 
 	/** FireRateJitterToleranceSeconds with the non-shipping `velox.combat.FireRateJitterToleranceSeconds` cvar applied. */
 	float GetFireRateJitterToleranceSeconds() const;
-
-	/**
-	 * ADR 0003 B19: the server rejects a shot received less than max(0, FireInterval - this) after the last accepted one
-	 * of the same weapon (the bucket alone admits FireRateBurstAllowance shots at once). One RTT of reliable-resend
-	 * compression at the 250 ms ping limit: rail 1.25 s, SG 0.75 s, RL 0.55 s, MG/PG/LG unaffected.
-	 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation", Meta = (ClampMin = "0", Units = "s"))
-	float FireRateSpacingTolerance = 0.25f;
-
-	/** FireRateSpacingTolerance with the non-shipping `velox.combat.FireRateSpacingTolerance` cvar applied. */
-	float GetFireRateSpacingTolerance() const;
 
 	// Projectiles (task 05).
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Projectiles")

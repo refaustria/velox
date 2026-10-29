@@ -31,7 +31,7 @@ AVeloxPlayerController::AVeloxPlayerController(const FObjectInitializer& ObjectI
 
 FVeloxShotTiming AVeloxPlayerController::BuildShotTiming(const FVector& Origin, const FVector& Dir, float RangeCm) const
 {
-	return VeloxLagComp::BuildShotTiming(*this, Origin, Dir, RangeCm);
+	return VeloxLagComp::BuildShotTiming(*this, Origin, Dir, RangeCm, ShotDelayMemory);
 }
 
 void AVeloxPlayerController::ClientConfirmHit_Implementation(uint8 ShotSeq, uint8 TotalDamage, uint8 Flags)
