@@ -24,9 +24,9 @@ Q3 derivation (vanilla `g_weapon.c` / `bg_misc.c`; the script computes the numbe
 | Field (script key) | Default | Meaning |
 |---|---|---|
 | `SwitchTimingToleranceSeconds` (`switch_timing_tolerance_seconds`) | 0.25 s | B18: the server accepts a remote shooter's shot while `GE_WeaponSwitching` has at most this left; the shooter's own machine gates on its local `SwitchEndTime` exactly. |
-| `FireRateSpacingTolerance` (`fire_rate_spacing_tolerance`) | 0.25 s | B19: server minimum spacing between accepted shots of one weapon = `max(0, FireInterval - tolerance)` (rail 1.25 s, SG 0.75 s, RL 0.55 s, MG/PG/LG 0), on top of the token bucket (`FireRateBurstAllowance` 3). |
-| `FireRateJitterToleranceSeconds` (`fire_rate_jitter_tolerance_seconds`) | 0.5 s | Task 08b (D3): receive-time delay spread the fire-rate bucket absorbs; capacity per weapon = `max(FireRateBurstAllowance, 1 + tolerance / FireInterval)` (MG 6, LG 11, PG 6, rail/SG/RL 3). A 2x fire-rate client is rejected after about this long. |
+| `FireRateJitterToleranceSeconds` (`fire_rate_jitter_tolerance_seconds`) | 0.5 s | B32 (the one fire-rate tolerance): receive-time delay spread the server fire-rate bucket absorbs; capacity per weapon = `1 + tolerance / FireInterval` (MG 6, PG 6, LG 11, SG 1.5, RL 1.625, RG 1.333), no separate spacing rule (after a full bucket two shots are at least `FireInterval - tolerance` apart: rail 1.0 s once, then 1.5 s on average). A 2x fire-rate client is rejected after about this long. `FireRateBurstAllowance` and B19's `FireRateSpacingTolerance` were deleted in task 08c. |
 | `BeamKeepAliveSeconds` (`beam_keep_alive_seconds`) | 0.25 s | B23: the LG beam cue stays this long (at least one fire interval) after the last accepted shot. |
+| `MaxRewindSeconds` (`max_rewind_seconds`) | 0.30 s | B34: oldest server pose a hitscan shot may rewind to, and the B25 projectile fire-stamp window. A hinted shot needs RTT + 20-40 ms, so 0.30 covers the 250 ms RTT limit (0.25 covered about 210 ms). No cvar. |
 
 After adding a field to `UVeloxCombatSettings`, add its key to `values` in `build_combat_settings()`, rebuild (`infra/ci/build.sh`) and re-run the script; commit only the assets that actually changed (the script re-saves every asset it touches).
 

@@ -17,7 +17,6 @@ const TCHAR* LexToString(EVeloxShotReject Reason)
 	case EVeloxShotReject::None: return TEXT("none");
 	case EVeloxShotReject::Type: return TEXT("type");
 	case EVeloxShotReject::Rate: return TEXT("rate");
-	case EVeloxShotReject::Spacing: return TEXT("spacing");
 	case EVeloxShotReject::Origin: return TEXT("origin");
 	case EVeloxShotReject::Dir: return TEXT("dir");
 	case EVeloxShotReject::Time: return TEXT("time");
@@ -26,7 +25,7 @@ const TCHAR* LexToString(EVeloxShotReject Reason)
 }
 
 EVeloxShotReject VeloxShotValidation::Validate(const FGameplayAbilityTargetData* Raw, FVeloxFireRateBucket& Bucket, double Now, float Interval, float Capacity,
-	float SpacingTolerance, FVeloxValidatedShot& OutShot)
+	FVeloxValidatedShot& OutShot)
 {
 	OutShot = FVeloxValidatedShot();
 	// Exact struct types only (no IsChildOf): the payload of a foreign subclass would be read with the wrong layout.
@@ -37,11 +36,9 @@ EVeloxShotReject VeloxShotValidation::Validate(const FGameplayAbilityTargetData*
 	const FGameplayAbilityTargetData_VeloxProjectileShot* ProjectileData = bProjectile ? static_cast<const FGameplayAbilityTargetData_VeloxProjectileShot*>(Raw) : nullptr;
 	OutShot.ShotSeq = ShotData ? ShotData->ShotSeq : 0;
 
-	switch (Bucket.Consume(Now, Interval, Capacity, FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance)))
+	if (Bucket.Consume(Now, Interval, Capacity) != EVeloxFireRateResult::Accepted)
 	{
-	case EVeloxFireRateResult::Rate: return EVeloxShotReject::Rate;
-	case EVeloxFireRateResult::Spacing: return EVeloxShotReject::Spacing;
-	case EVeloxFireRateResult::Accepted: break;
+		return EVeloxShotReject::Rate;
 	}
 	if (!ShotData)
 	{

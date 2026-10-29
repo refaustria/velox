@@ -116,6 +116,13 @@ public:
 	 */
 	void CompletePendingSwitch();
 	/**
+	 * Server (ADR 0003 B33): the inventory part of CompletePendingSwitch only: the pending index becomes current,
+	 * GE_WeaponSwitching is removed and SwitchEndTime cleared; switch ability instances are left alone. Used by the switch
+	 * ability when a superseding activation completes the superseded switch (under InstancedPerActor the active instance
+	 * is that activation itself, which CompletePendingSwitch would end). No-op without a pending index.
+	 */
+	void CompletePendingSwitchIndexOnly();
+	/**
 	 * Server: starts Definition's looping BeamCueTag (LG) if needed and keeps it for BeamKeepAliveSeconds (combat settings,
 	 * at least one fire interval) after this shot (B23).
 	 * Stopped on timeout (released), on a weapon change, and by RemoveAllGameplayCues on death (task 06, B8).

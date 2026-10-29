@@ -473,7 +473,9 @@ void UVeloxMovementComponent::MoveAutonomous(float ClientTimeStamp, float DeltaT
 		const FCharacterNetworkMoveData* MoveData = GetCurrentNetworkMoveData();
 		if (MoveData && MoveData->NetworkMoveType == FCharacterNetworkMoveData::ENetworkMoveType::OldMove)
 		{
-			UE_LOG(LogVeloxNet, Log, TEXT("VeloxMoveRepaired ts=%.6f dt=%.6f"), ClientTimeStamp, DeltaTime);
+			// Task M1-08 (A35): which old-move slot repaired the loss. The extra slot is the move before the OldMove.
+			const bool bExtraSlot = MoveData == static_cast<const FCharacterNetworkMoveData*>(VeloxNetworkMoveDataContainer.GetExtraOldMoveData());
+			UE_LOG(LogVeloxNet, Log, TEXT("VeloxMoveRepaired ts=%.6f dt=%.6f slot=%s"), ClientTimeStamp, DeltaTime, bExtraSlot ? TEXT("extra") : TEXT("old"));
 		}
 	}
 #endif
@@ -959,7 +961,9 @@ void UVeloxMovementComponent::CallServerMovePacked(const FSavedMove_Character* N
 	// A32: the server processes OldMove before PendingMove and NewMove (ServerMove_HandleMoveData). Sending the previous
 	// RPC's move every time means a single lost RPC is simulated in its original partition by the next one (no merged
 	// move, no partition-dependent integration, no trigger crossing shifted by one move); an unacked event move (pad
-	// entry, held-jump landing) takes precedence. A duplicate is rejected by VerifyClientTimeStamp (Log-level line).
+	// entry, held-jump landing) takes precedence. A duplicate is
+	// rejected in ServerMove_PerformMovement (LogNetPlayerMovement "ServerMove: TimeStamp expired", Log level; a Warning only
+	// beyond net.NetServerMoveTimestampExpiredWarningThreshold; visible with "log LogNetPlayerMovement Log").
 	const FSavedMove_Character* ChosenOldMove = OldMove;
 	const FSavedMove_Character* ExtraOldMove = nullptr;
 	bool bEventMove = false;

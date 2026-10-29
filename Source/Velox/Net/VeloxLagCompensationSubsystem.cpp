@@ -30,11 +30,17 @@ namespace VeloxLagCompCVars
 		TEXT("0: hitscan resolves against current poses (control run, ADR 0003 section 9). Server, non-shipping."),
 		ECVF_Default);
 
+	static TAutoConsoleVariable<float> CVarFallbackDelay(TEXT("velox.lagcomp.FallbackInterpolationDelay"), 0.03f,
+		TEXT("Interpolation delay (s) assumed when no moving proxy gives a measurement and the last one is older than 2 s (ADR 0003 B30). Client, non-shipping."),
+		ECVF_Default);
+
 	static int32 Debug() { return CVarDebug.GetValueOnGameThread(); }
 	static bool Enabled() { return CVarLagComp.GetValueOnGameThread() != 0; }
+	static float FallbackInterpolationDelay() { return CVarFallbackDelay.GetValueOnGameThread(); }
 #else
 	static int32 Debug() { return 0; }
 	static bool Enabled() { return true; }
+	static float FallbackInterpolationDelay() { return 0.03f; }
 #endif
 
 	/** Proxies whose last update is older than this (s) are at rest or stale and say nothing about the delay. */
@@ -304,26 +310,20 @@ void VeloxLagComp::SortHits(FVeloxShotResult& Result)
 // ---------------------------------------------------------------------------------------------------------------------
 // Client shot timing
 
-double VeloxLagComp::ExpectedServerTimeStaleness(float UpdatePeriod, float NetUpdateFrequency)
-{
-	if (!(UpdatePeriod > 0.f) || !(NetUpdateFrequency > 0.f))
-	{
-		return 0.0;
-	}
-	return 0.5 * FMath::Min(static_cast<double>(UpdatePeriod), 1.0 / static_cast<double>(NetUpdateFrequency));
-}
-
 double VeloxLagComp::EstimateServerTime(const AGameStateBase& GameState)
 {
-	// ServerWorldTimeSecondsUpdateFrequency is a protected UPROPERTY: read through reflection (engine default 0.1 s if
-	// the property ever disappears). A Velox GameState accessor would be cleaner (out of 08b's scope).
-	static const FFloatProperty* UpdatePeriodProperty = FindFProperty<FFloatProperty>(AGameStateBase::StaticClass(), TEXT("ServerWorldTimeSecondsUpdateFrequency"));
-	constexpr float EngineDefaultUpdatePeriod = 0.1f;
-	const float UpdatePeriod = UpdatePeriodProperty ? UpdatePeriodProperty->GetPropertyValue_InContainer(&GameState) : EngineDefaultUpdatePeriod;
-	return GameState.GetServerWorldTimeSeconds() + ExpectedServerTimeStaleness(UpdatePeriod, GameState.GetNetUpdateFrequency());
+	// ADR 0003 B31: AVeloxGameState stamps the replicated time in PreReplication, so the engine's own estimate is exact
+	// up to the one-way latency (by design, B13) and one client frame.
+	return GameState.GetServerWorldTimeSeconds();
 }
 
-FVeloxShotTiming VeloxLagComp::BuildShotTiming(const APlayerController& PC, const FVector& Origin, const FVector& Dir, float RangeCm)
+float VeloxLagComp::ResolveFallbackDelay(const FDelayMemory& Memory, double Now, float ConstantFallback)
+{
+	const double Age = Now - Memory.Time;
+	return (Age >= 0.0 && Age < FallbackReuseSeconds) ? Memory.Delay : ConstantFallback;
+}
+
+FVeloxShotTiming VeloxLagComp::BuildShotTiming(const APlayerController& PC, const FVector& Origin, const FVector& Dir, float RangeCm, FDelayMemory& Memory)
 {
 	FVeloxShotTiming Timing;
 	UWorld* World = PC.GetWorld();
@@ -333,8 +333,7 @@ FVeloxShotTiming VeloxLagComp::BuildShotTiming(const APlayerController& PC, cons
 	}
 	const double Now = World->GetTimeSeconds();
 	const AGameStateBase* GameState = World->GetGameState();
-	// D5 (task 08b): corrected for the staleness of the replicated server time; on the server the correction is unused.
-	const double ServerNow = GameState ? (PC.GetNetMode() == NM_Client ? EstimateServerTime(*GameState) : GameState->GetServerWorldTimeSeconds()) : Now;
+	const double ServerNow = GameState ? EstimateServerTime(*GameState) : Now;
 	Timing.ViewServerTime = ServerNow;
 	if (PC.GetNetMode() != NM_Client)
 	{
@@ -400,13 +399,13 @@ FVeloxShotTiming VeloxLagComp::BuildShotTiming(const APlayerController& PC, cons
 	{
 		Timing.InterpolationDelay = static_cast<float>(DelaySum / DelayCount);
 		Timing.bDelayFromProxies = true;
+		Memory.Delay = Timing.InterpolationDelay;
+		Memory.Time = Now;
 	}
 	else
 	{
-		// ADR 0003 section 6 fallback.
-		// ADR 0003 B13: GetServerWorldTimeSeconds() already lags true server time by the one-way latency, so no ping
-		// term: the Linear smoother's steady-state lag plus the expected age of the last update.
-		Timing.InterpolationDelay = GetDefault<UVeloxMovementComponent>()->NetworkSimulatedSmoothLocationTime + 0.5f / UVeloxLagCompensationSubsystem::SampleRateHz;
+		// ADR 0003 B30 fallback: the last measurement while it is fresh, else the measured update-age mean.
+		Timing.InterpolationDelay = ResolveFallbackDelay(Memory, Now, VeloxLagCompCVars::FallbackInterpolationDelay());
 	}
 	Timing.InterpolationDelay = FMath::Clamp(Timing.InterpolationDelay, 0.f, static_cast<float>(VeloxLagCompCVars::MaxInterpolationDelay));
 	Timing.ViewServerTime = ServerNow - Timing.InterpolationDelay;

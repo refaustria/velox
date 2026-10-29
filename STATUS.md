@@ -39,6 +39,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
+- **2026-10-29 (Fable available again):** 08b reviewed (B30–B34), M1-07 ratified as ADR 0002 A35 (`docs/reviews/m2-08b-m1-07-review.md`). Running in worktrees: 08c fire-rate tolerance + switch supersede + MaxRewind 0.30 (dev-hard), 08d GameState server time + fallback delay (dev), M1-08 repair-slot logging (dev). Architect writes ADR 0004 (M3).
 - **M2 merged to `main` (2026-10-29).** 08b fixed FireRun D1–D5 (rendered-pose hint stamp |dt| 0.2 ms, server-time staleness, time-sized fire-rate bucket, switch completion, per-script lag): FireRun 5/5 with 11/11 rails at 100 ms RTT; build 50 tests green. Open: M2 human playtest on the Mac (`docs/playtests/m2-combat-checklist.md`); architect review of 08b (6 rulings in `docs/tasks/m2-combat/notes/08b-report.md`) when the Fable limit allows; LatchRun stray fixed by M1-07 (second old-move slot, take-off as event move; LatchRun 20/20, full list 3/3, 53 tests) — architect to ratify as ADR 0002 A35.
 - **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`.
 
@@ -55,7 +56,8 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
 
 ## Open questions for the human
-18. **Fable (architect) usage limit (2026-10-29)**: three architect runs today hit "You've reached your Fable limit". Blocked on it: ADR 0004 for M3 (game loop), review of 08b (6 rulings), ratification of M1-07 as A35. Options: (a) wait until the limit resets (`/usage-credits` shows when), (b) let `dev-hard` (Opus) draft ADR 0004 and have the architect review it later — a deviation from CLAUDE.md §3 that only you can approve. Until you answer I wait for (a) and keep non-architect work going.
+19. **`MaxRewindSeconds` 0.30 (architect, B34)**: the lag-compensation window grows from 0.25 s to 0.30 s so hits still register at 250 ms ping (otherwise the promise becomes "up to ~200 ms"). Larger window = shots from high-ping players reach a bit further into the past ("shot behind the wall"). Default 0.30 is being implemented (tunable); veto if you prefer 0.25.
+20. **Weapon key during your own switch (B33)**: today a second weapon key while the old weapon is being lowered is ignored; Q3 retargets the switch. Decide after the playtest (checklist item 20).
 - (answered 2026-10-29) Mac is **Intel**. UE 5.8's UBT still builds x86_64: `DefaultArchitecture=MacTargetArchitectureHost` in BaseEngine.ini picks x64 on an Intel host, so `build-mac.sh` needs no change. Requirements per Epic's 5.8 docs: macOS Sonoma 14.5+ and Xcode 26.0 or 26.1.1 (Xcode 26.4 is incompatible). Epic does not explicitly confirm Intel for 5.8; verify on the Mac that the Launcher installs and the editor starts.
 12. **M2 weapon numbers**: ADR 0003 defaults to Q3 vanilla (weapon switch waits for refire). CPMA numbers instead?
 13. **Spawn protection**: Q3 has none; ADR default 0 s (mechanism exists, test map uses 2 s). Keep 0?
