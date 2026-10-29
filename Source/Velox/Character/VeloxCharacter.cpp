@@ -501,7 +501,7 @@ void AVeloxCharacter::HandleDeath(const FVeloxDamageEvent& Event)
 	UVeloxAbilitySystemComponent* ASC = GetVeloxAbilitySystemComponent();
 	AController* DeadController = GetController();
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(CachedCombatSettings);
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath begin pawn=%s victim=%s instigator=%s tags=[%s]"), *GetName(), VictimPS ? *VictimPS->GetPlayerName() : TEXT("-"),
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath begin pawn=%s victim=%s instigator=%s tags=[%s]"), *GetName(), VictimPS ? *AVeloxPlayerState::VeloxPlayerLabel(VictimPS) : TEXT("-"),
 		*GetNameSafe(Event.Instigator.Get()), *Event.DamageTags.ToStringSimple());
 
 	// B8 1: GE_Dead first, so a second damage GE of this frame sees Velox.State.Dead and yields nothing.
@@ -582,7 +582,12 @@ void AVeloxCharacter::CompleteDeath()
 	if (UVeloxMovementComponent* Movement = GetVeloxMovementComponent(); Movement && !Movement->IsMovingOnGround() && Settings.CorpseDropMaxCm > 0.f)
 	{
 		// Died in the air: lie on the floor instead of hanging (collision is still on for this sweep).
+		// Pawns are ignored for this sweep: a corpse dying above another player must not come to rest on its head.
+		UCapsuleComponent* Capsule = GetCapsuleComponent();
+		const ECollisionResponse PawnResponse = Capsule->GetCollisionResponseToChannel(ECC_Pawn);
+		Capsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 		AddActorWorldOffset(FVector(0.0, 0.0, -Settings.CorpseDropMaxCm), true);
+		Capsule->SetCollisionResponseToChannel(ECC_Pawn, PawnResponse);
 	}
 	ApplyCorpseState();
 	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath step=4 corpse collision=%d movement_mode=%d lifetime=%.2f s"), GetCapsuleComponent()->GetCollisionEnabled() != ECollisionEnabled::NoCollision ? 1 : 0,
@@ -622,15 +627,13 @@ void AVeloxCharacter::ApplyCorpseState()
 	{
 		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
-	if (HasAuthority())
+	// Every role: a client corpse must not keep sliding until the server's MOVE_None arrives (the server is already there).
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
 	{
-		if (UCharacterMovementComponent* Movement = GetCharacterMovement())
-		{
-			Movement->StopMovementImmediately();
-			Movement->DisableMovement();
-		}
+		Movement->StopMovementImmediately();
+		Movement->DisableMovement();
 	}
-	else if (HealthComponent)
+	if (!HasAuthority() && HealthComponent)
 	{
 		HealthComponent->UninitializeFromAbilitySystem();
 	}

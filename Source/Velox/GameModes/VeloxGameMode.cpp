@@ -3,6 +3,7 @@
 #include "GameModes/VeloxGameMode.h"
 
 #include "AbilitySystemComponent.h"
+#include "Bots/VeloxDummyController.h"
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxCombatLog.h"
@@ -51,8 +52,8 @@ void AVeloxGameMode::PlayerDied(AVeloxPlayerState* Victim, AVeloxPlayerState* Ki
 	{
 		Killer->SetScore(Killer->GetScore() + 1.f);
 	}
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxKill victim=%s killer=%s suicide=%d tags=[%s] score_killer=%.0f score_victim=%.0f"), *Victim->GetPlayerName(),
-		Killer ? *Killer->GetPlayerName() : TEXT("-"), bSuicide ? 1 : 0, *DamageTags.ToStringSimple(), Killer ? Killer->GetScore() : 0.f, Victim->GetScore());
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxKill victim=%s killer=%s suicide=%d tags=[%s] score_killer=%.0f score_victim=%.0f"), *AVeloxPlayerState::VeloxPlayerLabel(Victim),
+		*AVeloxPlayerState::VeloxPlayerLabel(Killer), bSuicide ? 1 : 0, *DamageTags.ToStringSimple(), Killer ? Killer->GetScore() : 0.f, Victim->GetScore());
 
 	if (AVeloxGameState* VeloxGameState = GetGameState<AVeloxGameState>())
 	{
@@ -152,7 +153,7 @@ void AVeloxGameMode::AssignPlayerColor(AVeloxPlayerState& PlayerState)
 	const int32 Free = Used.Find(false);
 	const int32 Index = Free != INDEX_NONE ? Free : NumOthers % NumColors;
 	PlayerState.SetPlayerColorIndex(static_cast<uint8>(Index));
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxColor player=%s index=%d palette=%d"), *PlayerState.GetPlayerName(), Index, NumColors);
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxColor player=%s index=%d palette=%d"), *AVeloxPlayerState::VeloxPlayerLabel(&PlayerState), Index, NumColors);
 }
 
 bool AVeloxGameMode::IsStartOccupied(const FVector& Start, const AVeloxCharacter& Pawn)
@@ -223,6 +224,28 @@ AActor* AVeloxGameMode::ChoosePlayerStart_Implementation(AController* Player)
 		*Starts[Pick.Index]->GetName(), *StartLocations[Pick.Index].ToCompactString(), Starts.Num(), Pick.NumCandidates, Enemies.Num(),
 		Enemies.IsEmpty() ? -1.0 : VeloxSpawn::NearestEnemyDistance(StartLocations[Pick.Index], Enemies), Pick.bTelefrag ? 1 : 0);
 	return Starts[Pick.Index];
+}
+
+void AVeloxGameMode::RestartPlayer(AController* NewPlayer)
+{
+	const AVeloxDummyController* Dummy = Cast<AVeloxDummyController>(NewPlayer);
+	if (Dummy && Dummy->HasFixedRespawn())
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxRespawn controller=%s at %s class=%s (fixed)"), *NewPlayer->GetName(), *Dummy->GetRespawnTransform().GetLocation().ToCompactString(),
+			*GetNameSafe(Dummy->GetRespawnPawnClass()));
+		RestartPlayerAtTransform(NewPlayer, Dummy->GetRespawnTransform());
+		return;
+	}
+	Super::RestartPlayer(NewPlayer);
+}
+
+UClass* AVeloxGameMode::GetDefaultPawnClassForController_Implementation(AController* InController)
+{
+	if (const AVeloxDummyController* Dummy = Cast<AVeloxDummyController>(InController); Dummy && Dummy->HasFixedRespawn() && Dummy->GetRespawnPawnClass())
+	{
+		return Dummy->GetRespawnPawnClass();
+	}
+	return Super::GetDefaultPawnClassForController_Implementation(InController);
 }
 
 void AVeloxGameMode::RestartPlayerAtPlayerStart(AController* NewPlayer, AActor* StartSpot)

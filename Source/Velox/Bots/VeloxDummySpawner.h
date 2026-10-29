@@ -36,6 +36,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Velox|Dummy", meta = (ClampMin = "0", ClampMax = "1"))
 	float StrafeSpeedScale = 1.f;
 
+	/**
+	 * Permanent spawn protection (State_SpawnProtected): no damage, hits still confirm. For soak targets (task 08
+	 * FireRun) that must stay where the script aims; re-applied on every respawn.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Velox|Dummy")
+	bool bInvulnerable = false;
+
 protected:
 	virtual void BeginPlay() override;
 

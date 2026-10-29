@@ -3,9 +3,13 @@
 //                                      env  = 1000 environment damage dealt by the local player,
 //                                      rail = 100 damage first (health 25), then velox.combat.FireTest RG, so the real
 //                                             hitscan path kills it and ClientConfirmHit carries Kill=true.
+//   velox.combat.SpawnDummy [x y z] [invulnerable]
+//                                      spawns an AVeloxDummySpawner (and its dummy) at x y z, default DefaultDummyDistanceCm
+//                                      in front of the local player; invulnerable = permanent spawn protection.
 //   velox.combat.KillSelf              1000 environment damage on the local player's own pawn (suicide).
 // The dummy then goes through the whole B8 death order, corpse timer and the automatic respawn of AI controllers.
 
+#include "Bots/VeloxDummySpawner.h"
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxCombatLog.h"
@@ -27,6 +31,7 @@ namespace VeloxDeathCheats
 	constexpr int32 MaxRetries = 100;
 	constexpr float RetryIntervalSeconds = 0.1f;
 	constexpr int32 RailPreDamage = 100;
+	constexpr double DefaultDummyDistanceCm = 1000.0;
 
 	UWorld* AuthorityWorld(UWorld* World)
 	{
@@ -123,6 +128,54 @@ namespace VeloxDeathCheats
 		}
 	}
 
+	void SpawnDummyCommand(const TArray<FString>& Args, UWorld* World)
+	{
+		UWorld* Authority = AuthorityWorld(World);
+		if (!Authority)
+		{
+			return;
+		}
+		bool bInvulnerable = false;
+		TArray<double> Numbers;
+		for (const FString& Arg : Args)
+		{
+			if (Arg.Equals(TEXT("invulnerable"), ESearchCase::IgnoreCase))
+			{
+				bInvulnerable = true;
+			}
+			else if (Arg.IsNumeric())
+			{
+				Numbers.Add(FCString::Atod(*Arg));
+			}
+		}
+		FVector Location;
+		if (Numbers.Num() >= 3)
+		{
+			Location = FVector(Numbers[0], Numbers[1], Numbers[2]);
+		}
+		else if (const AVeloxCharacter* Player = LocalPawn(Authority))
+		{
+			Location = Player->GetActorLocation() + Player->GetActorForwardVector() * DefaultDummyDistanceCm;
+		}
+		else
+		{
+			UE_LOG(LogVeloxCombat, Warning, TEXT("SpawnDummy: give x y z or run with a local player pawn"));
+			return;
+		}
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Params.bDeferConstruction = true; // BeginPlay must not auto-spawn a second dummy
+		AVeloxDummySpawner* Spawner = Authority->SpawnActor<AVeloxDummySpawner>(Location, FRotator::ZeroRotator, Params);
+		if (Spawner)
+		{
+			Spawner->bAutoSpawn = false;
+			Spawner->bInvulnerable = bInvulnerable;
+			Spawner->FinishSpawning(FTransform(FRotator::ZeroRotator, Location));
+			const AVeloxCharacter* Dummy = Spawner->SpawnDummy();
+			UE_LOG(LogVeloxCombat, Log, TEXT("SpawnDummy: %s at %s invulnerable=%d"), *GetNameSafe(Dummy), *Location.ToCompactString(), bInvulnerable ? 1 : 0);
+		}
+	}
+
 	void KillSelfCommand(const TArray<FString>& Args, UWorld* World)
 	{
 		UWorld* Authority = AuthorityWorld(World);
@@ -149,6 +202,11 @@ namespace VeloxDeathCheats
 		TEXT("velox.combat.KillTest"),
 		TEXT("velox.combat.KillTest [env|rail]: kills the nearest AI-controlled dummy (env: 1000 damage; rail: 100 damage then a railgun shot, Kill=true in ClientConfirmHit). Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KillTestCommand));
+
+	FAutoConsoleCommandWithWorldAndArgs SpawnDummyCmd(
+		TEXT("velox.combat.SpawnDummy"),
+		TEXT("velox.combat.SpawnDummy [x y z] [invulnerable]: spawns a strafing dummy with a spawner (respawns in place); invulnerable = permanent spawn protection. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SpawnDummyCommand));
 
 	FAutoConsoleCommandWithWorldAndArgs KillSelfCmd(
 		TEXT("velox.combat.KillSelf"),
