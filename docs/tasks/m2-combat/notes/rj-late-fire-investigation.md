@@ -1,0 +1,10 @@
+# RocketJumpRun late fire RPC — investigation (dev-hard, 2026-10-29)
+Merged m2-combat (e52f65c) build OK, 53 tests. RocketJumpRun `--repeat 10` at 100 ms one-way / 2 % on an idle machine (load 1.7–2.2): 9/10. Logs: `Saved/CI/evidence-rj-late-fire/nettest/round-4/` (copied from the worktree run 20261029-213006-3881106).
+
+Root cause (round 4): client fires at fire_ts=1.750139 flight 55.6 ms event_ts=1.805739; client splash ts=1.808481 points 87. The packet with the fire move was lost: server `VeloxMoveRepaired ts=1.750139 slot=extra` (move repaired at once via A35), but the reliable fire RPC arrived 237 ms later: `VeloxShotOriginSnap seq=1 err_cm=108.9 reason=distance`, `VeloxProjectileShot client_ts=1.750139 last_ts=2.016827 flight_ms=104.0 event_ts=1.854157` → overdue event ran at the next server move: `VeloxSelfSplash role=server ts=2.025161 Z=182.15 dist=110.15 points=63`. Apex 365.6 vs 713.2 cm. No clamp (0.267 s < 0.30), no reset, no deadline-forced event, no cue cancel.
+
+Defects:
+(a) B25 assumes the fire RPC arrives no later than its move; under loss the move is repaired from the move stream immediately but the fire RPC waits for the reliable resend → overdue server event runs ~1 RTT late at a different position.
+(b) `VeloxShotValidation::ValidateOrigin` checks a late shot against the shooter's current eye → snap (109 cm) → different flight/event time. Applies to late hitscan from a moving shooter too.
+
+Proposals: A1 tag the fire move with `PendingShotSeq` in a custom network move data field; server holds the owner's later moves until the target data arrives or MaxRewindSeconds (then run + log `VeloxShotLate`) — other players see a ~1 RTT freeze on ~2 % of rockets. A2 carry origin/dir/seq in the move payload and schedule the self-splash from the move stream; GAS RPC only spawns/validates (more cheat surface). B validate origin against the eye at `FireMoveTimeStamp` from a per-move (ts, eye) ring ≥ MaxRewindSeconds, for hitscan and projectiles. Acceptance idea: RocketJumpRun 20/20 at 2 %, forced-loss variant dropping the fire packet, `VeloxShotOriginSnap` = 0 in RocketJumpRun and FireRun.
