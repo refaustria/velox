@@ -10,9 +10,12 @@
 #include "UObject/Object.h"
 #include "UI/VeloxGameUserSettings.h"
 #include "UI/VeloxHUDFormat.h"
+#include "UI/VeloxScoreboardFormat.h"
 
 #include "VeloxHUDViewModel.generated.h"
 
+class APlayerState;
+class AVeloxPickup;
 class AVeloxPlayerController;
 
 /** One active powerup as the HUD shows it: name and the whole seconds still running (Q3 ceil). */
@@ -49,6 +52,9 @@ public:
 
 	/** Clears to the empty state (no player state yet). */
 	void Reset();
+
+	/** Stops listening to the item registry (AVeloxHUD::EndPlay; also called when the world changes). */
+	void Unbind();
 
 	// ----- Local player (the numbers are rounded the Q3 way: to the nearest integer).
 	bool bHasPlayer = false;
@@ -89,4 +95,47 @@ public:
 
 	/** Hit marker tick length scale of the combat settings (Slate units at scale 1). */
 	float HitMarkerSize = 14.f;
+
+	// ----- Scoreboard (ADR 0004 sections 6 and 7).
+	/** Shown: the scoreboard key is held, or forced (PostMatch / intermission). */
+	bool bScoreboardVisible = false;
+	bool bScoreboardForced = false;
+	FString ScoreboardTitle;
+	FString ScoreboardLimits;
+	FString ScoreboardClock;
+	/** Winner line in PostMatch ("Anarki WINS" / "DRAW"). */
+	FString ScoreboardWinner;
+	/** Sorted: score desc, kills desc, deaths asc, name. */
+	TArray<VeloxScoreboardFormat::FRow> ScoreRows;
+	/** Names of the spectators (one line). */
+	FString SpectatorNames;
+	/** The ready button: shown when the toggle means something, with its label and the local state. */
+	bool bShowReadyButton = false;
+	bool bLocalReady = false;
+	FString ReadyButtonText;
+
+	// ----- Ready prompt, pickup message, spectator item timers.
+	FString ReadyPrompt;
+	FString PickupMessage;
+	/** 0..1 (fades over the last 40 % of PickupMessageSeconds); 0 = hidden. */
+	float PickupMessageAlpha = 0.f;
+	bool bShowItemTimers = false;
+	/** Major items (Mega, RA, YA, powerups); empty unless the mode rule shows them to this viewer. */
+	TArray<VeloxScoreboardFormat::FItemTimer> ItemTimers;
+
+	/** The local player is an active-slot-less spectator (bOnlySpectator). */
+	bool bSpectator = false;
+
+	/** Registry callback: a pickup was taken (server, or the client when the take replicated). Sets PickupMessage. */
+	void HandlePickupTaken(AVeloxPickup* Pickup, APlayerState* TakenBy);
+
+private:
+	void UpdateScoreboard(const AVeloxPlayerController& Controller, const class AVeloxGameState* GameState);
+	void UpdateItemTimers();
+
+	TWeakObjectPtr<const UWorld> BoundWorld;
+	TWeakObjectPtr<const APlayerState> LocalPlayerState;
+	double PickupMessageStart = -1e9;
+	bool bBoundRegistry = false;
+	FDelegateHandle PickupTakenHandle;
 };

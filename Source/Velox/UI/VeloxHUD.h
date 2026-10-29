@@ -10,6 +10,7 @@
 
 class UVeloxHUDViewModel;
 class UVeloxHUDWidget;
+class UVeloxScoreboardWidget;
 
 UCLASS(Config = Game)
 class VELOX_API AVeloxHUD : public AHUD
@@ -32,6 +33,7 @@ public:
 
 	UVeloxHUDWidget* GetHUDWidget() const { return HUDWidget; }
 	UVeloxHUDViewModel* GetViewModel() const { return ViewModel; }
+	UVeloxScoreboardWidget* GetScoreboardWidget() const { return ScoreboardWidget; }
 
 protected:
 	/**
@@ -40,6 +42,14 @@ protected:
 	 */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|HUD")
 	TSubclassOf<UVeloxHUDWidget> HUDWidgetClass;
+
+	/** The scoreboard widget class (DefaultGame.ini): UVeloxScoreboardWidget by default, a WBP_Scoreboard subclass later. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|HUD")
+	TSubclassOf<UVeloxScoreboardWidget> ScoreboardWidgetClass;
+
+	/** Viewport z-order of the scoreboard (above the HUD, below the menus). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|HUD")
+	int32 ScoreboardWidgetZOrder = 10;
 
 	/** Viewport z-order of the HUD widget (menus and the scoreboard go above). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|HUD")
@@ -52,5 +62,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UVeloxHUDWidget> HUDWidget;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UVeloxScoreboardWidget> ScoreboardWidget;
+
 	bool bLoggedWidget = false;
+	bool bLoggedScoreboardVisible = false;
 };

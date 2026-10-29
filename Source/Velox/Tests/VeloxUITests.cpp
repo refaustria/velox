@@ -11,11 +11,17 @@
 //                              direction of +X hits the local pawn; the server's GameplayCue.Character.Damage (Location = the
 //                              source behind the pawn) must reach the feedback component (yaw 180) and the live HUD view model
 //                              must show the Back quadrant (control yaw 0) and the widget its indicator. `quit` exits 0/1.
+//   Velox.UI.ScoreboardFormat  world-free (task M3-08): row sort, row/limits text, ready prompt matrix, pickup message, item timer rule/text/order.
+//                              The scoreboard rows, ready button, HUD ready prompt / pickup message / item timers are asserted inside the
+//                              widget checks (Velox.UI.HUDWidget, velox.ui.FtHUDWidget).
+//   velox.ui.FtScoreboard      live (`-game -nullrhi L_ItemTest`): scoreboard hidden, held, released, forced at PostMatch. `quit` exits 0/1.
+//   velox.ui.Scoreboard 0|1    holds / releases the scoreboard key; velox.ui.DumpScoreboard logs what the live widget shows.
 //   velox.ui.DumpHUD           logs the bound values of the live HUD widget of the first local player (`VeloxHUD bound ...`).
 
 #include "Misc/AutomationTest.h"
 
 #include "Blueprint/UserWidget.h"
+#include "Components/Border.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Engine/Engine.h"
@@ -31,6 +37,13 @@
 #include "UI/VeloxHUDFormat.h"
 #include "UI/VeloxHUDViewModel.h"
 #include "UI/VeloxHUDWidget.h"
+#include "UI/VeloxScoreboardFormat.h"
+#include "UI/VeloxScoreboardWidget.h"
+#include "GameModes/VeloxGameState.h"
+#include "Items/VeloxItemDefinition.h"
+#include "Items/VeloxItemRegistrySubsystem.h"
+#include "Items/VeloxPickup.h"
+#include "GameModes/VeloxPlayerController.h"
 #include "UI/VeloxUISettings.h"
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 
@@ -118,6 +131,100 @@ namespace VeloxUiTest
 		Model.CrosshairColor = FColor::Green;
 	}
 
+	/** The scoreboard widget against a hand-filled model: sorted rows, local highlight, winner, spectators, ready button. */
+	void RunScoreboardChecks(UWorld& World, FChecks& C)
+	{
+		const UVeloxUISettings& UI = UVeloxUISettings::Get();
+		UVeloxScoreboardWidget* Widget = CreateWidget<UVeloxScoreboardWidget>(&World, UVeloxScoreboardWidget::StaticClass());
+		C.Check(Widget != nullptr, TEXT("scoreboard_created"));
+		if (!Widget)
+		{
+			return;
+		}
+		Widget->AddToRoot();
+		UVeloxHUDViewModel* Model = NewObject<UVeloxHUDViewModel>(GetTransientPackage());
+		Model->AddToRoot();
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		C.Check(Widget->ScoreboardPanel && Widget->TitleText && Widget->LimitsText && Widget->ClockText && Widget->WinnerText && Widget->RowsBox
+			&& Widget->SpectatorsText && Widget->ReadyButton && Widget->ReadyButtonLabel, TEXT("scoreboard_elements_bound"));
+
+		// Without a model nothing happens; with a model that does not show the scoreboard the panel stays collapsed.
+		Widget->RefreshFromViewModel();
+		Widget->SetViewModel(Model);
+		Model->bHasPlayer = true;
+		Widget->RefreshFromViewModel();
+		C.Check(!Widget->IsPanelVisible(), TEXT("scoreboard_hidden_by_default"));
+
+		// Four players handed in unsorted; the view model sorts with SortRows (score, kills, deaths, name).
+		auto MakeRow = [](const TCHAR* Name, int32 Score, int32 Kills, int32 Deaths, int32 Ping, bool bReady, bool bLocal, const TCHAR* Powerups)
+		{
+			VeloxScoreboardFormat::FRow Row;
+			Row.Name = Name;
+			Row.Score = Score;
+			Row.Kills = Kills;
+			Row.Deaths = Deaths;
+			Row.PingMs = Ping;
+			Row.bReady = bReady;
+			Row.bLocal = bLocal;
+			Row.Powerups = Powerups;
+			Row.Color = FColor::Cyan;
+			return Row;
+		};
+		Model->ScoreRows = { MakeRow(TEXT("Sarge"), 3, 4, 5, 40, false, true, TEXT("")), MakeRow(TEXT("Anarki"), 7, 7, 1, 23, true, false, TEXT("QH")),
+			MakeRow(TEXT("Bones"), 3, 5, 5, 0, false, false, TEXT("")), MakeRow(TEXT("Xaero"), 3, 4, 2, 80, true, false, TEXT("")) };
+		VeloxScoreboardFormat::SortRows(Model->ScoreRows);
+		Model->bScoreboardVisible = true;
+		Model->bScoreboardForced = true;
+		Model->ScoreboardTitle = TEXT("Free For All");
+		Model->ScoreboardLimits = VeloxScoreboardFormat::LimitsText(20, 600);
+		Model->ScoreboardClock = TEXT("00:15");
+		Model->ScoreboardWinner = TEXT("Anarki WINS");
+		Model->SpectatorNames = TEXT("Visor, Crash");
+		Model->bShowReadyButton = true;
+		Model->ReadyButtonText = VeloxScoreboardFormat::ReadyButtonText(false, TEXT("F3"));
+		Widget->RefreshFromViewModel();
+
+		C.Check(Widget->IsPanelVisible(), TEXT("scoreboard_visible"));
+		C.Check(Widget->GetNumVisibleRows() == 4, TEXT("scoreboard_rows"), FString::Printf(TEXT("n=%d"), Widget->GetNumVisibleRows()));
+		C.CheckText(TEXT("scoreboard_row_0_leader"), Widget->GetRowText(0), TEXT("Anarki [QH]  7  7  1  23  READY"));
+		C.CheckText(TEXT("scoreboard_row_1_more_kills_wins_the_tie"), Widget->GetRowText(1), TEXT("Bones  3  5  5  0  -"));
+		C.CheckText(TEXT("scoreboard_row_2_fewer_deaths_wins"), Widget->GetRowText(2), TEXT("Xaero  3  4  2  80  READY"));
+		C.CheckText(TEXT("scoreboard_row_3"), Widget->GetRowText(3), TEXT("Sarge  3  4  5  40  -"));
+		C.Check(!Widget->IsRowLocal(0) && !Widget->IsRowLocal(1) && !Widget->IsRowLocal(2) && Widget->IsRowLocal(3), TEXT("scoreboard_local_row_highlight"));
+		C.CheckText(TEXT("scoreboard_title"), TextOf(Widget->TitleText), TEXT("Free For All"));
+		C.CheckText(TEXT("scoreboard_limits"), TextOf(Widget->LimitsText), TEXT("Fraglimit 20   Timelimit 10:00"));
+		C.CheckText(TEXT("scoreboard_clock"), TextOf(Widget->ClockText), TEXT("00:15"));
+		C.CheckText(TEXT("scoreboard_winner"), TextOf(Widget->WinnerText), TEXT("Anarki WINS"));
+		C.Check(Widget->WinnerText && Widget->WinnerText->GetVisibility() != ESlateVisibility::Collapsed, TEXT("scoreboard_winner_visible"));
+		C.CheckText(TEXT("scoreboard_spectators"), TextOf(Widget->SpectatorsText), TEXT("Spectators: Visor, Crash"));
+		C.Check(Widget->IsReadyButtonVisible(), TEXT("scoreboard_ready_button_visible"));
+		C.CheckText(TEXT("scoreboard_ready_button_label"), Widget->GetReadyButtonLabel(), TEXT("Ready (F3)"));
+		C.Check(Widget->ScoreboardPanel && Widget->ScoreboardPanel->GetBrushColor().Equals(UI.ScoreboardBackgroundColor), TEXT("scoreboard_background"));
+		Widget->ClickReadyButton();
+		C.Check(true, TEXT("scoreboard_ready_click_without_controller"));
+
+		// Fewer players, no spectators, no winner, no button: the extra rows collapse.
+		Model->ScoreRows.SetNum(2);
+		Model->SpectatorNames.Reset();
+		Model->ScoreboardWinner.Reset();
+		Model->bShowReadyButton = false;
+		Widget->RefreshFromViewModel();
+		C.Check(Widget->GetNumVisibleRows() == 2, TEXT("scoreboard_rows_shrink"));
+		C.Check(Widget->SpectatorsText && Widget->SpectatorsText->GetVisibility() == ESlateVisibility::Collapsed, TEXT("scoreboard_spectators_hidden"));
+		C.Check(Widget->WinnerText && Widget->WinnerText->GetVisibility() == ESlateVisibility::Collapsed, TEXT("scoreboard_winner_hidden"));
+		C.Check(!Widget->IsReadyButtonVisible(), TEXT("scoreboard_ready_button_hidden"));
+
+		// Key released and no intermission: the panel goes away again.
+		Model->bScoreboardVisible = false;
+		Widget->RefreshFromViewModel();
+		C.Check(!Widget->IsPanelVisible(), TEXT("scoreboard_hidden_again"));
+		C.Check(Widget->DescribeBoundValues().Contains(TEXT("visible=0")), TEXT("scoreboard_describe"), Widget->DescribeBoundValues());
+
+		Widget->SetViewModel(nullptr);
+		Model->RemoveFromRoot();
+		Widget->RemoveFromRoot();
+	}
+
 	/** FT_HUDWidget: builds the widget in World, binds the hand-filled model, asserts what the elements show. */
 	void RunWidgetChecks(UWorld& World, FChecks& C)
 	{
@@ -178,6 +285,36 @@ namespace VeloxUiTest
 		C.Check(bBarsVisible && bDotVisible, TEXT("crosshair_cross_dot"));
 		C.Check(Widget->DescribeBoundValues().Contains(TEXT("health=87")), TEXT("describe"), Widget->DescribeBoundValues());
 
+		// Ready prompt, pickup message, spectator item timers (task M3-08).
+		C.Check(!Widget->IsPickupMessageVisible() && Widget->GetNumVisibleItemTimerRows() == 0, TEXT("hud_ext_defaults_hidden"));
+		Model->ReadyPrompt = TEXT("Press F3 when you are ready");
+		Model->PickupMessage = TEXT("Mega Health");
+		Model->PickupMessageAlpha = 1.f;
+		Model->bShowItemTimers = true;
+		VeloxScoreboardFormat::FItemTimer Mega;
+		Mega.ItemName = TEXT("Mega Health");
+		Mega.bAvailable = false;
+		Mega.SecondsLeft = 22.4;
+		Mega.TakenBy = TEXT("Anarki");
+		Mega.Text = VeloxScoreboardFormat::ItemTimerText(Mega);
+		VeloxScoreboardFormat::FItemTimer Armor;
+		Armor.ItemName = TEXT("Red Armor");
+		Armor.Text = VeloxScoreboardFormat::ItemTimerText(Armor);
+		Model->ItemTimers = { Mega, Armor };
+		Widget->RefreshFromViewModel();
+		C.CheckText(TEXT("ready_prompt_text"), TextOf(Widget->ReadyPromptText), TEXT("Press F3 when you are ready"));
+		C.Check(Widget->ReadyPromptText && Widget->ReadyPromptText->GetVisibility() != ESlateVisibility::Collapsed, TEXT("ready_prompt_visible"));
+		C.CheckText(TEXT("pickup_message_text"), TextOf(Widget->PickupMessageText), TEXT("Mega Health"));
+		C.Check(Widget->IsPickupMessageVisible(), TEXT("pickup_message_visible"));
+		C.Check(Widget->GetNumVisibleItemTimerRows() == 2, TEXT("item_timer_rows"), FString::Printf(TEXT("n=%d"), Widget->GetNumVisibleItemTimerRows()));
+		C.CheckText(TEXT("item_timer_taken_row"), Widget->GetItemTimerRowText(0), TEXT("Mega Health 00:23 (Anarki)"));
+		C.CheckText(TEXT("item_timer_up_row"), Widget->GetItemTimerRowText(1), TEXT("Red Armor UP"));
+		Model->PickupMessageAlpha = 0.f;
+		Model->bShowItemTimers = false;
+		Model->ReadyPrompt.Reset();
+		Widget->RefreshFromViewModel();
+		C.Check(!Widget->IsPickupMessageVisible() && Widget->GetNumVisibleItemTimerRows() == 0 && Widget->ReadyPromptText->GetVisibility() == ESlateVisibility::Collapsed, TEXT("hud_ext_hidden_again"));
+
 		// Second state: low health, low ammo, nothing else; then dead with the respawn prompt.
 		Model->Health = 25;
 		Model->Ammo = 3;
@@ -206,6 +343,8 @@ namespace VeloxUiTest
 		Widget->SetViewModel(nullptr);
 		Model->RemoveFromRoot();
 		Widget->RemoveFromRoot();
+
+		RunScoreboardChecks(World, C);
 	}
 
 	/** Private game world (no game mode); the widget needs a world and nothing else. */
@@ -447,6 +586,120 @@ bool FVeloxUIHUDWidgetTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxUIScoreboardFormatTest, "Velox.UI.ScoreboardFormat", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FVeloxUIScoreboardFormatTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxScoreboardFormat;
+
+	// Sorting (ADR 0004 section 6): score desc, kills desc, deaths asc, name (case-insensitive).
+	auto MakeRow = [](const TCHAR* Name, int32 Score, int32 Kills, int32 Deaths)
+	{
+		FRow Row;
+		Row.Name = Name;
+		Row.Score = Score;
+		Row.Kills = Kills;
+		Row.Deaths = Deaths;
+		return Row;
+	};
+	TArray<FRow> Rows = { MakeRow(TEXT("zed"), 2, 2, 0), MakeRow(TEXT("Bob"), 5, 6, 1), MakeRow(TEXT("amy"), 5, 7, 3), MakeRow(TEXT("Cat"), 5, 6, 0), MakeRow(TEXT("Abe"), 5, 6, 1), MakeRow(TEXT("neg"), -1, 0, 4) };
+	SortRows(Rows);
+	TArray<FString> Order;
+	for (const FRow& Row : Rows)
+	{
+		Order.Add(Row.Name);
+	}
+	TestEqual(TEXT("sort order"), FString::Join(Order, TEXT(",")), FString(TEXT("amy,Cat,Abe,Bob,zed,neg")));
+	TArray<FRow> Empty;
+	SortRows(Empty);
+	TestEqual(TEXT("sort empty"), Empty.Num(), 0);
+
+	FRow Row = MakeRow(TEXT("Anarki"), 7, 8, 2);
+	Row.PingMs = 23;
+	Row.bReady = true;
+	TestEqual(TEXT("row text"), RowText(Row), FString(TEXT("Anarki  7  8  2  23  READY")));
+	Row.Powerups = TEXT("QR");
+	Row.bReady = false;
+	TestEqual(TEXT("row text with powerups"), RowText(Row), FString(TEXT("Anarki [QR]  7  8  2  23  -")));
+
+	TestEqual(TEXT("limits both"), LimitsText(20, 600), FString(TEXT("Fraglimit 20   Timelimit 10:00")));
+	TestEqual(TEXT("limits time only"), LimitsText(0, 90), FString(TEXT("Timelimit 01:30")));
+	TestEqual(TEXT("limits frags only"), LimitsText(5, 0), FString(TEXT("Fraglimit 5")));
+	TestEqual(TEXT("limits none"), LimitsText(0, 0), FString());
+
+	// Ready prompt: only where ready means something.
+	FReadyInput Ready;
+	Ready.Phase = EVeloxMatchPhase::Warmup;
+	Ready.bRequireReady = false;
+	TestFalse(TEXT("FFA warmup: ready does nothing"), CanToggleReady(Ready));
+	TestEqual(TEXT("FFA warmup: no prompt"), ReadyPromptText(Ready, TEXT("F3")), FString());
+	Ready.bRequireReady = true;
+	TestTrue(TEXT("duel warmup: ready counts"), CanToggleReady(Ready));
+	TestEqual(TEXT("duel warmup prompt"), ReadyPromptText(Ready, TEXT("F3")), FString(TEXT("Press F3 when you are ready")));
+	Ready.bReady = true;
+	TestEqual(TEXT("duel warmup ready prompt"), ReadyPromptText(Ready, TEXT("F3")), FString(TEXT("READY - waiting for the opponent")));
+	Ready.bSpectator = true;
+	TestFalse(TEXT("spectators cannot ready"), CanToggleReady(Ready));
+	TestEqual(TEXT("spectator: no prompt"), ReadyPromptText(Ready, TEXT("F3")), FString());
+	Ready.bSpectator = false;
+	Ready.Phase = EVeloxMatchPhase::PostMatch;
+	Ready.bRequireReady = false;
+	Ready.bReady = false;
+	TestTrue(TEXT("postmatch: ready counts in any mode"), CanToggleReady(Ready));
+	TestEqual(TEXT("postmatch prompt"), ReadyPromptText(Ready, TEXT("F3")), FString(TEXT("Press F3 to play the next match now")));
+	Ready.bReady = true;
+	TestEqual(TEXT("postmatch ready prompt"), ReadyPromptText(Ready, TEXT("F3")), FString(TEXT("READY - waiting for the others")));
+	for (const EVeloxMatchPhase Phase : { EVeloxMatchPhase::Countdown, EVeloxMatchPhase::Live, EVeloxMatchPhase::Overtime })
+	{
+		Ready.Phase = Phase;
+		Ready.bRequireReady = true;
+		TestFalse(TEXT("no ready toggle while the match runs"), CanToggleReady(Ready));
+	}
+	TestEqual(TEXT("button text"), ReadyButtonText(false, TEXT("F3")), FString(TEXT("Ready (F3)")));
+	TestEqual(TEXT("button text ready"), ReadyButtonText(true, TEXT("F3")), FString(TEXT("READY (F3 to cancel)")));
+
+	// Pickup message.
+	TestEqual(TEXT("own pickup"), PickupMessageText(TEXT("Mega Health"), TEXT("Anarki"), true, false), FString(TEXT("Mega Health")));
+	TestEqual(TEXT("other's pickup, not watching"), PickupMessageText(TEXT("Mega Health"), TEXT("Anarki"), false, false), FString());
+	TestEqual(TEXT("other's pickup, spectator"), PickupMessageText(TEXT("Mega Health"), TEXT("Anarki"), false, true), FString(TEXT("Anarki took Mega Health")));
+	TestEqual(TEXT("no taker name"), PickupMessageText(TEXT("Mega Health"), FString(), false, true), FString());
+	TestEqual(TEXT("no item name"), PickupMessageText(FString(), TEXT("Anarki"), true, true), FString());
+
+	// Item timer visibility: the mode rule against the viewer's role.
+	TestFalse(TEXT("nobody: spectator"), ItemTimersVisible(EVeloxItemTimerVisibility::Nobody, true));
+	TestTrue(TEXT("spectators: spectator"), ItemTimersVisible(EVeloxItemTimerVisibility::Spectators, true));
+	TestFalse(TEXT("spectators: player"), ItemTimersVisible(EVeloxItemTimerVisibility::Spectators, false));
+	TestTrue(TEXT("everyone: player"), ItemTimersVisible(EVeloxItemTimerVisibility::Everyone, false));
+
+	// Item timer lines and order.
+	FItemTimer Mega;
+	Mega.ItemName = TEXT("Mega Health");
+	Mega.bAvailable = false;
+	Mega.SecondsLeft = 22.4;
+	TestEqual(TEXT("timer without taker (ceil)"), ItemTimerText(Mega), FString(TEXT("Mega Health 00:23")));
+	Mega.TakenBy = TEXT("Anarki");
+	Mega.SecondsLeft = 61.0;
+	TestEqual(TEXT("timer with taker"), ItemTimerText(Mega), FString(TEXT("Mega Health 01:01 (Anarki)")));
+	FItemTimer Armor;
+	Armor.ItemName = TEXT("Red Armor");
+	TestEqual(TEXT("available"), ItemTimerText(Armor), FString(TEXT("Red Armor UP")));
+	FItemTimer Quad;
+	Quad.ItemName = TEXT("Quad Damage");
+	Quad.bAvailable = false;
+	Quad.SecondsLeft = 9.0;
+	FItemTimer Yellow;
+	Yellow.ItemName = TEXT("Yellow Armor");
+	TArray<FItemTimer> Timers = { Yellow, Mega, Armor, Quad };
+	SortTimers(Timers);
+	TArray<FString> TimerOrder;
+	for (const FItemTimer& Timer : Timers)
+	{
+		TimerOrder.Add(Timer.ItemName);
+	}
+	TestEqual(TEXT("timer order: soonest first, then available by name"), FString::Join(TimerOrder, TEXT(",")), FString(TEXT("Quad Damage,Mega Health,Red Armor,Yellow Armor")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
 
 // ------------------------------------------------------------------------------------------------ console commands
@@ -586,6 +839,201 @@ namespace VeloxUiTest
 		TEXT("velox.ui.DumpHUD"),
 		TEXT("velox.ui.DumpHUD: logs the bound values of the live HUD widget (VeloxHUD dump ...). Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&DumpHUDCommand));
+
+	struct FScoreboardFtState
+	{
+		TWeakObjectPtr<UWorld> World;
+		bool bQuit = false;
+		int32 RetriesLeft = 100;
+		FChecks C;
+		FString ExpectedPickupMessage;
+	};
+
+	void FinishScoreboardFt(const TSharedRef<FScoreboardFtState>& State)
+	{
+		UE_LOG(LogTemp, Log, TEXT("VeloxUIFt scoreboard result=%s failed=%d"), State->C.Failed == 0 ? TEXT("PASS") : TEXT("FAIL"), State->C.Failed);
+		if (State->bQuit)
+		{
+			FPlatformMisc::RequestExitWithStatus(false, State->C.Failed == 0 ? 0 : 1);
+		}
+	}
+
+	void ScoreboardFtAfter(const TSharedRef<FScoreboardFtState>& State, float Seconds, TFunction<void()> Next)
+	{
+		UWorld* World = State->World.Get();
+		if (!World)
+		{
+			FinishScoreboardFt(State);
+			return;
+		}
+		FTimerHandle Handle;
+		World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateLambda(MoveTemp(Next)), Seconds, false);
+	}
+
+	AVeloxHUD* ScoreboardFtHud(const TSharedRef<FScoreboardFtState>& State, AVeloxPlayerController** OutController = nullptr)
+	{
+		UWorld* World = State->World.Get();
+		AVeloxPlayerController* PC = World ? Cast<AVeloxPlayerController>(World->GetFirstPlayerController()) : nullptr;
+		if (OutController)
+		{
+			*OutController = PC;
+		}
+		return PC ? Cast<AVeloxHUD>(PC->GetHUD()) : nullptr;
+	}
+
+	/** PostMatch: forced open, with the winner line, the ready prompt and the button. */
+	void ScoreboardFtPostMatch(const TSharedRef<FScoreboardFtState>& State)
+	{
+		AVeloxHUD* Hud = ScoreboardFtHud(State);
+		if (!Hud || !Hud->GetViewModel() || !Hud->GetScoreboardWidget())
+		{
+			State->C.Check(false, TEXT("scoreboard_live_postmatch"), TEXT("lost the HUD"));
+			FinishScoreboardFt(State);
+			return;
+		}
+		const UVeloxHUDViewModel& Model = *Hud->GetViewModel();
+		// Slate does not tick widgets under NullRHI: refresh by hand, as the widgets' NativeTick would.
+		UVeloxScoreboardWidget& Board = *Hud->GetScoreboardWidget();
+		Board.RefreshFromViewModel();
+		if (Hud->GetHUDWidget())
+		{
+			Hud->GetHUDWidget()->RefreshFromViewModel();
+		}
+		const AVeloxGameState* GameState = State->World->GetGameState<AVeloxGameState>();
+		State->C.Check(Model.bScoreboardForced && Model.bScoreboardVisible && Board.IsPanelVisible(), TEXT("scoreboard_live_forced_at_postmatch"),
+			FString::Printf(TEXT("visible=%d forced=%d phase=%d"), Model.bScoreboardVisible ? 1 : 0, Model.bScoreboardForced ? 1 : 0, GameState ? static_cast<int32>(GameState->GetPhase()) : -1));
+		State->C.Check(!Model.ScoreboardWinner.IsEmpty(), TEXT("scoreboard_live_winner_line"), Model.ScoreboardWinner);
+		State->C.Check(Model.bShowReadyButton && Board.IsReadyButtonVisible() && !Model.ReadyPrompt.IsEmpty(), TEXT("scoreboard_live_ready_prompt_and_button"), Model.ReadyPrompt);
+		State->C.Check(Hud->GetHUDWidget() && Hud->GetHUDWidget()->DescribeBoundValues().Contains(TEXT("ready_prompt='Press")), TEXT("scoreboard_live_hud_prompt"));
+		UE_LOG(LogTemp, Log, TEXT("VeloxScoreboard live %s"), *Board.DescribeBoundValues());
+		FinishScoreboardFt(State);
+	}
+
+	void ScoreboardFtReleased(const TSharedRef<FScoreboardFtState>& State)
+	{
+		AVeloxHUD* Hud = ScoreboardFtHud(State);
+		if (Hud && Hud->GetScoreboardWidget())
+		{
+			Hud->GetScoreboardWidget()->RefreshFromViewModel();
+		}
+		State->C.Check(Hud && Hud->GetScoreboardWidget() && !Hud->GetScoreboardWidget()->IsPanelVisible(), TEXT("scoreboard_live_released_hidden"));
+		if (!Hud)
+		{
+			FinishScoreboardFt(State);
+			return;
+		}
+		// The registry's take event for the local player shows the item name as the pickup message.
+		UWorld* World = State->World.Get();
+		UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(World);
+		TArray<AVeloxPickup*> Pickups = Registry ? Registry->GetPickups() : TArray<AVeloxPickup*>();
+		State->C.Check(Pickups.Num() > 0 && Pickups[0]->GetDefinition(), TEXT("scoreboard_live_pickup_available"), FString::Printf(TEXT("n=%d"), Pickups.Num()));
+		if (Pickups.Num() > 0 && Pickups[0]->GetDefinition())
+		{
+			State->ExpectedPickupMessage = Pickups[0]->GetDefinition()->DisplayName.ToString();
+			Registry->OnPickupTaken.Broadcast(Pickups[0], World->GetFirstPlayerController()->PlayerState);
+		}
+		ScoreboardFtAfter(State, 0.2f, [State]()
+		{
+			AVeloxHUD* Hud2 = ScoreboardFtHud(State);
+			if (Hud2 && Hud2->GetHUDWidget())
+			{
+				Hud2->GetHUDWidget()->RefreshFromViewModel();
+				State->C.Check(Hud2->GetViewModel()->PickupMessage == State->ExpectedPickupMessage && Hud2->GetHUDWidget()->IsPickupMessageVisible(), TEXT("scoreboard_live_pickup_message"),
+					FString::Printf(TEXT("message='%s' expected='%s'"), *Hud2->GetViewModel()->PickupMessage, *State->ExpectedPickupMessage));
+			}
+			GEngine->Exec(State->World.Get(), TEXT("velox.match.Phase PostMatch"));
+			ScoreboardFtAfter(State, 0.5f, [State]() { ScoreboardFtPostMatch(State); });
+		});
+	}
+
+	/** Held (Tab): visible, not forced, one row per player. */
+	void ScoreboardFtHeld(const TSharedRef<FScoreboardFtState>& State)
+	{
+		AVeloxPlayerController* PC = nullptr;
+		AVeloxHUD* Hud = ScoreboardFtHud(State, &PC);
+		if (!Hud || !Hud->GetViewModel() || !Hud->GetScoreboardWidget())
+		{
+			State->C.Check(false, TEXT("scoreboard_live_held"), TEXT("lost the HUD"));
+			FinishScoreboardFt(State);
+			return;
+		}
+		const UVeloxHUDViewModel& Model = *Hud->GetViewModel();
+		Hud->GetScoreboardWidget()->RefreshFromViewModel();
+		State->C.Check(Model.bScoreboardVisible && !Model.bScoreboardForced && Hud->GetScoreboardWidget()->IsPanelVisible(), TEXT("scoreboard_live_held_visible"),
+			FString::Printf(TEXT("visible=%d forced=%d"), Model.bScoreboardVisible ? 1 : 0, Model.bScoreboardForced ? 1 : 0));
+		State->C.Check(Model.ScoreRows.Num() >= 1 && Hud->GetScoreboardWidget()->GetNumVisibleRows() == Model.ScoreRows.Num(), TEXT("scoreboard_live_rows"),
+			FString::Printf(TEXT("model=%d widget=%d"), Model.ScoreRows.Num(), Hud->GetScoreboardWidget()->GetNumVisibleRows()));
+		PC->SetScoreboardHeld(false);
+		ScoreboardFtAfter(State, 0.3f, [State]() { ScoreboardFtReleased(State); });
+	}
+
+	/** The live HUD of the first local player: held scoreboard, then the one forced at PostMatch. */
+	void ScoreboardFtRun(const TSharedRef<FScoreboardFtState>& State)
+	{
+		UWorld* World = State->World.Get();
+		AVeloxPlayerController* PC = nullptr;
+		AVeloxHUD* Hud = ScoreboardFtHud(State, &PC);
+		if (!Hud || !Hud->GetViewModel() || !Hud->GetScoreboardWidget() || !PC->GetPawn() || !World->GetGameState<AVeloxGameState>())
+		{
+			if (World && --State->RetriesLeft > 0)
+			{
+				ScoreboardFtAfter(State, 0.1f, [State]() { ScoreboardFtRun(State); });
+				return;
+			}
+			State->C.Check(false, TEXT("scoreboard_live_setup"), TEXT("no HUD, scoreboard widget, pawn or game state"));
+			FinishScoreboardFt(State);
+			return;
+		}
+		State->C.Check(true, TEXT("scoreboard_live_setup"));
+		State->C.Check(!Hud->GetViewModel()->bScoreboardVisible && !Hud->GetScoreboardWidget()->IsPanelVisible(), TEXT("scoreboard_live_hidden_at_start"));
+		PC->SetScoreboardHeld(true);
+		ScoreboardFtAfter(State, 0.3f, [State]() { ScoreboardFtHeld(State); });
+	}
+
+	void FtScoreboardCommand(const TArray<FString>& Args, UWorld* InWorld)
+	{
+		TSharedRef<FScoreboardFtState> State = MakeShared<FScoreboardFtState>();
+		State->World = InWorld;
+		for (const FString& Arg : Args)
+		{
+			State->bQuit |= Arg.Equals(TEXT("quit"), ESearchCase::IgnoreCase);
+		}
+		ScoreboardFtRun(State);
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs FtScoreboardCmd(
+		TEXT("velox.ui.FtScoreboard"),
+		TEXT("velox.ui.FtScoreboard [quit]: live scoreboard check (`-game -nullrhi L_ItemTest`, standalone): hidden at start, shown while held, hidden on release, forced open at PostMatch with winner line, ready prompt and button. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FtScoreboardCommand));
+
+	void ScoreboardHoldCommand(const TArray<FString>& Args, UWorld* InWorld)
+	{
+		if (AVeloxPlayerController* PC = InWorld ? Cast<AVeloxPlayerController>(InWorld->GetFirstPlayerController()) : nullptr)
+		{
+			PC->SetScoreboardHeld(Args.Num() == 0 || Args[0] != TEXT("0"));
+		}
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs ScoreboardHoldCmd(
+		TEXT("velox.ui.Scoreboard"),
+		TEXT("velox.ui.Scoreboard [0|1]: holds (default) or releases the scoreboard key of the first local player. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&ScoreboardHoldCommand));
+
+	void DumpScoreboardCommand(const TArray<FString>& Args, UWorld* InWorld)
+	{
+		for (TActorIterator<AVeloxHUD> It(InWorld); It; ++It)
+		{
+			if (const UVeloxScoreboardWidget* Board = It->GetScoreboardWidget())
+			{
+				UE_LOG(LogTemp, Log, TEXT("VeloxScoreboard dump %s"), *Board->DescribeBoundValues());
+			}
+		}
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs DumpScoreboardCmd(
+		TEXT("velox.ui.DumpScoreboard"),
+		TEXT("velox.ui.DumpScoreboard: logs what the live scoreboard widget shows (VeloxScoreboard dump ...). Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&DumpScoreboardCommand));
 }
 
 #endif

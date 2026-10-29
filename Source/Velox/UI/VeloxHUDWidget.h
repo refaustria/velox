@@ -75,6 +75,9 @@ public:
 	/** Intensity-driven visibility of the damage indicator of a VeloxHUDFormat::EDamageQuadrant. */
 	bool IsDamageIndicatorVisible(int32 Quadrant) const;
 	bool IsHitMarkerVisible() const;
+	int32 GetNumVisibleItemTimerRows() const { return NumVisibleItemTimerRows; }
+	FString GetItemTimerRowText(int32 Index) const;
+	bool IsPickupMessageVisible() const;
 
 	// ----- Elements (all optional, bound by name in a Blueprint subclass).
 	UPROPERTY(BlueprintReadOnly, Meta = (BindWidgetOptional))
@@ -100,6 +103,18 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> DeathPromptText;
+
+	/** Ready prompt (Warmup of a ready-gated mode, PostMatch) under the banner. */
+	UPROPERTY(BlueprintReadOnly, Meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> ReadyPromptText;
+
+	/** Pickup message ("Mega Health", "Anarki took Mega Health" for spectators), fades out. */
+	UPROPERTY(BlueprintReadOnly, Meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> PickupMessageText;
+
+	/** Spectator item timers (major items), left side; rows are added dynamically. */
+	UPROPERTY(BlueprintReadOnly, Meta = (BindWidgetOptional))
+	TObjectPtr<UVerticalBox> ItemTimerBox;
 
 	/** Parents of the dynamic rows (the widget adds/removes children as the data changes). */
 	UPROPERTY(BlueprintReadOnly, Meta = (BindWidgetOptional))
@@ -170,6 +185,7 @@ private:
 	void RefreshHitMarker(const UVeloxHUDViewModel& Model);
 	void RefreshDamageIndicators(const UVeloxHUDViewModel& Model);
 	void RefreshMatch(const UVeloxHUDViewModel& Model);
+	void RefreshItemTimers(const UVeloxHUDViewModel& Model);
 
 	UImage* MakeBar(FName Name);
 
@@ -185,7 +201,11 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTextBlock>> PowerupRows;
 
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextBlock>> ItemTimerRows;
+
 	int32 NumVisibleFeedRows = 0;
 	int32 NumVisibleWeaponCells = 0;
 	int32 NumVisiblePowerupRows = 0;
+	int32 NumVisibleItemTimerRows = 0;
 };
