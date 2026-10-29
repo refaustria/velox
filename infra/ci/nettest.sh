@@ -236,6 +236,8 @@ gaps = [kv(l) for l in S if "VeloxMoveGap ts=" in l]
 rpc_lines = [kv(l) for l in C if "VeloxResend old=" in l or "VeloxSend new=" in l]
 resends = [d for d in rpc_lines if "old" in d]
 repaired = [kv(l) for l in S if "VeloxMoveRepaired ts=" in l]
+# Task M1-08 (A35): repairs by the second old-move slot (slot=extra); `repaired` counts both slots.
+repaired_extra = sum(1 for l in S if "VeloxMoveRepaired ts=" in l and "slot=extra" in l)
 # Optional position logs (VELOX_NETTEST_EXEC="log LogNetPlayerMovement VeryVerbose"): move stamp -> position.
 POS_RE = re.compile(r"(ClientMove|ServerMove) Time (\S+) .*?Position X=(\S+) Y=(\S+) Z=(\S+)")
 def positions(lines, kind):
@@ -746,11 +748,11 @@ nx = [c[1] for c in nonecho]
 cmax = max(nx) if nx else 0.0
 cmean = sum(nx) / len(nx) if nx else 0.0
 strays_le = sum(1 for c in nonecho if c[1] <= 2.5)   # A34(v): A31-class strays at merged moves during speed changes
-# Task M1-07 (A32's deferred cl_packetdup 2): RPCs that also carried an extra old move (diagnostic only).
-extras = sum(1 for d in resends if num(d, "extra", -1.0) >= 0.0)
-detail.append("replays=%d acks_ignored=%d rpcs=%d extra=%d" % (len(replays), acks_ignored, nrpc, extras))
-row = "%-18s moves=%-5d C=%-3d echoes=%-3d gaps=%-3d repaired=%-3d resent=%-5d strays_le_2_5=%-2d max=%-6.2f mean=%-5.2f %s  %s  %s" % (
-    script, moves, ncorr, len(echoes), len(gaps), len(repaired), len(resends), strays_le, cmax, cmean, "FAIL" if fails else "PASS", " ".join(detail), ("; ".join(notes)))
+# Task M1-07 (A32's deferred cl_packetdup 2): RPCs that also carried an extra old move (VeloxResend extra= stamp != -1).
+extras = sum(1 for d in resends if num(d, "extra", -1.0) != -1.0)
+detail.append("replays=%d acks_ignored=%d rpcs=%d" % (len(replays), acks_ignored, nrpc))
+row = "%-18s moves=%-5d C=%-3d echoes=%-3d gaps=%-3d repaired=%-3d repaired_extra=%-3d resent=%-5d resent_extra=%-4d strays_le_2_5=%-2d max=%-6.2f mean=%-5.2f %s  %s  %s" % (
+    script, moves, ncorr, len(echoes), len(gaps), len(repaired), repaired_extra, len(resends), extras, strays_le, cmax, cmean, "FAIL" if fails else "PASS", " ".join(detail), ("; ".join(notes)))
 with open(result_path, "w") as out:
     out.write(row + "\n")
     for fl in fails:

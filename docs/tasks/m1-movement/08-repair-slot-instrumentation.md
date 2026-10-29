@@ -2,7 +2,7 @@
 
 **Milestone:** M1 Movement (follow-up of M1-07)
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged into m2-combat; repaired_extra 1–15 per script)
 **Depends on:** M1-07 (1287b23), ADR 0002 A35; review `docs/reviews/m2-08b-m1-07-review.md` ruling 9, defect 5
 
 ## Goal
