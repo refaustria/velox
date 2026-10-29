@@ -60,6 +60,12 @@ struct FVeloxProjectileExplosionInfo
 	/** Splash victims and their Q3 points (the owner only when the explosion resolved its self splash). */
 	TArray<TPair<TWeakObjectPtr<AActor>, int32>> Splash;
 	bool bOwnerSelfSplashDeferred = false;
+	/** B26 hit confirm: non-owner victims of this explosion, health + armor they lost (clamped 255) and whether one died. */
+	int32 ConfirmedVictims = 0;
+	int32 ConfirmedDamage = 0;
+	bool bKill = false;
+	/** ClientConfirmHit was sent (the owner has an AVeloxPlayerController and ConfirmedVictims > 0). */
+	bool bConfirmSent = false;
 	int32 Count = 0;
 };
 #endif

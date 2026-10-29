@@ -1,7 +1,10 @@
 // Velox - combat foundation tests (ADR 0003 section 9, task 01).
 //   Velox.Combat.DamageMath    Q3 G_Damage/CheckArmor/G_RadiusDamage table (world-free).
 //   Velox.Combat.Ammo          ammo clamp, cost check, GE_AmmoCost/GE_SpawnInit layout (world-free).
-//   Velox.Combat.KnockbackSeq  ShouldReplayPredictedKnockback wrap cases (world-free).
+//   Velox.Combat.KnockbackSeq  ShouldReplayPredictedKnockback wrap cases (world-free); the per-life sequence scenarios
+//                              of B25 (fresh life, hitscan noted / not noted before a rocket, ServerNoteShot ignored
+//                              while a self-knockback shot is unresolved) and CancelAllMoveTimedEvents on a bare
+//                              movement component.
 //   Velox.Combat.Effects       the GE plumbing on a real PlayerState ASC in a private game world: spawn init 125,
 //                              decay to max, damage split + AddKnockback(Server), ammo, dead/protection tags, respawn
 //                              without re-grant, re-grant on changed pawn data.
@@ -269,6 +272,53 @@ bool FVeloxCombatKnockbackSeqTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("due: later move"), UVeloxMovementComponent::IsMoveTimeDue(10.f, 10.01f, ResetPeriod));
 	TestFalse(TEXT("not due: earlier move"), UVeloxMovementComponent::IsMoveTimeDue(10.f, 9.99f, ResetPeriod));
 	TestTrue(TEXT("due: the stamps were reset after scheduling"), UVeloxMovementComponent::IsMoveTimeDue(239.9f, 0.05f, ResetPeriod));
+
+	// B25 scenarios on the server bookkeeping of a bare movement component (no owner needed).
+	{
+		// Fresh life: the counter restarted (first shot 1), the new movement component starts at 0.
+		UVeloxMovementComponent* Fresh = NewObject<UVeloxMovementComponent>(GetTransientPackage());
+		TestEqual(TEXT("fresh life: confirmed 0"), static_cast<int32>(Fresh->GetConfirmedSelfKnockbackSeq()), 0);
+		TestTrue(TEXT("fresh life: rocket seq 1 vs confirmed 0 replays"), UVeloxMovementComponent::ShouldReplayPredictedKnockback(1, Fresh->GetConfirmedSelfKnockbackSeq()));
+
+		// 200 hitscan shots noted, then a rocket at 201: a correction whose snapshot predates the rocket carries 200.
+		UVeloxMovementComponent* Noted = NewObject<UVeloxMovementComponent>(GetTransientPackage());
+		for (int32 Seq = 1; Seq <= 200; ++Seq)
+		{
+			Noted->ServerNoteShot(static_cast<uint8>(Seq));
+		}
+		TestEqual(TEXT("200 noted: confirmed 200"), static_cast<int32>(Noted->GetConfirmedSelfKnockbackSeq()), 200);
+		TestTrue(TEXT("200 noted: rocket 201 vs pre-rocket snapshot 200 replays"), UVeloxMovementComponent::ShouldReplayPredictedKnockback(201, Noted->GetConfirmedSelfKnockbackSeq()));
+		Noted->ServerBeginSelfKnockbackShot(201);
+		TestEqual(TEXT("rocket 201 begun: confirmed 200"), static_cast<int32>(Noted->GetConfirmedSelfKnockbackSeq()), 200);
+		// The old hole (no ServerNoteShot): a snapshot from before the rocket still says 0, int8(201 - 0) < 0 drops it.
+		TestFalse(TEXT("not noted (old hole): rocket 201 vs snapshot 0 is dropped"), UVeloxMovementComponent::ShouldReplayPredictedKnockback(201, 0));
+
+		// Ignored while a self-knockback shot is unresolved, resumed after it resolved.
+		UVeloxMovementComponent* Pending = NewObject<UVeloxMovementComponent>(GetTransientPackage());
+		Pending->ServerNoteShot(4);
+		Pending->ServerBeginSelfKnockbackShot(5);
+		TestEqual(TEXT("rocket 5 begun: confirmed 4"), static_cast<int32>(Pending->GetConfirmedSelfKnockbackSeq()), 4);
+		Pending->ServerNoteShot(6);
+		TestEqual(TEXT("hitscan 6 while 5 unresolved: ignored"), static_cast<int32>(Pending->GetConfirmedSelfKnockbackSeq()), 4);
+		TestTrue(TEXT("rocket 5 still replays"), UVeloxMovementComponent::ShouldReplayPredictedKnockback(5, Pending->GetConfirmedSelfKnockbackSeq()));
+		Pending->ServerResolveSelfKnockbackShot(5);
+		TestEqual(TEXT("rocket 5 resolved: confirmed 5"), static_cast<int32>(Pending->GetConfirmedSelfKnockbackSeq()), 5);
+		Pending->ServerNoteShot(7);
+		TestEqual(TEXT("hitscan 7 after the resolution: confirmed 7"), static_cast<int32>(Pending->GetConfirmedSelfKnockbackSeq()), 7);
+		Pending->ServerNoteShot(3);
+		TestEqual(TEXT("an older note never moves it back"), static_cast<int32>(Pending->GetConfirmedSelfKnockbackSeq()), 7);
+
+		// Death flow: cancel-all returns the count and runs nothing.
+		UVeloxMovementComponent* Dying = NewObject<UVeloxMovementComponent>(GetTransientPackage());
+		int32 Ran = 0;
+		Dying->AddMoveTimedEvent(1.f, [&Ran](UVeloxMovementComponent&) { ++Ran; });
+		Dying->AddMoveTimedEvent(2.f, [&Ran](UVeloxMovementComponent&) { ++Ran; });
+		TestEqual(TEXT("cancel all: two pending"), Dying->GetNumMoveTimedEvents(), 2);
+		TestEqual(TEXT("cancel all: returns 2"), Dying->CancelAllMoveTimedEvents(), 2);
+		TestEqual(TEXT("cancel all: none left"), Dying->GetNumMoveTimedEvents(), 0);
+		TestEqual(TEXT("cancel all: nothing ran"), Ran, 0);
+		TestEqual(TEXT("cancel all: empty returns 0"), Dying->CancelAllMoveTimedEvents(), 0);
+	}
 	return true;
 }
 

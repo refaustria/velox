@@ -16,6 +16,7 @@
 #include "GameFramework/PlayerState.h"
 #include "HAL/IConsoleManager.h"
 #include "Movement/VeloxMovementComponent.h"
+#include "Weapons/VeloxShotValidation.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxLagCompensationSubsystem)
 
@@ -636,35 +637,19 @@ void UVeloxLagCompensationSubsystem::TraceShot(const FVeloxShotRequest& Request,
 
 	// Origin validation (ADR 0003 section 5, B15): the fire RPC and the move RPC of one client frame may arrive in
 	// either order, so the client origin is accepted within MaxOriginErrorCm of the server eye, provided nothing on
-	// the Weapon channel lies between the eye and it. A non-finite origin is always replaced.
+	// the Weapon channel lies between the eye and it. A non-finite origin is always replaced. One implementation of the rule
+	// for hitscan and projectiles: VeloxShotValidation::ValidateOrigin (B26).
 	OutResult.Origin = Request.Origin;
 	const bool bNanOrigin = Request.Origin.ContainsNaN();
 	if (const APawn* ShooterPawn = Cast<APawn>(Shooter); ShooterPawn && (Request.bValidateOrigin || bNanOrigin))
 	{
-		const FVector Eye = ShooterPawn->GetPawnViewLocation();
 		const TCHAR* SnapReason = nullptr;
-		if (bNanOrigin)
-		{
-			SnapReason = TEXT("nan");
-		}
-		else if (FVector::Dist(Request.Origin, Eye) > Request.MaxOriginErrorCm)
-		{
-			SnapReason = TEXT("distance");
-		}
-		else if (FVector::DistSquared(Request.Origin, Eye) > 1.0) // within 1 cm: nothing to check
-		{
-			FCollisionQueryParams OccParams(SCENE_QUERY_STAT(VeloxShotOrigin), true, Shooter);
-			FHitResult OccHit;
-			if (World->LineTraceSingleByChannel(OccHit, Eye, Request.Origin, Velox_TraceChannel_Weapon, OccParams))
-			{
-				SnapReason = TEXT("occluded");
-			}
-		}
+		const FVector Validated = VeloxShotValidation::ValidateOrigin(*World, *ShooterPawn, Request.Origin, Request.MaxOriginErrorCm, SnapReason);
 		if (SnapReason)
 		{
 			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s"), Request.ShotSeq, *GetNameSafe(Shooter),
-				bNanOrigin ? -1.0 : FVector::Dist(Request.Origin, Eye), SnapReason);
-			OutResult.Origin = Eye;
+				bNanOrigin ? -1.0 : FVector::Dist(Request.Origin, Validated), SnapReason);
+			OutResult.Origin = Validated;
 			OutResult.bOriginSnapped = true;
 			OutResult.OriginSnapReason = SnapReason;
 		}

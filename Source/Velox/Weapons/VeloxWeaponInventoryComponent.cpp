@@ -292,6 +292,7 @@ void UVeloxWeaponInventoryComponent::ResetToLoadout()
 	}
 	OwnedMask = Desired;
 	SwitchEndTime = 0.0;
+	ResetShotSeq();
 	SetCurrentIndex(First);
 	UE_LOG(LogVeloxCombat, Log, TEXT("%s: ResetToLoadout owned=0x%04x current=%s (%d entries)"), *GetNameSafe(GetOwner()), OwnedMask, *GetNameSafe(GetDefinition(First)),
 		Settings.SpawnLoadout.Num());

@@ -6,7 +6,13 @@
 //   Velox.Combat.ProjectileDummy     private game world (authority path, the real ability and projectile): RL direct hit
 //                                    on a dummy (100, no splash on the direct victim), RL splash next to a dummy (Q3
 //                                    points), PG direct hit, and an offline rocket jump (fire at the feet + jump: apex
-//                                    >= 2 x jump height, self damage = points / 2).
+//                                    >= 2 x jump height, self damage = points / 2); the hit confirm of each explosion
+//                                    (B26: non-owner victims only).
+//   Velox.Combat.ProjectileServerPath private game world, the server path for a remote shooter (a player controller
+//                                    without a local player is not local in a world without a net driver): the
+//                                    activation RPC and the target data RPC run on the authority; a shot of the pending
+//                                    RL within SwitchTimingToleranceSeconds finalises the switch (B18/B26), the rocket
+//                                    confirms its direct hit to the controller, a NaN origin is rejected (B26).
 
 #include "Misc/AutomationTest.h"
 
@@ -18,12 +24,14 @@
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxDamageMath.h"
+#include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
+#include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "Weapons/VeloxGameplayAbility_FireProjectile.h"
@@ -289,6 +297,27 @@ namespace VeloxProjectileTest
 
 		void Advance(float Seconds) { Advance(Seconds, [] {}); }
 
+		/**
+		 * Pawn possessed by an AVeloxPlayerController without a local player: in a world without a net driver it is not a
+		 * local controller, so the ASC treats the pawn as a remote client's (the server-for-remote-shooter path).
+		 */
+		AVeloxCharacter* SpawnRemoteShooter(const FVector& Location, AVeloxPlayerController*& OutController)
+		{
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			AVeloxCharacter* Pawn = World->SpawnActor<AVeloxCharacter>(AVeloxCharacter::StaticClass(), Location, FRotator::ZeroRotator, Params);
+			AVeloxPlayerState* PlayerState = World->SpawnActor<AVeloxPlayerState>();
+			OutController = World->SpawnActor<AVeloxPlayerController>(AVeloxPlayerController::StaticClass(), FTransform::Identity, Params);
+			if (!Pawn || !PlayerState || !OutController)
+			{
+				return nullptr;
+			}
+			OutController->PlayerState = PlayerState;
+			PlayerState->SetOwner(OutController);
+			OutController->Possess(Pawn);
+			return Pawn;
+		}
+
 		UWorld* World = nullptr;
 	};
 
@@ -350,6 +379,9 @@ bool FVeloxCombatProjectileDummyTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("RL direct: the dummy is the direct victim"), Last.DirectVictim.Get() == Dummy);
 	TestEqual(TEXT("RL direct: no splash on the direct victim (or anyone)"), Last.Splash.Num(), 0);
 	TestEqual(TEXT("RL direct: 200 - 100"), DummyHealth->GetHealth(), 100.f);
+	TestEqual(TEXT("RL direct: confirm one victim"), Last.ConfirmedVictims, 1);
+	TestEqual(TEXT("RL direct: confirmed damage 100"), Last.ConfirmedDamage, 100);
+	TestFalse(TEXT("RL direct: no kill"), Last.bKill);
 
 	// 2. RL into the floor 150 cm in front of the dummy: Q3 radius points from the actual explosion origin.
 	W.Advance(0.3f); // refire 0.8 s
@@ -372,7 +404,10 @@ bool FVeloxCombatProjectileDummyTest::RunTest(const FString& Parameters)
 		AddInfo(FString::Printf(TEXT("RL splash at %s, dummy distance %.1f cm, %d points"), *Last.Location.ToCompactString(), Dist, DummySplash->Value));
 		TestTrue(TEXT("RL splash: Q3 points in (0, 100)"), DummySplash->Value > 0 && DummySplash->Value < 100);
 		TestEqual(TEXT("RL splash: health 200 - points"), DummyHealth->GetHealth(), 200.f - DummySplash->Value);
+		TestEqual(TEXT("RL splash: confirmed damage = points"), Last.ConfirmedDamage, DummySplash->Value);
 	}
+	TestTrue(TEXT("RL splash: confirmed damage > 0"), Last.ConfirmedDamage > 0);
+	TestFalse(TEXT("RL splash: AI shooter -> no confirm RPC"), Last.bConfirmSent);
 
 	// 3. PG direct hit: 20.
 	W.Advance(0.3f);
@@ -417,6 +452,91 @@ bool FVeloxCombatProjectileDummyTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("rocket jump: self damage = points / 2"), ShooterHealth->GetHealth(), 100.f - FMath::Max(SelfSplash->Value / 2, 1));
 	}
 	TestTrue(TEXT("rocket jump: apex >= 2 x jump height"), Apex >= 2.0 * JumpHeight);
+	TestEqual(TEXT("rocket jump: owner only -> no confirmed victim"), Last.ConfirmedVictims, 0);
+	TestEqual(TEXT("rocket jump: owner only -> confirmed damage 0"), Last.ConfirmedDamage, 0);
+	TestFalse(TEXT("rocket jump: owner only -> no confirm"), Last.bConfirmSent);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatProjectileServerPathTest, "Velox.Combat.ProjectileServerPath", VeloxProjectileTest::Flags)
+
+bool FVeloxCombatProjectileServerPathTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxProjectileTest;
+
+	FProjectileWorld W;
+	AVeloxPlayerController* ShooterPC = nullptr;
+	AVeloxCharacter* Shooter = W.SpawnRemoteShooter(FVector(0, 0, 100), ShooterPC);
+	AAIController* DummyController = nullptr;
+	AVeloxCharacter* Dummy = W.Spawn(FVector(1000, 0, 100), AVeloxDummyController::StaticClass(), &DummyController);
+	if (!TestNotNull(TEXT("shooter"), Shooter) || !TestNotNull(TEXT("dummy"), Dummy) || !PS(Shooter) || !PS(Dummy))
+	{
+		return false;
+	}
+	if (AVeloxDummyController* Strafer = Cast<AVeloxDummyController>(DummyController))
+	{
+		Strafer->StrafeSpeedScale = 0.f;
+	}
+	W.Advance(0.3f);
+	TestTrue(TEXT("give all"), VeloxWeaponCheats::GiveAllWeapons(*PS(Shooter)));
+	UVeloxAbilitySystemComponent* ASC = PS(Shooter)->GetVeloxAbilitySystemComponent();
+	UVeloxWeaponInventoryComponent* Inventory = PS(Shooter)->GetWeaponInventory();
+	const UVeloxWeaponTable* Table = Inventory->GetWeaponTable();
+	const int32 MG = Table->FindBySlot(2);
+	const int32 RL = Table->FindBySlot(5);
+	FGameplayAbilitySpec* RLSpec = Inventory->FindFireSpec(RL);
+	if (!TestNotNull(TEXT("RL fire spec"), RLSpec) || !TestTrue(TEXT("remote shooter path"), UVeloxGameplayAbility_Fire::IsServerForRemoteShooter(ASC->AbilityActorInfo.Get())))
+	{
+		return false;
+	}
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PS(Shooter)->GetCombatSettings());
+	const FVeloxProjectileExplosionInfo& Last = AVeloxProjectile::GetLastServerExplosion();
+	const FGameplayAbilitySpecHandle RLHandle = RLSpec->Handle;
+	int16 NextKey = 100;
+
+	// One remote shot: the client's activation RPC, then its target data (both run on this authority).
+	auto RemoteShot = [&](const FVector& Origin, const FVector& Dir, uint8 Seq)
+	{
+		FPredictionKey Key;
+		Key.Current = NextKey++;
+		ASC->CallServerTryActivateAbility(RLHandle, true, Key);
+		FGameplayAbilityTargetData_VeloxProjectileShot* Data = new FGameplayAbilityTargetData_VeloxProjectileShot();
+		Data->Origin = Origin;
+		Data->Dir = Dir;
+		Data->ShotSeq = Seq;
+		Data->FireMoveTimeStamp = 0.f;
+		ASC->CallServerSetReplicatedTargetData(RLHandle, Key, FGameplayAbilityTargetDataHandle(Data), FGameplayTag(), Key);
+	};
+
+	// 1. A running switch MG -> RL in its raise-free tail: RL pending, GE_WeaponSwitching remaining inside the tolerance.
+	Inventory->SetCurrentIndex(MG);
+	Inventory->SetPendingIndex(RL);
+	const float Remaining = FMath::Max(Settings.GetSwitchTimingToleranceSeconds() - 0.05f, 0.01f);
+	ASC->ApplyGameplayEffectSpecToSelf(*VeloxEffects::MakeDurationSpec(ASC, UVeloxGE_WeaponSwitching::StaticClass(), Remaining).Data.Get());
+	TestEqual(TEXT("pending: current MG"), Inventory->GetCurrentIndex(), MG);
+	TestEqual(TEXT("pending: RL pending"), Inventory->GetPendingIndex(), RL);
+	ResetDummy(*Dummy, FVector(1000, 0, 0), 200.f);
+	const FVector Eye = Shooter->GetPawnViewLocation();
+	const FVector AimDir = (Dummy->GetActorLocation() - Eye).GetSafeNormal();
+	const int32 Count = Last.Count;
+	RemoteShot(Eye, AimDir, 1);
+	TestEqual(TEXT("pending switch: the RL shot finalised it (current RL right after the shot)"), Inventory->GetCurrentIndex(), RL);
+	TestEqual(TEXT("pending switch: nothing pending"), Inventory->GetPendingIndex(), INDEX_NONE);
+	const UVeloxGameplayAbility_FireProjectile* RLFire = Cast<UVeloxGameplayAbility_FireProjectile>(RLSpec->GetPrimaryInstance());
+	TestTrue(TEXT("pending switch: shot accepted"), RLFire && !RLFire->GetLastServerShot().bRejected && RLFire->GetLastServerShot().ShotSeq == 1);
+
+	// 2. The rocket's direct hit confirms to the shooter's controller (B26).
+	W.Advance(0.6f);
+	TestEqual(TEXT("remote RL: exploded once"), Last.Count, Count + 1);
+	TestTrue(TEXT("remote RL: dummy direct victim"), Last.DirectVictim.Get() == Dummy);
+	TestEqual(TEXT("remote RL: confirmed damage 100"), Last.ConfirmedDamage, 100);
+	TestTrue(TEXT("remote RL: ClientConfirmHit sent"), Last.bConfirmSent);
+	TestTrue(TEXT("remote RL: controller got the hit marker"), ShooterPC->GetLastHitConfirmTime() >= 0.0 && ShooterPC->GetLastHitConfirmDamage() == 100 && !ShooterPC->WasLastHitConfirmKill());
+
+	// 3. A NaN origin is rejected with reason origin (B26: hitscan rules), not snapped.
+	W.Advance(1.0f); // refire
+	RemoteShot(FVector(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0), AimDir, 2);
+	TestTrue(TEXT("NaN origin: rejected"), RLFire && RLFire->GetLastServerShot().bRejected && RLFire->GetLastServerShot().ShotSeq == 2);
 	return true;
 }
 

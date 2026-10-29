@@ -299,6 +299,21 @@ void AVeloxCharacter::InitAbilityActorInfo()
 	CachedCombatSettings = VeloxPS->GetCombatSettings();
 	if (UVeloxAbilitySystemComponent* ASC = VeloxPS->GetVeloxAbilitySystemComponent())
 	{
+		// ADR 0003 B25: a pawn is one life. On a client the shot counter restarts at this pawn's first init with its
+		// PlayerState's ASC (the server restarts it in ResetToLoadout). Keyed on this pawn's own LastAbilitySystem, not on
+		// the ASC's avatar: the ASC replicates its avatar itself and may already point here.
+		if (!HasAuthority() && LastAbilitySystem.Get() != ASC)
+		{
+			if (UVeloxWeaponInventoryComponent* Inventory = VeloxPS->GetWeaponInventory())
+			{
+				Inventory->ResetShotSeq();
+				// Every client resets every player's counter (only the owning client's is used): Log for the own pawn only.
+				if (GetLocalRole() == ROLE_AutonomousProxy)
+				{
+					UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotSeqReset pawn=%s"), *GetName());
+				}
+			}
+		}
 		LastAbilitySystem = ASC;
 		ASC->InitAbilityActorInfo(VeloxPS, this);
 		if (HealthComponent)
@@ -503,7 +518,9 @@ void AVeloxCharacter::HandleDeath(const FVeloxDamageEvent& Event)
 		{
 			VictimPS->GetWeaponInventory()->StopBeam();
 		}
-		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath step=2 abilities cancelled, input cleared, cues removed"));
+		// B25/B27: pending move-timed events (own self splashes) die with the pawn; projectiles keep a Dead-tag guard.
+		const int32 CancelledEvents = GetVeloxMovementComponent() ? GetVeloxMovementComponent()->CancelAllMoveTimedEvents() : 0;
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath step=2 abilities cancelled, input cleared, cues removed, move_timed_events_cancelled=%d"), CancelledEvents);
 	}
 
 	// B8 5: movement, collision, hitbox, corpse. The hitbox leaves the lag-compensation subsystem now (B17: corpses are
@@ -592,6 +609,11 @@ void AVeloxCharacter::CompleteDeath()
 
 void AVeloxCharacter::ApplyCorpseState()
 {
+	// B25/B27: no own self splash may run on a corpse (the owning client predicts its own; OnRep_IsCorpse lands here).
+	if (UVeloxMovementComponent* CorpseMovement = GetVeloxMovementComponent())
+	{
+		CorpseMovement->CancelAllMoveTimedEvents();
+	}
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
 		Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);

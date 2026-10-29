@@ -3,7 +3,9 @@
 //                                    (world-free, B19).
 //   Velox.Combat.FireTiming          Q3 one-frame carry of NextFireTime (no banked double tap) and the switch gate (B18,
 //                                    B19; world-free).
-//   Velox.Combat.ShotValidation      every server reject reason from its input, a valid shot normalised (world-free).
+//   Velox.Combat.ShotValidation      every server reject reason from its input, a valid shot normalised (world-free),
+//                                    the projectile payload (B26), the fire time-stamp clamp (B25) and the shared B15
+//                                    origin rule (a private world for ValidateOrigin; the occlusion row is in LagCompTrace).
 //   Velox.Combat.WeaponTable         slot lookup, weapnext/prev cycling; the DA_WeaponTable asset carries the Q3 numbers;
 //                                    DA_CombatSettings_Default carries the 04b timing fields.
 //   Velox.Combat.TargetDataSerialize FGameplayAbilityTargetData_VeloxShot NetSerialize round trip (struct and handle).
@@ -43,6 +45,7 @@
 #include "Weapons/VeloxFireTiming.h"
 #include "Weapons/VeloxGameplayAbility_Fire.h"
 #include "Weapons/VeloxGameplayAbility_FireHitscan.h"
+#include "Weapons/VeloxGameplayAbility_FireProjectile.h"
 #include "Weapons/VeloxShotTargetData.h"
 #include "Weapons/VeloxShotValidation.h"
 #include "Weapons/VeloxWeaponCheats.h"
@@ -58,6 +61,9 @@ namespace VeloxWeaponTest
 	{
 		return LoadObject<UVeloxWeaponTable>(nullptr, TEXT("/Game/Weapons/DA_WeaponTable.DA_WeaponTable"));
 	}
+
+	/** ValidateOrigin rows of Velox.Combat.ShotValidation (need a world; defined after FWeaponWorld). */
+	void TestValidateOrigin(FAutomationTestBase& Test);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatFireRateBucketTest, "Velox.Combat.FireRateBucket", VeloxWeaponTest::Flags)
@@ -314,6 +320,50 @@ bool FVeloxCombatShotValidationTest::RunTest(const FString& Parameters)
 		}
 		TestTrue(TEXT("valid shot after three malformed ones: rate (they cost tokens)"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 1.0f, Capacity, 1.0f, Out) == EVeloxShotReject::Rate);
 	}
+
+	// B26: the projectile payload (subclass) through the same checks, plus a finite fire move time stamp.
+	{
+		FGameplayAbilityTargetData_VeloxProjectileShot Rocket;
+		static_cast<FGameplayAbilityTargetData_VeloxShot&>(Rocket) = Good;
+		Rocket.FireMoveTimeStamp = 37.25f;
+		const FVeloxValidatedShot Out = Check(TEXT("projectile: valid"), &Rocket, EVeloxShotReject::None);
+		TestTrue(TEXT("projectile: flagged"), Out.bProjectileShot);
+		TestEqual(TEXT("projectile: fire move time stamp"), Out.FireMoveTimeStamp, 37.25f);
+		TestEqual(TEXT("projectile: seq"), static_cast<int32>(Out.ShotSeq), 42);
+		TestFalse(TEXT("hitscan payload: not flagged"), Check(TEXT("hitscan: valid"), &Good, EVeloxShotReject::None).bProjectileShot);
+		Rocket.FireMoveTimeStamp = FNaN;
+		Check(TEXT("projectile: NaN fire stamp"), &Rocket, EVeloxShotReject::Time);
+		Rocket.FireMoveTimeStamp = FInf;
+		Check(TEXT("projectile: +inf fire stamp"), &Rocket, EVeloxShotReject::Time);
+		Rocket.FireMoveTimeStamp = -FInf;
+		Check(TEXT("projectile: -inf fire stamp"), &Rocket, EVeloxShotReject::Time);
+		Rocket.FireMoveTimeStamp = 37.25f;
+		Rocket.Origin = FVector(NaN, 0.0, 0.0);
+		Check(TEXT("projectile: NaN origin rejected like hitscan"), &Rocket, EVeloxShotReject::Origin);
+	}
+
+	// B25 / review of task 05 defect 6: the fire time stamp clamp (window 0.25 s, reset period 240 s).
+	{
+		constexpr float Window = 0.25f;
+		constexpr float Period = 240.f;
+		EVeloxFireStampClamp Result = EVeloxFireStampClamp::Clamped;
+		TestEqual(TEXT("stamp: inside the window kept"), VeloxShotValidation::ClampFireMoveTimeStamp(100.1f, 100.f, Window, Period, Result), 100.1f);
+		TestTrue(TEXT("stamp: inside -> none"), Result == EVeloxFireStampClamp::None);
+		TestEqual(TEXT("stamp: ahead clamped"), VeloxShotValidation::ClampFireMoveTimeStamp(101.f, 100.f, Window, Period, Result), 100.25f);
+		TestTrue(TEXT("stamp: ahead -> clamped"), Result == EVeloxFireStampClamp::Clamped);
+		TestEqual(TEXT("stamp: behind clamped"), VeloxShotValidation::ClampFireMoveTimeStamp(99.f, 100.f, Window, Period, Result), 99.75f);
+		TestTrue(TEXT("stamp: behind -> clamped"), Result == EVeloxFireStampClamp::Clamped);
+		TestEqual(TEXT("stamp: client reset just before the shot, server not yet: kept"), VeloxShotValidation::ClampFireMoveTimeStamp(0.02f, 239.95f, Window, Period, Result), 0.02f);
+		TestTrue(TEXT("stamp: reset (client side) -> reset"), Result == EVeloxFireStampClamp::Reset);
+		TestEqual(TEXT("stamp: server reset, client stamp from before: kept"), VeloxShotValidation::ClampFireMoveTimeStamp(239.95f, 0.02f, Window, Period, Result), 239.95f);
+		TestTrue(TEXT("stamp: reset (server side) -> reset"), Result == EVeloxFireStampClamp::Reset);
+		VeloxShotValidation::ClampFireMoveTimeStamp(5.f, 125.1f, Window, Period, Result);
+		TestTrue(TEXT("stamp: just over half a period apart -> reset"), Result == EVeloxFireStampClamp::Reset);
+		VeloxShotValidation::ClampFireMoveTimeStamp(5.f, 124.9f, Window, Period, Result);
+		TestTrue(TEXT("stamp: just under half a period apart -> clamped"), Result == EVeloxFireStampClamp::Clamped);
+	}
+
+	VeloxWeaponTest::TestValidateOrigin(*this);
 	return true;
 }
 
@@ -539,6 +589,32 @@ namespace VeloxWeaponTest
 	};
 
 	AVeloxPlayerState* PS(const AVeloxCharacter* Pawn) { return Pawn ? Pawn->GetPlayerState<AVeloxPlayerState>() : nullptr; }
+
+	void TestValidateOrigin(FAutomationTestBase& Test)
+	{
+		constexpr float MaxErrorCm = 75.f;
+		FWeaponWorld W;
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		const AVeloxCharacter* Shooter = W.World->SpawnActor<AVeloxCharacter>(AVeloxCharacter::StaticClass(), FVector(0, 0, 100), FRotator::ZeroRotator, Params);
+		if (!Test.TestNotNull(TEXT("origin: shooter"), Shooter))
+		{
+			return;
+		}
+		const FVector Eye = Shooter->GetPawnViewLocation();
+		const TCHAR* Reason = TEXT("unset");
+		const FVector Near = Eye + FVector(0.0, 30.0, -10.0);
+		Test.TestTrue(TEXT("origin: within tolerance, nothing in between -> unchanged"), VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, Near, MaxErrorCm, Reason).Equals(Near, 1e-6));
+		Test.TestNull(TEXT("origin: within tolerance -> no reason"), Reason);
+		const FVector Tiny = Eye + FVector(0.5, 0.0, 0.0);
+		Test.TestTrue(TEXT("origin: within 1 cm -> unchanged"), VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, Tiny, MaxErrorCm, Reason).Equals(Tiny, 1e-6) && !Reason);
+		const FVector NaNOrigin(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0);
+		Test.TestTrue(TEXT("origin: NaN -> eye"), VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, NaNOrigin, MaxErrorCm, Reason).Equals(Eye, 1e-6));
+		Test.TestTrue(TEXT("origin: NaN -> reason nan"), Reason && FCString::Strcmp(Reason, TEXT("nan")) == 0);
+		const FVector Far = Eye + FVector(0.0, MaxErrorCm + 25.0, 0.0);
+		Test.TestTrue(TEXT("origin: beyond MaxOriginErrorCm -> eye"), VeloxShotValidation::ValidateOrigin(*W.World, *Shooter, Far, MaxErrorCm, Reason).Equals(Eye, 1e-6));
+		Test.TestTrue(TEXT("origin: beyond -> reason distance"), Reason && FCString::Strcmp(Reason, TEXT("distance")) == 0);
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatInventoryTest, "Velox.Combat.Inventory", VeloxWeaponTest::Flags)
@@ -657,6 +733,8 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("switch back to MG running"), Inventory->GetSwitchEndTime() > W.World->GetTimeSeconds());
 	Inventory->ResetToLoadout();
 	TestEqual(TEXT("reset clears SwitchEndTime"), Inventory->GetSwitchEndTime(), 0.0);
+	// B25: the shot counter restarts per life (an MG and a rail shot were fired above).
+	TestEqual(TEXT("reset: next shot sequence is 1"), static_cast<int32>(Inventory->AllocateShotSeq()), 1);
 	TestEqual(TEXT("reset: MG only"), static_cast<int32>(Inventory->GetOwnedMask()), 1 << MG);
 	TestNull(TEXT("reset: RG spec removed"), Inventory->FindFireSpec(RG));
 	TestNotNull(TEXT("reset: MG spec kept"), Inventory->FindFireSpec(MG));

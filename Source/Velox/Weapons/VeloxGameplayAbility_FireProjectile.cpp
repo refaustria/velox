@@ -6,7 +6,6 @@
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
-#include "Core/VeloxCollisionChannels.h"
 #include "Engine/World.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
@@ -17,6 +16,7 @@
 #include "Serialization/BitWriter.h"
 #include "Weapons/VeloxProjectile.h"
 #include "Weapons/VeloxProjectileSim.h"
+#include "Weapons/VeloxShotValidation.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
 
@@ -201,7 +201,19 @@ void UVeloxGameplayAbility_FireProjectile::Reject(uint8 ShotSeq, const TCHAR* Re
 	LastServerShot = FVeloxServerShotInfo();
 	LastServerShot.ShotSeq = ShotSeq;
 	LastServerShot.bRejected = true;
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotRejected seq=%u shooter=%s weapon=%s reason=%s"), ShotSeq, *GetNameSafe(GetShooterPawn()), *GetNameSafe(GetCurrentDefinition()), Reason);
+	// Throttled per player like the hitscan ability (review of task 04, nit 12).
+	UVeloxWeaponInventoryComponent* Inventory = GetInventory();
+	const UWorld* World = GetWorld();
+	const bool bLog = !Inventory || !World || Inventory->ShouldLogRejectionAtLog(World->GetTimeSeconds());
+	const FString Line = FString::Printf(TEXT("VeloxShotRejected seq=%u shooter=%s weapon=%s reason=%s"), ShotSeq, *GetNameSafe(GetShooterPawn()), *GetNameSafe(GetCurrentDefinition()), Reason);
+	if (bLog)
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("%s"), *Line);
+	}
+	else
+	{
+		UE_LOG(LogVeloxCombat, Verbose, TEXT("%s"), *Line);
+	}
 }
 
 void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbilityTargetDataHandle& Data, FGameplayTag ApplicationTag)
@@ -216,37 +228,32 @@ void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbi
 	const UVeloxWeaponDefinition* Definition = GetCurrentDefinition();
 	const UWorld* World = GetWorld();
 	const FGameplayAbilityTargetData* Raw = Data.Num() > 0 ? Data.Get(0) : nullptr;
-	const FGameplayAbilityTargetData_VeloxProjectileShot* ShotData = (Raw && Raw->GetScriptStruct() == FGameplayAbilityTargetData_VeloxProjectileShot::StaticStruct())
-		? static_cast<const FGameplayAbilityTargetData_VeloxProjectileShot*>(Raw) : nullptr;
-	const uint8 Seq = ShotData ? ShotData->ShotSeq : 0;
-	const double Now = World ? World->GetTimeSeconds() : 0.0;
-	const FVector Dir = ShotData ? FVector(ShotData->Dir) : FVector::ZeroVector;
-
-	// The hitscan ability's order: the bucket first, then the payload.
 	if (!Definition || !World)
 	{
-		Reject(Seq, TEXT("no_weapon"));
-	}
-	else if (!ConsumeServerFireToken(Now, *Definition))
-	{
-		Reject(Seq, TEXT("rate"));
-	}
-	else if (!ShotData)
-	{
-		Reject(Seq, TEXT("type"));
-	}
-	else if (Dir.ContainsNaN() || Dir.IsNearlyZero())
-	{
-		Reject(Seq, TEXT("dir"));
-	}
-	else if (!FMath::IsFinite(ShotData->FireMoveTimeStamp))
-	{
-		Reject(Seq, TEXT("time"));
+		Reject(0, TEXT("no_weapon"));
 	}
 	else
 	{
-		LaunchServerShot(*Definition, ShotData->Origin, Dir.GetSafeNormal(), Seq, true, ShotData->FireMoveTimeStamp);
-		AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+		// B26: the hitscan machinery (bucket + spacing, then type, NaN origin, direction, finite times incl. the move
+		// time stamp), then the pending switch (B18), then the launch with the shared B15 origin rule.
+		const double Now = World->GetTimeSeconds();
+		FVeloxValidatedShot Valid;
+		const EVeloxShotReject Reason = ValidateServerShot(Raw, Now, *Definition, Valid);
+		if (Reason != EVeloxShotReject::None)
+		{
+			Reject(Valid.ShotSeq, LexToString(Reason));
+		}
+		else if (!Valid.bProjectileShot)
+		{
+			// A hitscan payload has no move time stamp to schedule the owner's self splash with.
+			Reject(Valid.ShotSeq, LexToString(EVeloxShotReject::Type));
+		}
+		else
+		{
+			FinalisePendingSwitch(*Definition);
+			LaunchServerShot(*Definition, Valid.Origin, Valid.Dir, Valid.ShotSeq, true, Valid.FireMoveTimeStamp);
+			AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);
 }
@@ -268,31 +275,13 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 		return;
 	}
 
-	// Origin validation, the rules of TraceShot (ADR 0003 section 5, B15): snap to the server eye when the client origin
-	// is not finite, farther than MaxOriginErrorCm, or behind world geometry seen from the eye.
-	FVector Origin = ClientOrigin;
-	const FVector Eye = Shooter->GetPawnViewLocation();
+	// Origin validation, the B15 rule shared with TraceShot (B26).
 	const TCHAR* SnapReason = nullptr;
-	if (Origin.ContainsNaN())
-	{
-		SnapReason = TEXT("nan");
-	}
-	else if (FVector::Dist(Origin, Eye) > Settings.MaxOriginErrorCm)
-	{
-		SnapReason = TEXT("distance");
-	}
-	else if (FVector::DistSquared(Origin, Eye) > 1.0)
-	{
-		const FCollisionQueryParams OccParams(SCENE_QUERY_STAT(VeloxProjectileOrigin), false, Shooter);
-		if (World->LineTraceTestByChannel(Eye, Origin, Velox_TraceChannel_Weapon, OccParams))
-		{
-			SnapReason = TEXT("occluded");
-		}
-	}
+	const FVector Origin = VeloxShotValidation::ValidateOrigin(*World, *Shooter, ClientOrigin, Settings.MaxOriginErrorCm, SnapReason);
 	if (SnapReason)
 	{
-		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s"), ShotSeq, *GetNameSafe(Shooter), Origin.ContainsNaN() ? -1.0 : FVector::Dist(Origin, Eye), SnapReason);
-		Origin = Eye;
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s"), ShotSeq, *GetNameSafe(Shooter),
+			ClientOrigin.ContainsNaN() ? -1.0 : FVector::Dist(ClientOrigin, Origin), SnapReason);
 	}
 
 	FVeloxProjectileLaunch Launch;
@@ -314,8 +303,21 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 			// The owner's self splash in its own move stream (what the predicting client does), never in server time.
 			// The client's stamp is trusted within MaxRewindSeconds of the last move processed (a later one would only
 			// delay its own self damage; the explosion's deadline bounds that too).
+			// Wrap-aware at the engine's time-stamp reset (B25, ClampFireMoveTimeStamp); every clamp is logged (08 asserts none).
 			const float LastMoveTimeStamp = Movement->GetServerClientMoveTimeStamp();
-			FireMoveTimeStamp = FMath::Clamp(ClientFireMoveTimeStamp, LastMoveTimeStamp - Settings.MaxRewindSeconds, LastMoveTimeStamp + Settings.MaxRewindSeconds);
+			EVeloxFireStampClamp StampResult = EVeloxFireStampClamp::None;
+			FireMoveTimeStamp = VeloxShotValidation::ClampFireMoveTimeStamp(ClientFireMoveTimeStamp, LastMoveTimeStamp, Settings.MaxRewindSeconds,
+				Movement->MinTimeBetweenTimeStampResets, StampResult);
+			if (StampResult == EVeloxFireStampClamp::Clamped)
+			{
+				UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotTimeClamp seq=%u client_ts=%.6f last_ts=%.6f clamped_ts=%.6f"), ShotSeq, ClientFireMoveTimeStamp, LastMoveTimeStamp,
+					FireMoveTimeStamp);
+			}
+			else if (StampResult == EVeloxFireStampClamp::Reset)
+			{
+				UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotTimeReset seq=%u client_ts=%.6f last_ts=%.6f (time stamp reset in between, client value kept)"), ShotSeq,
+					ClientFireMoveTimeStamp, LastMoveTimeStamp);
+			}
 			FVector SplashOrigin;
 			const double Flight = AVeloxProjectile::ComputeWorldFlight(*World, Definition, Origin, Dir, Shooter, SplashOrigin);
 			const float EventTime = FireMoveTimeStamp + static_cast<float>(Flight);
@@ -324,6 +326,11 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 			Launch.SelfSplashEventId = AVeloxProjectile::ScheduleOwnerSelfSplash(*Movement, Definition, ASC, EventTime, SplashOrigin, ShotSeq, false);
 			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShot seq=%u weapon=%s fire_ts=%.6f client_ts=%.6f last_ts=%.6f flight_ms=%.1f event_ts=%.6f splash_origin=%s"), ShotSeq,
 				*GetNameSafe(&Definition), FireMoveTimeStamp, ClientFireMoveTimeStamp, LastMoveTimeStamp, Flight * 1000.0, EventTime, *SplashOrigin.ToCompactString());
+		}
+		else if (Movement)
+		{
+			// No self-knockback potential (B25): keeps the confirmed sequence close to the shot counter.
+			Movement->ServerNoteShot(ShotSeq);
 		}
 	}
 	LastServerProjectile = AVeloxProjectile::SpawnServerProjectile(*World, Definition.ProjectileClass, Launch);
@@ -346,8 +353,8 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 #if !UE_BUILD_SHIPPING
 namespace VeloxRocketJumpTest
 {
-	/** Spawn protection on L_CombatTest lasts 2 s; the test waits past it on the ground before firing. */
-	constexpr double SettleSeconds = 3.0;
+	/** The test waits on the ground for the spawn protection (UVeloxCombatSettings::SpawnProtectionSeconds) plus this. */
+	constexpr double SettleAfterProtectionSeconds = 1.0;
 	/** The switch to RL (refire wait + drop + raise) is well inside this. */
 	constexpr double SwitchTimeoutSeconds = 2.0;
 	constexpr double AimSettleSeconds = 0.2;
@@ -436,7 +443,8 @@ namespace VeloxRocketJumpTest
 		switch (Run.Phase)
 		{
 		case EPhase::WaitPawn:
-			if (Inventory->OwnsIndex(RL) && Inventory->FindFireSpec(RL) && Movement->IsOnGround() && InPhase >= SettleSeconds)
+			if (Inventory->OwnsIndex(RL) && Inventory->FindFireSpec(RL) && Movement->IsOnGround()
+				&& InPhase >= UVeloxCombatSettings::GetOrDefault(PS->GetCombatSettings()).SpawnProtectionSeconds + SettleAfterProtectionSeconds)
 			{
 				if (Inventory->GetCurrentIndex() != RL)
 				{
