@@ -52,6 +52,9 @@ public:
 	//~AGameModeBase interface
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 	virtual bool ShouldSpawnAtStartSpot(AController* Player) override;
+	/** Controllers with a fixed respawn (test dummies, B28) restart at their transform; everyone else uses ChoosePlayerStart. */
+	virtual void RestartPlayer(AController* NewPlayer) override;
+	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
 	virtual void RestartPlayerAtPlayerStart(AController* NewPlayer, AActor* StartSpot) override;
 	virtual void Logout(AController* Exiting) override;
 	//~End of AGameModeBase interface

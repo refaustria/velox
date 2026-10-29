@@ -3,6 +3,9 @@
 #include "Bots/VeloxDummyController.h"
 
 #include "Character/VeloxCharacter.h"
+#include "Combat/VeloxAbilitySystemComponent.h"
+#include "Combat/VeloxGameplayEffects.h"
+#include "GameModes/VeloxPlayerState.h"
 #include "Core/VeloxLog.h"
 #include "Engine/World.h"
 #include "Movement/VeloxMovementComponent.h"
@@ -24,16 +27,35 @@ void AVeloxDummyController::OnPossess(APawn* InPawn)
 
 	if (InPawn)
 	{
-		StrafeOrigin = InPawn->GetActorLocation();
+		// A fixed respawn restarts the strafe at the spawner, wherever the pawn was adjusted to.
+		StrafeOrigin = bHasFixedRespawn ? RespawnTransform.GetLocation() : InPawn->GetActorLocation();
 		StrafeDirection = 1.f;
-		// Face -X (towards the first PlayerStart of L_CombatTest); strafing is along world Y.
-		SetControlRotation(FRotator(0.f, 180.f, 0.f));
+		// Strafing is along world Y.
+		SetControlRotation(FRotator(0.f, FacingYaw, 0.f));
+
+		// After Super::OnPossess: GE_SpawnInit (run by PossessedBy) removes SpawnProtected, so apply this last.
+		AVeloxPlayerState* VeloxPlayerState = bInvulnerable ? GetPlayerState<AVeloxPlayerState>() : nullptr;
+		if (UVeloxAbilitySystemComponent* ASC = VeloxPlayerState ? VeloxPlayerState->GetVeloxAbilitySystemComponent() : nullptr)
+		{
+			const FGameplayEffectSpecHandle Spec = VeloxEffects::MakeDurationSpec(ASC, UVeloxGE_SpawnProtection::StaticClass(), UGameplayEffect::INFINITE_DURATION);
+			if (Spec.IsValid())
+			{
+				ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+			}
+		}
 	}
 
 	if (LogInterval > 0.f && GetWorld())
 	{
 		GetWorldTimerManager().SetTimer(LogTimer, this, &AVeloxDummyController::LogPosition, LogInterval, true);
 	}
+}
+
+void AVeloxDummyController::SetFixedRespawn(const FTransform& Transform, TSubclassOf<AVeloxCharacter> PawnClass)
+{
+	RespawnTransform = Transform;
+	RespawnPawnClass = PawnClass;
+	bHasFixedRespawn = true;
 }
 
 void AVeloxDummyController::OnUnPossess()

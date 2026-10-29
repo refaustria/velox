@@ -66,6 +66,8 @@ AVeloxCharacter* AVeloxDummySpawner::SpawnDummy()
 	{
 		DummyController->StrafeHalfWidth = StrafeHalfWidth;
 		DummyController->StrafeSpeedScale = StrafeSpeedScale;
+		DummyController->SetFixedRespawn(GetActorTransform(), DummyClass);
+		DummyController->SetInvulnerable(bInvulnerable);
 	}
 	Controller->Possess(Dummy);
 	SpawnedDummy = Dummy;

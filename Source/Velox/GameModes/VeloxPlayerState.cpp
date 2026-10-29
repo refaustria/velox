@@ -108,7 +108,7 @@ void AVeloxPlayerState::HandleAbilityActivated(UGameplayAbility* Ability)
 		&& AbilitySystemComponent->HasMatchingGameplayTag(VeloxGameplayTags::State_SpawnProtected))
 	{
 		AbilitySystemComponent->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(VeloxGameplayTags::State_SpawnProtected));
-		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSpawnProtection ended by fire player=%s"), *GetPlayerName());
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSpawnProtection ended by fire player=%s"), *VeloxPlayerLabel(this));
 	}
 }
 
@@ -224,4 +224,14 @@ void AVeloxPlayerState::ApplySpawnProtection(const UVeloxCombatSettings& Setting
 		AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 		UE_LOG(LogVeloxCombat, Log, TEXT("%s: spawn protection %.2f s (ends on fire %d)"), *GetName(), Settings.SpawnProtectionSeconds, Settings.bSpawnProtectionEndsOnFire ? 1 : 0);
 	}
+}
+
+FString AVeloxPlayerState::VeloxPlayerLabel(const APlayerState* PlayerState)
+{
+	if (!PlayerState)
+	{
+		return TEXT("-");
+	}
+	const FString Name = PlayerState->GetPlayerName();
+	return Name.IsEmpty() ? PlayerState->GetName() : Name;
 }

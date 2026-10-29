@@ -79,6 +79,12 @@ public:
 	/** As above with explicit settings (tests, game modes with their own tunables). */
 	void ApplySpawnProtection(const UVeloxCombatSettings& Settings);
 
+	/**
+	 * Name for log lines and the kill feed (ADR 0003 B29): the player name when set, else the object name ("-" for
+	 * null). AI PlayerStates have no name until M4, humans get theirs with M6.
+	 */
+	static FString VeloxPlayerLabel(const APlayerState* PlayerState);
+
 	/** Bright per-player body colour (ADR 0003 section 10): palette index chosen by the game mode, replicated. */
 	static constexpr uint8 NoPlayerColor = 255;
 	bool HasPlayerColor() const { return PlayerColorIndex != NoPlayerColor; }
