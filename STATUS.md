@@ -54,6 +54,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
 
 ## Open questions for the human
+- (answered 2026-10-29) Mac is **Intel**. UE 5.8's UBT still builds x86_64: `DefaultArchitecture=MacTargetArchitectureHost` in BaseEngine.ini picks x64 on an Intel host, so `build-mac.sh` needs no change. Requirements per Epic's 5.8 docs: macOS Sonoma 14.5+ and Xcode 26.0 or 26.1.1 (Xcode 26.4 is incompatible). Epic does not explicitly confirm Intel for 5.8; verify on the Mac that the Launcher installs and the editor starts.
 12. **M2 weapon numbers**: ADR 0003 defaults to Q3 vanilla (weapon switch waits for refire). CPMA numbers instead?
 13. **Spawn protection**: Q3 has none; ADR default 0 s (mechanism exists, test map uses 2 s). Keep 0?
 14. **Inventory model**: ADR rejects Lyra's equipment/weapon-instance pattern in favour of a bitmask inventory + granted fire abilities. OK?
@@ -63,7 +64,6 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 1. ~~Disk space~~ — resolved 2026-10-24: disk cannot be enlarged; freed instead: docker 19 GB, engine trim 17 GB + exclusions, caches/build artefacts 9.8 GB (approved). **35 GB free.** Budget rule from now on: keep ≥ 15 GB free; cooked builds go to `Saved/` and are pruned after upload.
 2. ~~UE 5.8 Linux download~~ — resolved 2026-10-24: human supplied the signed URL; UE 5.8.4 streamed into `/opt/UnrealEngine-5.8` via `bsdtar` (debug symbols, Templates, FeaturePacks, Samples, Documentation excluded to fit the disk).
 3. **Installed vs source engine.** Installed engines (Launcher, Linux zip) cannot build the `VeloxServer`/`VeloxClient` targets; the dedicated server is then `Velox -server`, which is fine until M6. A source build (needs EpicGames GitHub org linked to your Epic account, ~150 GB disk, hours of compile) is needed for M6 shipping. Recommendation: installed engine now, source build before M6. OK?
-4. **Mac toolchain.** Human has Xcode but not UE 5.8 yet. Action for the human when the Linux build is green: install the Epic Games Launcher on the Mac and UE 5.8 through it (~40 GB, default path `/Users/Shared/Epic Games/UE_5.8`), then run `infra/ci/build-mac.sh` from the repo root. Still needed: Apple Silicon or Intel.
 5. **Renderer decision (veto window).** ADR 0001 picks forward renderer + MSAA + baked static lighting (Q3-style readability, max fps). This shapes all M5 art. Veto now if you prefer deferred + TAA.
 6. **Scale.** Netcode defaults assume ≤ 16 players per server until M6. Confirm.
 7. ~~Delete `Engine/Platforms/{Android,IOS,VisionOS}`~~ — approved and done 2026-10-24.
