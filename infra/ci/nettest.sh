@@ -746,7 +746,9 @@ nx = [c[1] for c in nonecho]
 cmax = max(nx) if nx else 0.0
 cmean = sum(nx) / len(nx) if nx else 0.0
 strays_le = sum(1 for c in nonecho if c[1] <= 2.5)   # A34(v): A31-class strays at merged moves during speed changes
-detail.append("replays=%d acks_ignored=%d rpcs=%d" % (len(replays), acks_ignored, nrpc))
+# Task M1-07 (A32's deferred cl_packetdup 2): RPCs that also carried an extra old move (diagnostic only).
+extras = sum(1 for d in resends if num(d, "extra", -1.0) >= 0.0)
+detail.append("replays=%d acks_ignored=%d rpcs=%d extra=%d" % (len(replays), acks_ignored, nrpc, extras))
 row = "%-18s moves=%-5d C=%-3d echoes=%-3d gaps=%-3d repaired=%-3d resent=%-5d strays_le_2_5=%-2d max=%-6.2f mean=%-5.2f %s  %s  %s" % (
     script, moves, ncorr, len(echoes), len(gaps), len(repaired), len(resends), strays_le, cmax, cmean, "FAIL" if fails else "PASS", " ".join(detail), ("; ".join(notes)))
 with open(result_path, "w") as out:

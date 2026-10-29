@@ -177,7 +177,8 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 	// derive the same value. A jump started by CheckJumpInput before this call has held = true and keeps the latch.
 	bJumpLatched = JumpLatchAtMoveStart(bJumpLatched, bWantsJumpHeld);
 
-	bJumpedThisMove = false;
+	// bJumpedThisMove is not cleared here: a take-off jump of this move already happened in CheckJumpInput, right before
+	// this call; ControlledCharacterMove / MoveAutonomous clear it before that (task M1-07).
 
 #if !UE_BUILD_SHIPPING
 	const bool bLogKnockbackConsumed = PendingKnockback.IsPending() && CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority
@@ -429,9 +430,34 @@ const TCHAR* UVeloxMovementComponent::GetMoveSourceName() const
 	return bInClientReplay ? TEXT("replay") : TEXT("live");
 }
 
+void UVeloxMovementComponent::ControlledCharacterMove(const FVector& InputVector, float DeltaSeconds)
+{
+	// A new live move begins; its CheckJumpInput (take-off) runs inside Super before PerformMovement (task M1-07).
+	bJumpedThisMove = false;
+	Super::ControlledCharacterMove(InputVector, DeltaSeconds);
+}
+
+void UVeloxMovementComponent::ServerMove_HandleMoveData(const FCharacterNetworkMoveDataContainer& MoveDataContainer)
+{
+	// Task M1-07: the extra old move is older than the engine's old move; simulate it first. Every container this
+	// component receives is its own FVeloxNetworkMoveDataContainer (SetNetworkMoveDataContainer in the constructor).
+	if (&MoveDataContainer == &VeloxNetworkMoveDataContainer)
+	{
+		if (FVeloxNetworkMoveData* ExtraOldMove = VeloxNetworkMoveDataContainer.GetExtraOldMoveData())
+		{
+			SetCurrentNetworkMoveData(ExtraOldMove);
+			ServerMove_PerformMovement(*ExtraOldMove);
+			SetCurrentNetworkMoveData(nullptr);
+		}
+	}
+	Super::ServerMove_HandleMoveData(MoveDataContainer);
+}
+
 void UVeloxMovementComponent::MoveAutonomous(float ClientTimeStamp, float DeltaTime, uint8 CompressedFlags, const FVector& NewAccel)
 {
 	LastMoveAutonomousTimeStamp = ClientTimeStamp;
+	// A new move begins (server, client replay); Super runs CheckJumpInput (take-off) before PerformMovement (task M1-07).
+	bJumpedThisMove = false;
 #if !UE_BUILD_SHIPPING
 	if (CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority)
 	{
@@ -935,10 +961,19 @@ void UVeloxMovementComponent::CallServerMovePacked(const FSavedMove_Character* N
 	// move, no partition-dependent integration, no trigger crossing shifted by one move); an unacked event move (pad
 	// entry, held-jump landing) takes precedence. A duplicate is rejected by VerifyClientTimeStamp (Log-level line).
 	const FSavedMove_Character* ChosenOldMove = OldMove;
+	const FSavedMove_Character* ExtraOldMove = nullptr;
 	bool bEventMove = false;
 	if (const FNetworkPredictionData_Client_Character* ClientData = GetPredictionData_Client_Character())
 	{
 		ChosenOldMove = FSavedMove_Velox::ChooseOldMove(ClientData->SavedMoves, ClientData->LastAckedMove, NewMove, PendingMove, OldMove, &bEventMove);
+		// Task M1-07 (A32's deferred cl_packetdup 2): the move before the OldMove rides along too (pending half of a lost
+		// dual RPC, two-RPC bursts, the start boundary of a take-off jump).
+		ExtraOldMove = FSavedMove_Velox::ChooseExtraOldMove(ClientData->SavedMoves, ClientData->LastAckedMove, NewMove, PendingMove, ChosenOldMove);
+	}
+	VeloxNetworkMoveDataContainer.SetClientExtraOldMove(ExtraOldMove);
+	if (ExtraOldMove)
+	{
+		++NumExtraResentMoves;
 	}
 
 	++NumServerMoveRPCs;
@@ -950,15 +985,16 @@ void UVeloxMovementComponent::CallServerMovePacked(const FSavedMove_Character* N
 	// Net soak (A34): one line per RPC. Event resends at Log (the per-pad proof), the rest at Verbose.
 	const double NewStamp = NewMove ? NewMove->TimeStamp : -1.0;
 	const double PendingStamp = PendingMove ? PendingMove->TimeStamp : -1.0;
+	const double ExtraStamp = ExtraOldMove ? ExtraOldMove->TimeStamp : -1.0;
 	if (ChosenOldMove)
 	{
 		if (bEventMove)
 		{
-			UE_LOG(LogVeloxNet, Log, TEXT("VeloxResend old=%.6f new=%.6f pending=%.6f event=1"), ChosenOldMove->TimeStamp, NewStamp, PendingStamp);
+			UE_LOG(LogVeloxNet, Log, TEXT("VeloxResend old=%.6f new=%.6f pending=%.6f event=1 extra=%.6f"), ChosenOldMove->TimeStamp, NewStamp, PendingStamp, ExtraStamp);
 		}
 		else
 		{
-			UE_LOG(LogVeloxNet, Verbose, TEXT("VeloxResend old=%.6f new=%.6f pending=%.6f event=0"), ChosenOldMove->TimeStamp, NewStamp, PendingStamp);
+			UE_LOG(LogVeloxNet, Verbose, TEXT("VeloxResend old=%.6f new=%.6f pending=%.6f event=0 extra=%.6f"), ChosenOldMove->TimeStamp, NewStamp, PendingStamp, ExtraStamp);
 		}
 	}
 	else
@@ -968,6 +1004,8 @@ void UVeloxMovementComponent::CallServerMovePacked(const FSavedMove_Character* N
 #endif
 
 	Super::CallServerMovePacked(NewMove, PendingMove, ChosenOldMove);
+	// The fill clears it; also when Super returned before filling (never keep a pointer into SavedMoves).
+	VeloxNetworkMoveDataContainer.SetClientExtraOldMove(nullptr);
 }
 
 void UVeloxMovementComponent::ClientAckGoodMove_Implementation(float TimeStamp)
@@ -1017,6 +1055,7 @@ void UVeloxMovementComponent::ResetCorrectionStats()
 	LastCorrectionTime = -1.0;
 	NumResentMoves = 0;
 	NumServerMoveRPCs = 0;
+	NumExtraResentMoves = 0;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

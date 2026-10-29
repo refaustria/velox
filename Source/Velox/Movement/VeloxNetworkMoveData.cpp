@@ -237,6 +237,27 @@ const FSavedMove_Character* FSavedMove_Velox::ChooseOldMove(const TArray<FSavedM
 	return Result;
 }
 
+const FSavedMove_Character* FSavedMove_Velox::ChooseExtraOldMove(const TArray<FSavedMovePtr>& SavedMoves, const FSavedMovePtr& LastAckedMove,
+	const FSavedMove_Character* NewMove, const FSavedMove_Character* PendingMove, const FSavedMove_Character* OldMove)
+{
+	if (!OldMove || !LastAckedMove.IsValid())
+	{
+		return nullptr;
+	}
+	// Same eligibility as ChooseOldMove; the server simulates the extra move first, so it must be older than OldMove.
+	for (int32 Index = SavedMoves.Num() - 1; Index >= 0; --Index)
+	{
+		const FSavedMove_Character* Move = SavedMoves[Index].Get();
+		if (!Move || Move == NewMove || Move == PendingMove || Move == OldMove || Move->bOldTimeStampBeforeReset
+			|| Move->TimeStamp <= LastAckedMove->TimeStamp || Move->TimeStamp >= OldMove->TimeStamp)
+		{
+			continue;
+		}
+		return Move;
+	}
+	return nullptr;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // FVeloxNetworkMoveData
 
@@ -265,6 +286,39 @@ FVeloxNetworkMoveDataContainer::FVeloxNetworkMoveDataContainer()
 	NewMoveData = &VeloxMoveData[0];
 	PendingMoveData = &VeloxMoveData[1];
 	OldMoveData = &VeloxMoveData[2];
+}
+
+void FVeloxNetworkMoveDataContainer::ClientFillNetworkMoveData(const FSavedMove_Character* ClientNewMove, const FSavedMove_Character* ClientPendingMove, const FSavedMove_Character* ClientOldMove)
+{
+	Super::ClientFillNetworkMoveData(ClientNewMove, ClientPendingMove, ClientOldMove);
+
+	// Only together with an engine old move (the server simulates the extra one right before it).
+	bHasExtraOldMove = ClientExtraOldMove != nullptr && ClientOldMove != nullptr;
+	if (bHasExtraOldMove)
+	{
+		ExtraOldMoveData.ClientFillNetworkMoveData(*ClientExtraOldMove, FCharacterNetworkMoveData::ENetworkMoveType::OldMove);
+	}
+	ClientExtraOldMove = nullptr;
+}
+
+bool FVeloxNetworkMoveDataContainer::Serialize(UCharacterMovementComponent& CharacterMovement, FArchive& Ar, UPackageMap* PackageMap)
+{
+	if (!Super::Serialize(CharacterMovement, Ar, PackageMap))
+	{
+		return false;
+	}
+
+	// Appended after the engine's fields: one bit when absent. Serialised as an old move (no client error check on it).
+	Ar.SerializeBits(&bHasExtraOldMove, 1);
+	if (bHasExtraOldMove)
+	{
+		if (!ExtraOldMoveData.Serialize(CharacterMovement, Ar, PackageMap, FCharacterNetworkMoveData::ENetworkMoveType::OldMove))
+		{
+			return false;
+		}
+	}
+
+	return !Ar.IsError();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

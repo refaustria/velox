@@ -156,7 +156,11 @@ public:
 	/** A knockback was queued during this move, e.g. a pad trigger entry (A28). Recorded in PostUpdate_Record. */
 	uint8 bSavedEnteredTrigger : 1;
 
-	/** A jump happened in this move with jump held, e.g. the held-jump landing jump (A29). Recorded in PostUpdate_Record. */
+	/**
+	 * A jump happened in this move with jump held (A29): the held-jump landing jump inside the move, or the take-off jump
+	 * CheckJumpInput starts at the move's beginning (task M1-07: its start boundary must reach the server, see
+	 * ChooseExtraOldMove). Recorded in PostUpdate_Record.
+	 */
 	uint8 bSavedJumpedHeld : 1;
 
 	/**
@@ -185,6 +189,17 @@ public:
 	static const FSavedMove_Character* ChooseOldMove(const TArray<FSavedMovePtr>& SavedMoves, const FSavedMovePtr& LastAckedMove,
 		const FSavedMove_Character* NewMove, const FSavedMove_Character* PendingMove, const FSavedMove_Character* EngineOldMove,
 		bool* bOutIsEventMove = nullptr);
+
+	/**
+	 * Task M1-07 (A32's deferred second slot, Quake cl_packetdup 2): the extra old move sent with an RPC whose OldMove is
+	 * OldMove: the newest candidate (same eligibility as ChooseOldMove) older than OldMove, i.e. the move right before it.
+	 * The server simulates it before OldMove, so (a) a lost dual RPC is repaired including its pending half, (b) a burst
+	 * of two lost RPCs is repaired, and (c) an event move travels together with the move that ends at its start (a
+	 * take-off jump begins at the start of its move: merging the move before it into it moves the take-off earlier).
+	 * Returns nullptr without OldMove, without a LastAckedMove, or when nothing older is eligible. Pure, no world.
+	 */
+	static const FSavedMove_Character* ChooseExtraOldMove(const TArray<FSavedMovePtr>& SavedMoves, const FSavedMovePtr& LastAckedMove,
+		const FSavedMove_Character* NewMove, const FSavedMove_Character* PendingMove, const FSavedMove_Character* OldMove);
 };
 
 /**
@@ -201,17 +216,42 @@ struct VELOX_API FVeloxNetworkMoveData : public FCharacterNetworkMoveData
 	//~End of FCharacterNetworkMoveData interface
 };
 
-/** Container that makes the CMC use FVeloxNetworkMoveData for new, pending and old moves. */
+/**
+ * Container that makes the CMC use FVeloxNetworkMoveData for new, pending and old moves, plus the Velox extra old move
+ * (task M1-07, A32's deferred cl_packetdup 2): serialised after the engine's fields (1 bit when absent), simulated by
+ * UVeloxMovementComponent::ServerMove_HandleMoveData before the engine's old move.
+ */
 struct VELOX_API FVeloxNetworkMoveDataContainer : public FCharacterNetworkMoveDataContainer
 {
+	using Super = FCharacterNetworkMoveDataContainer;
+
 	FVeloxNetworkMoveDataContainer();
 
 	// The base pointers point into this object; copying would leave them dangling.
 	FVeloxNetworkMoveDataContainer(const FVeloxNetworkMoveDataContainer&) = delete;
 	FVeloxNetworkMoveDataContainer& operator=(const FVeloxNetworkMoveDataContainer&) = delete;
 
+	//~FCharacterNetworkMoveDataContainer interface
+	virtual void ClientFillNetworkMoveData(const FSavedMove_Character* ClientNewMove, const FSavedMove_Character* ClientPendingMove, const FSavedMove_Character* ClientOldMove) override;
+	virtual bool Serialize(UCharacterMovementComponent& CharacterMovement, FArchive& Ar, UPackageMap* PackageMap) override;
+	//~End of FCharacterNetworkMoveDataContainer interface
+
+	/** Client: the extra old move the next ClientFillNetworkMoveData packs (nullptr = none). Cleared by the fill. */
+	void SetClientExtraOldMove(const FSavedMove_Character* InExtraOldMove) { ClientExtraOldMove = InExtraOldMove; }
+
+	/** The received (server) or packed (client) extra old move, nullptr when the RPC carries none. */
+	FVeloxNetworkMoveData* GetExtraOldMoveData() { return bHasExtraOldMove ? &ExtraOldMoveData : nullptr; }
+	const FVeloxNetworkMoveData* GetExtraOldMoveData() const { return bHasExtraOldMove ? &ExtraOldMoveData : nullptr; }
+
+	/** Test access: the storage of the extra old move and its presence bit. */
+	FVeloxNetworkMoveData& GetExtraOldMoveStorage() { return ExtraOldMoveData; }
+	void SetHasExtraOldMove(bool bInHasExtraOldMove) { bHasExtraOldMove = bInHasExtraOldMove; }
+
 private:
 	FVeloxNetworkMoveData VeloxMoveData[3];
+	FVeloxNetworkMoveData ExtraOldMoveData;
+	bool bHasExtraOldMove = false;
+	const FSavedMove_Character* ClientExtraOldMove = nullptr;
 };
 
 /**

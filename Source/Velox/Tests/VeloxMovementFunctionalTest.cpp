@@ -776,4 +776,105 @@ bool FVeloxFTMovePartitionInvariance::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxFTTakeOffPartitionRepair, "Velox.Functional.FT_TakeOffPartitionRepair",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FVeloxFTTakeOffPartitionRepair::RunTest(const FString& Parameters)
+{
+	using namespace VeloxScriptedTest;
+	FNoOverrides NoOverrides;
+
+	// Task M1-07, LatchRun 20261029-141000/r4: the client ran A (ground 1/60), P (ground 1/120), N (take-off, 1/120; jump
+	// pressed) and twelve 1/120 air moves. RPC A and the dual RPC (P, N) were lost; the next RPC carried N as OldMove, so
+	// the server simulated A + P + N as one 1/30 move with N's jump flag: take-off 25 ms early, 10.83 cm at 0.1 s
+	// (= 0.025 s x 433 cm/s mean Z speed). With the extra old move (A32's deferred cl_packetdup 2) the server gets P
+	// (absorbing A, ground at cruise) and N separately: the take-off is at the client's time. Three pawns, the same moves
+	// through MoveAutonomous (the server's per-move entry point): client partition, pre-fix server, fixed server.
+	FTestWorld TW;
+	if (!TestTrue(TEXT("test world created"), TW.IsValid()))
+	{
+		return false;
+	}
+	TW.BuildFloorAndCorridor();
+
+	AVeloxCharacter* Client = TW.SpawnPawn(FVector(1000, -300, 100), 0.f);
+	AVeloxCharacter* Merged = TW.SpawnPawn(FVector(1000, -100, 100), 0.f);
+	AVeloxCharacter* Repaired = TW.SpawnPawn(FVector(1000, 100, 100), 0.f);
+	if (!TestNotNull(TEXT("pawns spawned"), Client) || !TestNotNull(TEXT("pawns spawned"), Merged) || !TestNotNull(TEXT("pawns spawned"), Repaired))
+	{
+		return false;
+	}
+	AVeloxCharacter* Pawns[] = { Client, Merged, Repaired };
+	for (AVeloxCharacter* Pawn : Pawns)
+	{
+		if (!Settle(TW, *Pawn) || !Pawn->GetVeloxMovementComponent())
+		{
+			AddError(TEXT("pawns did not settle on the ground"));
+			return false;
+		}
+	}
+	UVeloxMovementComponent* ClientMove = Client->GetVeloxMovementComponent();
+	UVeloxMovementComponent* MergedMove = Merged->GetVeloxMovementComponent();
+	UVeloxMovementComponent* RepairedMove = Repaired->GetVeloxMovementComponent();
+
+	const float GroundSpeed = ClientMove->GetSimParams().MaxGroundSpeed;
+	const float JumpVelocity = ClientMove->GetSimParams().JumpVelocity;
+	const FVector Accel(GroundSpeed, 0.0, 0.0);
+	const uint8 Fwd = FSavedMove_Velox::FLAG_HasForwardInput;
+	const uint8 TakeOff = Fwd | FSavedMove_Velox::FLAG_JumpHeld | FSavedMove_Character::FLAG_JumpPressed;
+	const uint8 Air = Fwd | FSavedMove_Velox::FLAG_JumpHeld;
+	FVector Start[3];
+	for (int32 I = 0; I < 3; ++I)
+	{
+		Pawns[I]->GetVeloxMovementComponent()->Velocity = FVector(GroundSpeed, 0.0, 0.0);
+		Start[I] = Pawns[I]->GetActorLocation();
+	}
+
+	constexpr float T0 = 10.f;
+	constexpr float Dt = 1.f / 120.f;
+	const float TakeOffEnd = T0 + 4.f * Dt; // A (2 Dt) + P (Dt) + N (Dt)
+
+	// Client partition.
+	FMoveAutonomousAccess::Call(*ClientMove, T0 + 2.f * Dt, 2.f * Dt, Fwd, Accel);
+	FMoveAutonomousAccess::Call(*ClientMove, T0 + 3.f * Dt, Dt, Fwd, Accel);
+	TestFalse(TEXT("ground move: no jump recorded"), ClientMove->JumpedThisMove());
+	FMoveAutonomousAccess::Call(*ClientMove, TakeOffEnd, Dt, TakeOff, Accel);
+	TestTrue(TEXT("take-off move: JumpedThisMove survives PerformMovement (event move, task M1-07)"), ClientMove->JumpedThisMove());
+	TestTrue(TEXT("take-off move: airborne"), !ClientMove->IsOnGround());
+	// Pre-fix server: one merged move with the take-off move's flags.
+	FMoveAutonomousAccess::Call(*MergedMove, TakeOffEnd, 4.f * Dt, TakeOff, Accel);
+	// Fixed server: extra old move P (absorbs A: one 3 Dt ground move), then OldMove N.
+	FMoveAutonomousAccess::Call(*RepairedMove, T0 + 3.f * Dt, 3.f * Dt, Fwd, Accel);
+	FMoveAutonomousAccess::Call(*RepairedMove, TakeOffEnd, Dt, TakeOff, Accel);
+
+	for (int32 Step = 1; Step <= 12; ++Step)
+	{
+		for (AVeloxCharacter* Pawn : Pawns)
+		{
+			FMoveAutonomousAccess::Call(*Pawn->GetVeloxMovementComponent(), TakeOffEnd + Step * Dt, Dt, Air, Accel);
+		}
+		if (Step == 1)
+		{
+			TestFalse(TEXT("air move after the take-off: no jump recorded"), ClientMove->JumpedThisMove());
+		}
+	}
+
+	const FVector ClientDelta = Client->GetActorLocation() - Start[0];
+	const FVector MergedDelta = Merged->GetActorLocation() - Start[1];
+	const FVector RepairedDelta = Repaired->GetActorLocation() - Start[2];
+	const double MergedError = (MergedDelta - ClientDelta).Size();
+	const double RepairedError = (RepairedDelta - ClientDelta).Size();
+	// Expected pre-fix error: the parabola shifted by 3 Dt, Z difference = 3 Dt x Vz at the midpoint of the shift.
+	const double TauClient = 13.0 * Dt; // N and twelve air moves since the client's take-off
+	const double ExpectedMergedError = 3.0 * Dt * (JumpVelocity + ClientMove->GetGravityZ() * (TauClient + 1.5 * Dt));
+	AddInfo(FString::Printf(TEXT("0.1 s after the take-off move: client vz %.1f, pre-fix server vz %.1f (error %.2f cm, expected %.2f), fixed server vz %.1f (error %.4f cm)"),
+		ClientMove->Velocity.Z, MergedMove->Velocity.Z, MergedError, ExpectedMergedError, RepairedMove->Velocity.Z, RepairedError));
+	TestTrue(TEXT("all three airborne"), !ClientMove->IsOnGround() && !MergedMove->IsOnGround() && !RepairedMove->IsOnGround());
+	TestTrue(TEXT("pre-fix partition reproduces the soak's 10.83 cm (within 0.5 cm of the shifted parabola)"), FMath::Abs(MergedError - ExpectedMergedError) <= 0.5);
+	TestTrue(TEXT("pre-fix partition: server Vz lower by 3 Dt x gravity"), FMath::IsNearlyEqual(ClientMove->Velocity.Z - MergedMove->Velocity.Z, -3.0 * Dt * ClientMove->GetGravityZ(), 1.0));
+	TestTrue(TEXT("repaired partition matches the client within 0.05 cm"), RepairedError <= 0.05);
+	TestTrue(TEXT("repaired partition: Vz within 0.1 cm/s"), FMath::IsNearlyEqual(ClientMove->Velocity.Z, RepairedMove->Velocity.Z, 0.1));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
