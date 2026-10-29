@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged; report in notes/06b-report.md)
 **Depends on:** 06, 07 (review `docs/reviews/m2-05-06-projectiles-death-review.md` §2 defects 2, 8, 10, 13; ADR 0003 amendments B27, B28, B29). Must land before 08. Independent of 05b and 04c.
 
 ## Goal
