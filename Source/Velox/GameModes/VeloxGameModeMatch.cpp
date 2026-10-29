@@ -10,6 +10,7 @@
 #include "GameFramework/SpectatorPawn.h"
 #include "GameModes/VeloxGameMode.h"
 #include "GameModes/VeloxGameModeDefinition.h"
+#include "Items/VeloxItemRegistrySubsystem.h"
 #include "GameModes/VeloxGameState.h"
 #include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerController.h"
@@ -70,6 +71,11 @@ void AVeloxGameMode::ApplyMatchRulesToGameState()
 	if (AVeloxGameState* VeloxGameState = GetGameState<AVeloxGameState>())
 	{
 		VeloxGameState->InitMatchRules(GameModeDefinition, bMatchRulesEnabled ? MatchRules.FragLimit : 0, bMatchRulesEnabled ? MatchRules.TimeLimitSeconds : 0);
+	}
+	// Items read the mode's respawn rules from the definition the GameState now carries (M3-01b).
+	if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
+	{
+		Registry->RefreshModeRules();
 	}
 }
 
