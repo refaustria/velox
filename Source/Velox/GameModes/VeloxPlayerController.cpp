@@ -16,6 +16,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
+#include "UI/VeloxGameUserSettings.h"
+#include "UserSettings/EnhancedInputUserSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxPlayerController)
 
@@ -121,7 +123,32 @@ void AVeloxPlayerController::SetupInputComponent()
 		return;
 	}
 
-	InputSubsystem->AddMappingContext(MappingContext, DefaultMappingContextPriority);
+	// bNotifyUserSettings registers the context with the Enhanced Input user settings, so saved rebinds replace the
+	// default keys (ADR 0004 section 7); the settings screen rebinds through UVeloxGameUserSettings::RebindKey.
+	FModifyContextOptions Options;
+	Options.bNotifyUserSettings = true;
+	InputSubsystem->AddMappingContext(MappingContext, DefaultMappingContextPriority, Options);
+	// The subsystem creates the user settings in PlayerControllerChanged, which runs after this function on a fresh
+	// controller: the notify above then finds none, so register when they come up.
+	if (!InputSubsystem->GetUserSettings())
+	{
+		InputSubsystem->OnPostUserSettingsInitialized.AddUniqueDynamic(this, &ThisClass::OnInputUserSettingsInitialized);
+	}
+}
+
+void AVeloxPlayerController::OnInputUserSettingsInitialized(const UEnhancedInputUserSettings* Settings)
+{
+	UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
+	UEnhancedInputUserSettings* UserSettings = InputSubsystem ? InputSubsystem->GetUserSettings() : nullptr;
+	if (UserSettings && !DefaultMappingContext.IsNull())
+	{
+		UserSettings->RegisterInputMappingContext(DefaultMappingContext.LoadSynchronous());
+	}
+}
+
+bool AVeloxPlayerController::ShouldAutoSwitchOnPickup() const
+{
+	return UVeloxGameUserSettings::GetOrDefault().bAutoSwitchOnPickup;
 }
 
 void AVeloxPlayerController::PlayerTick(float DeltaTime)

@@ -64,6 +64,34 @@ def key(name):
     return k
 
 
+# Rebindable actions (ADR 0004 section 7): action asset -> (mapping name, display name, category). The mapping name is what
+# UVeloxGameUserSettings::RebindKey takes. IA_Look (mouse) is not rebindable; the four IA_Move keys get one override per key.
+MAPPABLE_ACTIONS = {
+    "IA_Jump": ("Jump", "Jump", "Movement"),
+    "IA_Crouch": ("Crouch", "Crouch", "Movement"),
+    "IA_Fire": ("Fire", "Fire", "Combat"),
+    "IA_Weapon_Next": ("WeaponNext", "Next weapon", "Weapons"),
+    "IA_Weapon_Prev": ("WeaponPrev", "Previous weapon", "Weapons"),
+}
+for _slot in range(1, 10):
+    MAPPABLE_ACTIONS[f"IA_Weapon_Slot{_slot}"] = (f"Weapon{_slot}", f"Weapon {_slot}", "Weapons")
+MOVE_KEY_SETTINGS = {
+    "W": ("MoveForward", "Move forward"),
+    "S": ("MoveBack", "Move back"),
+    "A": ("MoveLeft", "Move left"),
+    "D": ("MoveRight", "Move right"),
+}
+
+
+def make_key_settings(outer, name, display_name, category):
+    """UPlayerMappableKeySettings instanced on an action or an IMC mapping."""
+    settings = unreal.new_object(unreal.PlayerMappableKeySettings, outer=outer)
+    settings.set_editor_property("name", name)
+    settings.set_editor_property("display_name", unreal.Text(display_name))
+    settings.set_editor_property("display_category", unreal.Text(category))
+    return settings
+
+
 def build_input():
     ensure_dir("/Game/Input")
     VT = unreal.InputActionValueType
@@ -83,6 +111,11 @@ def build_input():
                            unreal.InputMappingContext_Factory() if hasattr(unreal, "InputMappingContext_Factory") else None)
     if imc is None or any(a is None for a in actions.values()):
         return actions, imc
+
+    for action_name, (mapping_name, display_name, category) in MAPPABLE_ACTIONS.items():
+        action = actions[action_name]
+        action.set_editor_property("player_mappable_key_settings", make_key_settings(action, mapping_name, display_name, category))
+        save(action)
 
     imc.unmap_all()
     # WASD -> IA_Move (X = right/left, Y = forward/back). Modifiers: Swizzle (YXZ) for W/S, Negate for A/S.
@@ -113,7 +146,12 @@ def build_input():
     dkm = imc.get_editor_property("default_key_mappings")
     mappings = list(dkm.get_editor_property("mappings"))
     for m in mappings:
-        spec = modifier_specs.get(m.get_editor_property("key").export_text())
+        key_name = m.get_editor_property("key").export_text()
+        move_settings = MOVE_KEY_SETTINGS.get(key_name)
+        if move_settings and m.get_editor_property("action") == actions["IA_Move"]:
+            m.set_editor_property("setting_behavior", unreal.PlayerMappableKeySettingBehaviors.OVERRIDE_SETTINGS)
+            m.set_editor_property("player_mappable_key_settings", make_key_settings(imc, move_settings[0], move_settings[1], "Movement"))
+        spec = modifier_specs.get(key_name)
         if not spec:
             continue
         mods = []
@@ -128,6 +166,21 @@ def build_input():
     imc.set_editor_property("default_key_mappings", dkm)
     save(imc)
     return actions, imc
+
+
+# ---------------------------------------------------------------- Audio (sound classes for the volume settings)
+def build_audio():
+    """SC_Master -> SC_Effects / SC_Music and the default mix UVeloxGameUserSettings overrides (ADR 0004 section 7)."""
+    ensure_dir("/Game/Audio")
+    master, _ = get_or_create("/Game/Audio", "SC_Master", unreal.SoundClass, unreal.SoundClassFactory())
+    effects, _ = get_or_create("/Game/Audio", "SC_Effects", unreal.SoundClass, unreal.SoundClassFactory())
+    music, _ = get_or_create("/Game/Audio", "SC_Music", unreal.SoundClass, unreal.SoundClassFactory())
+    mix, _ = get_or_create("/Game/Audio", "SM_Default", unreal.SoundMix, unreal.SoundMixFactory())
+    for child in (effects, music):
+        if child is not None and master is not None:
+            child.set_editor_property("parent_class", master)
+    for asset in (master, effects, music, mix):
+        save(asset)
 
 
 # ---------------------------------------------------------------- Data assets
@@ -425,6 +478,7 @@ def build_map():
 
 def main():
     actions, _imc = build_input()
+    build_audio()
     build_data(actions)
     table, defs = build_weapons()
     build_combat_settings(table, defs)
