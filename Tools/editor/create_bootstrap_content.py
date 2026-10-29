@@ -441,7 +441,16 @@ def build_player_material():
     expr = mel.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -300, 0)
     expr.set_editor_property("parameter_name", "Color")
     expr.set_editor_property("default_value", unreal.LinearColor(1.0, 1.0, 1.0, 1.0))
-    mel.connect_material_property(expr, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    # M3-02: PowerupTint (rgb = tint, a = strength, VeloxCombatFeedbackComponent); black / alpha 0 = no tint.
+    # Emissive = lerp(Color, PowerupTint.rgb, PowerupTint.a).
+    tint = mel.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -600, 200)
+    tint.set_editor_property("parameter_name", "PowerupTint")
+    tint.set_editor_property("default_value", unreal.LinearColor(0.0, 0.0, 0.0, 0.0))
+    lerp = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -100, 0)
+    mel.connect_material_expressions(expr, "", lerp, "A")
+    mel.connect_material_expressions(tint, "", lerp, "B")
+    mel.connect_material_expressions(tint, "A", lerp, "Alpha")
+    mel.connect_material_property(lerp, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     mel.recompile_material(mat)
     if not EAL.save_loaded_asset(mat, False):
         fail("could not save " + path)

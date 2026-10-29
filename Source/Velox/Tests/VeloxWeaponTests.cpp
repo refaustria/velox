@@ -49,6 +49,7 @@
 #include "Serialization/BitReader.h"
 #include "Serialization/BitWriter.h"
 #include "Weapons/VeloxCombatFeedbackComponent.h"
+#include "GameModes/VeloxMatchEffects.h"
 #include "Weapons/VeloxFireRateBucket.h"
 #include "Weapons/VeloxFireTiming.h"
 #include "Weapons/VeloxGameplayAbility_Fire.h"
@@ -829,6 +830,16 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	// 0.2 s (index changes), raise 0.25 s (fire blocked by the local SwitchEndTime, B18; the tag is still granted).
 	W.Advance(0.1f);
 	const float BulletsBefore = PlayerState->GetAmmoSet()->GetBullets();
+
+	// M3-02b: a match-frozen pawn cannot fire (ActivationBlockedTags), and fires again once unfrozen.
+	ASC->AddLooseGameplayTag(VeloxMatchTags::State_MatchFrozen);
+	ASC->AbilityInputTagPressed(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	ASC->AbilityInputTagReleased(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	TestEqual(TEXT("frozen pawn cannot fire: no bullet spent"), PlayerState->GetAmmoSet()->GetBullets(), BulletsBefore);
+	ASC->RemoveLooseGameplayTag(VeloxMatchTags::State_MatchFrozen);
+
 	ASC->AbilityInputTagPressed(InputTag_Fire);
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
 	ASC->AbilityInputTagReleased(InputTag_Fire);

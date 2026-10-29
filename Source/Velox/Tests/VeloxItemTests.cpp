@@ -11,7 +11,7 @@
 //                             taken (tag, 30 s); client prediction (hide, predicted weapon slot, timeout -> shown).
 //   Velox.Items.PowerupStacking  task 02: powerup GE layout, grant / in-place extension (ModifyActiveEffectStartTime) with
 //                             the rule's arithmetic, Quad x3 on a dummy, Battle Suit, Regen ticks and decay skip, loss on
-//                             GE_SpawnInit, no regen while dead, frozen = no damage (once task 05 is merged), projectile
+//                             GE_SpawnInit, no regen while dead, frozen = no damage, projectile
 //                             Quad state and Reset.
 
 #include "Misc/AutomationTest.h"
@@ -510,10 +510,10 @@ bool FVeloxItemsPickupTest::RunTest(const FString& Parameters)
 	{
 		AVeloxPickup* Frozen = AVeloxPickup::SpawnPickup(W.World, Medium, FVector(300, 300, 0));
 		W.Advance(0.1f);
+		SetHealth(*Pawn, 50.f); // before the freeze: a frozen target takes no damage (M3-02)
 		FActiveGameplayEffectHandle FrozenHandle = ASC->ApplyGameplayEffectToSelf(GetMutableDefault<UVeloxGE_MatchFrozen>(), 1.f, ASC->MakeEffectContext());
 		TestTrue(TEXT("MatchFrozen applied"), ASC->HasMatchingGameplayTag(VeloxMatchTags::State_MatchFrozen));
 		MoveTo(*Pawn, FVector(300, 300, 0));
-		SetHealth(*Pawn, 50.f);
 		W.Advance(0.2f);
 		TestTrue(TEXT("MatchFrozen: refused, item stays"), Frozen && Frozen->IsAvailable() && Frozen->GetTakeCount() == 0);
 		TestEqual(TEXT("MatchFrozen: health unchanged"), Health->GetHealth(), 50.f);
@@ -764,19 +764,14 @@ bool FVeloxItemsPowerupStackingTest::RunTest(const FString& Parameters)
 	W.Advance(1.05f);
 	TestEqual(TEXT("dead: no regen tick"), DummyHealth->GetHealth(), 20.f);
 
-	// --- Match frozen (task 05's tag): treated like dead by the damage execution; skipped while 05 is not merged.
-	const FGameplayTag Frozen = VeloxEffects::GetMatchFrozenTag();
-	if (Frozen.IsValid())
+	// --- Match frozen: treated like dead by the damage execution.
 	{
+		const FGameplayTag Frozen = VeloxMatchTags::State_MatchFrozen;
 		ASC->AddLooseGameplayTag(Frozen);
 		const float Before = PS->GetHealthSet()->GetHealth();
 		ApplyTestDamage(*DummyASC, *ASC, 50, 1.f, false);
 		TestEqual(TEXT("frozen: no damage"), PS->GetHealthSet()->GetHealth(), Before);
 		ASC->RemoveLooseGameplayTag(Frozen);
-	}
-	else
-	{
-		AddInfo(TEXT("Velox.State.MatchFrozen not registered (task 05 not merged): frozen check skipped"));
 	}
 
 	// --- Projectiles carry the shot's Quad state (replicated, initial only) and die on ResetLevel (Reset).

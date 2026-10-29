@@ -10,6 +10,7 @@
 #include "Combat/VeloxGameplayEffectContext.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxGameplayTags.h"
+#include "GameModes/VeloxMatchEffects.h"
 #include "GameplayEffectComponents/AdditionalEffectsGameplayEffectComponent.h"
 #include "GameplayEffectComponents/RemoveOtherGameplayEffectComponent.h"
 #include "GameplayEffectComponents/TargetTagsGameplayEffectComponent.h"
@@ -277,8 +278,6 @@ namespace VeloxEffects
 
 	FGameplayTag GetMatchFrozenTag()
 	{
-		// Native tags are registered at module start; a missing tag (task 05 not merged) is not an error.
-		static const FName TagName(TEXT("Velox.State.MatchFrozen"));
-		return FGameplayTag::RequestGameplayTag(TagName, false);
+		return VeloxMatchTags::State_MatchFrozen;
 	}
 }

@@ -150,11 +150,6 @@ namespace VeloxEffects
 	/** GE_WeaponSwitching / GE_SpawnProtection (any HasDuration GE reading SetByCaller.Duration). */
 	VELOX_API FGameplayEffectSpecHandle MakeDurationSpec(const UAbilitySystemComponent* ASC, TSubclassOf<UGameplayEffect> EffectClass, float Duration);
 
-	/**
-	 * Velox.State.MatchFrozen (intermission, ADR 0004 section 5). UVeloxGE_MatchFrozen and the native tag are owned by task
-	 * 05 (VeloxMatchTags::State_MatchFrozen, lead decision 2026-10-29); resolved by name so the damage execution, the
-	 * regeneration and the fire abilities compile before 05 is merged. Invalid (nothing frozen) while the tag is not
-	 * registered. After the merge this may return VeloxMatchTags::State_MatchFrozen directly.
-	 */
+	/** Velox.State.MatchFrozen (intermission, ADR 0004 section 5): the native tag VeloxMatchTags::State_MatchFrozen (task 05). */
 	VELOX_API FGameplayTag GetMatchFrozenTag();
 }

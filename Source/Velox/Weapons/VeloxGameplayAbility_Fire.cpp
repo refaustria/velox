@@ -11,6 +11,7 @@
 #include "Combat/VeloxGameplayEffects.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
+#include "GameModes/VeloxMatchEffects.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
 #include "GameplayCueInterface.h"
@@ -44,6 +45,8 @@ UVeloxGameplayAbility_Fire::UVeloxGameplayAbility_Fire(const FObjectInitializer&
 	SetAssetTags(AssetTags);
 	// Not State_WeaponSwitching (B18): the replicated GE ends one RTT late on the client; CanActivateAbility gates instead.
 	ActivationBlockedTags.AddTag(VeloxGameplayTags::State_Dead);
+	// ADR 0004 section 5: no firing while the match is frozen (intermission).
+	ActivationBlockedTags.AddTag(VeloxMatchTags::State_MatchFrozen);
 	// Safety net: a server instance still waiting for target data never blocks the next activation.
 	bRetriggerInstancedAbility = true;
 }
@@ -113,12 +116,6 @@ bool UVeloxGameplayAbility_Fire::CanActivateAbility(const FGameplayAbilitySpecHa
 	const UVeloxWeaponDefinition* Definition = GetDefinition(ASC ? ASC->FindAbilitySpecFromHandle(Handle) : nullptr);
 	const UVeloxWeaponInventoryComponent* Inventory = UVeloxWeaponInventoryComponent::Find(ActorInfo->OwnerActor.Get());
 	if (!Definition || !Inventory)
-	{
-		return false;
-	}
-	// ADR 0004 section 5: no firing while the match is frozen (task 05's tag; after its merge an ActivationBlockedTags entry).
-	const FGameplayTag MatchFrozenTag = VeloxEffects::GetMatchFrozenTag();
-	if (ASC && MatchFrozenTag.IsValid() && ASC->HasMatchingGameplayTag(MatchFrozenTag))
 	{
 		return false;
 	}
