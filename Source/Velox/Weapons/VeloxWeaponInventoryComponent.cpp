@@ -381,7 +381,6 @@ void UVeloxWeaponInventoryComponent::CompletePendingSwitch()
 	{
 		return;
 	}
-	const int32 Target = PendingIndex;
 	if (UVeloxAbilitySystemComponent* ASC = GetVeloxASC())
 	{
 		if (const FGameplayAbilitySpec* Spec = SwitchSpecHandle.IsValid() ? ASC->FindAbilitySpecFromHandle(SwitchSpecHandle) : nullptr; Spec && Spec->IsActive())
@@ -394,6 +393,19 @@ void UVeloxWeaponInventoryComponent::CompletePendingSwitch()
 				}
 			}
 		}
+	}
+	CompletePendingSwitchIndexOnly();
+}
+
+void UVeloxWeaponInventoryComponent::CompletePendingSwitchIndexOnly()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority() || PendingIndex == NoWeapon)
+	{
+		return;
+	}
+	const int32 Target = PendingIndex;
+	if (UVeloxAbilitySystemComponent* ASC = GetVeloxASC())
+	{
 		ASC->RemoveActiveGameplayEffectBySourceEffect(UVeloxGE_WeaponSwitching::StaticClass(), nullptr);
 	}
 	SwitchEndTime = 0.0;

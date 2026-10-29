@@ -1,8 +1,9 @@
 // Velox - weapon tests (ADR 0003 sections 4, 5, 9; task 04).
-//   Velox.Combat.FireRateBucket      token bucket + minimum spacing: exact rate, 2x rate, receive jitter, rail burst
-//                                    (world-free, B19); task 08b D3: capacity sized in time (CapacityFor), honest MG with
-//                                    reliable-resend bursts at 100 and 250 ms RTT / 2 % loss never rejected (and the old
-//                                    3-token bucket does reject the same arrivals), a 2x MG cheat rejected within 1 s.
+//   Velox.Combat.FireRateBucket      token bucket with one tolerance (world-free, B32): capacities 1 + 0.5 s / interval,
+//                                    exact rate, 2x rate, receive jitter, rail burst and the 1.0 s rail cheat; honest MG
+//                                    and RG with reliable-resend bursts at 100 / 250 ms RTT / 2 % loss never rejected (the
+//                                    old 3-token bucket and B19's spacing rule do reject the same arrivals), a 2x MG
+//                                    cheat rejected within 1 s.
 //   Velox.Combat.FireTiming          Q3 one-frame carry of NextFireTime (no banked double tap) and the switch gate (B18,
 //                                    B19; world-free).
 //   Velox.Combat.ShotValidation      every server reject reason from its input, a valid shot normalised (world-free),
@@ -78,43 +79,46 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatFireRateBucketTest, "Velox.Combat.F
 
 bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 {
-	// B19 spacing at the default tolerance 0.25: MG/LG 0 (bucket only), rail 1.25 s.
-	constexpr float SpacingTolerance = 0.25f;
-	TestEqual(TEXT("spacing LG 0"), FVeloxFireRateBucket::MinSpacingFor(0.05f, SpacingTolerance), 0.f);
-	TestEqual(TEXT("spacing MG 0"), FVeloxFireRateBucket::MinSpacingFor(0.1f, SpacingTolerance), 0.f);
-	TestEqual(TEXT("spacing SG 0.75"), FVeloxFireRateBucket::MinSpacingFor(1.0f, SpacingTolerance), 0.75f, 1e-6f);
-	TestEqual(TEXT("spacing RL 0.55"), FVeloxFireRateBucket::MinSpacingFor(0.8f, SpacingTolerance), 0.55f, 1e-6f);
-	TestEqual(TEXT("spacing RG 1.25"), FVeloxFireRateBucket::MinSpacingFor(1.5f, SpacingTolerance), 1.25f, 1e-6f);
+	// B32: one tolerance, capacity 1 + Tol / Interval (no floor, no spacing rule).
+	constexpr float JitterTolerance = 0.5f;
+	TestEqual(TEXT("capacity RG 1.3333"), FVeloxFireRateBucket::CapacityFor(1.5f, JitterTolerance), 4.f / 3.f, 1e-4f);
+	TestEqual(TEXT("capacity SG 1.5"), FVeloxFireRateBucket::CapacityFor(1.0f, JitterTolerance), 1.5f, 1e-4f);
+	TestEqual(TEXT("capacity RL 1.625"), FVeloxFireRateBucket::CapacityFor(0.8f, JitterTolerance), 1.625f, 1e-4f);
+	TestEqual(TEXT("capacity MG 6"), FVeloxFireRateBucket::CapacityFor(0.1f, JitterTolerance), 6.f, 1e-4f);
+	TestEqual(TEXT("capacity LG 11"), FVeloxFireRateBucket::CapacityFor(0.05f, JitterTolerance), 11.f, 1e-4f);
+	TestEqual(TEXT("capacity tolerance 0 -> 1"), FVeloxFireRateBucket::CapacityFor(0.1f, 0.f), 1.f, 1e-4f);
+	TestEqual(TEXT("capacity interval 0 -> 1"), FVeloxFireRateBucket::CapacityFor(0.f, JitterTolerance), 1.f, 1e-4f);
 
-	// Exact rate: LG 0.05 s for 60 s, MG 0.1 s, rail 1.5 s (with its spacing); none rejected.
+	// Exact rate: LG 0.05 s, MG 0.1 s, rail 1.5 s, 1200 shots each; none rejected.
 	for (const float Interval : { 0.05f, 0.1f, 1.5f })
 	{
 		FVeloxFireRateBucket Bucket;
 		int32 Accepted = 0;
 		const int32 Shots = 1200;
-		const float MinSpacing = FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance);
+		const float Capacity = FVeloxFireRateBucket::CapacityFor(Interval, JitterTolerance);
 		for (int32 Index = 0; Index < Shots; ++Index)
 		{
-			Accepted += Bucket.TryConsume(100.0 + Index * static_cast<double>(Interval), Interval, 3.f, MinSpacing) ? 1 : 0;
+			Accepted += Bucket.TryConsume(100.0 + Index * static_cast<double>(Interval), Interval, Capacity) ? 1 : 0;
 		}
 		TestEqual(FString::Printf(TEXT("exact rate %.2f s: all accepted"), Interval), Accepted, Shots);
 	}
 
-	// Twice the rate: the burst of 3, then every other shot -> half rejected; long-term rate exactly 1/Interval.
+	// Twice the rate (LG): the burst of the capacity, then every other shot -> long-term rate exactly 1/Interval.
 	{
 		FVeloxFireRateBucket Bucket;
 		const float Interval = 0.05f;
+		const float Capacity = FVeloxFireRateBucket::CapacityFor(Interval, JitterTolerance);
 		int32 Accepted = 0;
 		const int32 Shots = 400;
 		for (int32 Index = 0; Index < Shots; ++Index)
 		{
-			Accepted += Bucket.TryConsume(Index * 0.025, Interval, 3.f, FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance)) ? 1 : 0;
+			Accepted += Bucket.TryConsume(Index * 0.025, Interval, Capacity) ? 1 : 0;
 		}
-		const int32 Expected = 3 + FMath::FloorToInt32((Shots - 1) * 0.025 / Interval);
+		const int32 Expected = FMath::FloorToInt32(Capacity) + FMath::FloorToInt32((Shots - 1) * 0.025 / Interval);
 		TestTrue(FString::Printf(TEXT("2x rate: %d accepted of %d (expected %d +- 1)"), Accepted, Shots, Expected), FMath::Abs(Accepted - Expected) <= 1);
 	}
 
-	// Receive jitter: sent every 50 ms, received with up to 40 ms of extra delay (spikes and clumps): all accepted.
+	// Receive jitter: LG sent every 50 ms, received with up to 40 ms of extra delay (spikes and clumps): all accepted.
 	{
 		FVeloxFireRateBucket Bucket;
 		FRandomStream Stream(1234);
@@ -125,77 +129,75 @@ bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 		{
 			const double Receive = FMath::Max(Index * 0.05 + Stream.FRandRange(0.0, 0.04), LastReceive);
 			LastReceive = Receive;
-			Accepted += Bucket.TryConsume(Receive, 0.05f, 3.f, FVeloxFireRateBucket::MinSpacingFor(0.05f, SpacingTolerance)) ? 1 : 0;
+			Accepted += Bucket.TryConsume(Receive, 0.05f, FVeloxFireRateBucket::CapacityFor(0.05f, JitterTolerance)) ? 1 : 0;
 		}
 		TestEqual(TEXT("40 ms jitter at 50 ms: all accepted"), Accepted, Shots);
 	}
 
-	// The bucket alone (spacing 0): capacity shots pass at once after a pause, the next is rejected (all over-rate shots are).
+	// An explicit capacity of 3: three shots pass at once after a pause, the next is rejected (all over-rate shots are).
 	{
 		FVeloxFireRateBucket Bucket;
-		TestTrue(TEXT("first shot"), Bucket.TryConsume(10.0, 1.0f, 3.f, 0.f));
-		TestTrue(TEXT("burst 2"), Bucket.TryConsume(10.0, 1.0f, 3.f, 0.f));
-		TestTrue(TEXT("burst 3"), Bucket.TryConsume(10.0, 1.0f, 3.f, 0.f));
-		TestTrue(TEXT("over the burst: rate"), Bucket.Consume(10.0, 1.0f, 3.f, 0.f) == EVeloxFireRateResult::Rate);
-		TestFalse(TEXT("still over at +0.5 s"), Bucket.TryConsume(10.5, 1.0f, 3.f, 0.f));
-		TestTrue(TEXT("refilled at +1 s"), Bucket.TryConsume(11.0, 1.0f, 3.f, 0.f));
+		TestTrue(TEXT("first shot"), Bucket.TryConsume(10.0, 1.0f, 3.f));
+		TestTrue(TEXT("burst 2"), Bucket.TryConsume(10.0, 1.0f, 3.f));
+		TestTrue(TEXT("burst 3"), Bucket.TryConsume(10.0, 1.0f, 3.f));
+		TestTrue(TEXT("over the burst: rate"), Bucket.Consume(10.0, 1.0f, 3.f) == EVeloxFireRateResult::Rate);
+		TestFalse(TEXT("still over at +0.5 s"), Bucket.TryConsume(10.5, 1.0f, 3.f));
+		TestTrue(TEXT("refilled at +1 s"), Bucket.TryConsume(11.0, 1.0f, 3.f));
 	}
 
-	// B19: with the spacing, three rails in one frame after a pause -> one accepted, two rejected as spacing (and free).
+	// B32: three rails in one frame after an idle -> one accepted (capacity 1.33), two rejected as rate (and free).
+	const float RGCapacity = FVeloxFireRateBucket::CapacityFor(1.5f, JitterTolerance);
 	{
 		FVeloxFireRateBucket Bucket;
-		const float Interval = 1.5f;
-		const float MinSpacing = FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance);
-		const double T = 10.0;
-		TestTrue(TEXT("rail 1 at t accepted"), Bucket.Consume(T, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Accepted);
-		TestTrue(TEXT("rail 2 at t: spacing"), Bucket.Consume(T, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Spacing);
-		TestTrue(TEXT("rail 3 at t: spacing"), Bucket.Consume(T, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Spacing);
-		TestTrue(TEXT("rail at t + 1.2: spacing"), Bucket.Consume(T + 1.2, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Spacing);
-		TestTrue(TEXT("rail at t + 1.3 accepted (resend compression inside the tolerance)"), Bucket.Consume(T + 1.3, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Accepted);
-		TestTrue(TEXT("rail at t + 2.6 accepted"), Bucket.Consume(T + 2.6, Interval, 3.f, MinSpacing) == EVeloxFireRateResult::Accepted);
+		TestTrue(TEXT("rail 1 at t accepted"), Bucket.TryConsume(10.0, 1.5f, RGCapacity));
+		TestTrue(TEXT("rail 2 at t: rate"), Bucket.Consume(10.0, 1.5f, RGCapacity) == EVeloxFireRateResult::Rate);
+		TestTrue(TEXT("rail 3 at t: rate"), Bucket.Consume(10.0, 1.5f, RGCapacity) == EVeloxFireRateResult::Rate);
+		TestFalse(TEXT("rail at t + 0.99: rate (min spacing Interval - Tol = 1.0 s)"), Bucket.TryConsume(10.99, 1.5f, RGCapacity));
+		TestTrue(TEXT("rail at t + 1.0 accepted"), Bucket.TryConsume(11.0, 1.5f, RGCapacity));
 	}
 
-	// Rails sent every 1.5 s, received with up to 0.25 s of jitter (resend compression): all accepted, long-term rate kept.
+	// B32 rail cheat: firing every 1.0 s from a full bucket. Shot 1 (t 0) and 2 (t 1.0) accepted, shot 3 (t 2.0) rejected,
+	// a probe at 2.4 s still rejected, 2.5 s accepted (tokens after each: 0.333, 0.0, 0.667, 0.933, 1.0 -> 0.0).
 	{
 		FVeloxFireRateBucket Bucket;
-		FRandomStream Stream(4321);
-		const float Interval = 1.5f;
-		const float MinSpacing = FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance);
+		const double T0 = 10.0;
+		TestTrue(TEXT("RG cheat shot 1 (t 0.0) accepted"), Bucket.TryConsume(T0, 1.5f, RGCapacity));
+		TestEqual(TEXT("RG cheat tokens after shot 1"), Bucket.Tokens, 1.0 / 3.0, 1e-4);
+		TestTrue(TEXT("RG cheat shot 2 (t 1.0) accepted"), Bucket.TryConsume(T0 + 1.0, 1.5f, RGCapacity));
+		TestEqual(TEXT("RG cheat tokens after shot 2"), Bucket.Tokens, 0.0, 1e-4);
+		TestFalse(TEXT("RG cheat shot 3 (t 2.0) rejected"), Bucket.TryConsume(T0 + 2.0, 1.5f, RGCapacity));
+		TestEqual(TEXT("RG cheat tokens at shot 3"), Bucket.Tokens, 2.0 / 3.0, 1e-4);
+		TestFalse(TEXT("RG cheat probe (t 2.4) rejected"), Bucket.TryConsume(T0 + 2.4, 1.5f, RGCapacity));
+		TestTrue(TEXT("RG cheat next accepted at t 2.5"), Bucket.TryConsume(T0 + 2.5, 1.5f, RGCapacity));
+	}
+	// The same cheat for 60 s (61 shots, t 0..60): accepted <= 1 + floor(60 / 1.5) = 41 (pattern accept, accept, reject).
+	{
+		FVeloxFireRateBucket Bucket;
 		int32 Accepted = 0;
-		const int32 Shots = 400;
-		double LastReceive = 0.0;
-		for (int32 Index = 0; Index < Shots; ++Index)
+		for (int32 Index = 0; Index <= 60; ++Index)
 		{
-			const double Receive = FMath::Max(Index * 1.5 + Stream.FRandRange(0.0, 0.2499), LastReceive);
-			LastReceive = Receive;
-			Accepted += Bucket.TryConsume(Receive, Interval, 3.f, MinSpacing) ? 1 : 0;
+			Accepted += Bucket.TryConsume(10.0 + Index, 1.5f, RGCapacity) ? 1 : 0;
 		}
-		TestEqual(TEXT("0.25 s jitter at 1.5 s: all accepted"), Accepted, Shots);
+		TestTrue(FString::Printf(TEXT("RG cheat 1.0 s for 60 s: %d accepted, 40..41"), Accepted), Accepted <= 41 && Accepted >= 40);
 	}
 
-	// Task 08b D3: capacity in time, max(BurstAllowance 3, 1 + 0.5 s / interval).
-	constexpr float BurstAllowance = 3.f;
-	constexpr float JitterTolerance = 0.5f;
-	TestEqual(TEXT("capacity LG 11"), FVeloxFireRateBucket::CapacityFor(0.05f, BurstAllowance, JitterTolerance), 11.f, 1e-4f);
-	TestEqual(TEXT("capacity MG 6"), FVeloxFireRateBucket::CapacityFor(0.1f, BurstAllowance, JitterTolerance), 6.f, 1e-4f);
-	TestEqual(TEXT("capacity RG 3 (allowance)"), FVeloxFireRateBucket::CapacityFor(1.5f, BurstAllowance, JitterTolerance), 3.f, 1e-4f);
-	TestEqual(TEXT("capacity tolerance 0 -> allowance"), FVeloxFireRateBucket::CapacityFor(0.1f, BurstAllowance, 0.f), 3.f, 1e-4f);
-	TestEqual(TEXT("capacity at least 1"), FVeloxFireRateBucket::CapacityFor(0.f, 0.f, 0.f), 1.f, 1e-4f);
-
-	// Honest MG (0.1 s, client frames 120 Hz, Q3 carry: fire times on frame boundaries), one-way delay base +- 20 ms,
+	// Honest fire at Interval (client frames 120 Hz, Q3 carry: fire times on frame boundaries), one-way delay RTT/2 +- 20 ms,
 	// 2 % of shots lost and resent RTT + 80 ms later (task 08 evidence: arrival 270-300 ms late at 200 ms RTT), arrivals
-	// in order (a reliable resend holds back the later shots of the same channel). 600 s of sustained fire.
-	auto HonestMG = [](double RttSeconds, float Capacity, uint32 Seed)
+	// in order (a reliable resend holds back the later shots of the same channel). 600 s of sustained fire. B19MinGap
+	// > 0 additionally applies B19's deleted spacing rule (reject below that receive-time gap after the last accepted
+	// shot), so the test documents what the old rule did to the same arrivals.
+	auto Honest = [](float Interval, double RttSeconds, float Capacity, uint32 Seed, double B19MinGap)
 	{
 		FVeloxFireRateBucket Bucket;
 		FRandomStream Stream(Seed);
-		constexpr float Interval = 0.1f;
 		constexpr double Frame = 1.0 / 120.0;
+		const int32 Shots = FMath::RoundToInt32(600.0 / Interval);
 		int32 Rejected = 0;
 		double LastArrival = 0.0;
-		for (int32 Index = 0; Index < 6000; ++Index)
+		double LastAccepted = -1e9;
+		for (int32 Index = 0; Index < Shots; ++Index)
 		{
-			const double Fire = FMath::CeilToDouble((10.0 + Index * Interval) / Frame) * Frame;
+			const double Fire = FMath::CeilToDouble((10.0 + Index * static_cast<double>(Interval)) / Frame) * Frame;
 			double Arrival = Fire + RttSeconds * 0.5 + Stream.FRandRange(-0.02, 0.02);
 			if (Stream.FRand() < 0.02)
 			{
@@ -203,14 +205,33 @@ bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 			}
 			Arrival = FMath::Max(Arrival, LastArrival);
 			LastArrival = Arrival;
-			Rejected += Bucket.TryConsume(Arrival, Interval, Capacity, 0.f) ? 0 : 1;
+			if (B19MinGap > 0.0 && Arrival - LastAccepted < B19MinGap - 1e-6)
+			{
+				++Rejected;
+				continue;
+			}
+			if (Bucket.TryConsume(Arrival, Interval, Capacity))
+			{
+				LastAccepted = Arrival;
+			}
+			else
+			{
+				++Rejected;
+			}
 		}
 		return Rejected;
 	};
-	const float MGCapacity = FVeloxFireRateBucket::CapacityFor(0.1f, BurstAllowance, JitterTolerance);
-	TestEqual(TEXT("D3: honest MG, 100 ms RTT, 2 % resends: 0 rejected"), HonestMG(0.1, MGCapacity, 11), 0);
-	TestEqual(TEXT("D3: honest MG, 250 ms RTT, 2 % resends: 0 rejected"), HonestMG(0.25, MGCapacity, 12), 0);
-	TestTrue(TEXT("D3: the old 3-token bucket rejects the same honest MG at 200 ms RTT (the defect)"), HonestMG(0.2, BurstAllowance, 13) > 0);
+	const float MGCapacity = FVeloxFireRateBucket::CapacityFor(0.1f, JitterTolerance);
+	TestEqual(TEXT("D3: honest MG, 100 ms RTT, 2 % resends: 0 rejected"), Honest(0.1f, 0.1, MGCapacity, 11, 0.0), 0);
+	TestEqual(TEXT("D3: honest MG, 250 ms RTT, 2 % resends: 0 rejected"), Honest(0.1f, 0.25, MGCapacity, 12, 0.0), 0);
+	TestTrue(TEXT("D3: the old 3-token bucket rejects the same honest MG at 200 ms RTT (the defect)"), Honest(0.1f, 0.2, 3.f, 13, 0.0) > 0);
+	TestEqual(TEXT("B32: honest RG, 250 ms RTT, 2 % resends, 600 s: 0 rejected"), Honest(1.5f, 0.25, RGCapacity, 21, 0.0), 0);
+	{
+		// B19 (deleted): bucket floor 3 plus the minimum gap 1.5 - 0.25 = 1.25 s, on the same arrivals (same seed).
+		const int32 LegacyRejected = Honest(1.5f, 0.25, 3.f, 21, 1.25);
+		AddInfo(FString::Printf(TEXT("B32: B19's deleted 1.25 s minimum gap rejects %d of the same 400 honest rails"), LegacyRejected));
+		TestTrue(FString::Printf(TEXT("B32: B19's deleted 1.25 s minimum gap rejects the same honest rails (%d, the defect)"), LegacyRejected), LegacyRejected >= 1);
+	}
 
 	// Resend burst row: shots 14-16 held back by one lost packet arrive together 270 ms late, 17 on time (task 08 round 3).
 	{
@@ -220,7 +241,7 @@ bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 		int32 Accepted = 0;
 		for (int32 Index = 0; Index < UE_ARRAY_COUNT(Late); ++Index)
 		{
-			Accepted += Bucket.TryConsume(10.0 + Index * Interval + Late[Index], Interval, MGCapacity, 0.f) ? 1 : 0;
+			Accepted += Bucket.TryConsume(10.0 + Index * Interval + Late[Index], Interval, MGCapacity) ? 1 : 0;
 		}
 		TestEqual(TEXT("D3: resend burst then an on-time shot: all accepted"), Accepted, static_cast<int32>(UE_ARRAY_COUNT(Late)));
 	}
@@ -231,7 +252,7 @@ bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 		constexpr float Interval = 0.1f;
 		for (int32 Index = 0; Index < 50; ++Index)
 		{
-			Bucket.TryConsume(10.0 + Index * Interval, Interval, MGCapacity, 0.f);
+			Bucket.TryConsume(10.0 + Index * Interval, Interval, MGCapacity);
 		}
 		const double CheatStart = 10.0 + 50 * Interval;
 		double FirstReject = -1.0;
@@ -240,7 +261,7 @@ bool FVeloxCombatFireRateBucketTest::RunTest(const FString& Parameters)
 		for (int32 Index = 0; Index < Shots; ++Index)
 		{
 			const double T = CheatStart + Index * 0.05;
-			if (Bucket.TryConsume(T, Interval, MGCapacity, 0.f))
+			if (Bucket.TryConsume(T, Interval, MGCapacity))
 			{
 				++Accepted;
 			}
@@ -320,7 +341,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatShotValidationTest, "Velox.Combat.S
 bool FVeloxCombatShotValidationTest::RunTest(const FString& Parameters)
 {
 	constexpr float Capacity = 3.f;
-	constexpr float Tolerance = 0.25f;
 	const double NaN = std::numeric_limits<double>::quiet_NaN();
 	const float FInf = std::numeric_limits<float>::infinity();
 	const float FNaN = std::numeric_limits<float>::quiet_NaN();
@@ -332,12 +352,12 @@ bool FVeloxCombatShotValidationTest::RunTest(const FString& Parameters)
 	Good.ShotSeq = 42;
 	Good.HintTargetStamp = 7.f; // no hint bit: dropped
 
-	// Each payload case with a fresh MG bucket (0.1 s, spacing 0): the reason comes from the payload alone.
+	// Each payload case with a fresh MG bucket (0.1 s, capacity 3): the reason comes from the payload alone.
 	auto Check = [&](const TCHAR* Name, const FGameplayAbilityTargetData* Raw, EVeloxShotReject Expected)
 	{
 		FVeloxFireRateBucket Bucket;
 		FVeloxValidatedShot Out;
-		const EVeloxShotReject Got = VeloxShotValidation::Validate(Raw, Bucket, 10.0, 0.1f, Capacity, Tolerance, Out);
+		const EVeloxShotReject Got = VeloxShotValidation::Validate(Raw, Bucket, 10.0, 0.1f, Capacity, Out);
 		TestEqual(FString::Printf(TEXT("%s -> %s (got %s)"), Name, LexToString(Expected), LexToString(Got)), static_cast<int32>(Got), static_cast<int32>(Expected));
 		return Out;
 	};
@@ -380,23 +400,25 @@ bool FVeloxCombatShotValidationTest::RunTest(const FString& Parameters)
 		Check(TEXT("NaN hint stamp"), &Bad, EVeloxShotReject::Time);
 	}
 
-	// Over-rate: MG (0.1 s, spacing 0) four shots in one frame -> the fourth is rate.
+	// Over-rate: MG (0.1 s, capacity 3) four shots in one frame -> the fourth is rate.
 	{
 		FVeloxFireRateBucket Bucket;
 		FVeloxValidatedShot Out;
 		for (int32 Index = 0; Index < 3; ++Index)
 		{
-			TestTrue(FString::Printf(TEXT("MG burst %d accepted"), Index + 1), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 0.1f, Capacity, Tolerance, Out) == EVeloxShotReject::None);
+			TestTrue(FString::Printf(TEXT("MG burst %d accepted"), Index + 1), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 0.1f, Capacity, Out) == EVeloxShotReject::None);
 		}
-		TestTrue(TEXT("MG fourth in one frame: rate"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 0.1f, Capacity, Tolerance, Out) == EVeloxShotReject::Rate);
+		TestTrue(TEXT("MG fourth in one frame: rate"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 0.1f, Capacity, Out) == EVeloxShotReject::Rate);
 		TestEqual(TEXT("rejected shot still names its seq"), static_cast<int32>(Out.ShotSeq), 42);
 	}
-	// Under-spacing: two rails 1.0 s apart (spacing 1.25) -> spacing.
+	// B32: rails at the default capacity 1.33: 0.9 s after the first -> rate (no separate spacing reason), 1.0 s -> accepted.
 	{
 		FVeloxFireRateBucket Bucket;
 		FVeloxValidatedShot Out;
-		TestTrue(TEXT("rail 1 accepted"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 1.5f, Capacity, Tolerance, Out) == EVeloxShotReject::None);
-		TestTrue(TEXT("rail 2 after 1.0 s: spacing"), VeloxShotValidation::Validate(&Good, Bucket, 11.0, 1.5f, Capacity, Tolerance, Out) == EVeloxShotReject::Spacing);
+		const float RGCapacity = FVeloxFireRateBucket::CapacityFor(1.5f, 0.5f);
+		TestTrue(TEXT("rail 1 accepted"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 1.5f, RGCapacity, Out) == EVeloxShotReject::None);
+		TestTrue(TEXT("rail 2 after 0.9 s: rate"), VeloxShotValidation::Validate(&Good, Bucket, 10.9, 1.5f, RGCapacity, Out) == EVeloxShotReject::Rate);
+		TestTrue(TEXT("rail 2 after 1.0 s: accepted"), VeloxShotValidation::Validate(&Good, Bucket, 11.0, 1.5f, RGCapacity, Out) == EVeloxShotReject::None);
 	}
 	// The bucket is consumed before the payload: three malformed shots empty it, the valid fourth is rate.
 	{
@@ -405,9 +427,9 @@ bool FVeloxCombatShotValidationTest::RunTest(const FString& Parameters)
 		FGameplayAbilityTargetData_SingleTargetHit Wrong;
 		for (int32 Index = 0; Index < 3; ++Index)
 		{
-			TestTrue(FString::Printf(TEXT("wrong type %d: type"), Index + 1), VeloxShotValidation::Validate(&Wrong, Bucket, 10.0, 1.0f, Capacity, 1.0f, Out) == EVeloxShotReject::Type);
+			TestTrue(FString::Printf(TEXT("wrong type %d: type"), Index + 1), VeloxShotValidation::Validate(&Wrong, Bucket, 10.0, 1.0f, Capacity, Out) == EVeloxShotReject::Type);
 		}
-		TestTrue(TEXT("valid shot after three malformed ones: rate (they cost tokens)"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 1.0f, Capacity, 1.0f, Out) == EVeloxShotReject::Rate);
+		TestTrue(TEXT("valid shot after three malformed ones: rate (they cost tokens)"), VeloxShotValidation::Validate(&Good, Bucket, 10.0, 1.0f, Capacity, Out) == EVeloxShotReject::Rate);
 	}
 
 	// B26: the projectile payload (subclass) through the same checks, plus a finite fire move time stamp.
@@ -523,7 +545,8 @@ bool FVeloxCombatWeaponTableTest::RunTest(const FString& Parameters)
 	if (TestNotNull(TEXT("DA_CombatSettings_Default"), Settings))
 	{
 		TestEqual(TEXT("SwitchTimingToleranceSeconds 0.25"), Settings->SwitchTimingToleranceSeconds, 0.25f);
-		TestEqual(TEXT("FireRateSpacingTolerance 0.25"), Settings->FireRateSpacingTolerance, 0.25f);
+		TestEqual(TEXT("FireRateJitterToleranceSeconds 0.5 (B32)"), Settings->FireRateJitterToleranceSeconds, 0.5f);
+		TestEqual(TEXT("MaxRewindSeconds 0.30 (B34)"), Settings->MaxRewindSeconds, 0.30f);
 		TestEqual(TEXT("BeamKeepAliveSeconds 0.25"), Settings->BeamKeepAliveSeconds, 0.25f);
 	}
 	return true;
@@ -885,7 +908,8 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
 	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot7);
 	TestEqual(TEXT("D4: local press during the drop ignored (pending stays MG)"), Inventory->GetPendingIndex(), MG);
-	// The server receiving a new switch while the previous instance still runs (latency-shifted drop end): it supersedes.
+	// The server receiving a new switch while the previous instance still runs (latency-shifted drop end): it supersedes
+	// (B33: the MG switch has 0.45 s <= Raise + Tol left, so it completes first; then RG is a real change).
 	{
 		FGameplayEventData Event;
 		Event.EventTag = InputTag_Weapon_Slot7;
@@ -898,6 +922,77 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("D4: the superseding switch lands on RG"), Inventory->GetCurrentIndex(), RG);
 	TestFalse(TEXT("D4: no switch running after its drop"), SwitchActive());
 	W.Advance(0.3f);
+
+	// Task 08c (ADR 0003 B33): a superseding server activation first completes the pending switch if its remaining time
+	// is <= Raise + SwitchTimingTolerance (the superseded drop has ended within the tolerance), else it is rejected and
+	// the pending switch is left as it is. Defaults: Raise 0.25 + Tol 0.25 = 0.5 s; drop 0.2 s.
+	{
+		const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory->GetCombatSettings());
+		const double Raise = Settings.WeaponRaiseTime;
+		const double Limit = Raise + Settings.GetSwitchTimingToleranceSeconds();
+		auto ServerSwitch = [&](int32 Target)
+		{
+			FGameplayEventData Event;
+			Event.EventTag = InputTag_Weapon_Slot2;
+			Event.EventMagnitude = static_cast<float>(Target);
+			ASC->InternalTryActivateAbility(SwitchHandle, FPredictionKey(), nullptr, nullptr, &Event);
+		};
+		auto ClearSwitch = [&]()
+		{
+			Inventory->SetCurrentIndex(MG);
+			ASC->RemoveActiveGameplayEffectBySourceEffect(UVeloxGE_WeaponSwitching::StaticClass(), nullptr);
+			W.Advance(1.6f); // every refire wait (rail 1.5 s) over
+		};
+
+		// (a) MG -> RG on the server, 0.1 s later (its drop still running on the server, i.e. the client's drop end has
+		// passed and the raise runs there) the server receives RG -> MG: accepted, the RG switch completes first.
+		ClearSwitch();
+		ServerSwitch(RG);
+		TestTrue(TEXT("B33 (a): MG -> RG running, pending RG"), SwitchActive() && Inventory->GetPendingIndex() == RG && Inventory->GetCurrentIndex() == MG);
+		W.Advance(0.1f);
+		const double RemainingA = UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC);
+		AddInfo(FString::Printf(TEXT("B33 (a): remaining %.3f s at the switch-back (limit %.3f, raise %.3f)"), RemainingA, Limit, Raise));
+		TestTrue(TEXT("B33 (a): server drop still running (raise < remaining <= raise + tol)"), SwitchActive() && RemainingA > Raise && RemainingA <= Limit);
+		ServerSwitch(MG);
+		TestEqual(TEXT("B33 (a): switch-back accepted -> pending MG"), Inventory->GetPendingIndex(), MG);
+		TestEqual(TEXT("B33 (a): the superseded switch completed -> current RG"), Inventory->GetCurrentIndex(), RG);
+		TestTrue(TEXT("B33 (a): the switch-back runs (instance active, tag)"), SwitchActive() && ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+		TestTrue(TEXT("B33 (a): SwitchEndTime of the switch-back"), Inventory->GetSwitchEndTime() > W.World->GetTimeSeconds());
+		W.Advance(1.6f);
+		TestEqual(TEXT("B33 (a): the switch-back lands on MG"), Inventory->GetCurrentIndex(), MG);
+		TestFalse(TEXT("B33 (a): no switch running after it"), SwitchActive());
+
+		// (b) MG fired (refire wait 0.1 s), MG -> RG on the server: remaining 0.55 s > 0.5 s; a press in the same frame
+		// (during the drop) is rejected, back to MG and to a third weapon alike; current, pending and GE unchanged.
+		ClearSwitch();
+		const float BulletsB = PlayerState->GetAmmoSet()->GetBullets();
+		ASC->AbilityInputTagPressed(InputTag_Fire);
+		ASC->ProcessAbilityInput(1.f / 60.f, false);
+		ASC->AbilityInputTagReleased(InputTag_Fire);
+		ASC->ProcessAbilityInput(1.f / 60.f, false);
+		TestEqual(TEXT("B33 (b): MG fired (refire wait 0.1 s)"), PlayerState->GetAmmoSet()->GetBullets(), BulletsB - 1.f);
+		ServerSwitch(RG);
+		const double RemainingB = UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC);
+		AddInfo(FString::Printf(TEXT("B33 (b): remaining %.3f s at the press (limit %.3f)"), RemainingB, Limit));
+		TestTrue(TEXT("B33 (b): MG -> RG running, remaining > raise + tol"), Inventory->GetPendingIndex() == RG && RemainingB > Limit);
+		ServerSwitch(MG);
+		TestEqual(TEXT("B33 (b): RG -> MG during the drop rejected -> current MG"), Inventory->GetCurrentIndex(), MG);
+		TestEqual(TEXT("B33 (b): pending RG untouched"), Inventory->GetPendingIndex(), RG);
+		TestTrue(TEXT("B33 (b): GE_WeaponSwitching still active, same remaining"), ASC->HasMatchingGameplayTag(State_WeaponSwitching)
+			&& FMath::IsNearlyEqual(UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC), RemainingB, 1e-3));
+		ServerSwitch(RL);
+		TestTrue(TEXT("B33 (b): a third weapon during the drop rejected too (current MG, pending RG)"), Inventory->GetCurrentIndex() == MG && Inventory->GetPendingIndex() == RG);
+		TestFalse(TEXT("B33 (b): no switch instance running after the rejection"), SwitchActive());
+		// The engine's retrigger ended the superseded instance before the rejection, so its drop end never runs: the RG
+		// switch stays pending until the next switch (or an accepted RG shot, B18) completes it.
+		W.Advance(0.6f);
+		AddInfo(FString::Printf(TEXT("B33 (b): after the GE expired: current %d pending %d"), Inventory->GetCurrentIndex(), Inventory->GetPendingIndex()));
+		ServerSwitch(RL);
+		TestEqual(TEXT("B33 (b): the next switch completes the stale RG switch and runs -> pending RL"), Inventory->GetPendingIndex(), RL);
+		W.Advance(0.3f);
+		TestEqual(TEXT("B33 (b): ... and lands on RL"), Inventory->GetCurrentIndex(), RL);
+		W.Advance(0.3f);
+	}
 
 	// Respawn semantics: the loadout again, RG/RL taken away, a running switch's local end cleared.
 	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot2);

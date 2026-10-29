@@ -320,13 +320,11 @@ def build_combat_settings(table, defs):
         "switch_waits_for_refire": True,
         "switch_timing_tolerance_seconds": 0.25,  # ADR 0003 B18
         "beam_keep_alive_seconds": 0.25,  # B23
-        "max_rewind_seconds": 0.25,
+        "max_rewind_seconds": 0.30,  # ADR 0003 B34
         "history_window_seconds": 1.0,
         "max_origin_error_cm": 75.0,
         "hitbox_teleport_distance_cm": 150.0,
-        "fire_rate_burst_allowance": 3.0,
-        "fire_rate_spacing_tolerance": 0.25,  # B19
-        "fire_rate_jitter_tolerance_seconds": 0.5,  # task 08b D3
+        "fire_rate_jitter_tolerance_seconds": 0.5,  # ADR 0003 B32 (task 08b D3, 08c)
         "projectile_forward_prediction_max": 0.1,
         "min_respawn_delay": 1.7,
         "force_respawn_delay": 20.0,

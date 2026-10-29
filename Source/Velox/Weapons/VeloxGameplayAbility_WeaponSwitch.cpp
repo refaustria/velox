@@ -25,7 +25,8 @@ UVeloxGameplayAbility_WeaponSwitch::UVeloxGameplayAbility_WeaponSwitch(const FOb
 	SetAssetTags(AssetTags);
 	ActivationBlockedTags.AddTag(VeloxGameplayTags::State_Dead);
 	// D4: on the server a new switch ends a running one (its drop end lags the client's by the latency) instead of being
-	// rejected. The superseded instance's EndAbility only resets SwitchEndTime, which the new activation sets again.
+	// rejected. The superseded instance's EndAbility only resets SwitchEndTime, which the new activation sets again; its
+	// pending switch is completed or the new activation rejected at the top of ActivateAbility (B33).
 	bRetriggerInstancedAbility = true;
 }
 
@@ -78,6 +79,27 @@ void UVeloxGameplayAbility_WeaponSwitch::ActivateAbility(const FGameplayAbilityS
 	const float Magnitude = TriggerEventData ? TriggerEventData->EventMagnitude : -1.f;
 	TargetIndex = (FMath::IsFinite(Magnitude) && Magnitude >= 0.f && Magnitude < static_cast<float>(UVeloxWeaponTable::MaxWeapons)) ? FMath::RoundToInt32(Magnitude) : INDEX_NONE;
 	bSwitchTimingPending = false;
+	// ADR 0003 B33 (server): a switch still pending here was superseded by this activation (bRetriggerInstancedAbility:
+	// the engine has already ended its instance, so its drop end will never run). If its drop has ended within the B18
+	// tolerance (remaining <= Raise + Tol), which is the only state in which an honest client can have sent this press
+	// (its own instance ended at its drop end), its inventory part is completed first, so the validation below sees the
+	// weapon the client sees. Otherwise the press came during the drop: rejected (pre-08b outcome).
+	if (Inventory && ASC && ActorInfo->IsNetAuthority() && Inventory->GetPendingIndex() != INDEX_NONE)
+	{
+		const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory->GetCombatSettings());
+		const double Remaining = UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC);
+		const double Limit = static_cast<double>(FMath::Max(Settings.WeaponRaiseTime, 0.f)) + Settings.GetSwitchTimingToleranceSeconds();
+		if (Remaining > Limit + 1e-4)
+		{
+			UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxWeaponSwitch supersede rejected target=%d current=%d pending=%d remaining=%.3f limit=%.3f"), TargetIndex,
+				Inventory->GetCurrentIndex(), Inventory->GetPendingIndex(), Remaining, Limit);
+			EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+			return;
+		}
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxWeaponSwitch supersede completes pending=%d (current=%d) remaining=%.3f limit=%.3f target=%d"), Inventory->GetPendingIndex(),
+			Inventory->GetCurrentIndex(), Remaining, Limit, TargetIndex);
+		Inventory->CompletePendingSwitchIndexOnly();
+	}
 	// Server validation: owned (ammo is not required, Q3) and a real change.
 	if (!Inventory || !ASC || !Inventory->OwnsIndex(TargetIndex) || TargetIndex == Inventory->GetCurrentIndex() || !CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
