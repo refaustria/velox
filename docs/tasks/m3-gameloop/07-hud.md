@@ -2,7 +2,7 @@
 
 **Milestone:** M3 Game loop
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged; notes/07-report.md)
 **Depends on:** 01, 02, 06; ADR 0004 (and accepted ADRs 0001-0003)
 **Estimate:** 3 h; Wave 3
 
