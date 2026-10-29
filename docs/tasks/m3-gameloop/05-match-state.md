@@ -2,7 +2,7 @@
 
 **Milestone:** M3 Game loop
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged dfea0e2; notes/05-report.md)
 **Depends on:** none (parallel with 01; uses GE_MatchFrozen from 02 if merged); ADR 0004 (and accepted ADRs 0001-0003)
 **Estimate:** 3 h; Wave 1
 
