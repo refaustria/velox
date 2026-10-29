@@ -16,6 +16,7 @@ FSavedMove_Velox::FSavedMove_Velox()
 	, bSavedJumpLatched(false)
 	, bSavedEnteredTrigger(false)
 	, bSavedJumpedHeld(false)
+	, bSavedQueuedPredictedKnockback(false)
 {
 }
 
@@ -24,6 +25,7 @@ void FSavedMove_Velox::Clear()
 	Super::Clear();
 
 	SavedPendingKnockback.Reset();
+	SavedPredictedKnockback.Reset();
 	SavedKnockbackGrace = 0.f;
 	bSavedJumpHeld = false;
 	bSavedHasForwardInput = false;
@@ -31,6 +33,7 @@ void FSavedMove_Velox::Clear()
 	bSavedJumpLatched = false;
 	bSavedEnteredTrigger = false;
 	bSavedJumpedHeld = false;
+	bSavedQueuedPredictedKnockback = false;
 }
 
 uint8 FSavedMove_Velox::GetCompressedFlags() const
@@ -65,6 +68,11 @@ bool FSavedMove_Velox::CanCombineVeloxState(const FSavedMove_Velox& NewMove, boo
 	}
 	// A knockback is an instant velocity change; combining would re-simulate it from the older start location.
 	if (SavedPendingKnockback.IsPending() || NewMove.SavedPendingKnockback.IsPending())
+	{
+		return false;
+	}
+	// Same for the recorded predicted self-knockback (ADR 0003 section 3): it must stay at its own move for the replay.
+	if (SavedPredictedKnockback.IsPending() || NewMove.SavedPredictedKnockback.IsPending())
 	{
 		return false;
 	}
@@ -124,22 +132,39 @@ void FSavedMove_Velox::SetMoveFor(ACharacter* C, float InDeltaTime, FVector cons
 		bSavedJumpLatched = MoveComp->IsJumpLatched();
 		SavedKnockbackGrace = MoveComp->GetKnockbackGrace();
 		SavedPendingKnockback = MoveComp->GetPendingKnockback();
+		SavedPredictedKnockback = MoveComp->GetPendingPredictedKnockback();
 
 		// Same idea as the engine's PendingLaunchVelocity rule: an instant velocity change is sent on its own.
-		if (SavedPendingKnockback.IsPending())
+		if (SavedPendingKnockback.IsPending() || SavedPredictedKnockback.IsPending())
 		{
 			bForceNoCombine = true;
 		}
 	}
 }
 
+FVeloxPredictedKnockback FSavedMove_Velox::PredictedKnockbackForReplay(const FVeloxPredictedKnockback& Saved, uint8 ConfirmedSeq)
+{
+	if (Saved.IsPending() && UVeloxMovementComponent::ShouldReplayPredictedKnockback(Saved.Seq, ConfirmedSeq))
+	{
+		return Saved;
+	}
+	return FVeloxPredictedKnockback();
+}
+
 void FSavedMove_Velox::PrepMoveFor(ACharacter* C)
 {
-	// Nothing Velox-specific is restored (A17). The input flags reach the replay through MoveAutonomous ->
+	// Nothing else Velox-specific is restored (A17). The input flags reach the replay through MoveAutonomous ->
 	// UpdateFromCompressedFlags; KnockbackGrace, the jump latch and the pending knockback chain from the correction like
-	// Velocity (restoring recorded predictions would re-inject mispredicted history). Kept as an explicit override so the
-	// rule has one place to live; M2's recorded knockback channel (A17) will be assigned here.
+	// Velocity (restoring recorded predictions would re-inject mispredicted history).
 	Super::PrepMoveFor(C);
+
+	// The one exception (ADR 0003 section 3): the predicted self-knockback has no replayable source event. A replayed
+	// move re-applies it while the server has not resolved its shot; once resolved, the server's state (corrected
+	// velocity or chained pending knockback) already holds the real impulse, or correctly none.
+	if (UVeloxMovementComponent* MoveComp = C ? Cast<UVeloxMovementComponent>(C->GetCharacterMovement()) : nullptr)
+	{
+		MoveComp->SetReplayPredictedKnockback(PredictedKnockbackForReplay(SavedPredictedKnockback, MoveComp->GetConfirmedSelfKnockbackSeq()));
+	}
 }
 
 void FSavedMove_Velox::PostUpdate(ACharacter* C, EPostUpdateMode PostUpdateMode)
@@ -154,13 +179,15 @@ void FSavedMove_Velox::PostUpdate(ACharacter* C, EPostUpdateMode PostUpdateMode)
 			// The move's own end-of-scope overlap has already queued the knockback; the next move consumes it (A28).
 			bSavedEnteredTrigger = MoveComp->HasPendingKnockback();
 			bSavedJumpedHeld = MoveComp->JumpedThisMove() && bSavedJumpHeld;
+			// A move-timed self detonation of a fake projectile queued its prediction at the end of this move.
+			bSavedQueuedPredictedKnockback = MoveComp->GetPendingPredictedKnockback().IsPending();
 		}
 	}
 }
 
 bool FSavedMove_Velox::IsImportantMove(const FSavedMovePtr& LastAckedMove) const
 {
-	if (bSavedEnteredTrigger || bSavedJumpedHeld)
+	if (IsEventMove())
 	{
 		return true;
 	}
@@ -250,6 +277,7 @@ void FVeloxMoveResponseDataContainer::ServerFillResponseData(const UCharacterMov
 	KnockbackGrace = 0.f;
 	bJumpLatched = false;
 	PendingKnockback.Reset();
+	ConfirmedSelfKnockbackSeq = 0;
 
 	// Server state after the acked move: what the client must start its replay from. The adjustment was queued in
 	// ServerMoveHandleClientError, possibly before further moves of this frame ran, so read the snapshot taken there (A18).
@@ -261,6 +289,7 @@ void FVeloxMoveResponseDataContainer::ServerFillResponseData(const UCharacterMov
 			KnockbackGrace = Snapshot.KnockbackGrace;
 			bJumpLatched = Snapshot.bJumpLatched;
 			PendingKnockback = Snapshot.PendingKnockback;
+			ConfirmedSelfKnockbackSeq = Snapshot.ConfirmedSelfKnockbackSeq;
 		}
 		else
 		{
@@ -268,6 +297,7 @@ void FVeloxMoveResponseDataContainer::ServerFillResponseData(const UCharacterMov
 			KnockbackGrace = MoveComp->GetKnockbackGrace();
 			bJumpLatched = MoveComp->IsJumpLatched();
 			PendingKnockback = MoveComp->GetPendingKnockback();
+			ConfirmedSelfKnockbackSeq = MoveComp->GetConfirmedSelfKnockbackSeq();
 		}
 	}
 }
@@ -288,6 +318,7 @@ bool FVeloxMoveResponseDataContainer::Serialize(UCharacterMovementComponent& Cha
 		Ar.SerializeBits(&bJumpLatched, 1);
 		SerializeOptionalValue<FVector>(bIsSaving, Ar, PendingKnockback.Velocity, FVector::ZeroVector);
 		Ar.SerializeBits(&PendingKnockback.bOverride, 1);
+		SerializeOptionalValue<uint8>(bIsSaving, Ar, ConfirmedSelfKnockbackSeq, 0);
 	}
 
 	return !Ar.IsError();

@@ -1,0 +1,33 @@
+{
+ "name": "FireRun",
+ "note": "L_CombatTest, task 08 / ADR 0003 section 9, B17, B24, B25. The server spawns an invulnerable strafing dummy at dummyLocation (infra/ci/nettest.sh: velox.combat.SpawnDummy x y z invulnerable) and gives all weapons. 5 s warm-up (B24), then 10 rails; the pauses between them (1.5 s + k x 0.17 s) spread the shots over the dummy's strafe period (2 x 600 cm / 800 cm/s = 1.5 s = the rail refire, which would otherwise sample one strafe phase only). Then the switch sequence RG -> MG (40 shots) -> RG (1 shot), each first shot at the local SwitchEndTime (fire held through the switch), then one rocket at the floor under the strafe centre (its splash reaches the dummy anywhere in its +-300 cm strafe). Aim: the dummy's rendered centre every tick.",
+ "dummyLocation": [-700, 0, 110],
+ "startYaw": 0,
+ "startLocation": [-1700, 0, 100],
+ "rows": [
+  {"duration": 5.0, "label": "warm-up", "aimAt": [-700, 0, 110]},
+  {"duration": 4.0, "label": "rail 1 (switch MG to RG)", "weapon": 7, "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 1.67, "label": "rail pause 1", "aimAt": [-700, 0, 110]},
+  {"duration": 2.0, "label": "rail 2", "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 1.84, "label": "rail pause 2", "aimAt": [-700, 0, 110]},
+  {"duration": 2.0, "label": "rail 3", "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 2.01, "label": "rail pause 3", "aimAt": [-700, 0, 110]},
+  {"duration": 2.0, "label": "rail 4", "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 2.18, "label": "rail pause 4", "aimAt": [-700, 0, 110]},
+  {"duration": 2.0, "label": "rail 5", "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 2.35, "label": "rail pause 5", "aimAt": [-700, 0, 110]},
+  {"duration": 2.0, "label": "rail 6", "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 2.52, "label": "rail pause 6", "aimAt": [-700, 0, 110]},
+  {"duration": 2.0, "label": "rail 7", "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 2.69, "label": "rail pause 7", "aimAt": [-700, 0, 110]},
+  {"duration": 2.0, "label": "rail 8", "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 2.86, "label": "rail pause 8", "aimAt": [-700, 0, 110]},
+  {"duration": 2.0, "label": "rail 9", "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 3.03, "label": "rail pause 9", "aimAt": [-700, 0, 110]},
+  {"duration": 2.0, "label": "rail 10", "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 8.0, "label": "switch RG to MG", "weapon": 2, "fire": true, "shots": 40, "aimAt": [-700, 0, 110]},
+  {"duration": 4.0, "label": "switch MG to RG", "weapon": 7, "fire": true, "shots": 1, "aimAt": [-700, 0, 110]},
+  {"duration": 4.0, "label": "rocket", "weapon": 5, "fire": true, "shots": 1, "aimPoint": [-700, 0, 0]},
+  {"duration": 2.0, "label": "settle", "aimPoint": [-700, 0, 0]}
+ ]
+}

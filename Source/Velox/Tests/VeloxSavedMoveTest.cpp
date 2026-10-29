@@ -1,8 +1,9 @@
 // Velox - saved-move flag plumbing, CanCombineWith rules and jump latch (ADR 0002 sections 5 and 7, A12, A17). World-free.
 //
-// Replay model (A17): FSavedMove_Velox::PrepMoveFor is Super only. The jump latch, KnockbackGrace and the pending
-// knockback are derived state that chains from the correction through the replayed moves; the saved copies are read by
-// CanCombineWith only. The replay itself needs a world and is covered by the task-05 net soak (LatchRun, PadRun scripts).
+// Replay model (A17): FSavedMove_Velox::PrepMoveFor restores nothing Velox-specific except the recorded predicted
+// self-knockback (ADR 0003 section 3, M2 task 05). The jump latch, KnockbackGrace and the pending knockback are derived
+// state that chains from the correction through the replayed moves; the saved copies are read by CanCombineWith only.
+// The replay itself needs a world and is covered by the task-05 net soak (LatchRun, PadRun scripts).
 
 
 #include "Misc/AutomationTest.h"
@@ -17,7 +18,7 @@
 namespace VeloxSavedMoveTest
 {
 	constexpr EAutomationTestFlags Flags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter;
-	constexpr float Dt = 1.f / 125.f;
+	constexpr float SavedMoveDt = 1.f / 125.f;
 	constexpr float MaxCombineDelta = 0.125f;
 
 	/** A ground move that the engine rules allow to combine with another one built the same way. */
@@ -25,7 +26,7 @@ namespace VeloxSavedMoveTest
 	{
 		TSharedPtr<FSavedMove_Velox> Move = MakeShared<FSavedMove_Velox>();
 		Move->Clear();
-		Move->DeltaTime = Dt;
+		Move->DeltaTime = SavedMoveDt;
 		Move->MaxSpeed = 800.f;
 		Move->StartVelocity = FVector(800.0, 0.0, 0.0);
 		Move->Acceleration = FVector(800.0, 0.0, 0.0);
@@ -55,14 +56,14 @@ bool FVeloxMovementSavedMoveFlagsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Cleared move carries no flags"), static_cast<int32>(Move.GetCompressedFlags()), 0);
 
 	Move.bSavedJumpHeld = true;
-	uint8 Flags = Move.GetCompressedFlags();
-	TestTrue(TEXT("Jump held sets FLAG_JumpHeld"), (Flags & FSavedMove_Velox::FLAG_JumpHeld) != 0);
-	TestTrue(TEXT("Jump held does not set FLAG_JumpPressed"), (Flags & FSavedMove_Character::FLAG_JumpPressed) == 0);
+	uint8 MoveFlags = Move.GetCompressedFlags();
+	TestTrue(TEXT("Jump held sets FLAG_JumpHeld"), (MoveFlags & FSavedMove_Velox::FLAG_JumpHeld) != 0);
+	TestTrue(TEXT("Jump held does not set FLAG_JumpPressed"), (MoveFlags & FSavedMove_Character::FLAG_JumpPressed) == 0);
 
 	Move.bSavedHasForwardInput = true;
-	Flags = Move.GetCompressedFlags();
-	TestTrue(TEXT("Forward input sets FLAG_HasForwardInput"), (Flags & FSavedMove_Velox::FLAG_HasForwardInput) != 0);
-	TestTrue(TEXT("Forward input does not set FLAG_HasSideInput"), (Flags & FSavedMove_Velox::FLAG_HasSideInput) == 0);
+	MoveFlags = Move.GetCompressedFlags();
+	TestTrue(TEXT("Forward input sets FLAG_HasForwardInput"), (MoveFlags & FSavedMove_Velox::FLAG_HasForwardInput) != 0);
+	TestTrue(TEXT("Forward input does not set FLAG_HasSideInput"), (MoveFlags & FSavedMove_Velox::FLAG_HasSideInput) == 0);
 	Move.bSavedHasSideInput = true;
 	TestTrue(TEXT("Side input sets FLAG_HasSideInput"), (Move.GetCompressedFlags() & FSavedMove_Velox::FLAG_HasSideInput) != 0);
 
@@ -145,6 +146,29 @@ bool FVeloxMovementSavedMoveCombineTest::RunTest(const FString& Parameters)
 		New->bSavedHasForwardInput = false;
 		New->bSavedHasSideInput = true;
 		TestFalse(TEXT("Velox rules: side presence differs"), Old->CanCombineVeloxState(*New, true));
+	}
+	{
+		// ADR 0003 section 3: a recorded predicted self-knockback forbids combining on either side.
+		auto Old = MakeGroundMove(), New = MakeGroundMove();
+		Old->SavedPredictedKnockback.Add(FVector(0.0, 0.0, 1100.0), 7);
+		TestFalse(TEXT("old move has a predicted knockback"), Combines(Old, New));
+		TestFalse(TEXT("Velox rules: old predicted"), Old->CanCombineVeloxState(*New, true));
+		Old->SavedPredictedKnockback.Reset();
+		New->SavedPredictedKnockback.Add(FVector(0.0, 0.0, 75.0), 8);
+		TestFalse(TEXT("new move has a predicted knockback"), Combines(Old, New));
+		TestFalse(TEXT("Velox rules: new predicted"), Old->CanCombineVeloxState(*New, true));
+		New->SavedPredictedKnockback.Reset();
+		TestTrue(TEXT("no prediction: combines again"), Combines(Old, New));
+	}
+	{
+		// A29: the move at whose end a predicted self-knockback was queued is an event move (resent until acked, A32).
+		auto Move = MakeGroundMove();
+		TestFalse(TEXT("plain move is no event move"), Move->IsEventMove());
+		Move->bSavedQueuedPredictedKnockback = true;
+		TestTrue(TEXT("queued predicted knockback makes an event move"), Move->IsEventMove());
+		Move->Clear();
+		TestFalse(TEXT("Clear resets the queued flag"), static_cast<bool>(Move->bSavedQueuedPredictedKnockback));
+		TestFalse(TEXT("Clear resets the predicted knockback"), Move->SavedPredictedKnockback.IsPending());
 	}
 	{
 		// Engine rules still apply after the Velox ones.
@@ -240,9 +264,9 @@ bool FVeloxMovementJumpLatchTest::RunTest(const FString& Parameters)
 	S.bOnGround = true;
 	FVeloxMoveInput In;
 	In.bJumpHeld = true;
-	VeloxMoveSim::StepFrame(S, In, Dt, P);
+	VeloxMoveSim::StepFrame(S, In, SavedMoveDt, P);
 	TestEqual(TEXT("landing jump keeps XY"), FVector(S.Velocity.X, S.Velocity.Y, 0.0), FVector(1000.0, 0.0, 0.0));
-	TestTrue(TEXT("landing jump Z = JumpVelocity + GravityZ * dt"), FMath::IsNearlyEqual(S.Velocity.Z, static_cast<double>(P.JumpVelocity + P.GravityZ * Dt), 1e-3));
+	TestTrue(TEXT("landing jump Z = JumpVelocity + GravityZ * dt"), FMath::IsNearlyEqual(S.Velocity.Z, static_cast<double>(P.JumpVelocity + P.GravityZ * SavedMoveDt), 1e-3));
 	TestFalse(TEXT("airborne after the landing jump"), S.bOnGround);
 
 	return true;
