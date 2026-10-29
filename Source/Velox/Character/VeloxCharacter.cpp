@@ -32,6 +32,11 @@
 #include "Input/VeloxInputComponent.h"
 #include "Input/VeloxInputConfig.h"
 #include "InputActionValue.h"
+#include "Items/VeloxPowerupEffects.h"
+#include "Engine/Engine.h"
+#include "EngineUtils.h"
+#include "GameplayEffect.h"
+#include "HAL/IConsoleManager.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "Movement/VeloxMovementSettings.h"
 #include "Movement/VeloxScriptedInputComponent.h"
@@ -238,8 +243,15 @@ void AVeloxCharacter::PossessedBy(AController* NewController)
 	ApplyPlayerColor();
 }
 
+void AVeloxCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UnbindPowerupMoveTimes();
+	Super::EndPlay(EndPlayReason);
+}
+
 void AVeloxCharacter::UnPossessed()
 {
+	UnbindPowerupMoveTimes();
 	// Before Super, which clears the PlayerState pointer.
 	AVeloxPlayerState* VeloxPS = GetPlayerState<AVeloxPlayerState>();
 	UVeloxAbilitySystemComponent* ASC = VeloxPS ? VeloxPS->GetVeloxAbilitySystemComponent() : nullptr;
@@ -321,8 +333,198 @@ void AVeloxCharacter::InitAbilityActorInfo()
 		{
 			HealthComponent->InitializeWithAbilitySystem(ASC);
 		}
+		if (HasAuthority())
+		{
+			// ADR 0004 section 3: powerup GEs drive the move timeline from now on; sync what is already active.
+			BindPowerupMoveTimes(*ASC);
+			ServerRefreshPowerupMoveTimes();
+		}
 	}
 }
+
+// ---------------------------------------------------------------- Powerups in the move timeline (ADR 0004 section 3)
+
+namespace VeloxCharacterPowerupMoveTimes
+{
+	/** The move-timeline powerup of a powerup GE class (Haste, Quad); unset for every other effect. */
+	TOptional<EVeloxMovePowerup> MovePowerupOf(const UGameplayEffect* Def)
+	{
+		if (Def && Def->IsA<UVeloxGE_Powerup_Haste>())
+		{
+			return EVeloxMovePowerup::Haste;
+		}
+		if (Def && Def->IsA<UVeloxGE_Powerup_Quad>())
+		{
+			return EVeloxMovePowerup::Quad;
+		}
+		return {};
+	}
+}
+
+bool AVeloxCharacter::IsPowerupAvatarOf(const UAbilitySystemComponent* ASC) const
+{
+	return HasAuthority() && ASC && ASC->GetAvatarActor() == this && !bIsCorpse;
+}
+
+void AVeloxCharacter::ServerRefreshPowerupMoveTimes()
+{
+	UVeloxMovementComponent* Movement = Cast<UVeloxMovementComponent>(GetCharacterMovement());
+	UVeloxAbilitySystemComponent* ASC = GetVeloxAbilitySystemComponent();
+	if (!Movement || !IsPowerupAvatarOf(ASC))
+	{
+		return;
+	}
+	const float HasteRemaining = VeloxPowerups::GetRemainingSeconds(*ASC, UVeloxGE_Powerup_Haste::StaticClass());
+	const float QuadRemaining = VeloxPowerups::GetRemainingSeconds(*ASC, UVeloxGE_Powerup_Quad::StaticClass());
+	// Not active: keep the end time. The GE expires on server world time, the move timeline on the client's move stamps;
+	// clearing it here would cut moves the server has not received yet (an expiry correction on every Haste).
+	if (HasteRemaining > 0.f)
+	{
+		Movement->ServerSetPowerupRemaining(EVeloxMovePowerup::Haste, HasteRemaining);
+	}
+	if (QuadRemaining > 0.f)
+	{
+		Movement->ServerSetPowerupRemaining(EVeloxMovePowerup::Quad, QuadRemaining);
+	}
+}
+
+void AVeloxCharacter::BindPowerupMoveTimes(UAbilitySystemComponent& ASC)
+{
+	if (PowerupWatchedASC.Get() == &ASC)
+	{
+		return;
+	}
+	UnbindPowerupMoveTimes();
+	PowerupWatchedASC = &ASC;
+	PowerupAppliedHandle = ASC.OnActiveGameplayEffectAddedDelegateToSelf.AddUObject(this, &AVeloxCharacter::OnPowerupEffectApplied);
+	// Effects applied before this pawn (an earlier life's powerups until GE_SpawnInit removes them).
+	for (const FActiveGameplayEffectHandle& Handle : ASC.GetActiveEffects(FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(VeloxGameplayTags::Powerup_Haste))))
+	{
+		BindPowerupEffectHandle(ASC, Handle);
+	}
+	for (const FActiveGameplayEffectHandle& Handle : ASC.GetActiveEffects(FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(VeloxGameplayTags::Powerup_Quad))))
+	{
+		BindPowerupEffectHandle(ASC, Handle);
+	}
+}
+
+void AVeloxCharacter::UnbindPowerupMoveTimes()
+{
+	if (UAbilitySystemComponent* ASC = PowerupWatchedASC.Get())
+	{
+		ASC->OnActiveGameplayEffectAddedDelegateToSelf.Remove(PowerupAppliedHandle);
+		// Per-effect bindings die with their effects; a callback after this point fails IsPowerupAvatarOf.
+	}
+	PowerupAppliedHandle.Reset();
+	PowerupWatchedASC.Reset();
+}
+
+void AVeloxCharacter::BindPowerupEffectHandle(UAbilitySystemComponent& ASC, const FActiveGameplayEffectHandle& Handle)
+{
+	if (FOnActiveGameplayEffectTimeChange* TimeChange = ASC.OnGameplayEffectTimeChangeDelegate(Handle))
+	{
+		TimeChange->AddUObject(this, &AVeloxCharacter::OnPowerupEffectTimeChanged);
+	}
+	if (FOnActiveGameplayEffectRemoved_Info* Removed = ASC.OnGameplayEffectRemoved_InfoDelegate(Handle))
+	{
+		Removed->AddUObject(this, &AVeloxCharacter::OnPowerupEffectRemoved);
+	}
+}
+
+void AVeloxCharacter::OnPowerupEffectApplied(UAbilitySystemComponent* ASC, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle Handle)
+{
+	if (!ASC || !IsPowerupAvatarOf(ASC) || !VeloxCharacterPowerupMoveTimes::MovePowerupOf(Spec.Def).IsSet())
+	{
+		return;
+	}
+	BindPowerupEffectHandle(*ASC, Handle);
+	ServerRefreshPowerupMoveTimes();
+}
+
+void AVeloxCharacter::OnPowerupEffectTimeChanged(FActiveGameplayEffectHandle Handle, float NewStartTime, float NewDuration)
+{
+	// GrantOrExtend's in-place extension (ModifyActiveEffectStartTime -> OnDurationChange): no tag event, new end time.
+	ServerRefreshPowerupMoveTimes();
+}
+
+void AVeloxCharacter::OnPowerupEffectRemoved(const FGameplayEffectRemovalInfo& Info)
+{
+	const TOptional<EVeloxMovePowerup> Powerup = VeloxCharacterPowerupMoveTimes::MovePowerupOf(Info.ActiveEffect ? Info.ActiveEffect->Spec.Def.Get() : nullptr);
+	UVeloxMovementComponent* Movement = Cast<UVeloxMovementComponent>(GetCharacterMovement());
+	if (!Powerup.IsSet() || !Movement || !IsPowerupAvatarOf(Info.OwningASC))
+	{
+		return;
+	}
+	// A natural expiry ends in the move timeline (exact on both ends). A premature removal (lost on death via GE_SpawnInit,
+	// the remove half of GrantOrExtend's fallback, a future cleanse) ends it now; a re-apply sets the new end right after.
+	if (Info.bPrematureRemoval)
+	{
+		Movement->ServerSetPowerupRemaining(Powerup.GetValue(), 0.f);
+	}
+}
+
+void AVeloxCharacter::ServerGiveTestHaste(float Seconds)
+{
+#if !UE_BUILD_SHIPPING
+	UVeloxAbilitySystemComponent* ASC = GetVeloxAbilitySystemComponent();
+	UVeloxMovementComponent* Movement = Cast<UVeloxMovementComponent>(GetCharacterMovement());
+	if (!HasAuthority() || !ASC || !Movement || Seconds <= 0.f)
+	{
+		UE_LOG(LogVeloxMovement, Warning, TEXT("velox.move.Haste: %s cannot get Haste (authority %d, asc %d)"), *GetName(), HasAuthority() ? 1 : 0, ASC ? 1 : 0);
+		return;
+	}
+	const EVeloxPowerupGrant Grant = VeloxPowerups::GrantOrExtend(*ASC, UVeloxGE_Powerup_Haste::StaticClass(), Seconds);
+	ServerRefreshPowerupMoveTimes();
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=haste_server t=%.3f pawn=%s seconds=%.3f grant=%d clock=%.6f haste_end=%.6f"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, *GetName(), Seconds,
+		static_cast<int32>(Grant), Movement->GetPowerupClockNow(), Movement->GetPowerupMoveTimes().HasteEnd);
+#endif
+}
+
+#if !UE_BUILD_SHIPPING
+namespace VeloxCharacterPowerupMoveTimes
+{
+	/** velox.move.Haste <seconds>: authority worlds give every player pawn Haste; a client asks the server for its own pawn. */
+	void HasteCommand(const TArray<FString>& Args)
+	{
+		const float Seconds = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.f;
+		if (Seconds <= 0.f || !GEngine)
+		{
+			UE_LOG(LogVeloxMovement, Warning, TEXT("velox.move.Haste <seconds>: needs a positive duration."));
+			return;
+		}
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			UWorld* World = Context.World();
+			if (!World || !(Context.WorldType == EWorldType::Game || Context.WorldType == EWorldType::PIE))
+			{
+				continue;
+			}
+			if (World->GetNetMode() == NM_Client)
+			{
+				const APlayerController* PC = World->GetFirstPlayerController();
+				AVeloxCharacter* Pawn = PC ? Cast<AVeloxCharacter>(PC->GetPawn()) : nullptr;
+				UVeloxScriptedInputComponent* Scripted = Pawn ? Pawn->FindComponentByClass<UVeloxScriptedInputComponent>() : nullptr;
+				if (Scripted)
+				{
+					Scripted->RequestTestHaste(Seconds);
+				}
+				continue;
+			}
+			for (TActorIterator<AVeloxCharacter> It(World); It; ++It)
+			{
+				if (It->IsPlayerControlled())
+				{
+					It->ServerGiveTestHaste(Seconds);
+				}
+			}
+		}
+	}
+
+	static FAutoConsoleCommand HasteCmd(TEXT("velox.move.Haste"),
+		TEXT("velox.move.Haste <seconds>: Haste with exactly <seconds> remaining for every player pawn (on a client: its own pawn, over the scripted-input test RPC). Non-shipping."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&HasteCommand));
+}
+#endif
 
 void AVeloxCharacter::HandleGameplayCue(UObject* Self, FGameplayTag GameplayCueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters)
 {

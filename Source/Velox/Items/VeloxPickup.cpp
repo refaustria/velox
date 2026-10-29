@@ -574,7 +574,11 @@ bool AVeloxPickup::GrantPowerup(AVeloxCharacter& Pawn, const FVeloxPickupGain& G
 	{
 		return false;
 	}
-	return VeloxPowerups::GrantOrExtend(*ASC, Definition->PowerupEffect, Gain.PowerupSeconds) != EVeloxPowerupGrant::Failed;
+	const bool bGranted = VeloxPowerups::GrantOrExtend(*ASC, Definition->PowerupEffect, Gain.PowerupSeconds) != EVeloxPowerupGrant::Failed;
+	// ADR 0004 section 3 (task 03): Haste/Quad end times into the owner's move timeline (an in-place extension fires no
+	// tag event; the character's GE delegates cover it too, this keeps the grant explicit).
+	Pawn.ServerRefreshPowerupMoveTimes();
+	return bGranted;
 }
 
 void AVeloxPickup::ServerRespawn()

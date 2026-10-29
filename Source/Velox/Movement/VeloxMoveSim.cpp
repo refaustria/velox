@@ -82,7 +82,7 @@ namespace VeloxMoveSim
 		const int32 N = NumSubsteps(Dt, P);
 		const float H = Dt / static_cast<float>(N);
 		const FVector WishDir = SanitizeWishDir(In.WishDir);
-		const float WishSpeed = FMath::Clamp(In.WishSpeed, 0.f, P.MaxGroundSpeed);
+		const float WishSpeed = FMath::Clamp(In.WishSpeed, 0.f, P.MaxGroundSpeed * EffectiveSpeedScale(In));
 
 		FVector Result = V;
 		FVector Displacement = FVector::ZeroVector;   // A31: trapezoid sum over the substeps
@@ -126,7 +126,7 @@ namespace VeloxMoveSim
 	FVector AirMove(const FVector& V, const FVeloxMoveInput& In, float Dt, const FVeloxMoveParams& P)
 	{
 		const FVector WishDir = SanitizeWishDir(In.WishDir);
-		const float WishSpeed = FMath::Clamp(In.WishSpeed, 0.f, P.AirMaxWishSpeed);
+		const float WishSpeed = FMath::Clamp(In.WishSpeed, 0.f, P.AirMaxWishSpeed * EffectiveSpeedScale(In));
 		if (WishSpeed <= 0.f || WishDir.IsZero())
 		{
 			return V;

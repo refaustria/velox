@@ -17,6 +17,7 @@ FSavedMove_Velox::FSavedMove_Velox()
 	, bSavedEnteredTrigger(false)
 	, bSavedJumpedHeld(false)
 	, bSavedQueuedPredictedKnockback(false)
+	, bSavedHasteActive(false)
 {
 }
 
@@ -34,6 +35,7 @@ void FSavedMove_Velox::Clear()
 	bSavedEnteredTrigger = false;
 	bSavedJumpedHeld = false;
 	bSavedQueuedPredictedKnockback = false;
+	bSavedHasteActive = false;
 }
 
 uint8 FSavedMove_Velox::GetCompressedFlags() const
@@ -101,6 +103,11 @@ bool FSavedMove_Velox::CanCombineVeloxState(const FSavedMove_Velox& NewMove, boo
 	{
 		return false;
 	}
+	// ADR 0004 section 3: the combined move would be simulated with the scale of its end; never across the Haste end.
+	if (bSavedHasteActive != NewMove.bSavedHasteActive)
+	{
+		return false;
+	}
 	return true;
 }
 
@@ -133,6 +140,9 @@ void FSavedMove_Velox::SetMoveFor(ACharacter* C, float InDeltaTime, FVector cons
 		SavedKnockbackGrace = MoveComp->GetKnockbackGrace();
 		SavedPendingKnockback = MoveComp->GetPendingKnockback();
 		SavedPredictedKnockback = MoveComp->GetPendingPredictedKnockback();
+		// TimeStamp is this move's end stamp (ReplicateMoveToServer advanced it before SetMoveFor); the sim evaluates the
+		// same stamp (UVeloxMovementComponent::GetPowerupClockNow).
+		bSavedHasteActive = MoveComp->IsPowerupActiveAt(MoveComp->GetPowerupMoveTimes().HasteEnd, TimeStamp);
 
 		// Same idea as the engine's PendingLaunchVelocity rule: an instant velocity change is sent on its own.
 		if (SavedPendingKnockback.IsPending() || SavedPredictedKnockback.IsPending())
@@ -332,6 +342,7 @@ void FVeloxMoveResponseDataContainer::ServerFillResponseData(const UCharacterMov
 	bJumpLatched = false;
 	PendingKnockback.Reset();
 	ConfirmedSelfKnockbackSeq = 0;
+	PowerupMoveTimes = FVeloxPowerupMoveTimes();
 
 	// Server state after the acked move: what the client must start its replay from. The adjustment was queued in
 	// ServerMoveHandleClientError, possibly before further moves of this frame ran, so read the snapshot taken there (A18).
@@ -344,14 +355,17 @@ void FVeloxMoveResponseDataContainer::ServerFillResponseData(const UCharacterMov
 			bJumpLatched = Snapshot.bJumpLatched;
 			PendingKnockback = Snapshot.PendingKnockback;
 			ConfirmedSelfKnockbackSeq = Snapshot.ConfirmedSelfKnockbackSeq;
+			PowerupMoveTimes = Snapshot.PowerupMoveTimes;
 		}
 		else
 		{
-			// Defensive fallback (no snapshot for this adjustment): the live values.
+			// Acks (the ack's time stamp is the last move processed, so the live state is the state after it) and the
+			// defensive fallback for a correction without a snapshot: the live values.
 			KnockbackGrace = MoveComp->GetKnockbackGrace();
 			bJumpLatched = MoveComp->IsJumpLatched();
 			PendingKnockback = MoveComp->GetPendingKnockback();
 			ConfirmedSelfKnockbackSeq = MoveComp->GetConfirmedSelfKnockbackSeq();
+			PowerupMoveTimes = MoveComp->GetPowerupMoveTimes();
 		}
 	}
 }
@@ -363,7 +377,7 @@ bool FVeloxMoveResponseDataContainer::Serialize(UCharacterMovementComponent& Cha
 		return false;
 	}
 
-	// Acks carry nothing extra; the Velox fields only matter for a replay.
+	// The replay state only matters for a correction.
 	if (IsCorrection())
 	{
 		const bool bIsSaving = Ar.IsSaving();
@@ -374,6 +388,10 @@ bool FVeloxMoveResponseDataContainer::Serialize(UCharacterMovementComponent& Cha
 		Ar.SerializeBits(&PendingKnockback.bOverride, 1);
 		SerializeOptionalValue<uint8>(bIsSaving, Ar, ConfirmedSelfKnockbackSeq, 0);
 	}
+
+	// ADR 0004 section 3: acks and corrections. Full precision: both ends compare move stamps against these exactly.
+	SerializeOptionalValue<float>(Ar.IsSaving(), Ar, PowerupMoveTimes.HasteEnd, 0.f);
+	SerializeOptionalValue<float>(Ar.IsSaving(), Ar, PowerupMoveTimes.QuadEnd, 0.f);
 
 	return !Ar.IsError();
 }

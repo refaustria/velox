@@ -530,4 +530,52 @@ bool FVeloxMovementExtraOldMoveSerializeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementPowerupResponseSerializeTest, "Velox.Movement.SavedMove.PowerupResponseSerialize", VeloxSavedMoveTest::Flags)
+bool FVeloxMovementPowerupResponseSerializeTest::RunTest(const FString& Parameters)
+{
+	// ADR 0004 section 3 (task 03): the powerup end times travel in acks and corrections through the one response
+	// serializer (FCharacterMoveResponseDataContainer::Serialize); one bit each while 0.
+	UVeloxMovementComponent& Movement = *GetMutableDefault<UVeloxMovementComponent>();
+	int32 BitsWithout[2] = { 0, 0 };
+	int32 BitsWith[2] = { 0, 0 };
+	for (const bool bCorrection : { false, true })
+	{
+		for (const bool bWithTimes : { false, true })
+		{
+			FVeloxMoveResponseDataContainer Sent;
+			Sent.ClientAdjustment.bAckGoodMove = !bCorrection;
+			Sent.ClientAdjustment.TimeStamp = 12.345678f;
+			Sent.ClientAdjustment.NewLoc = FVector(100.0, 200.0, 92.15);
+			Sent.ClientAdjustment.NewVel = FVector(1040.0, 0.0, 0.0);
+			Sent.ClientAdjustment.MovementMode = MOVE_Walking;
+			Sent.KnockbackGrace = 0.f;
+			if (bWithTimes)
+			{
+				Sent.PowerupMoveTimes.HasteEnd = 42.123456f;
+				Sent.PowerupMoveTimes.QuadEnd = 239.987654f;
+			}
+			FBitWriter Writer(0, /*bAllowResize*/ true);
+			TestTrue(TEXT("serialise"), Sent.Serialize(Movement, Writer, nullptr));
+			(bWithTimes ? BitsWith : BitsWithout)[bCorrection ? 1 : 0] = static_cast<int32>(Writer.GetNumBits());
+			uint32 Marker = 0x5AC3u;
+			Writer << Marker;
+
+			FBitReader Reader(Writer.GetData(), Writer.GetNumBits());
+			FVeloxMoveResponseDataContainer Received;
+			Received.PowerupMoveTimes.HasteEnd = 1.f; // must be overwritten (also with 0)
+			TestTrue(TEXT("deserialise"), Received.Serialize(Movement, Reader, nullptr));
+			uint32 ReadMarker = 0;
+			Reader << ReadMarker;
+			const FString Kind = FString::Printf(TEXT("%s %s"), bCorrection ? TEXT("correction") : TEXT("ack"), bWithTimes ? TEXT("with times") : TEXT("without"));
+			TestEqual(Kind + TEXT(": stream aligned"), ReadMarker, Marker);
+			TestEqual(Kind + TEXT(": kind kept"), Received.IsCorrection(), bCorrection);
+			TestEqual(Kind + TEXT(": HasteEnd exact"), Received.PowerupMoveTimes.HasteEnd, Sent.PowerupMoveTimes.HasteEnd);
+			TestEqual(Kind + TEXT(": QuadEnd exact"), Received.PowerupMoveTimes.QuadEnd, Sent.PowerupMoveTimes.QuadEnd);
+		}
+	}
+	TestEqual(TEXT("ack: 64 bits for both end times"), BitsWith[0] - BitsWithout[0], 64);
+	TestEqual(TEXT("correction: 64 bits for both end times"), BitsWith[1] - BitsWithout[1], 64);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -156,10 +156,9 @@ void UVeloxGameplayAbility_FireProjectile::ActivateAbility(const FGameplayAbilit
 	Launch.Origin = Origin;
 	Launch.Dir = Dir;
 	Launch.ShotSeq = ShotSeq;
-	// ADR 0004 section 3: the fake and the predicted self splash use the shot's Quad state. Interim (task 02): the local
-	// tag, which can differ from the server's for ~RTT/2 at a pickup and up to one RTT at the expiry; task 03 replaces it
-	// with the move-timeline QuadEnd (IsPowerupActive(QuadEnd, FireMoveTimeStamp)).
-	Launch.bQuad = VeloxPowerups::HasQuad(ASC);
+	// ADR 0004 section 3: the fake and the predicted self splash use the shot's Quad state in the owner's move timeline at
+	// the fire stamp, which the server evaluates identically for its move-timed self splash (task 03).
+	Launch.bQuad = Movement ? Movement->IsPowerupActiveAt(Movement->GetPowerupMoveTimes().QuadEnd, FireMoveTimeStamp) : VeloxPowerups::HasQuad(ASC);
 	if (Movement && Definition->SplashRadiusCm > 0.f)
 	{
 		// The owner's self splash at the move where the server will evaluate it (same flight, same move time stamp).
@@ -332,7 +331,10 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 			const float EventTime = FireMoveTimeStamp + static_cast<float>(Flight);
 			Launch.OwnerMovement = Movement;
 			Launch.SelfSplashOrigin = SplashOrigin;
-			Launch.SelfSplashEventId = AVeloxProjectile::ScheduleOwnerSelfSplash(*Movement, Definition, ASC, EventTime, SplashOrigin, ShotSeq, false, Launch.bQuad);
+			// ADR 0004 section 3 (task 03): the owner's self splash takes Quad from the move timeline at the fire stamp, exactly
+			// as the predicting client does; the projectile's damage to others keeps the server tag (Launch.bQuad).
+			const bool bSelfSplashQuad = Movement->IsPowerupActiveAt(Movement->GetPowerupMoveTimes().QuadEnd, FireMoveTimeStamp);
+			Launch.SelfSplashEventId = AVeloxProjectile::ScheduleOwnerSelfSplash(*Movement, Definition, ASC, EventTime, SplashOrigin, ShotSeq, false, bSelfSplashQuad);
 			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShot seq=%u weapon=%s fire_ts=%.6f client_ts=%.6f last_ts=%.6f flight_ms=%.1f event_ts=%.6f splash_origin=%s"), ShotSeq,
 				*GetNameSafe(&Definition), FireMoveTimeStamp, ClientFireMoveTimeStamp, LastMoveTimeStamp, Flight * 1000.0, EventTime, *SplashOrigin.ToCompactString());
 		}

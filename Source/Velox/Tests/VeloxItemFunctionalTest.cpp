@@ -44,7 +44,10 @@
 #include "Items/VeloxItemLog.h"
 #include "Items/VeloxItemRegistrySubsystem.h"
 #include "Items/VeloxPickup.h"
+#include "Items/VeloxPowerupEffects.h"
 #include "Movement/VeloxJumpPad.h"
+#include "Movement/VeloxMovementComponent.h"
+#include "Movement/VeloxMovementSettings.h"
 #include "TimerManager.h"
 #include "UObject/Package.h"
 #include "Weapons/VeloxWeaponDefinition.h"
@@ -241,6 +244,8 @@ namespace VeloxItemFt
 		bool bPassed = true;
 		int32 RespawnEvents = 0;
 		float HealthAfterTake = 0.f;
+		/** Task 03: GetMaxSpeed before the Haste grant. */
+		float SpeedBeforeHaste = 0.f;
 		FDelegateHandle RespawnHandle;
 	};
 
@@ -349,6 +354,59 @@ namespace VeloxItemFt
 	// Task 02 (Quad: tag and x3 damage on a dummy) and task 03 (Haste: GetMaxSpeed x 1.3) insert their steps between
 	// StepWeapon and StepReset: each ends with FtAfter(State, <settle>, <next step>).
 
+	/**
+	 * Task 03 (ADR 0004 sections 3 and 10): Haste -> GetMaxSpeed x HasteSpeedScale in the move timeline, back to x 1 after a
+	 * premature removal. The placed Haste pickup is still in its initial delay (powerups), so the step grants its
+	 * definition's effect and seconds through the pickup's GE path (VeloxPowerups::GrantOrExtend, then
+	 * ServerRefreshPowerupMoveTimes as in AVeloxPickup::GrantPowerup).
+	 */
+	void StepHaste(const TSharedRef<FFtState>& State)
+	{
+		UWorld* World = State->World.Get();
+		AVeloxCharacter* Pawn = State->Pawn.Get();
+		const AVeloxPickup* Haste = World ? FindPlaced(World, TEXT("DA_Item_Powerup_Haste")) : nullptr;
+		const UVeloxItemDefinition* Definition = Haste ? Haste->GetDefinition() : nullptr;
+		UVeloxAbilitySystemComponent* ASC = Pawn ? Pawn->GetVeloxAbilitySystemComponent() : nullptr;
+		const UVeloxMovementComponent* Movement = Pawn ? Pawn->GetVeloxMovementComponent() : nullptr;
+		if (!Definition || !Definition->PowerupEffect || !ASC || !Movement)
+		{
+			FtCheck(*State, false, TEXT("haste_setup"), TEXT("no Haste pickup/definition, ASC or movement component"));
+			StepReset(State);
+			return;
+		}
+		State->SpeedBeforeHaste = Movement->GetMaxSpeed();
+		FtCheck(*State, !Movement->IsHasteActive(), TEXT("haste_not_active_before"), FString::Printf(TEXT("max_speed=%.1f"), State->SpeedBeforeHaste));
+		VeloxPowerups::GrantOrExtend(*ASC, Definition->PowerupEffect, Definition->PowerupSeconds);
+		Pawn->ServerRefreshPowerupMoveTimes();
+		FtAfter(State, SettleSeconds, [](const TSharedRef<FFtState>& S)
+		{
+			AVeloxCharacter* P = S->Pawn.Get();
+			const UVeloxMovementComponent* M = P ? P->GetVeloxMovementComponent() : nullptr;
+			UVeloxAbilitySystemComponent* A = P ? P->GetVeloxAbilitySystemComponent() : nullptr;
+			const float Scale = M && M->GetMovementSettings() ? M->GetMovementSettings()->HasteSpeedScale : 0.f;
+			const float Speed = M ? M->GetMaxSpeed() : 0.f;
+			FtCheck(*S, M && A && A->HasMatchingGameplayTag(VeloxGameplayTags::Powerup_Haste) && M->IsHasteActive(), TEXT("haste_active"),
+				FString::Printf(TEXT("tag=%d timeline=%d haste_end=%.3f"), A && A->HasMatchingGameplayTag(VeloxGameplayTags::Powerup_Haste) ? 1 : 0, M && M->IsHasteActive() ? 1 : 0,
+					M ? M->GetPowerupMoveTimes().HasteEnd : 0.f));
+			FtCheck(*S, Scale > 1.f && FMath::IsNearlyEqual(Speed, S->SpeedBeforeHaste * Scale, 0.01f), TEXT("haste_max_speed_x_1_3"),
+				FString::Printf(TEXT("max_speed %.1f -> %.1f scale=%.2f"), S->SpeedBeforeHaste, Speed, Scale));
+			if (A)
+			{
+				// Premature removal (as on death): the move timeline ends at once.
+				A->RemoveActiveEffects(FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(VeloxGameplayTags::Powerup_Haste)));
+			}
+			FtAfter(S, SettleSeconds, [](const TSharedRef<FFtState>& S2)
+			{
+				const AVeloxCharacter* P2 = S2->Pawn.Get();
+				const UVeloxMovementComponent* M2 = P2 ? P2->GetVeloxMovementComponent() : nullptr;
+				const float Speed2 = M2 ? M2->GetMaxSpeed() : 0.f;
+				FtCheck(*S2, M2 && !M2->IsHasteActive() && FMath::IsNearlyEqual(Speed2, S2->SpeedBeforeHaste, 0.01f), TEXT("haste_removed_speed_back"),
+					FString::Printf(TEXT("max_speed=%.1f haste_end=%.3f"), Speed2, M2 ? M2->GetPowerupMoveTimes().HasteEnd : 0.f));
+				StepReset(S2);
+			});
+		});
+	}
+
 	void StepWeapon(const TSharedRef<FFtState>& State)
 	{
 		UWorld* World = State->World.Get();
@@ -377,7 +435,7 @@ namespace VeloxItemFt
 			FtCheck(*S, Rail && Rail->GetTakeCount() == 1 && !Rail->IsAvailable(), TEXT("weapon_taken"), FString::Printf(TEXT("take=%u"), Rail ? Rail->GetTakeCount() : 0));
 			FtCheck(*S, Index != INDEX_NONE && Inv->OwnsIndex(Index) && (Inv->GetOwnedMask() & (1u << Index)) != 0, TEXT("weapon_owned"), FString::Printf(TEXT("mask=0x%x"), Inv ? Inv->GetOwnedMask() : 0));
 			FtCheck(*S, Inv && Inv->FindFireSpec(Index) != nullptr, TEXT("weapon_fire_spec_granted"), TEXT("fire ability spec on the ASC"));
-			StepReset(S);
+			StepHaste(S);
 		});
 	}
 

@@ -13,6 +13,8 @@
 //         "until": "airborne" | "ground",     // optional: end the row early on that state (duration = maximum)
 //         "serverKnockback": [x, y, z],       // optional: fired once at row start (AddKnockback on the server)
 //         "override": false,                  // optional: knockback replaces the velocity
+//         "serverHaste": 2.5,                 // optional: at row start the server gives this pawn Haste with exactly this many
+//                                             // seconds left (ADR 0004 section 3, HasteRun; AVeloxCharacter::ServerGiveTestHaste)
 //         "label": "text",                    // optional: logged at row start
 //         "check": { "name": "text", "box": [minX, minY, maxX, maxY], "onGround": true }  // optional, at row end
 //         // Combat rows (ADR 0003 section 9, task 08 FireRun), through the real ability input path (ASC input tags):
@@ -67,6 +69,8 @@ struct FVeloxScriptRow
 	TOptional<float> Yaw;
 	TOptional<FVector> ServerKnockback;
 	bool bKnockbackOverride = false;
+	/** Seconds of Haste the server gives at row start (0 = none). */
+	float ServerHasteSeconds = 0.f;
 	FString Label;
 	TOptional<FVeloxScriptCheck> Check;
 
@@ -148,6 +152,16 @@ public:
 	 */
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerApplyTestKnockback(FVector Impulse, bool bOverride);
+
+	/**
+	 * Test-only (ADR 0004 section 3, HasteRun, velox.move.Haste on a client): the server gives this pawn Haste with exactly
+	 * Seconds left (AVeloxCharacter::ServerGiveTestHaste). Rejected outside (0, MaxTestHasteSeconds] and in shipping builds.
+	 */
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerGiveTestHaste(float Seconds);
+
+	/** Logs `VeloxNetSoak event=haste` and gives the pawn Haste (direct on authority, RPC otherwise). */
+	void RequestTestHaste(float Seconds);
 
 	/** Test-only: teleports this pawn on the server to Location/Yaw and stops it (script start positions). */
 	UFUNCTION(Server, Reliable, WithValidation)

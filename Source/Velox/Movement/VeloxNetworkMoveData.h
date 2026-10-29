@@ -78,6 +78,22 @@ struct FVeloxPredictedKnockback
 };
 
 /**
+ * Powerup end times in the owner's move-time domain (ADR 0004 section 3): the client move time stamp (server:
+ * ServerData->CurrentClientTimeStamp, owning client: the saved move's TimeStamp) at which the powerup ends, normalised to
+ * [0, MinTimeBetweenTimeStampResets); 0 = not active. Bots and listen hosts use world time (ADR 0003 B12). Set by the
+ * server (UVeloxMovementComponent::ServerSetPowerupRemaining), sent in every move response (acks and corrections) and
+ * snapshotted per correction (A18); evaluated per move with UVeloxMovementComponent::IsPowerupActive on both ends.
+ */
+struct FVeloxPowerupMoveTimes
+{
+	float HasteEnd = 0.f;
+	float QuadEnd = 0.f;
+
+	bool operator==(const FVeloxPowerupMoveTimes& Other) const { return HasteEnd == Other.HasteEnd && QuadEnd == Other.QuadEnd; }
+	bool operator!=(const FVeloxPowerupMoveTimes& Other) const { return !(*this == Other); }
+};
+
+/**
  * Saved move with Velox state (ADR 0002 section 5).
  * Compressed flag allocation (FSavedMove_Character::FLAG_Custom_0..3 belong to Velox):
  *   FLAG_Custom_0 = jump held (sampled every move; auto-hop and the jump latch)
@@ -169,6 +185,13 @@ public:
 	 * survive loss (A29). Recorded in PostUpdate_Record.
 	 */
 	uint8 bSavedQueuedPredictedKnockback : 1;
+
+	/**
+	 * Haste active in this move (ADR 0004 section 3), evaluated at the move's TimeStamp in SetMoveFor. CanCombineWith only:
+	 * moves on different sides of the Haste end never combine. Never restored; a replay recomputes the scale from the
+	 * move's time stamp and the chained FVeloxPowerupMoveTimes.
+	 */
+	uint8 bSavedHasteActive : 1;
 
 	/** A28/A29 event move: a lost one costs 10-15 cm, anything else <= 2 cm, so it wins the single OldMove slot (A32). */
 	bool IsEventMove() const { return bSavedEnteredTrigger || bSavedJumpedHeld || bSavedQueuedPredictedKnockback; }
@@ -268,6 +291,8 @@ struct FVeloxCorrectionState
 	FVeloxPendingKnockback PendingKnockback;
 	/** ADR 0003 section 3: newest own shot whose self-knockback the server has resolved, at check time (A18). */
 	uint8 ConfirmedSelfKnockbackSeq = 0;
+	/** ADR 0004 section 3: powerup end times at check time (A18), so the replay sees the values of its check time. */
+	FVeloxPowerupMoveTimes PowerupMoveTimes;
 };
 
 /**
@@ -277,6 +302,10 @@ struct FVeloxCorrectionState
  * server's state at the time of the error check (snapshot), see UVeloxMovementComponent::GetServerCorrectionState (A18).
  * Only corrections carry it; each field costs one bit when zero/false. Applied in
  * UVeloxMovementComponent::OnClientCorrectionReceived.
+ * ADR 0004 section 3: the powerup end times travel in acks and corrections alike (one bit each while 0; the engine
+ * serialises both through this one container, FCharacterMoveResponseDataContainer::Serialize). Acks carry the live values
+ * (the ack's time stamp is the last move processed), corrections the A18 snapshot. Applied in
+ * UVeloxMovementComponent::OnClientCorrectionReceived and ClientAckGoodMove_Implementation.
  */
 struct VELOX_API FVeloxMoveResponseDataContainer : public FCharacterMoveResponseDataContainer
 {
@@ -292,6 +321,8 @@ struct VELOX_API FVeloxMoveResponseDataContainer : public FCharacterMoveResponse
 	FVeloxPendingKnockback PendingKnockback;
 	/** ADR 0003 section 3: one byte, corrections only (optional against 0). */
 	uint8 ConfirmedSelfKnockbackSeq = 0;
+	/** ADR 0004 section 3: acks and corrections, each float optional against 0. */
+	FVeloxPowerupMoveTimes PowerupMoveTimes;
 };
 
 /** Client prediction data that allocates FSavedMove_Velox. */

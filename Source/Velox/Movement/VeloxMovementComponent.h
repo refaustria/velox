@@ -56,6 +56,13 @@ enum class EVeloxKnockbackSource : uint8
 	Predicted
 };
 
+/** Powerups that live in the owner's move timeline (ADR 0004 section 3): FVeloxPowerupMoveTimes::HasteEnd / QuadEnd. */
+enum class EVeloxMovePowerup : uint8
+{
+	Haste,
+	Quad
+};
+
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxMovementComponent : public UCharacterMovementComponent
 {
@@ -280,6 +287,69 @@ public:
 	/** Server: Velox state snapshot for the correction queued by the last failed error check (A18). */
 	const FVeloxCorrectionState& GetServerCorrectionState() const { return ServerCorrectionState; }
 
+	// ---- Powerups in the move timeline (ADR 0004 section 3) ---------------------------------------------------------
+
+	/**
+	 * Signed seconds from MoveTime to End in a time-stamp domain that wraps every ResetPeriod
+	 * (MinTimeBetweenTimeStampResets): End - MoveTime reduced into (-ResetPeriod / 2, ResetPeriod / 2]. Positive while the
+	 * end lies ahead of the move. Exact across a time-stamp reset in either order (End stored before or after the reset),
+	 * for durations below half a period.
+	 */
+	static float PowerupTimeLeft(float End, float MoveTime, float ResetPeriod);
+
+	/** A powerup with end End (0 = none) is active in a move ending at MoveTime: End != 0 && PowerupTimeLeft > 0. */
+	static bool IsPowerupActive(float End, float MoveTime, float ResetPeriod) { return End != 0.f && PowerupTimeLeft(End, MoveTime, ResetPeriod) > 0.f; }
+
+	/** IsPowerupActive with this component's MinTimeBetweenTimeStampResets. */
+	bool IsPowerupActiveAt(float End, float MoveTime) const { return IsPowerupActive(End, MoveTime, MinTimeBetweenTimeStampResets); }
+
+	/**
+	 * The end time of a powerup with RemainingSeconds left at Now: (Now + Remaining) normalised to (0, ResetPeriod];
+	 * Remaining is clamped to PowerupMaxRemainingSeconds so the end stays unambiguous (PowerupTimeLeft). 0 for Remaining <= 0.
+	 */
+	static float MakePowerupEnd(double Now, float RemainingSeconds, float ResetPeriod);
+
+	/** Longest remaining time the move timeline can represent: 0.45 x the reset period (108 s at the engine's 240 s). */
+	static float PowerupMaxRemainingSeconds(float ResetPeriod) { return 0.45f * ResetPeriod; }
+
+	/**
+	 * Seconds after the end at which a non-replayed move drops a stale end time (a quarter period): long after every
+	 * in-flight shot or move that could still refer to it, long before PowerupTimeLeft wraps to positive again.
+	 */
+	static float PowerupStaleSeconds(float ResetPeriod) { return 0.25f * ResetPeriod; }
+
+	/**
+	 * The move-time clock of this pawn: the move being simulated (server: the client stamp in MoveAutonomous, or the last
+	 * one processed; owning client: the live move's CurrentTimeStamp or the replayed move's stamp; outside a move the end
+	 * of the last move, where B6 shots happen), or world time for a pawn whose moves carry no client stamps (bots, listen
+	 * host, standalone; ADR 0003 B12). Normalised into [0, MinTimeBetweenTimeStampResets) for world time.
+	 */
+	float GetPowerupClockNow() const;
+
+	/** IsPowerupActiveAt(end of Powerup, GetPowerupClockNow()). */
+	bool IsPowerupActiveNow(EVeloxMovePowerup Powerup) const;
+
+	/** Haste active in the move timeline right now (HUD, AI, tests). */
+	UFUNCTION(BlueprintPure, Category = "Velox|Movement")
+	bool IsHasteActive() const { return IsPowerupActiveNow(EVeloxMovePowerup::Haste); }
+
+	/** SimParams.HasteSpeedScale while Haste is active at GetPowerupClockNow(), else 1 (GetMaxSpeed, the sim). */
+	float GetHasteSpeedScale() const;
+
+	/** Speed scale of the move being simulated (computed at the start of PerformMovement). */
+	float GetMoveSpeedScale() const { return MoveSpeedScale; }
+
+	const FVeloxPowerupMoveTimes& GetPowerupMoveTimes() const { return PowerupMoveTimes; }
+
+	/** Owning client (response receipt) and tests: replaces the end times. Game code on the server uses ServerSetPowerupRemaining. */
+	void SetPowerupMoveTimes(const FVeloxPowerupMoveTimes& InTimes) { PowerupMoveTimes = InTimes; }
+
+	/**
+	 * Server: the powerup has RemainingSeconds left now (its GE's remaining time): End = MakePowerupEnd(GetPowerupClockNow(),
+	 * RemainingSeconds); 0 when RemainingSeconds <= 0 (a premature removal). Sent with the next response.
+	 */
+	void ServerSetPowerupRemaining(EVeloxMovePowerup Powerup, float RemainingSeconds);
+
 	//~UCharacterMovementComponent interface
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
 	virtual float GetMaxSpeed() const override;
@@ -480,6 +550,29 @@ protected:
 
 	/** Server: Velox state at the error check that queued the pending correction (A18). */
 	FVeloxCorrectionState ServerCorrectionState;
+
+	/** ADR 0004 section 3: powerup end times in the move-time domain (server: authoritative; owning client: last response). */
+	FVeloxPowerupMoveTimes PowerupMoveTimes;
+
+	/** FVeloxMoveInput::SpeedScale of the current move (Haste), set at the start of every PerformMovement. */
+	float MoveSpeedScale = 1.f;
+
+	/**
+	 * Owning client: applies the powerup end times of a response (ack or correction) before any replay; non-shipping logs
+	 * a change (VeloxPowerupMoveTimes).
+	 */
+	void ApplyReceivedPowerupMoveTimes(const FVeloxPowerupMoveTimes& InTimes, float TimeStamp, const TCHAR* Kind);
+
+	/** Non-replayed moves (server, live owning client, bots): drops end times more than PowerupStaleSeconds in the past. */
+	void DropStalePowerupMoveTimes(float MoveClock);
+
+#if !UE_BUILD_SHIPPING
+	/** Net soak (HasteRun): Haste state of the previous non-replayed move, and the peak XY speed while active. */
+	bool bSoakHasteActive = false;
+	float SoakHastePeak2D = 0.f;
+	/** Logs VeloxHasteState when the Haste state of a non-replayed move (stamp MoveClock, length DeltaSeconds) differs from the previous one. */
+	void LogHasteStateChange(float MoveClock, float DeltaSeconds, float StartSpeed2D);
+#endif
 
 	/** FVeloxMoveParams of the current move: built in SetMovementSettings and at the start of every PerformMovement (A8). */
 	FVeloxMoveParams SimParams;
