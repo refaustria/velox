@@ -3,6 +3,7 @@
 _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main` (M0 + M1 code merged); M1 closes with the human playtest._
 
 ## Done
+- **M2-04c** server-chosen pattern seed (B21), unkeyed impact cues; **M2-05b** per-life shot sequence, shared validation, rocket hit confirm, cancel move-timed events on death, wrap-aware clamp; **M2-06b** dummies respawn in place (optionally invulnerable, `velox.combat.SpawnDummy`), player labels, corpse fixes. Reports in `docs/tasks/m2-combat/notes/`.
 - **M2-06** death flow (B8 with next-tick corpse/UnPossess), corpse (no collision, lifetime), death camera, respawn (fire/jump request, min/force delay, AI auto-respawn), world-free `VeloxSpawnSelection` (farthest half, avoid radius, telefrag only when full), spawn protection (0 s default, ends on fire), `FellOutOfWorld` kill, `PlaceholderBody` + `M_PlayerBody` 8-colour palette, HUD hit marker + fragged overlay, cheats `KillTest`/`KillSelf`. 4 tests. Report: `docs/tasks/m2-combat/notes/06-report.md`.
 - **M2-05** `AVeloxProjectile` (initial-only replication, dormant, world-free `FVeloxProjectileSim`), owner fake projectile ended by the authoritative impact cue, server forward sim ≤ ping/2, Q3 splash on current pose with 3 LOS traces, explosion cue unkeyed (B21), predicted self-knockback `{Velocity, Seq}` + `ConfirmedSelfKnockbackSeq`, **move-timed owner self-splash** (`AddMoveTimedEvent`) → rocket jump at 100 ms / 2 % with 0 corrections (evidence `docs/adr/evidence/m2-05-*`). RL/PG fire. 2 tests. Report: `notes/05-report.md`.
 - **M2-04b** review fixes B18/B19/B23: one-frame fire-time carry, bucket min spacing, local `SwitchEndTime` + 0.25 s server tolerance, `BeamKeepAliveSeconds`, world-free `VeloxShotValidation`, rate-limited reject log. 2 tests. Report: `notes/04b-report.md`.
@@ -37,7 +38,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **Resumed 2026-10-29.** Sanity build OK (47 tests, `Saved/CI/20261029-113051-3132749`). 05+06 architect-reviewed (B25–B29; move-timed self-splash and next-tick teardown accepted; must-fix: per-life shot sequence for the self-knockback channel, dummies respawning in place). Running in worktrees: 04c server pattern seed (dev-hard, port 7812), 05b projectile review fixes (dev-hard, 7813), 06b death review fixes (dev, 7814). Then merge → idle-machine soak → 08 → 09. Note: the Fable (architect) usage limit was hit on 2026-10-29; architect reviews may have to wait for the limit to reset. Disk freed 2026-10-29 (docker build cache 22 GB, home caches, build artefacts; human's standing OK): 33 GB free.
+- **Resumed 2026-10-29.** 04c, 05b, 06b merged; merged head build OK 49 tests (`Saved/CI/20261029-121917-3206569`), death flow verified headless. Soak 3 rounds: 2/3, the failure is KnockbackGroundRun's fixed grace rule (0.133 = 0.2 − 4/60, correction equal to intended 83.3 cm) — review defect 9 class, rule replaced in 08. Running: 08 fire/rocket-jump soak (dev-hard, main checkout) and 09 playtest checklist (dev, docs only).
 - **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`.
 
 ## Blocked
