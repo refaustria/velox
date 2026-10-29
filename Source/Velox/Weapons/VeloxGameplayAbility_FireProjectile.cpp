@@ -121,6 +121,7 @@ void UVeloxGameplayAbility_FireProjectile::ActivateAbility(const FGameplayAbilit
 	const FVector Eye = Pawn->GetPawnViewLocation();
 	const FVector AimDir = Controller->GetControlRotation().Vector();
 	const double Now = World->GetTimeSeconds();
+	VeloxFireDebug::NoteLocalShot();
 
 	if (ActorInfo->IsNetAuthority())
 	{

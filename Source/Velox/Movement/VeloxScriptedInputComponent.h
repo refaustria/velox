@@ -15,7 +15,19 @@
 //         "override": false,                  // optional: knockback replaces the velocity
 //         "label": "text",                    // optional: logged at row start
 //         "check": { "name": "text", "box": [minX, minY, maxX, maxY], "onGround": true }  // optional, at row end
+//         // Combat rows (ADR 0003 section 9, task 08 FireRun), through the real ability input path (ASC input tags):
+//         "weapon": 7,                        // optional: at row start select the weapon in this slot (InputTag.Weapon.Slot<N>
+//                                             // pressed and released) unless it is already the current or pending one
+//         "fire": true,                       // fire held for the row (InputTag.Fire pressed on the first row, released after)
+//         "shots": 10,                        // optional: the row ends early once this many shots were fired since its start
+//         "aimAt": [x, y, z],                 // optional: every tick aim at the rendered centre of the other Velox pawn
+//                                             // nearest this point (yaw and pitch; overrides yaw/yawRate)
+//         "aimPoint": [x, y, z]               // optional: every tick aim at this fixed world point
 //       } ] }
+// Top-level keys the component ignores ("note", "dummyLocation", ...) are free for tools (infra/ci/nettest.sh reads
+// "dummyLocation" to spawn FireRun's target on the server).
+// Hit confirms received by the owning client are logged as `VeloxHitConfirm` while a script runs; with the cvar
+// velox.move.LogCorrections 1 the `VeloxCorrection` lines are also logged without a script (RocketJumpRun).
 // The whole component is test tooling: the knockback RPC is rejected in shipping builds.
 
 #pragma once
@@ -57,6 +69,17 @@ struct FVeloxScriptRow
 	bool bKnockbackOverride = false;
 	FString Label;
 	TOptional<FVeloxScriptCheck> Check;
+
+	/** Weapon slot selected at row start (0 = none). */
+	int32 WeaponSlot = 0;
+	/** Fire held during the row. */
+	bool bFire = false;
+	/** Row ends early once this many shots were fired since its start (0 = no limit). */
+	int32 Shots = 0;
+	/** Aim every tick at the rendered centre of the other Velox pawn nearest this point. */
+	TOptional<FVector> AimAt;
+	/** Aim every tick at this world point. */
+	TOptional<FVector> AimPoint;
 };
 
 struct FVeloxMoveScript
@@ -159,6 +182,16 @@ private:
 	void ReleaseInput();
 	AVeloxCharacter* GetVeloxCharacter() const;
 
+	/** Logs a VeloxCorrection line per new owning-client correction; returns how many arrived since the last call. */
+	int32 LogNewCorrections(UVeloxMovementComponent& Movement);
+	/** Logs VeloxHitConfirm when the pawn's feedback component counted new hit confirms (ClientConfirmHit). */
+	void LogNewHitConfirms();
+	/** Combat rows: weapon select at row start, fire press/release, aim. */
+	/** True when a switch was requested (the weapon is owned and neither current nor pending). */
+	bool SelectWeaponSlot(int32 Slot);
+	void SetFireHeld(bool bHeld);
+	bool ApplyAim(const FVeloxScriptRow& Row, FRotator& OutRotation) const;
+
 	FVeloxMoveScript Script;
 	FVeloxScriptResult Result;
 
@@ -167,6 +200,11 @@ private:
 	bool bDrivenExternally = false;
 	bool bJumpHeldByScript = false;
 	bool bCrouchHeldByScript = false;
+	bool bFireHeldByScript = false;
+	bool bWeaponSelectedThisTick = false;
+	/** Local shot count (UVeloxGameplayAbility_Fire::GetDebugLocalShotCount) when the current row started. */
+	int32 RowStartShotCount = 0;
+	int32 LastSeenHitConfirms = 0;
 	float ScriptTime = 0.f;
 	float Yaw = 0.f;
 	int32 CurrentRow = INDEX_NONE;

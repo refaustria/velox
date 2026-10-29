@@ -179,7 +179,20 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 
 	bJumpedThisMove = false;
 
+#if !UE_BUILD_SHIPPING
+	const bool bLogKnockbackConsumed = PendingKnockback.IsPending() && CharacterOwner && CharacterOwner->GetLocalRole() == ROLE_Authority
+		&& CharacterOwner->GetRemoteRole() == ROLE_AutonomousProxy; // a remote client's move (MoveAutonomous set the stamp)
+#endif
 	ConsumePendingKnockback();
+#if !UE_BUILD_SHIPPING
+	// ADR 0003 review 05/06 defect 9 (nettest KnockbackRun/KnockbackGroundRun): the server move that consumed the chained
+	// knockback, so the soak checks a response's grace exactly: grace - (ts_resp - ts_start). Logged here, not inside
+	// ConsumePendingKnockback, because the move's DeltaSeconds gives its start stamp.
+	if (bLogKnockbackConsumed)
+	{
+		UE_LOG(LogVeloxNet, Log, TEXT("VeloxKnockbackConsumed ts_start=%.6f ts_end=%.6f grace=%.6f"), LastMoveAutonomousTimeStamp - DeltaSeconds, LastMoveAutonomousTimeStamp, KnockbackGrace);
+	}
+#endif
 	MoveStartKnockbackGrace = KnockbackGrace;
 	MoveElapsedTime = 0.f;
 	bGroundMeanVelocityActive = false;

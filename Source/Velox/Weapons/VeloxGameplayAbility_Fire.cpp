@@ -20,6 +20,21 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxGameplayAbility_Fire)
 
+namespace VeloxFireDebug
+{
+	static int32 GLocalShotCount = 0;
+
+	int32 GetLocalShotCount()
+	{
+		return GLocalShotCount;
+	}
+
+	void NoteLocalShot()
+	{
+		++GLocalShotCount;
+	}
+}
+
 UVeloxGameplayAbility_Fire::UVeloxGameplayAbility_Fire(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {

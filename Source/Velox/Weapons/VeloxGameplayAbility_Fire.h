@@ -24,6 +24,16 @@ class UVeloxWeaponDefinition;
 class UVeloxWeaponInventoryComponent;
 struct FGameplayCueParameters;
 
+/**
+ * Test tooling (task 08, scripted input "shots" rows): number of shots this process fired as the shooter's machine
+ * (predicting client, listen host, bots), counted by the fire abilities. Process-wide; meaningful in a client process.
+ */
+namespace VeloxFireDebug
+{
+	VELOX_API int32 GetLocalShotCount();
+	void NoteLocalShot();
+}
+
 /** Summary of the last shot this instance resolved on the server (logs, tests, ClientConfirmHit). */
 struct FVeloxServerShotInfo
 {

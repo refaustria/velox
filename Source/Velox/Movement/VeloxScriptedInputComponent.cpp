@@ -3,14 +3,19 @@
 #include "Movement/VeloxScriptedInputComponent.h"
 
 #include "Character/VeloxCharacter.h"
+#include "Combat/VeloxAbilitySystemComponent.h"
+#include "Combat/VeloxHitboxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Containers/Ticker.h"
 #include "Core/VeloxLog.h"
 #include "Dom/JsonObject.h"
 #include "Engine/Engine.h"
+#include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Controller.h"
+#include "GameModes/VeloxPlayerState.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
@@ -20,6 +25,11 @@
 #include "Movement/VeloxMovementComponent.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Weapons/VeloxCombatFeedbackComponent.h"
+#include "Weapons/VeloxGameplayAbility_Fire.h"
+#include "Weapons/VeloxWeaponDefinition.h"
+#include "Weapons/VeloxWeaponInventoryComponent.h"
+#include "Weapons/VeloxWeaponTable.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxScriptedInputComponent)
 
@@ -33,6 +43,21 @@ namespace VeloxScriptedInput
 
 	/** Seconds between repeated teleport requests while the pawn is not yet at the script's start location. */
 	constexpr double RepositionRetryInterval = 1.0;
+
+	/** Task 08 RocketJumpRun: VeloxCorrection lines also without a running script (the owning client's pawn). */
+	static TAutoConsoleVariable<int32> CVarLogCorrections(TEXT("velox.move.LogCorrections"), 0,
+		TEXT("1: the locally controlled Velox pawn logs a VeloxCorrection line per client correction (and VeloxHitConfirm per hit confirm) even when no script runs (net soak of command-driven tests). Non-shipping."));
+
+	bool ReadVector(const TSharedPtr<FJsonObject>& Obj, const TCHAR* Key, TOptional<FVector>& Out)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+		if (Obj->TryGetArrayField(Key, Values) && Values->Num() == 3)
+		{
+			Out = FVector((*Values)[0]->AsNumber(), (*Values)[1]->AsNumber(), (*Values)[2]->AsNumber());
+			return true;
+		}
+		return false;
+	}
 
 	struct FPendingRun
 	{
@@ -285,11 +310,12 @@ bool UVeloxScriptedInputComponent::LoadScriptFromJson(const FString& Json, const
 				return false;
 			}
 		}
-		const TArray<TSharedPtr<FJsonValue>>* Knock = nullptr;
-		if (Obj->TryGetArrayField(TEXT("serverKnockback"), Knock) && Knock->Num() == 3)
-		{
-			Row.ServerKnockback = FVector((*Knock)[0]->AsNumber(), (*Knock)[1]->AsNumber(), (*Knock)[2]->AsNumber());
-		}
+		VeloxScriptedInput::ReadVector(Obj, TEXT("serverKnockback"), Row.ServerKnockback);
+		Obj->TryGetNumberField(TEXT("weapon"), Row.WeaponSlot);
+		Obj->TryGetBoolField(TEXT("fire"), Row.bFire);
+		Obj->TryGetNumberField(TEXT("shots"), Row.Shots);
+		VeloxScriptedInput::ReadVector(Obj, TEXT("aimAt"), Row.AimAt);
+		VeloxScriptedInput::ReadVector(Obj, TEXT("aimPoint"), Row.AimPoint);
 		const TSharedPtr<FJsonObject>* CheckObj = nullptr;
 		if (Obj->TryGetObjectField(TEXT("check"), CheckObj))
 		{
@@ -331,6 +357,12 @@ bool UVeloxScriptedInputComponent::StartScript()
 	CurrentRow = INDEX_NONE;
 	bJumpHeldByScript = false;
 	bCrouchHeldByScript = false;
+	bFireHeldByScript = false;
+	RowStartShotCount = VeloxFireDebug::GetLocalShotCount();
+	if (const UVeloxCombatFeedbackComponent* Feedback = Character->FindComponentByClass<UVeloxCombatFeedbackComponent>())
+	{
+		LastSeenHitConfirms = Feedback->GetNumHitConfirms();
+	}
 	LastSeenCorrections = Movement->GetNumCorrections();
 	TimeStarted = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 	bRunning = true;
@@ -364,6 +396,57 @@ void UVeloxScriptedInputComponent::TickComponent(float DeltaTime, ELevelTick Tic
 	{
 		StepScript(DeltaTime);
 	}
+#if !UE_BUILD_SHIPPING
+	if (!bRunning && VeloxScriptedInput::CVarLogCorrections.GetValueOnGameThread() != 0)
+	{
+		AVeloxCharacter* Character = GetVeloxCharacter();
+		UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
+		if (Movement && Character->IsLocallyControlled())
+		{
+			LogNewCorrections(*Movement);
+			LogNewHitConfirms();
+		}
+	}
+#endif
+}
+
+int32 UVeloxScriptedInputComponent::LogNewCorrections(UVeloxMovementComponent& Movement)
+{
+	const int32 NumCorrections = Movement.GetNumCorrections();
+	if (NumCorrections < LastSeenCorrections)
+	{
+		LastSeenCorrections = NumCorrections; // a new pawn's movement component starts at zero
+	}
+	if (NumCorrections == LastSeenCorrections)
+	{
+		return 0;
+	}
+	const int32 New = NumCorrections - LastSeenCorrections;
+	LastSeenCorrections = NumCorrections;
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxCorrection t=%.3f cm=%.2f st=%.3f air=%d grace=%.3f latch=%d speed2d=%.1f vz=%.1f"), Movement.GetLastCorrectionTime(), Movement.GetLastCorrectionCm(), bRunning ? ScriptTime : -1.f,
+		!Movement.IsOnGround(), Movement.GetKnockbackGrace(), Movement.IsJumpLatched(), Movement.GetSpeed2D(), Movement.Velocity.Z);
+	return New;
+}
+
+void UVeloxScriptedInputComponent::LogNewHitConfirms()
+{
+	const AVeloxCharacter* Character = GetVeloxCharacter();
+	const UVeloxCombatFeedbackComponent* Feedback = Character ? Character->FindComponentByClass<UVeloxCombatFeedbackComponent>() : nullptr;
+	if (!Feedback)
+	{
+		return;
+	}
+	const int32 Count = Feedback->GetNumHitConfirms();
+	if (Count < LastSeenHitConfirms)
+	{
+		LastSeenHitConfirms = Count;
+	}
+	if (Count > LastSeenHitConfirms)
+	{
+		// The owning client's receipt of ClientConfirmHit (unreliable): the soak compares the count with the server's hits.
+		UE_LOG(LogVeloxNet, Log, TEXT("VeloxHitConfirm t=%.3f new=%d total=%d"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, Count - LastSeenHitConfirms, Count);
+		LastSeenHitConfirms = Count;
+	}
 }
 
 void UVeloxScriptedInputComponent::StepScript(float DeltaTime)
@@ -382,22 +465,19 @@ void UVeloxScriptedInputComponent::StepScript(float DeltaTime)
 	}
 
 	// Corrections since the last tick (owning client; always zero on an authority).
-	const int32 NumCorrections = Movement->GetNumCorrections();
-	if (NumCorrections > LastSeenCorrections)
+	if (const int32 NewCorrections = LogNewCorrections(*Movement); NewCorrections > 0)
 	{
 		const float Cm = Movement->GetLastCorrectionCm();
-		Result.NumCorrections += NumCorrections - LastSeenCorrections;
+		Result.NumCorrections += NewCorrections;
 		Result.SumCorrectionCm += Cm;
 		Result.MaxCorrectionCm = FMath::Max(Result.MaxCorrectionCm, Cm);
-		LastSeenCorrections = NumCorrections;
-		UE_LOG(LogVeloxNet, Log, TEXT("VeloxCorrection t=%.3f cm=%.2f st=%.3f air=%d grace=%.3f latch=%d speed2d=%.1f vz=%.1f"), Movement->GetLastCorrectionTime(), Cm, ScriptTime,
-			!Movement->IsOnGround(), Movement->GetKnockbackGrace(), Movement->IsJumpLatched(), Movement->GetSpeed2D(), Movement->Velocity.Z);
 		if (PostCorrectionSampleAt < 0.0) // keep the first correction's sample; a burst of corrections must not push it out
 		{
 			PostCorrectionSampleAt = Movement->GetLastCorrectionTime() + 0.15;
 		}
 		bHavePrev = false; // the replay rewrote the state, so this tick is no landing observation
 	}
+	LogNewHitConfirms();
 
 	// Soak instrumentation: peak speed, landings (jumped or not), samples after a correction.
 	{
@@ -453,7 +533,8 @@ void UVeloxScriptedInputComponent::StepScript(float DeltaTime)
 		}
 		const FVeloxScriptRow& Candidate = Script.Rows[RowIndex];
 		const bool bOnGround = Movement->IsOnGround();
-		const bool bConditionMet = (Candidate.Until == FVeloxScriptRow::EUntil::Airborne && !bOnGround) || (Candidate.Until == FVeloxScriptRow::EUntil::Ground && bOnGround);
+		const bool bShotsDone = Candidate.Shots > 0 && VeloxFireDebug::GetLocalShotCount() - RowStartShotCount >= Candidate.Shots;
+		const bool bConditionMet = (Candidate.Until == FVeloxScriptRow::EUntil::Airborne && !bOnGround) || (Candidate.Until == FVeloxScriptRow::EUntil::Ground && bOnGround) || bShotsDone;
 		// Not in the row's first tick: the condition must be observed after the row's input had a chance to act.
 		if (!bConditionMet || RowIndex != CurrentRow || ScriptTime <= RowStart)
 		{
@@ -483,6 +564,13 @@ void UVeloxScriptedInputComponent::StepScript(float DeltaTime)
 		{
 			SendTestKnockback(Entered.ServerKnockback.GetValue(), Entered.bKnockbackOverride);
 		}
+		RowStartShotCount = VeloxFireDebug::GetLocalShotCount();
+		if (Entered.WeaponSlot > 0)
+		{
+			// Fire is released in this tick: the press is processed in the next PlayerTick, where held input is
+			// handled before new presses, so the old weapon would get one more shot before the switch starts.
+			bWeaponSelectedThisTick = SelectWeaponSlot(Entered.WeaponSlot);
+		}
 	}
 
 	if (RowIndex == INDEX_NONE)
@@ -506,10 +594,16 @@ void UVeloxScriptedInputComponent::ApplyRow(const FVeloxScriptRow& Row, float De
 	UVeloxMovementComponent* Movement = Character->GetVeloxMovementComponent();
 
 	Yaw = FRotator::NormalizeAxis(Yaw + Row.YawRate * DeltaTime);
+	FRotator AimRotation;
+	const bool bAiming = ApplyAim(Row, AimRotation);
+	if (bAiming)
+	{
+		Yaw = static_cast<float>(AimRotation.Yaw);
+	}
 	const FRotator YawRotation(0.0, Yaw, 0.0);
 	if (AController* Controller = Character->GetController())
 	{
-		Controller->SetControlRotation(YawRotation);
+		Controller->SetControlRotation(bAiming ? AimRotation : YawRotation);
 	}
 
 	// Same sequence as AVeloxCharacter::Input_Move.
@@ -549,6 +643,115 @@ void UVeloxScriptedInputComponent::ApplyRow(const FVeloxScriptRow& Row, float De
 		}
 	}
 	bCrouchHeldByScript = Row.bCrouch;
+
+	// Fire (InputTag.Fire through the ASC, as the Enhanced Input binding does); held across rows that keep "fire".
+	SetFireHeld(Row.bFire && !bWeaponSelectedThisTick);
+	bWeaponSelectedThisTick = false;
+}
+
+namespace VeloxScriptedInput
+{
+	UVeloxAbilitySystemComponent* FindASC(const AVeloxCharacter* Character, UVeloxWeaponInventoryComponent** OutInventory = nullptr)
+	{
+		AVeloxPlayerState* PlayerState = Character ? Character->GetPlayerState<AVeloxPlayerState>() : nullptr;
+		if (OutInventory)
+		{
+			*OutInventory = PlayerState ? PlayerState->GetWeaponInventory() : nullptr;
+		}
+		return PlayerState ? PlayerState->GetVeloxAbilitySystemComponent() : nullptr;
+	}
+}
+
+void UVeloxScriptedInputComponent::SetFireHeld(bool bHeld)
+{
+	if (bHeld == bFireHeldByScript)
+	{
+		return;
+	}
+	UVeloxAbilitySystemComponent* ASC = VeloxScriptedInput::FindASC(GetVeloxCharacter());
+	if (!ASC)
+	{
+		UE_LOG(LogVeloxNet, Warning, TEXT("VeloxScript: fire %s without an ability system component"), bHeld ? TEXT("press") : TEXT("release"));
+		bFireHeldByScript = false;
+		return;
+	}
+	if (bHeld)
+	{
+		ASC->AbilityInputTagPressed(VeloxGameplayTags::InputTag_Fire);
+	}
+	else
+	{
+		ASC->AbilityInputTagReleased(VeloxGameplayTags::InputTag_Fire);
+	}
+	bFireHeldByScript = bHeld;
+}
+
+bool UVeloxScriptedInputComponent::SelectWeaponSlot(int32 Slot)
+{
+	UVeloxWeaponInventoryComponent* Inventory = nullptr;
+	UVeloxAbilitySystemComponent* ASC = VeloxScriptedInput::FindASC(GetVeloxCharacter(), &Inventory);
+	const UVeloxWeaponTable* Table = Inventory ? Inventory->GetWeaponTable() : nullptr;
+	const int32 Index = Table ? Table->FindBySlot(Slot) : INDEX_NONE;
+	if (!ASC || Index == INDEX_NONE || !Inventory->OwnsIndex(Index))
+	{
+		UE_LOG(LogVeloxNet, Warning, TEXT("VeloxScript: weapon slot %d not selectable (asc=%d index=%d owned=%d)"), Slot, ASC ? 1 : 0, Index, Inventory && Inventory->OwnsIndex(Index) ? 1 : 0);
+		return false;
+	}
+	if (Inventory->GetCurrentIndex() == Index || Inventory->GetPendingIndex() == Index)
+	{
+		return false;
+	}
+	// The same press/release pair as a key tap (one frame): the switch ability activates OnInputTriggered.
+	const FGameplayTag SlotTag = FGameplayTag::RequestGameplayTag(*FString::Printf(TEXT("InputTag.Weapon.Slot%d"), Slot));
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxScript: st=%.3f select weapon slot %d (%s) from %s"), ScriptTime, Slot, *GetNameSafe(Table->Get(Index)), *GetNameSafe(Inventory->GetCurrentDefinition()));
+	ASC->AbilityInputTagPressed(SlotTag);
+	ASC->AbilityInputTagReleased(SlotTag);
+	return true;
+}
+
+bool UVeloxScriptedInputComponent::ApplyAim(const FVeloxScriptRow& Row, FRotator& OutRotation) const
+{
+	const AVeloxCharacter* Character = GetVeloxCharacter();
+	if (!Character || (!Row.AimAt.IsSet() && !Row.AimPoint.IsSet()))
+	{
+		return false;
+	}
+	FVector Target;
+	if (Row.AimPoint.IsSet())
+	{
+		Target = Row.AimPoint.GetValue();
+	}
+	else
+	{
+		// The other Velox pawn nearest the given point, aimed at where it is drawn (ADR 0003 section 9: rendered centre).
+		const AVeloxCharacter* Best = nullptr;
+		double BestDistSq = TNumericLimits<double>::Max();
+		for (TActorIterator<AVeloxCharacter> It(GetWorld()); It; ++It)
+		{
+			if (*It == Character || It->IsCorpse())
+			{
+				continue;
+			}
+			const double DistSq = FVector::DistSquared(It->GetActorLocation(), Row.AimAt.GetValue());
+			if (DistSq < BestDistSq)
+			{
+				BestDistSq = DistSq;
+				Best = *It;
+			}
+		}
+		if (!Best)
+		{
+			return false;
+		}
+		Target = Best->GetActorLocation();
+		if (const UVeloxHitboxComponent* Hitbox = UVeloxHitboxComponent::FindHitboxComponent(Best))
+		{
+			Target += Hitbox->GetRenderedOffset();
+		}
+	}
+	OutRotation = (Target - Character->GetPawnViewLocation()).Rotation();
+	OutRotation.Roll = 0.0;
+	return true;
 }
 
 void UVeloxScriptedInputComponent::EvaluateCheck(const FVeloxScriptRow& Row)
@@ -606,6 +809,7 @@ void UVeloxScriptedInputComponent::ReleaseInput()
 			}
 		}
 	}
+	SetFireHeld(false);
 	bJumpHeldByScript = false;
 	bCrouchHeldByScript = false;
 }

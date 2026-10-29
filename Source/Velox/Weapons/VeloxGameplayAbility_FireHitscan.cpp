@@ -40,6 +40,50 @@ namespace VeloxHitscanPrivate
 			Context->HitDirection = CentreDir;
 		}
 	}
+
+	/**
+	 * Task 08 (VeloxShotFired aim_err_cm): distance of the centre ray to the rendered centre of Target, or, without a
+	 * target, of the simulated proxy whose rendered centre lies nearest the ray (ahead of the origin). -1 without one.
+	 */
+	float AimErrorCm(const UWorld& World, const APawn* Shooter, const FVector& Origin, const FVector& Dir, const AActor* Target, FString& OutTargetName, FVector& OutCentre)
+	{
+		float Best = -1.f;
+		OutTargetName = TEXT("none");
+		OutCentre = FVector::ZeroVector;
+		FVeloxHitboxPose Pose;
+		for (TActorIterator<ACharacter> It(&World); It; ++It)
+		{
+			const ACharacter* Character = *It;
+			if (Character == Shooter || (Target && Character != Target) || (!Target && Character->GetLocalRole() != ROLE_SimulatedProxy))
+			{
+				continue;
+			}
+			const UVeloxHitboxComponent* Hitbox = UVeloxHitboxComponent::FindHitboxComponent(Character);
+			if (!Hitbox)
+			{
+				continue;
+			}
+			Hitbox->GetRenderedPose(Pose);
+			if (Pose.Shapes.IsEmpty())
+			{
+				continue;
+			}
+			const FVector ToCentre = Pose.Shapes[0].Centre - Origin;
+			const double Along = FVector::DotProduct(ToCentre, Dir);
+			if (Along <= 0.0)
+			{
+				continue;
+			}
+			const float Err = static_cast<float>((ToCentre - Dir * Along).Size());
+			if (Best < 0.f || Err < Best)
+			{
+				Best = Err;
+				OutTargetName = Character->GetName();
+				OutCentre = Pose.Shapes[0].Centre;
+			}
+		}
+		return Best;
+	}
 }
 
 UVeloxGameplayAbility_FireHitscan::UVeloxGameplayAbility_FireHitscan(const FObjectInitializer& ObjectInitializer)
@@ -85,10 +129,11 @@ void UVeloxGameplayAbility_FireHitscan::ActivateAbility(const FGameplayAbilitySp
 	FShotInput Shot;
 	Shot.Origin = Pawn->GetPawnViewLocation();
 	Shot.Dir = Controller->GetControlRotation().Vector();
+	FVeloxShotTiming Timing;
 	if (const AVeloxPlayerController* VeloxPC = Cast<AVeloxPlayerController>(Controller))
 	{
 		// Once per shot with the centre ray, also for the shotgun (B14). Server side: now, no hint.
-		const FVeloxShotTiming Timing = VeloxPC->BuildShotTiming(Shot.Origin, Shot.Dir, Definition->RangeCm);
+		Timing = VeloxPC->BuildShotTiming(Shot.Origin, Shot.Dir, Definition->RangeCm);
 		Shot.ViewServerTime = Timing.ViewServerTime;
 		Shot.HintTarget = Timing.HintTarget;
 		Shot.HintTargetStamp = Timing.HintTargetStamp;
@@ -100,6 +145,7 @@ void UVeloxGameplayAbility_FireHitscan::ActivateAbility(const FGameplayAbilitySp
 	UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	Shot.ShotSeq = Inventory ? Inventory->AllocateShotSeq() : 0;
 	const double Now = World->GetTimeSeconds();
+	VeloxFireDebug::NoteLocalShot();
 
 	if (ActorInfo->IsNetAuthority())
 	{
@@ -125,6 +171,20 @@ void UVeloxGameplayAbility_FireHitscan::ActivateAbility(const FGameplayAbilitySp
 	ApplyAmmoCost(*Definition);
 	PlayLocalShotCosmetics(*Definition, Shot);
 	AdvanceNextFireTime(Now, Definition->GetSafeFireInterval());
+#if !UE_BUILD_SHIPPING
+	{
+		// Task 08 / ADR 0003 B17, B24: the client side of the soak's per-shot record (the server logs VeloxShot with the
+		// same seq). aim_err_cm against the hinted proxy (else the proxy nearest the ray); view_delay_ms = the
+		// InterpolationDelay used, server_est = GetServerWorldTimeSeconds() at fire time (= view + delay).
+		FString AimTarget;
+		FVector AimCentre;
+		const float AimErr = VeloxHitscanPrivate::AimErrorCm(*World, Pawn, Shot.Origin, Shot.Dir, Shot.HintTarget.Get(), AimTarget, AimCentre);
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotFired t=%.3f seq=%u weapon=%s aim_err_cm=%.1f aim_target=%s aim_pos=(%.1f,%.1f,%.1f) view_delay_ms=%.1f delay_src=%s server_est=%.4f view=%.4f hint=%s hint_stamp=%.4f"),
+			Now, Shot.ShotSeq, *GetNameSafe(Definition), AimErr, *AimTarget, AimCentre.X, AimCentre.Y, AimCentre.Z, Timing.InterpolationDelay * 1000.f,
+			Timing.bDelayFromProxies ? TEXT("proxies") : TEXT("fallback"), Shot.ViewServerTime + Timing.InterpolationDelay, Shot.ViewServerTime,
+			*GetNameSafe(Shot.HintTarget.Get()), Shot.HintTargetStamp);
+	}
+#endif
 	UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxShotSent seq=%u weapon=%s view=%.3f hint=%s"), Shot.ShotSeq, *GetNameSafe(Definition), Shot.ViewServerTime, *GetNameSafe(Shot.HintTarget.Get()));
 	// The server ends its own instance after the target data; no end RPC per shot.
 	EndAbility(Handle, ActorInfo, ActivationInfo, false, false);
