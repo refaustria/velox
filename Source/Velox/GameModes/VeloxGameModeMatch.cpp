@@ -134,8 +134,27 @@ void AVeloxGameMode::PostLogin(APlayerController* NewPlayer)
 		const APlayerState* PS = NewPlayer->PlayerState;
 		UE_LOG(LogVeloxMatch, Log, TEXT("VeloxMatch join player=%s spectator=%d phase=%s active=%d"), *AVeloxPlayerState::VeloxPlayerLabel(PS), PS && PS->IsOnlyASpectator() ? 1 : 0,
 			LexToString(Phase), GetNumActivePlayers());
+		if (Phase == EVeloxMatchPhase::PostMatch)
+		{
+			// F4: a client that connects during the intermission gets the same view as the others.
+			SendIntermissionTo(Cast<AVeloxPlayerController>(NewPlayer), FindIntermissionCamera());
+		}
 		RequestMatchEvaluation();
 	}
+}
+
+void AVeloxGameMode::SendIntermissionTo(AVeloxPlayerController* PC, AActor* Camera)
+{
+	if (!PC)
+	{
+		return;
+	}
+	AActor* ViewTarget = Camera ? Camera : PC->GetPawn();
+	if (!PC->IsLocalController())
+	{
+		PC->EnterIntermission(ViewTarget);
+	}
+	PC->ClientEnterIntermission(ViewTarget);
 }
 
 void AVeloxGameMode::Reset()
@@ -294,10 +313,11 @@ void AVeloxGameMode::SetPhase(EVeloxMatchPhase NewPhase, EVeloxMatchReason Reaso
 		OvertimeCount = 0;
 	}
 
-	// Ready is per phase (ADR 0004 section 5), except that it carries from Warmup into Countdown: the countdown keeps
-	// requiring it, so a player who un-readies aborts the countdown.
-	const bool bKeepReady = OldPhase == EVeloxMatchPhase::Warmup && NewPhase == EVeloxMatchPhase::Countdown;
-	if (!bKeepReady && GameState)
+	// Ready (ADR 0004 C5): consumed by the transition it caused (Countdown -> Live, PostMatch -> Warmup) and cleared when a
+	// match ends (-> PostMatch). It survives Warmup <-> Countdown in both directions: a countdown aborted because one player
+	// un-readied (or a third joined) must not clear the players who stayed ready.
+	const bool bClearReady = NewPhase == EVeloxMatchPhase::Live || NewPhase == EVeloxMatchPhase::PostMatch || OldPhase == EVeloxMatchPhase::PostMatch;
+	if (bClearReady && GameState)
 	{
 		for (APlayerState* PS : GameState->PlayerArray)
 		{
@@ -454,17 +474,7 @@ void AVeloxGameMode::EnterPostMatch()
 	AActor* Camera = FindIntermissionCamera();
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 	{
-		AVeloxPlayerController* PC = Cast<AVeloxPlayerController>(It->Get());
-		if (!PC)
-		{
-			continue;
-		}
-		AActor* ViewTarget = Camera ? Camera : PC->GetPawn();
-		if (!PC->IsLocalController())
-		{
-			PC->EnterIntermission(ViewTarget);
-		}
-		PC->ClientEnterIntermission(ViewTarget);
+		SendIntermissionTo(Cast<AVeloxPlayerController>(It->Get()), Camera);
 	}
 	UE_LOG(LogVeloxMatch, Log, TEXT("VeloxMatch freeze asc=%d camera=%s match_state=%s"), NumFrozen, *GetNameSafe(Camera), *GetMatchState().ToString());
 }
@@ -507,6 +517,11 @@ bool AVeloxGameMode::RequestJoin(APlayerController* Controller)
 	if (PlayerCanRestart(Controller))
 	{
 		RestartPlayer(Controller);
+	}
+	if (Phase == EVeloxMatchPhase::PostMatch)
+	{
+		// F4: a spectator who takes a slot during the intermission is in it (same view target as the others).
+		SendIntermissionTo(Cast<AVeloxPlayerController>(Controller), FindIntermissionCamera());
 	}
 	UE_LOG(LogVeloxMatch, Log, TEXT("VeloxMatch join slot player=%s phase=%s active=%d pawn=%s"), *AVeloxPlayerState::VeloxPlayerLabel(PS), LexToString(Phase), GetNumActivePlayers(),
 		*GetNameSafe(Controller->GetPawn()));

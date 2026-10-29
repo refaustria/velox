@@ -167,6 +167,8 @@ private:
 	// Server.
 	FVeloxPickupTimer Timer;
 	FTimerHandle RespawnTimerHandle;
+	/** F1: the standing-pawn check after Reset(), one tick later. */
+	FTimerHandle ResetCheckTimerHandle;
 	bool bOverlapRecheck = false;
 
 	// Clients: the last replicated state handled, and the pending prediction.

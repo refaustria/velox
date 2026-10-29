@@ -7,6 +7,7 @@
 
 #include "EnhancedInputDeveloperSettings.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Core/VeloxLocalPlayer.h"
 #include "UI/VeloxGameUserSettings.h"
 #include "UI/VeloxSettingsMath.h"
 
@@ -88,6 +89,19 @@ bool FVeloxSettingsObjectTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("defaults: sensitivity"), S->MouseSensitivity, VeloxSettingsMath::DefaultSensitivity);
 	TestTrue(TEXT("defaults: autoswitch"), S->bAutoSwitchOnPickup);
 	TestEqual(TEXT("defaults keep the name"), S->PlayerName, FString(TEXT("AB")));
+
+	// F5: the login option carries the configured name (the server ignores the connect URL's ?Name=).
+	TestEqual(TEXT("login option"), VeloxSettingsMath::BuildNameLoginOption(TEXT("Anarki")), FString(TEXT("Name=Anarki")));
+	TestEqual(TEXT("login option sanitised"), VeloxSettingsMath::BuildNameLoginOption(TEXT(" A?B=C ")), FString(TEXT("Name=ABC")));
+	TestTrue(TEXT("login option empty for an empty name"), VeloxSettingsMath::BuildNameLoginOption(TEXT("?=")).IsEmpty());
+	{
+		const UVeloxLocalPlayer* LocalPlayer = GetDefault<UVeloxLocalPlayer>();
+		TestEqual(TEXT("UVeloxLocalPlayer login options = settings name"), LocalPlayer->GetGameLoginOptions(),
+			VeloxSettingsMath::BuildNameLoginOption(UVeloxGameUserSettings::GetOrDefault().PlayerName));
+		FString ConfiguredPlayerClass;
+		GConfig->GetString(TEXT("/Script/Engine.Engine"), TEXT("LocalPlayerClassName"), ConfiguredPlayerClass, GEngineIni);
+		TestEqual(TEXT("LocalPlayerClassName"), ConfiguredPlayerClass, FString(TEXT("/Script/Velox.VeloxLocalPlayer")));
+	}
 
 	// The project ships its own class as the engine's user settings class and has Enhanced Input user settings on.
 	FString ConfiguredClass;

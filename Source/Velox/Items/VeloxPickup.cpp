@@ -227,6 +227,7 @@ void AVeloxPickup::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		World->GetTimerManager().ClearTimer(RespawnTimerHandle);
 		World->GetTimerManager().ClearTimer(PredictionTimerHandle);
+		World->GetTimerManager().ClearTimer(ResetCheckTimerHandle);
 	}
 	DropPredictedWeapon();
 	Super::EndPlay(EndPlayReason);
@@ -625,7 +626,20 @@ void AVeloxPickup::Reset()
 	}
 	if (IsAvailable())
 	{
-		CheckOverlappingPawns(true);
+		// ADR 0004 C10 / F1: not synchronously. ResetLevel resets controllers first and then every actor in iteration order; an
+		// AI pawn (AController::Reset does not unpossess) whose turn comes after this pickup would still be alive and take
+		// it. One tick later every pawn of the old round is destroyed and the restarted ones have spawned.
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(ResetCheckTimerHandle);
+			ResetCheckTimerHandle = World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				if (HasAuthority() && IsAvailable())
+				{
+					CheckOverlappingPawns(true);
+				}
+			}));
+		}
 	}
 }
 
@@ -751,8 +765,15 @@ void AVeloxPickup::HandleReplicatedState()
 				DropPredictedWeapon();
 			}
 		}
-		UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupTaken item=%s by=%s take=%u"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(LastTakenBy), TakeCount);
-		if (Registry)
+		// ADR 0004 C10 / F2: a take older than PickupTakeEventMaxAgeSeconds (a placed pickup's first update for a late joiner)
+		// updates the state and the placeholder but is not an event. Respawn 0 (weapon stay) never carries an age.
+		const AVeloxPlayerState* LocalPS = LocalController ? Cast<AVeloxPlayerState>(LocalController->PlayerState) : nullptr;
+		const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(LocalPS ? LocalPS->GetCombatSettings() : nullptr);
+		const FVeloxItemModeRules Rules = Registry ? Registry->GetModeRules() : FVeloxItemModeRules();
+		const double RespawnSeconds = Definition ? VeloxPickupRules::RespawnSecondsFor(Definition->Type, Definition->RespawnSeconds, Rules) : 0.0;
+		const bool bStale = VeloxPickupRules::IsStaleTake(GetServerNow(), RespawnServerTime, RespawnSeconds, Settings.GetPickupTakeEventMaxAgeSeconds());
+		UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupTaken item=%s by=%s take=%u stale=%d"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(LastTakenBy), TakeCount, bStale ? 1 : 0);
+		if (Registry && !bStale)
 		{
 			Registry->OnPickupTaken.Broadcast(this, LastTakenBy);
 		}

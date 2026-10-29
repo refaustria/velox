@@ -247,7 +247,7 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 	}
 	else
 	{
-		// Review server step 1 (world-free, Velox.Combat.ShotValidation): bucket + spacing first, then the payload.
+		// Review server step 1 (world-free, Velox.Combat.ShotValidation): the B32 token bucket first, then the payload.
 		// Nothing touches the subsystem on rejection.
 		const double Now = World->GetTimeSeconds();
 		FVeloxValidatedShot Valid;

@@ -1,7 +1,7 @@
 // Velox - non-shipping match console commands (ADR 0004 section 5, task 05). Authority world only.
 //   velox.match.Phase <Warmup|Countdown|Live|Overtime|PostMatch>   enters the phase as the rules would (Live and Warmup
 //                                                                   reset the level).
-//   velox.match.Ready [0|1] [all]           sets ready for the first local player (default 1), or for every player.
+//   velox.match.Ready [0|1] [idx=N|all]     sets ready for local player N (default 0; split-screen), or for every player.
 //   velox.match.OnPhase <Phase> <N> <cmd>   runs <cmd> (rest of the line) on the next tick after the N-th entry into
 //                                           <Phase> from now on (headless tests: "OnPhase Live 1 velox.combat.KillTest env").
 //   velox.match.AddPlayer                   adds a local (split-screen) player: a real Login/PostLogin on this world.
@@ -64,11 +64,16 @@ namespace VeloxMatchCheats
 		}
 		bool bReady = true;
 		bool bAll = false;
+		int32 PlayerIndex = 0;
 		for (const FString& Arg : Args)
 		{
 			if (Arg.Equals(TEXT("all"), ESearchCase::IgnoreCase))
 			{
 				bAll = true;
+			}
+			else if (Arg.StartsWith(TEXT("idx="), ESearchCase::IgnoreCase))
+			{
+				PlayerIndex = FCString::Atoi(*Arg.RightChop(4));
 			}
 			else if (Arg.IsNumeric())
 			{
@@ -77,7 +82,7 @@ namespace VeloxMatchCheats
 		}
 		if (!bAll)
 		{
-			GameMode->SetPlayerReady(LocalPlayerController(World, 0), bReady);
+			GameMode->SetPlayerReady(LocalPlayerController(World, PlayerIndex), bReady);
 			return;
 		}
 		for (FConstControllerIterator It = World->GetControllerIterator(); It; ++It)
@@ -169,7 +174,7 @@ namespace VeloxMatchCheats
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&PhaseCommand));
 
 	FAutoConsoleCommandWithWorldAndArgs ReadyCmd(TEXT("velox.match.Ready"),
-		TEXT("velox.match.Ready [0|1] [all]: ready flag of the first local player (or every player). Non-shipping."),
+		TEXT("velox.match.Ready [0|1] [idx=N|all]: ready flag of the local player N (default 0) (or every player). Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&ReadyCommand));
 
 	FAutoConsoleCommandWithWorldAndArgs OnPhaseCmd(TEXT("velox.match.OnPhase"),
