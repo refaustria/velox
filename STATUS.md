@@ -37,7 +37,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **Resumed 2026-10-29.** Sanity build OK (47 tests, `Saved/CI/20261029-113051-3132749`). Running: 04c server pattern seed (dev-hard, worktree, port 7812) and architect review of 05+06 (docs only). Disk freed 2026-10-29 (docker build cache 22 GB, home caches, build artefacts; human's standing OK): 33 GB free.
+- **Resumed 2026-10-29.** Sanity build OK (47 tests, `Saved/CI/20261029-113051-3132749`). 05+06 architect-reviewed (B25–B29; move-timed self-splash and next-tick teardown accepted; must-fix: per-life shot sequence for the self-knockback channel, dummies respawning in place). Running in worktrees: 04c server pattern seed (dev-hard, port 7812), 05b projectile review fixes (dev-hard, 7813), 06b death review fixes (dev, 7814). Then merge → idle-machine soak → 08 → 09. Note: the Fable (architect) usage limit was hit on 2026-10-29; architect reviews may have to wait for the limit to reset. Disk freed 2026-10-29 (docker build cache 22 GB, home caches, build artefacts; human's standing OK): 33 GB free.
 - **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`.
 
 ## Blocked
