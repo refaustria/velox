@@ -36,13 +36,13 @@ Acceptance criteria:
 Goal: the full Quake 3 weapon set on GAS, lag-compensated.
 
 Acceptance criteria:
-- [ ] GAS set up per ADR: `UVeloxAbilitySystemComponent`, `UVeloxAttributeSet` (Health, MaxHealth, Armor, MaxArmor), gameplay effects for damage with armor absorption (Q3 rule: armor absorbs 2/3), self-damage factor, knockback as a movement impulse through the movement component.
-- [ ] Weapons as gameplay abilities with data assets: Machine Gun, Shotgun, Plasma Gun, Rocket Launcher, Lightning Gun, Railgun. Ammo attributes, weapon switching with switch times, fire rates matching Q3 defaults as initial tuning.
-- [ ] Hitscan (MG, SG, LG, RG) uses server-side lag compensation (rewind of hitboxes to client fire time, bounded window). Projectiles (PG, RL) are server-authoritative with client-side fake projectiles for responsiveness.
-- [ ] Rocket jumps and plasma climbing work via self-knockback.
-- [ ] Death, respawn with spawn protection timer, spawn point selection avoiding enemies.
-- [ ] Automation tests: damage/armor math, ammo consumption, lag-compensation rewind picks the right historical pose, projectile ownership/self-damage.
-- [ ] Tested in PIE/dedicated server with two clients at 100 ms latency: hits register where the client aimed.
+- [x] GAS set up per ADR: `UVeloxAbilitySystemComponent`, `UVeloxAttributeSet` (Health, MaxHealth, Armor, MaxArmor), gameplay effects for damage with armor absorption (Q3 rule: armor absorbs 2/3), self-damage factor, knockback as a movement impulse through the movement component.
+- [x] Weapons as gameplay abilities with data assets: Machine Gun, Shotgun, Plasma Gun, Rocket Launcher, Lightning Gun, Railgun. Ammo attributes, weapon switching with switch times, fire rates matching Q3 defaults as initial tuning.
+- [x] Hitscan (MG, SG, LG, RG) uses server-side lag compensation (rewind of hitboxes to client fire time, bounded window). Projectiles (PG, RL) are server-authoritative with client-side fake projectiles for responsiveness.
+- [x] Rocket jumps and plasma climbing work via self-knockback.
+- [x] Death, respawn with spawn protection timer, spawn point selection avoiding enemies.
+- [x] Automation tests: damage/armor math, ammo consumption, lag-compensation rewind picks the right historical pose, projectile ownership/self-damage.
+- [x] Tested in PIE/dedicated server with two clients at 100 ms latency: hits register where the client aimed. *(automated: nettest FireRun 11/11 rails at 100 ms RTT / 2 % loss, 5/5 rounds; human playtest `docs/playtests/m2-combat-checklist.md` pending)*
 
 ## M3 — Game loop
 

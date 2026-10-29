@@ -3,6 +3,7 @@
 _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main` (M0 + M1 code merged); M1 closes with the human playtest._
 
 ## Done
+- **M2-08/08b** soak tooling (FireRun, FireRunControl, RocketJumpRun, CrouchRun in the default list, exact knockback grace rule, per-script lag) and FireRun defect fixes D1–D5. Reports `notes/08-report.md`, `notes/08b-report.md`. **M2-09** playtest checklist.
 - **M2-04c** server-chosen pattern seed (B21), unkeyed impact cues; **M2-05b** per-life shot sequence, shared validation, rocket hit confirm, cancel move-timed events on death, wrap-aware clamp; **M2-06b** dummies respawn in place (optionally invulnerable, `velox.combat.SpawnDummy`), player labels, corpse fixes. Reports in `docs/tasks/m2-combat/notes/`.
 - **M2-06** death flow (B8 with next-tick corpse/UnPossess), corpse (no collision, lifetime), death camera, respawn (fire/jump request, min/force delay, AI auto-respawn), world-free `VeloxSpawnSelection` (farthest half, avoid radius, telefrag only when full), spawn protection (0 s default, ends on fire), `FellOutOfWorld` kill, `PlaceholderBody` + `M_PlayerBody` 8-colour palette, HUD hit marker + fragged overlay, cheats `KillTest`/`KillSelf`. 4 tests. Report: `docs/tasks/m2-combat/notes/06-report.md`.
 - **M2-05** `AVeloxProjectile` (initial-only replication, dormant, world-free `FVeloxProjectileSim`), owner fake projectile ended by the authoritative impact cue, server forward sim ≤ ping/2, Q3 splash on current pose with 3 LOS traces, explosion cue unkeyed (B21), predicted self-knockback `{Velocity, Seq}` + `ConfirmedSelfKnockbackSeq`, **move-timed owner self-splash** (`AddMoveTimedEvent`) → rocket jump at 100 ms / 2 % with 0 corrections (evidence `docs/adr/evidence/m2-05-*`). RL/PG fire. 2 tests. Report: `notes/05-report.md`.
@@ -38,7 +39,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **2026-10-29:** 04c/05b/06b merged (49 tests). 09 playtest checklist done (`docs/playtests/m2-combat-checklist.md`). 08 soak tooling committed (83ad004): all scripts 5/5 at 100 ms / 2 % including RocketJumpRun (0 corrections) and both knockback scripts under the exact grace rule, **except FireRun 0/5** → defects D1 hint stamp ~55 ms too old, D2 rewind budget < RTT + interp at 200 ms RTT, D3 MG bucket rate rejections, D4 switch rejected after finalise (`docs/tasks/m2-combat/notes/08-report.md`). Running: architect root-cause pass → task 08b. `m2-combat` → `main` merge waits for FireRun 5/5.
+- **M2 merged to `main` (2026-10-29).** 08b fixed FireRun D1–D5 (rendered-pose hint stamp |dt| 0.2 ms, server-time staleness, time-sized fire-rate bucket, switch completion, per-script lag): FireRun 5/5 with 11/11 rails at 100 ms RTT; build 50 tests green. Open: M2 human playtest on the Mac (`docs/playtests/m2-combat-checklist.md`); architect review of 08b (6 rulings in `docs/tasks/m2-combat/notes/08b-report.md`) when the Fable limit allows; LatchRun mid-air stray (10.8 cm, 1 of 5 rounds, `Saved/CI/20261029-141000-3335522/nettest/round-4`) → movement task.
 - **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`.
 
 ## Blocked
