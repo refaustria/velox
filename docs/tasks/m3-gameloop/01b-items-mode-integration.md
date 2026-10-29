@@ -2,7 +2,7 @@
 
 **Milestone:** M3 Game loop
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged 9810c71)
 **Depends on:** 01, 04, 05 (all merged)
 
 ## Goal
