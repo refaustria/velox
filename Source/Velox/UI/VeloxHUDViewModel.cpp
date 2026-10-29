@@ -7,7 +7,13 @@
 #include "Combat/VeloxAmmoSet.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxHealthSet.h"
+#include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameModes/VeloxGameModeDefinition.h"
+#include "Items/VeloxItemDefinition.h"
+#include "Items/VeloxItemRegistrySubsystem.h"
+#include "Items/VeloxPickup.h"
 #include "GameModes/VeloxGameState.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
@@ -77,6 +83,38 @@ void UVeloxHUDViewModel::Reset()
 		Intensity = 0.f;
 	}
 	Feed.Reset();
+	bScoreboardVisible = false;
+	bScoreboardForced = false;
+	ScoreboardTitle.Reset();
+	ScoreboardLimits.Reset();
+	ScoreboardClock.Reset();
+	ScoreboardWinner.Reset();
+	ScoreRows.Reset();
+	SpectatorNames.Reset();
+	bShowReadyButton = false;
+	bLocalReady = false;
+	ReadyButtonText.Reset();
+	ReadyPrompt.Reset();
+	PickupMessage.Reset();
+	PickupMessageAlpha = 0.f;
+	bShowItemTimers = false;
+	ItemTimers.Reset();
+	bSpectator = false;
+}
+
+void UVeloxHUDViewModel::Unbind()
+{
+	if (bBoundRegistry)
+	{
+		if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(BoundWorld.Get()))
+		{
+			Registry->OnPickupTaken.Remove(PickupTakenHandle);
+		}
+		PickupTakenHandle.Reset();
+		bBoundRegistry = false;
+	}
+	BoundWorld.Reset();
+	LocalPlayerState.Reset();
 }
 
 void UVeloxHUDViewModel::UpdateFromGame(const AVeloxPlayerController& Controller)
@@ -254,4 +292,160 @@ void UVeloxHUDViewModel::UpdateFromGame(const AVeloxPlayerController& Controller
 	CrosshairStyle = UserSettings.CrosshairStyle;
 	CrosshairSize = UserSettings.CrosshairSize;
 	CrosshairColor = UserSettings.CrosshairColor;
+
+	// Item registry: the "took" message needs the take event, so listen once per world.
+	if (!bBoundRegistry || BoundWorld.Get() != World)
+	{
+		Unbind();
+		if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(World))
+		{
+			PickupTakenHandle = Registry->OnPickupTaken.AddUObject(this, &UVeloxHUDViewModel::HandlePickupTaken);
+			BoundWorld = World;
+			bBoundRegistry = true;
+		}
+	}
+	LocalPlayerState = PlayerState;
+	bSpectator = PlayerState->IsOnlyASpectator();
+
+	const double MessageAge = Now - PickupMessageStart;
+	PickupMessageAlpha = 0.f;
+	if (!PickupMessage.IsEmpty() && MessageAge >= 0.0 && MessageAge < UI.PickupMessageSeconds)
+	{
+		const double FadeStart = UI.PickupMessageSeconds * 0.6;
+		PickupMessageAlpha = MessageAge < FadeStart ? 1.f : static_cast<float>((UI.PickupMessageSeconds - MessageAge) / (UI.PickupMessageSeconds - FadeStart));
+	}
+	if (PickupMessageAlpha <= 0.f)
+	{
+		PickupMessage.Reset();
+	}
+
+	UpdateScoreboard(Controller, GameState);
+	UpdateItemTimers();
+}
+
+void UVeloxHUDViewModel::HandlePickupTaken(AVeloxPickup* Pickup, APlayerState* TakenBy)
+{
+	const UVeloxItemDefinition* Definition = Pickup ? Pickup->GetDefinition() : nullptr;
+	const UWorld* World = BoundWorld.Get();
+	if (!Definition || !World)
+	{
+		return;
+	}
+	const bool bLocalTaker = TakenBy && TakenBy == LocalPlayerState.Get();
+	// Spectators following the match see the major items being taken (the timer rule decides who is "watching").
+	const UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(World);
+	const bool bShowOthers = bSpectator && Definition->bMajorItem && Registry && VeloxScoreboardFormat::ItemTimersVisible(Registry->GetItemTimerVisibility(), bSpectator);
+	const FString Text = VeloxScoreboardFormat::PickupMessageText(Definition->DisplayName.ToString(), TakenBy ? AVeloxPlayerState::VeloxPlayerLabel(TakenBy) : FString(), bLocalTaker, bShowOthers);
+	if (!Text.IsEmpty())
+	{
+		PickupMessage = Text;
+		PickupMessageStart = World->GetTimeSeconds();
+		PickupMessageAlpha = 1.f;
+	}
+}
+
+void UVeloxHUDViewModel::UpdateScoreboard(const AVeloxPlayerController& Controller, const AVeloxGameState* GameState)
+{
+	const UVeloxUISettings& UI = UVeloxUISettings::Get();
+	const AVeloxPlayerState* LocalState = Controller.GetPlayerState<AVeloxPlayerState>();
+	ScoreRows.Reset();
+	SpectatorNames.Reset();
+	ScoreboardTitle.Reset();
+	ScoreboardLimits.Reset();
+	ScoreboardWinner.Reset();
+	ScoreboardClock = ClockText;
+	bShowReadyButton = false;
+	bLocalReady = LocalState && LocalState->IsReady();
+	ReadyButtonText.Reset();
+	ReadyPrompt.Reset();
+
+	const EVeloxMatchPhase Phase = GameState ? GameState->GetPhase() : EVeloxMatchPhase::Warmup;
+	bScoreboardForced = GameState && (Phase == EVeloxMatchPhase::PostMatch || Controller.IsInIntermission());
+	bScoreboardVisible = bScoreboardForced || Controller.IsScoreboardHeld();
+
+	if (GameState)
+	{
+		const UVeloxGameModeDefinition* Mode = GameState->GetGameModeDefinition();
+		ScoreboardTitle = Mode ? Mode->DisplayName.ToString() : FString(TEXT("Velox"));
+		ScoreboardLimits = VeloxScoreboardFormat::LimitsText(GameState->GetFragLimit(), GameState->GetTimeLimitSeconds());
+		if (Phase == EVeloxMatchPhase::PostMatch)
+		{
+			ScoreboardWinner = BannerText;
+		}
+
+		VeloxScoreboardFormat::FReadyInput ReadyInput;
+		ReadyInput.Phase = Phase;
+		ReadyInput.bSpectator = bSpectator;
+		ReadyInput.bReady = bLocalReady;
+		ReadyInput.bRequireReady = Mode && Mode->bRequireReady;
+		ReadyPrompt = VeloxScoreboardFormat::ReadyPromptText(ReadyInput, UI.ReadyKeyLabel);
+		bShowReadyButton = VeloxScoreboardFormat::CanToggleReady(ReadyInput);
+		ReadyButtonText = VeloxScoreboardFormat::ReadyButtonText(bLocalReady, UI.ReadyKeyLabel);
+
+		const TArray<TObjectPtr<APlayerState>>& Players = GameState->PlayerArray;
+		for (const APlayerState* Player : Players)
+		{
+			const AVeloxPlayerState* VeloxPlayer = Cast<AVeloxPlayerState>(Player);
+			if (!VeloxPlayer)
+			{
+				continue;
+			}
+			if (VeloxPlayer->IsOnlyASpectator())
+			{
+				SpectatorNames += (SpectatorNames.IsEmpty() ? TEXT("") : TEXT(", ")) + AVeloxPlayerState::VeloxPlayerLabel(VeloxPlayer);
+				continue;
+			}
+			VeloxScoreboardFormat::FRow& Row = ScoreRows.AddDefaulted_GetRef();
+			Row.Name = AVeloxPlayerState::VeloxPlayerLabel(VeloxPlayer);
+			Row.Score = FMath::RoundToInt32(VeloxPlayer->GetScore());
+			Row.Kills = VeloxPlayer->GetKills();
+			Row.Deaths = VeloxPlayer->GetDeaths();
+			Row.PingMs = FMath::RoundToInt32(VeloxPlayer->GetPingInMilliseconds());
+			Row.bReady = VeloxPlayer->IsReady();
+			Row.bLocal = VeloxPlayer == LocalState;
+			Row.Color = VeloxPlayer->GetPlayerColor();
+			if (const UAbilitySystemComponent* PlayerASC = VeloxPlayer->GetAbilitySystemComponent())
+			{
+				using namespace VeloxGameplayTags;
+				if (PlayerASC->HasMatchingGameplayTag(Powerup_Quad)) { Row.Powerups += TEXT("Q"); }
+				if (PlayerASC->HasMatchingGameplayTag(Powerup_Haste)) { Row.Powerups += TEXT("H"); }
+				if (PlayerASC->HasMatchingGameplayTag(Powerup_Regen)) { Row.Powerups += TEXT("R"); }
+				if (PlayerASC->HasMatchingGameplayTag(Powerup_BattleSuit)) { Row.Powerups += TEXT("B"); }
+			}
+		}
+		VeloxScoreboardFormat::SortRows(ScoreRows);
+	}
+}
+
+void UVeloxHUDViewModel::UpdateItemTimers()
+{
+	ItemTimers.Reset();
+	const UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(BoundWorld.Get());
+	bShowItemTimers = Registry && VeloxScoreboardFormat::ItemTimersVisible(Registry->GetItemTimerVisibility(), bSpectator);
+	if (!bShowItemTimers)
+	{
+		return;
+	}
+	for (const AVeloxPickup* Pickup : Registry->GetMajorPickups())
+	{
+		const UVeloxItemDefinition* Definition = Pickup ? Pickup->GetDefinition() : nullptr;
+		if (!Definition)
+		{
+			continue;
+		}
+		VeloxScoreboardFormat::FItemTimer& Timer = ItemTimers.AddDefaulted_GetRef();
+		Timer.ItemName = Definition->DisplayName.ToString();
+		Timer.bAvailable = Pickup->IsAvailable();
+		Timer.SecondsLeft = Pickup->GetTimeUntilRespawn();
+		if (const APlayerState* Taker = Pickup->GetLastTakenBy())
+		{
+			Timer.TakenBy = AVeloxPlayerState::VeloxPlayerLabel(Taker);
+			if (const AVeloxPlayerState* VeloxTaker = Cast<AVeloxPlayerState>(Taker))
+			{
+				Timer.TakenByColor = VeloxTaker->GetPlayerColor();
+			}
+		}
+		Timer.Text = VeloxScoreboardFormat::ItemTimerText(Timer);
+	}
+	VeloxScoreboardFormat::SortTimers(ItemTimers);
 }

@@ -14,6 +14,7 @@
 #include "Core/VeloxLog.h"
 #include "UI/VeloxHUDViewModel.h"
 #include "UI/VeloxHUDWidget.h"
+#include "UI/VeloxScoreboardWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/Canvas.h"
 #include "GameModes/VeloxPlayerController.h"
@@ -38,6 +39,7 @@ AVeloxHUD::AVeloxHUD(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	HUDWidgetClass = UVeloxHUDWidget::StaticClass();
+	ScoreboardWidgetClass = UVeloxScoreboardWidget::StaticClass();
 }
 
 void AVeloxHUD::BeginPlay()
@@ -57,6 +59,16 @@ void AVeloxHUD::BeginPlay()
 		HUDWidget->SetViewModel(ViewModel);
 		HUDWidget->AddToViewport(HUDWidgetZOrder);
 	}
+	if (ScoreboardWidgetClass)
+	{
+		ScoreboardWidget = CreateWidget<UVeloxScoreboardWidget>(Controller, ScoreboardWidgetClass);
+		if (ScoreboardWidget)
+		{
+			ScoreboardWidget->SetViewModel(ViewModel);
+			ScoreboardWidget->AddToViewport(ScoreboardWidgetZOrder);
+		}
+		UE_LOG(LogVelox, Log, TEXT("VeloxHUD scoreboard class=%s created=%d in_viewport=%d"), *GetNameSafe(ScoreboardWidgetClass), ScoreboardWidget ? 1 : 0, ScoreboardWidget && ScoreboardWidget->IsInViewport() ? 1 : 0);
+	}
 	UE_LOG(LogVelox, Log, TEXT("VeloxHUD widget class=%s created=%d in_viewport=%d"), *GetNameSafe(HUDWidgetClass), HUDWidget ? 1 : 0, HUDWidget && HUDWidget->IsInViewport() ? 1 : 0);
 }
 
@@ -66,6 +78,15 @@ void AVeloxHUD::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		HUDWidget->RemoveFromParent();
 		HUDWidget = nullptr;
+	}
+	if (ScoreboardWidget)
+	{
+		ScoreboardWidget->RemoveFromParent();
+		ScoreboardWidget = nullptr;
+	}
+	if (ViewModel)
+	{
+		ViewModel->Unbind();
 	}
 	ViewModel = nullptr;
 	Super::EndPlay(EndPlayReason);
@@ -87,6 +108,13 @@ void AVeloxHUD::Tick(float DeltaSeconds)
 		bLoggedWidget = true;
 		HUDWidget->RefreshFromViewModel();
 		UE_LOG(LogVelox, Log, TEXT("VeloxHUD bound %s"), *HUDWidget->DescribeBoundValues());
+	}
+	// Headless evidence (-game -nullrhi): the scoreboard opening, forced at PostMatch or held, with what it shows.
+	if (ScoreboardWidget && ViewModel->bScoreboardVisible != bLoggedScoreboardVisible)
+	{
+		bLoggedScoreboardVisible = ViewModel->bScoreboardVisible;
+		ScoreboardWidget->RefreshFromViewModel();
+		UE_LOG(LogVelox, Log, TEXT("VeloxScoreboard visible=%d forced=%d %s"), bLoggedScoreboardVisible ? 1 : 0, ViewModel->bScoreboardForced ? 1 : 0, *ScoreboardWidget->DescribeBoundValues());
 	}
 }
 

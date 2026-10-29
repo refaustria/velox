@@ -127,4 +127,45 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Death")
 	FLinearColor DeathTitleColor = FLinearColor(1.f, 0.1f, 0.1f, 1.f);
+
+	/** Key shown in the ready prompt and the scoreboard button (the default binding of IA_Ready; rebinds do not change the text). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Ready")
+	FString ReadyKeyLabel = TEXT("F3");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Ready")
+	FLinearColor ReadyPromptColor = FLinearColor(0.4f, 1.f, 0.4f, 1.f);
+
+	/** The pickup message ("Mega Health", "Anarki took Mega Health") stays this long, fading over the last 40 %. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Pickup", Meta = (ClampMin = "0.1", Units = "s"))
+	float PickupMessageSeconds = 2.5f;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Pickup")
+	FLinearColor PickupMessageColor = FLinearColor(1.f, 1.f, 0.6f, 1.f);
+
+	/** Spectator item timers: colour of the lines of items that are up, and of the ones still down. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|ItemTimers")
+	FLinearColor ItemTimerUpColor = FLinearColor(0.4f, 1.f, 0.4f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|ItemTimers")
+	FLinearColor ItemTimerDownColor = FLinearColor::White;
+
+	/** Scoreboard (Tab, forced in PostMatch): panel width in Slate units, background, header, local-player row and ready colours. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Scoreboard", Meta = (ClampMin = "200"))
+	float ScoreboardWidth = 760.f;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Scoreboard")
+	FLinearColor ScoreboardBackgroundColor = FLinearColor(0.f, 0.f, 0.f, 0.7f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Scoreboard")
+	FLinearColor ScoreboardHeaderColor = FLinearColor(0.7f, 0.7f, 0.7f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Scoreboard")
+	FLinearColor ScoreboardLocalRowColor = FLinearColor(1.f, 1.f, 1.f, 0.18f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Scoreboard")
+	FLinearColor ScoreboardReadyColor = FLinearColor(0.4f, 1.f, 0.4f, 1.f);
+
+	/** Fill weight of the name column against the five numeric columns (weight 1 each). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Scoreboard", Meta = (ClampMin = "1"))
+	float ScoreboardNameColumnFill = 4.f;
 };

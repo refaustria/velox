@@ -18,6 +18,8 @@
 #include "GameFramework/Character.h"
 #include "GameModes/VeloxMatchRules.h"
 #include "InputMappingContext.h"
+#include "Core/VeloxGameplayTags.h"
+#include "Input/VeloxInputConfig.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
 #include "UI/VeloxGameUserSettings.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
@@ -178,6 +180,7 @@ void AVeloxPlayerController::SetupInputComponent()
 				EnhancedInput->BindAction(LoadedAction, ETriggerEvent::Triggered, this, &ThisClass::OnRespawnInput);
 			}
 		}
+		BindUIInput(*EnhancedInput);
 	}
 
 	if (DefaultMappingContext.IsNull())
@@ -204,6 +207,42 @@ void AVeloxPlayerController::SetupInputComponent()
 	{
 		InputSubsystem->OnPostUserSettingsInitialized.AddUniqueDynamic(this, &ThisClass::OnInputUserSettingsInitialized);
 	}
+}
+
+void AVeloxPlayerController::BindUIInput(UEnhancedInputComponent& EnhancedInput)
+{
+	const UVeloxInputConfig* Config = UIInputConfig.IsNull() ? nullptr : UIInputConfig.LoadSynchronous();
+	if (!Config)
+	{
+		return;
+	}
+	using namespace VeloxGameplayTags;
+	if (const UInputAction* Ready = Config->FindNativeInputActionForTag(InputTag_Ready, true))
+	{
+		EnhancedInput.BindAction(Ready, ETriggerEvent::Started, this, &ThisClass::OnReadyInput);
+	}
+	if (const UInputAction* Scoreboard = Config->FindNativeInputActionForTag(InputTag_Scoreboard, true))
+	{
+		EnhancedInput.BindAction(Scoreboard, ETriggerEvent::Started, this, &ThisClass::OnScoreboardPressed);
+		EnhancedInput.BindAction(Scoreboard, ETriggerEvent::Completed, this, &ThisClass::OnScoreboardReleased);
+		EnhancedInput.BindAction(Scoreboard, ETriggerEvent::Canceled, this, &ThisClass::OnScoreboardReleased);
+	}
+}
+
+void AVeloxPlayerController::OnReadyInput()
+{
+	// Same toggle as the `Ready` console command; the server ignores it where ready means nothing (spectators, FFA live).
+	Ready();
+}
+
+void AVeloxPlayerController::OnScoreboardPressed()
+{
+	bScoreboardHeld = true;
+}
+
+void AVeloxPlayerController::OnScoreboardReleased()
+{
+	bScoreboardHeld = false;
 }
 
 void AVeloxPlayerController::OnInputUserSettingsInitialized(const UEnhancedInputUserSettings* Settings)

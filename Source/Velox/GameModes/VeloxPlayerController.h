@@ -9,6 +9,8 @@
 
 class UInputAction;
 class UInputMappingContext;
+class UEnhancedInputComponent;
+class UVeloxInputConfig;
 class UEnhancedInputUserSettings;
 struct FVeloxShotTiming;
 
@@ -91,6 +93,10 @@ public:
 	/** Owning client and server: between ClientEnterIntermission and the level reset. */
 	bool IsInIntermission() const { return bInIntermission; }
 
+	/** Scoreboard key (IA_Scoreboard, Tab) is held; the HUD view model shows the scoreboard while it is (ADR 0004 section 7). */
+	bool IsScoreboardHeld() const { return bScoreboardHeld; }
+	void SetScoreboardHeld(bool bHeld) { bScoreboardHeld = bHeld; }
+
 	/** Server side of ClientEnterIntermission (state and view target; the RPC is sent by the caller). */
 	void EnterIntermission(AActor* ViewTarget);
 
@@ -124,8 +130,21 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Input")
 	TArray<TSoftObjectPtr<UInputAction>> RespawnInputActions;
 
+	/**
+	 * Input config whose InputTag.Ready / InputTag.Scoreboard actions this controller binds natively (never through the
+	 * ASC, ADR 0004 section 7). DefaultGame.ini: the same asset as the pawn data's.
+	 */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Input")
+	TSoftObjectPtr<UVeloxInputConfig> UIInputConfig;
+
 private:
 	void OnRespawnInput();
+
+	/** Binds ready (toggle) and scoreboard (hold) from UIInputConfig. */
+	void BindUIInput(UEnhancedInputComponent& EnhancedInput);
+	void OnReadyInput();
+	void OnScoreboardPressed();
+	void OnScoreboardReleased();
 
 	/** Registers the mapping context with the Enhanced Input user settings once the subsystem has created them. */
 	UFUNCTION()
@@ -138,6 +157,7 @@ private:
 	TWeakObjectPtr<APawn> LastPawn;
 	double LastRespawnRequestTime = -1e9;
 	bool bInIntermission = false;
+	bool bScoreboardHeld = false;
 
 	/** Last measured interpolation delay (ADR 0003 B30 fallback); BuildShotTiming is const. */
 	mutable VeloxLagComp::FDelayMemory ShotDelayMemory;

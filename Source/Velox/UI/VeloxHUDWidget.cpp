@@ -14,6 +14,7 @@
 #include "Components/VerticalBoxSlot.h"
 #include "UI/VeloxHUDFormat.h"
 #include "UI/VeloxHUDViewModel.h"
+#include "UI/VeloxScoreboardFormat.h"
 #include "UI/VeloxUISettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxHUDWidget)
@@ -153,11 +154,19 @@ UWidget* UVeloxHUDWidget::BuildDefaultTree()
 	KillFeedBox = MakeWidget<UVerticalBox>(TEXT("KillFeedBox"));
 	VeloxHUDPlace(*Root, KillFeedBox, FVector2D(1, 0), FVector2D(1, 0), FVector2D(-M, M));
 
+	// Left middle: spectator item timers.
+	ItemTimerBox = MakeWidget<UVerticalBox>(TEXT("ItemTimerBox"));
+	VeloxHUDPlace(*Root, ItemTimerBox, FVector2D(0, 0.5), FVector2D(0, 0.5), FVector2D(M, 0));
+
 	// Top centre: clock. Upper middle: banner. Death overlay.
 	ClockText = MakeText(TEXT("ClockText"), UI.MediumFontSize, UI.TextColor);
 	VeloxHUDPlace(*Root, ClockText, FVector2D(0.5, 0), FVector2D(0.5, 0), FVector2D(0, M));
 	BannerText = MakeText(TEXT("BannerText"), UI.BannerFontSize, UI.BannerColor);
 	VeloxHUDPlace(*Root, BannerText, FVector2D(0.5, 0.25), FVector2D(0.5, 0.5), FVector2D(0, 0));
+	ReadyPromptText = MakeText(TEXT("ReadyPromptText"), UI.MediumFontSize, UI.ReadyPromptColor);
+	VeloxHUDPlace(*Root, ReadyPromptText, FVector2D(0.5, 0.25), FVector2D(0.5, 0), FVector2D(0, UI.BannerFontSize));
+	PickupMessageText = MakeText(TEXT("PickupMessageText"), UI.MediumFontSize, UI.PickupMessageColor);
+	VeloxHUDPlace(*Root, PickupMessageText, FVector2D(0.5, 0.75), FVector2D(0.5, 0.5), FVector2D(0, 0));
 	DeathTitleText = MakeText(TEXT("DeathTitleText"), UI.BannerFontSize, UI.DeathTitleColor);
 	VeloxHUDPlace(*Root, DeathTitleText, FVector2D(0.5, 0.35), FVector2D(0.5, 0.5), FVector2D(0, 0));
 	DeathPromptText = MakeText(TEXT("DeathPromptText"), UI.MediumFontSize, UI.TextColor);
@@ -240,6 +249,7 @@ void UVeloxHUDWidget::RefreshFromViewModel()
 	RefreshHitMarker(Model);
 	RefreshDamageIndicators(Model);
 	RefreshMatch(Model);
+	RefreshItemTimers(Model);
 }
 
 void UVeloxHUDWidget::RefreshStats(const UVeloxHUDViewModel& Model)
@@ -450,6 +460,42 @@ void UVeloxHUDWidget::RefreshMatch(const UVeloxHUDViewModel& Model)
 	VeloxHUDSetVisible(DeathPromptText, Model.bShowDeath);
 	VeloxHUDSetText(DeathTitleText, Model.DeathTitle);
 	VeloxHUDSetText(DeathPromptText, Model.DeathPrompt);
+
+	// Ready prompt (hidden while the player is dead: the respawn prompt owns the screen) and the pickup message.
+	VeloxHUDSetText(ReadyPromptText, Model.ReadyPrompt);
+	VeloxHUDSetVisible(ReadyPromptText, !Model.ReadyPrompt.IsEmpty() && !Model.bShowDeath);
+	const UVeloxUISettings& UI = UVeloxUISettings::Get();
+	VeloxHUDSetText(PickupMessageText, Model.PickupMessage);
+	VeloxHUDSetVisible(PickupMessageText, Model.PickupMessageAlpha > 0.f && !Model.PickupMessage.IsEmpty());
+	VeloxHUDSetTextColor(PickupMessageText, VeloxHUDWithAlpha(UI.PickupMessageColor, Model.PickupMessageAlpha));
+}
+
+void UVeloxHUDWidget::RefreshItemTimers(const UVeloxHUDViewModel& Model)
+{
+	const UVeloxUISettings& UI = UVeloxUISettings::Get();
+	const int32 NumRows = Model.bShowItemTimers ? Model.ItemTimers.Num() : 0;
+	while (ItemTimerBox && ItemTimerRows.Num() < NumRows)
+	{
+		UTextBlock* Row = MakeText(NAME_None, UI.SmallFontSize, UI.ItemTimerDownColor);
+		if (!Row)
+		{
+			break;
+		}
+		ItemTimerRows.Add(Row);
+		ItemTimerBox->AddChildToVerticalBox(Row);
+	}
+	NumVisibleItemTimerRows = ItemTimerBox ? FMath::Min(NumRows, ItemTimerRows.Num()) : 0;
+	for (int32 Index = 0; Index < ItemTimerRows.Num(); ++Index)
+	{
+		const bool bVisible = Index < NumVisibleItemTimerRows;
+		VeloxHUDSetVisible(ItemTimerRows[Index], bVisible);
+		if (bVisible)
+		{
+			const VeloxScoreboardFormat::FItemTimer& Timer = Model.ItemTimers[Index];
+			VeloxHUDSetText(ItemTimerRows[Index], Timer.Text);
+			VeloxHUDSetTextColor(ItemTimerRows[Index], Timer.bAvailable ? UI.ItemTimerUpColor : UI.ItemTimerDownColor);
+		}
+	}
 }
 
 // ------------------------------------------------------------------------------------------------ test accessors
@@ -457,9 +503,9 @@ void UVeloxHUDWidget::RefreshMatch(const UVeloxHUDViewModel& Model)
 FString UVeloxHUDWidget::DescribeBoundValues() const
 {
 	auto TextOf = [](const UTextBlock* Block) { return Block ? Block->GetText().ToString() : FString(TEXT("<none>")); };
-	return FString::Printf(TEXT("health=%s armor=%s ammo=%s weapon=%s clock=%s banner=%s weapon_cells=%d powerups=%d feed=%d crosshair_bars=%d dot=%d"),
+	return FString::Printf(TEXT("health=%s armor=%s ammo=%s weapon=%s clock=%s banner=%s weapon_cells=%d powerups=%d feed=%d ready_prompt='%s' pickup='%s' item_timers=%d crosshair_bars=%d dot=%d"),
 		*TextOf(HealthText), *TextOf(ArmorText), *TextOf(AmmoText), *TextOf(WeaponNameText), *TextOf(ClockText), *TextOf(BannerText),
-		NumVisibleWeaponCells, NumVisiblePowerupRows, NumVisibleFeedRows,
+		NumVisibleWeaponCells, NumVisiblePowerupRows, NumVisibleFeedRows, *TextOf(ReadyPromptText), *TextOf(PickupMessageText), NumVisibleItemTimerRows,
 		CrosshairLeft && CrosshairLeft->GetVisibility() != ESlateVisibility::Collapsed ? 1 : 0, CrosshairDot && CrosshairDot->GetVisibility() != ESlateVisibility::Collapsed ? 1 : 0);
 }
 
@@ -507,6 +553,16 @@ bool UVeloxHUDWidget::IsDamageIndicatorVisible(int32 Quadrant) const
 {
 	const UImage* Bars[4] = { DamageFront, DamageRight, DamageBack, DamageLeft };
 	return Quadrant >= 0 && Quadrant < 4 && Bars[Quadrant] && Bars[Quadrant]->GetVisibility() != ESlateVisibility::Collapsed;
+}
+
+FString UVeloxHUDWidget::GetItemTimerRowText(int32 Index) const
+{
+	return ItemTimerRows.IsValidIndex(Index) ? ItemTimerRows[Index]->GetText().ToString() : FString();
+}
+
+bool UVeloxHUDWidget::IsPickupMessageVisible() const
+{
+	return PickupMessageText && PickupMessageText->GetVisibility() != ESlateVisibility::Collapsed;
 }
 
 bool UVeloxHUDWidget::IsHitMarkerVisible() const
