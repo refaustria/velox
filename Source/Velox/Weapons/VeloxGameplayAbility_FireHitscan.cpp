@@ -5,6 +5,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Combat/VeloxCombatLog.h"
+#include "Combat/VeloxGameplayEffectContext.h"
 #include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Combat/VeloxHitboxComponent.h"
@@ -27,6 +28,16 @@ namespace VeloxHitscanPrivate
 	{
 		const APlayerState* PlayerState = ActorInfo ? Cast<APlayerState>(ActorInfo->OwnerActor.Get()) : nullptr;
 		return PlayerState ? PlayerState->GetPlayerId() : 0;
+	}
+
+	/** B21: every hitscan cue carries the server's pattern seed and the unit centre direction (receivers rebuild pellets). */
+	void WritePattern(FGameplayCueParameters& Params, uint8 PatternSeq, const FVector& CentreDir)
+	{
+		if (FVeloxGameplayEffectContext* Context = FVeloxGameplayEffectContext::Get(Params.EffectContext))
+		{
+			Context->PatternSeq = PatternSeq;
+			Context->HitDirection = CentreDir;
+		}
 	}
 }
 
@@ -215,7 +226,11 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 		return;
 	}
 
-	// Review server step 2: the request, pellets from the server's own stream.
+	// Review server step 2: the request, pellets from the server's own stream. B21: the seed is the server's own counter
+	// (one per accepted shot; a rejected shot never gets here), never the client's ShotSeq, so a client cannot pick its
+	// pattern.
+	UVeloxWeaponInventoryComponent* Inventory = GetInventory();
+	const uint8 PatternSeq = Inventory ? Inventory->AllocateServerPatternSeq() : 0;
 	FVeloxShotRequest Request;
 	Request.Shooter = Shooter;
 	Request.Origin = Shot.Origin;
@@ -223,7 +238,10 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 	Request.bPenetratePawns = Definition.bPenetratesPawns;
 	Request.MaxPenetrations = Definition.MaxPenetrations;
 	Request.ShotSeq = Shot.ShotSeq;
-	VeloxShotDirs::Build(Definition, Shot.Dir, VeloxShotDirs::MakeSeed(Shot.ShotSeq, VeloxHitscanPrivate::PlayerIdOf(CurrentActorInfo)), Request.Dirs);
+	VeloxShotDirs::Build(Definition, Shot.Dir, VeloxShotDirs::MakeSeed(PatternSeq, VeloxHitscanPrivate::PlayerIdOf(CurrentActorInfo)), Request.Dirs);
+	LastServerPatternSeq = PatternSeq;
+	LastServerDirs = Request.Dirs;
+	UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxShotPattern seq=%u pattern=%u rays=%d"), Shot.ShotSeq, PatternSeq, Request.Dirs.Num());
 	Request.ApplySettings(PlayerState ? PlayerState->GetCombatSettings() : nullptr);
 	Request.ViewServerTime = Shot.ViewServerTime;
 	Request.HintTarget = Shot.HintTarget;
@@ -269,7 +287,8 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 	}
 	LastServerShot.TotalDamage = TotalDamage;
 
-	// Step 5: ammo, cues (with the activation's prediction key on a remote shot: the predicting client skips them).
+	// Step 5: ammo, cues. The fire cue runs with the activation's prediction key on a remote shot (the predicting client
+	// skips it, having drawn its own); the impact cue is the server's alone (B21).
 	ApplyAmmoCost(Definition);
 
 	const FVector Start = Result.Origin;
@@ -286,7 +305,7 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 	}
 	else
 	{
-		// Shotgun miss: the centre ray's world end (the pellets' own impacts are predicted by the shooter only).
+		// Shotgun miss: the centre ray's world end (receivers may rebuild the pellets from PatternSeq, B21).
 		FHitResult WorldHit;
 		const FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VeloxShotCentre), true, Shooter);
 		if (World->LineTraceSingleByChannel(WorldHit, Start, End, Velox_TraceChannel_Weapon, QueryParams))
@@ -295,19 +314,23 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 			Normal = WorldHit.ImpactNormal;
 		}
 	}
-	const FGameplayCueParameters CueParams = MakeCueParameters(Start, End, Normal, Shot.ShotSeq);
+	FGameplayCueParameters CueParams = MakeCueParameters(Start, End, Normal, Shot.ShotSeq);
+	VeloxHitscanPrivate::WritePattern(CueParams, PatternSeq, Shot.Dir);
 	if (Definition.FireCueTag.IsValid())
 	{
 		ASC->ExecuteGameplayCue(Definition.FireCueTag, CueParams);
 	}
 	if (Definition.ImpactCueTag.IsValid())
 	{
+		// The target-data RPC runs inside the client's prediction window (ScopedPredictionKey = the client's key), so
+		// without an explicit invalid key the owner would drop this multicast. Unkeyed: the owner gets it like everyone.
+		FScopedPredictionWindow UnkeyedWindow(ASC, FPredictionKey(), false);
 		ASC->ExecuteGameplayCue(Definition.ImpactCueTag, CueParams);
 	}
 	if (Definition.bBeam)
 	{
 		// The inventory owns the keep-alive timer: EndAbility clears every timer of the ability object.
-		if (UVeloxWeaponInventoryComponent* Inventory = GetInventory())
+		if (Inventory)
 		{
 			Inventory->KeepBeamAlive(Definition, CueParams);
 		}
@@ -324,82 +347,51 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 
 void UVeloxGameplayAbility_FireHitscan::PlayLocalShotCosmetics(const UVeloxWeaponDefinition& Definition, const FShotInput& Shot) const
 {
+	// B21: the client does not know the server's pattern seed. It draws one tracer along its centre ray to its own trace
+	// end and predicts no impact; the server's unkeyed impact cue arrives ~RTT later at the true location (Q3).
 	const APawn* Shooter = GetShooterPawn();
 	UAbilitySystemComponent* ASC = CurrentActorInfo ? CurrentActorInfo->AbilitySystemComponent.Get() : nullptr;
 	UWorld* World = Shooter ? Shooter->GetWorld() : nullptr;
-	if (!ASC || !World)
+	if (!ASC || !World || !Definition.FireCueTag.IsValid())
 	{
 		return;
 	}
 
-	// Rendered capsules of the simulated proxies (what this player sees), never the server subsystem (B10).
-	TArray<const UVeloxHitboxComponent*, TInlineAllocator<16>> Proxies;
+	// The world, then the rendered capsules of the simulated proxies (what this player sees), never the server subsystem (B10).
+	double MaxDist = Definition.RangeCm;
+	FVector End = Shot.Origin + Shot.Dir * MaxDist;
+	FVector Normal = -Shot.Dir;
+	FHitResult WorldHit;
+	const FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VeloxShotCosmetic), true, Shooter);
+	if (World->LineTraceSingleByChannel(WorldHit, Shot.Origin, End, Velox_TraceChannel_Weapon, QueryParams))
+	{
+		MaxDist = WorldHit.Distance;
+		End = WorldHit.ImpactPoint;
+		Normal = WorldHit.ImpactNormal;
+	}
 	if (!Definition.bPenetratesPawns)
 	{
+		FVeloxHitboxPose Pose;
 		for (TActorIterator<ACharacter> It(World); It; ++It)
 		{
-			if (*It != Shooter && It->GetLocalRole() == ROLE_SimulatedProxy)
+			const UVeloxHitboxComponent* Hitbox = (*It != Shooter && It->GetLocalRole() == ROLE_SimulatedProxy) ? UVeloxHitboxComponent::FindHitboxComponent(*It) : nullptr;
+			if (!Hitbox)
 			{
-				if (const UVeloxHitboxComponent* Hitbox = UVeloxHitboxComponent::FindHitboxComponent(*It))
-				{
-					Proxies.Add(Hitbox);
-				}
+				continue;
 			}
-		}
-	}
-
-	const FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VeloxShotCosmetic), true, Shooter);
-	FVeloxHitboxPose Pose;
-	auto TraceRay = [&](const FVector& RayDir, FVector& OutEnd, FVector& OutNormal)
-	{
-		double MaxDist = Definition.RangeCm;
-		OutEnd = Shot.Origin + RayDir * MaxDist;
-		OutNormal = -RayDir;
-		FHitResult WorldHit;
-		if (World->LineTraceSingleByChannel(WorldHit, Shot.Origin, OutEnd, Velox_TraceChannel_Weapon, QueryParams))
-		{
-			MaxDist = WorldHit.Distance;
-			OutEnd = WorldHit.ImpactPoint;
-			OutNormal = WorldHit.ImpactNormal;
-		}
-		for (const UVeloxHitboxComponent* Hitbox : Proxies)
-		{
 			Hitbox->GetRenderedPose(Pose);
 			double Dist;
 			int32 Shape;
-			if (FVeloxHitMath::RayPose(Shot.Origin, RayDir, MaxDist, Pose, Dist, Shape) && Dist < MaxDist)
+			if (FVeloxHitMath::RayPose(Shot.Origin, Shot.Dir, MaxDist, Pose, Dist, Shape) && Dist < MaxDist)
 			{
 				MaxDist = Dist;
-				OutEnd = Shot.Origin + RayDir * Dist;
-				OutNormal = -RayDir;
+				End = Shot.Origin + Shot.Dir * Dist;
+				Normal = -Shot.Dir;
 			}
 		}
-	};
+	}
 
-	TArray<FVector, TInlineAllocator<1>> Dirs;
-	VeloxShotDirs::Build(Definition, Shot.Dir, VeloxShotDirs::MakeSeed(Shot.ShotSeq, VeloxHitscanPrivate::PlayerIdOf(CurrentActorInfo)), Dirs);
-
-	FVector CentreEnd;
-	FVector CentreNormal;
-	TraceRay(Definition.IsPelletWeapon() ? Shot.Dir : Dirs[0], CentreEnd, CentreNormal);
-	if (Definition.FireCueTag.IsValid())
-	{
-		ASC->ExecuteGameplayCue(Definition.FireCueTag, MakeCueParameters(Shot.Origin, CentreEnd, CentreNormal, Shot.ShotSeq));
-	}
-	if (!Definition.ImpactCueTag.IsValid())
-	{
-		return;
-	}
-	if (!Definition.IsPelletWeapon())
-	{
-		ASC->ExecuteGameplayCue(Definition.ImpactCueTag, MakeCueParameters(Shot.Origin, CentreEnd, CentreNormal, Shot.ShotSeq));
-		return;
-	}
-	for (const FVector& PelletDir : Dirs)
-	{
-		FVector End;
-		FVector Normal;
-		TraceRay(PelletDir, End, Normal);
-		ASC->ExecuteGameplayCue(Definition.ImpactCueTag, MakeCueParameters(Shot.Origin, End, Normal, Shot.ShotSeq));
-	}
+	FGameplayCueParameters CueParams = MakeCueParameters(Shot.Origin, End, Normal, Shot.ShotSeq);
+	VeloxHitscanPrivate::WritePattern(CueParams, 0, Shot.Dir);
+	ASC->ExecuteGameplayCue(Definition.FireCueTag, CueParams);
 }

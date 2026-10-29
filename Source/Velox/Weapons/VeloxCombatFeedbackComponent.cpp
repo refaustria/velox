@@ -3,6 +3,7 @@
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 
 #include "Combat/VeloxCombatLog.h"
+#include "Combat/VeloxGameplayEffectContext.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
@@ -37,7 +38,17 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 	}
 	else if (EventType == EGameplayCueEvent::Executed)
 	{
-		UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxCue %s on %s from %s to %s"), *TagName, *GetNameSafe(GetOwner()), *Start.ToCompactString(), *Parameters.Location.ToCompactString());
+		const FVeloxGameplayEffectContext* Context = FVeloxGameplayEffectContext::Get(Parameters.EffectContext);
+		UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxCue %s on %s from %s to %s seq=%u pattern=%u"), *TagName, *GetNameSafe(GetOwner()), *Start.ToCompactString(),
+			*Parameters.Location.ToCompactString(), Context ? Context->ShotSeq : 0, Context ? Context->PatternSeq : 0);
+		if (TagName.EndsWith(TEXT(".Fire")))
+		{
+			++NumFireCues;
+		}
+		else if (TagName.EndsWith(TEXT(".Impact")))
+		{
+			++NumImpactCues;
+		}
 		// Projectile explosions (task 05): the owning client ends its fake of that shot (ADR 0003 section 7).
 		if (Parameters.RawMagnitude > 0.f && TagName.EndsWith(TEXT(".Impact")))
 		{

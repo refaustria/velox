@@ -57,6 +57,15 @@ struct VELOX_API FVeloxGameplayEffectContext : public FGameplayEffectContext
 	UPROPERTY()
 	uint8 ShotSeq = 0;
 
+	/**
+	 * ADR 0003 B21: the server's pattern seed of a hitscan shot (UVeloxWeaponInventoryComponent::AllocateServerPatternSeq),
+	 * set on every hitscan cue by the server. A receiver rebuilds the MG spread / SG pellets with
+	 * VeloxShotDirs::Build(Definition, HitDirection, VeloxShotDirs::MakeSeed(PatternSeq, PlayerId of the instigator)).
+	 * 0 on predicted (owner) cues and on non-hitscan contexts.
+	 */
+	UPROPERTY()
+	uint8 PatternSeq = 0;
+
 	/** EVeloxDamageFlags. */
 	UPROPERTY()
 	uint8 Flags = 0;

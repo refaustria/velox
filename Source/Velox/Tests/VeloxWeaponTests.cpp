@@ -6,12 +6,16 @@
 //   Velox.Combat.ShotValidation      every server reject reason from its input, a valid shot normalised (world-free).
 //   Velox.Combat.WeaponTable         slot lookup, weapnext/prev cycling; the DA_WeaponTable asset carries the Q3 numbers;
 //                                    DA_CombatSettings_Default carries the 04b timing fields.
-//   Velox.Combat.TargetDataSerialize FGameplayAbilityTargetData_VeloxShot NetSerialize round trip (struct and handle).
+//   Velox.Combat.TargetDataSerialize FGameplayAbilityTargetData_VeloxShot NetSerialize round trip (struct and handle);
+//                                    FVeloxGameplayEffectContext round trip incl. PatternSeq (B21).
 //   Velox.Combat.Inventory           loadout, AddWeapon, fire routing to the current weapon, switch drop/raise timing
 //                                    and refire wait, the local SwitchEndTime gate (B18), through the ASC input path
 //                                    (private game world).
 //   Velox.Combat.HitscanDummy        RG / MG / SG / LG FireTest at a dummy (AVeloxDummyController) 10 m away: the
-//                                    Q3 damage reaches its health and armor through TraceShot and GE_Damage.
+//                                    Q3 damage reaches its health and armor through TraceShot and GE_Damage; one fire
+//                                    and one impact cue per shot on the shooter's feedback component; the server pattern
+//                                    counter advances once per accepted shot and seeds the SG pattern regardless of the
+//                                    client ShotSeq (B21).
 
 #include "Misc/AutomationTest.h"
 
@@ -24,6 +28,7 @@
 #include "Combat/VeloxAmmoSet.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxDamageMath.h"
+#include "Combat/VeloxGameplayEffectContext.h"
 #include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxGameplayTags.h"
@@ -443,6 +448,45 @@ bool FVeloxCombatTargetDataSerializeTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("handle: shot seq"), static_cast<int32>(Shot->ShotSeq), 251);
 		TestTrue(TEXT("handle: origin"), Shot->Origin.Equals(In.Origin, 0.01));
 	}
+
+	// B21: the Velox effect context carries the server's pattern seed (one byte) next to the shot sequence.
+	{
+		FVeloxGameplayEffectContext ContextIn;
+		ContextIn.AddOrigin(FVector(10.0, 20.0, 30.0));
+		ContextIn.HitDirection = FVector(0.0, 0.6, 0.8);
+		ContextIn.HitLocation = FVector(512.25, -64.5, 99.0);
+		ContextIn.KnockbackScale = 0.5f;
+		ContextIn.ShotSeq = 17;
+		ContextIn.PatternSeq = 203;
+		ContextIn.AddFlag(EVeloxDamageFlags::Radius);
+
+		FBitWriter ContextWriter(1024, true);
+		bool bContextOk = false;
+		ContextIn.NetSerialize(ContextWriter, nullptr, bContextOk);
+		TestTrue(TEXT("context: write ok"), bContextOk && !ContextWriter.IsError());
+
+		// PatternSeq is a fixed byte: a context with PatternSeq 0 has the same size.
+		FVeloxGameplayEffectContext ContextZero = ContextIn;
+		ContextZero.PatternSeq = 0;
+		FBitWriter ZeroWriter(1024, true);
+		ContextZero.NetSerialize(ZeroWriter, nullptr, bContextOk);
+		TestEqual(TEXT("context: PatternSeq is a fixed byte"), ContextWriter.GetNumBits(), ZeroWriter.GetNumBits());
+
+		FBitReader ContextReader(ContextWriter.GetData(), ContextWriter.GetNumBits());
+		FVeloxGameplayEffectContext ContextOut;
+		ContextOut.NetSerialize(ContextReader, nullptr, bContextOk);
+		TestTrue(TEXT("context: read ok"), bContextOk && !ContextReader.IsError());
+		TestEqual(TEXT("context: pattern seq"), static_cast<int32>(ContextOut.PatternSeq), 203);
+		TestEqual(TEXT("context: shot seq"), static_cast<int32>(ContextOut.ShotSeq), 17);
+		TestTrue(TEXT("context: origin"), ContextOut.HasOrigin() && ContextOut.GetOrigin().Equals(ContextIn.GetOrigin(), 0.01));
+		TestTrue(TEXT("context: hit direction"), FVector(ContextOut.HitDirection).Equals(FVector(ContextIn.HitDirection), 1e-3));
+		TestTrue(TEXT("context: radius flag"), ContextOut.HasFlag(EVeloxDamageFlags::Radius));
+
+		// Duplicate (cue parameters and specs copy contexts) keeps it too.
+		TUniquePtr<FGameplayEffectContext> Copy(ContextIn.Duplicate());
+		const FVeloxGameplayEffectContext* VeloxCopy = static_cast<const FVeloxGameplayEffectContext*>(Copy.Get());
+		TestEqual(TEXT("context: Duplicate keeps PatternSeq"), static_cast<int32>(VeloxCopy->PatternSeq), 203);
+	}
 	return true;
 }
 
@@ -691,6 +735,8 @@ bool FVeloxCombatHitscanDummyTest::RunTest(const FString& Parameters)
 	const UVeloxHealthSet* DummyHealth = PS(Dummy)->GetHealthSet();
 	UVeloxWeaponInventoryComponent* Inventory = PS(Shooter)->GetWeaponInventory();
 	const UVeloxWeaponTable* Table = Inventory->GetWeaponTable();
+	const UVeloxCombatFeedbackComponent* Feedback = Shooter->GetCombatFeedbackComponent();
+	TestNotNull(TEXT("shooter feedback component"), Feedback);
 
 	struct FCase { const TCHAR* Weapon; int32 Slot; };
 	const FCase Cases[] = { { TEXT("RG"), 7 }, { TEXT("MG"), 2 }, { TEXT("SG"), 3 }, { TEXT("LG"), 6 } };
@@ -705,6 +751,9 @@ bool FVeloxCombatHitscanDummyTest::RunTest(const FString& Parameters)
 
 		const int32 Index = Table->FindBySlot(Case.Slot);
 		const UVeloxWeaponDefinition* Def = Table->Get(Index);
+		const int32 FireCuesBefore = Feedback ? Feedback->GetNumFireCues() : 0;
+		const int32 ImpactCuesBefore = Feedback ? Feedback->GetNumImpactCues() : 0;
+		const uint8 PatternBefore = Inventory->GetServerPatternSeq();
 		FString Error;
 		const bool bFired = VeloxWeaponCheats::FireTestShot(*Shooter, Case.Weapon, Dummy, 0.f, Error);
 		if (!TestTrue(FString::Printf(TEXT("%s fired (%s)"), Case.Weapon, *Error), bFired))
@@ -717,6 +766,22 @@ bool FVeloxCombatHitscanDummyTest::RunTest(const FString& Parameters)
 		{
 			continue;
 		}
+		// B21: one fire and exactly one impact cue per shot reach the shooter's own feedback component (not one per pellet,
+		// not a predicted plus a server copy).
+		const int32 FireCuesNow = Feedback ? Feedback->GetNumFireCues() : 0;
+		const int32 ImpactCuesNow = Feedback ? Feedback->GetNumImpactCues() : 0;
+		TestEqual(FString::Printf(TEXT("%s: one fire cue on the shooter"), Case.Weapon), FireCuesNow - FireCuesBefore, Def->FireCueTag.IsValid() ? 1 : 0);
+		TestEqual(FString::Printf(TEXT("%s: exactly one impact cue on the shooter"), Case.Weapon), ImpactCuesNow - ImpactCuesBefore, Def->ImpactCueTag.IsValid() ? 1 : 0);
+		if (Case.Slot == 7)
+		{
+			TestEqual(TEXT("rail: impact cue count == 1"), ImpactCuesNow - ImpactCuesBefore, 1);
+		}
+		// B21: the server's pattern counter advances by one per accepted shot and is the seed the shot used.
+		const UVeloxGameplayAbility_FireHitscan* Hitscan = Cast<UVeloxGameplayAbility_FireHitscan>(Fire);
+		const uint8 PatternExpected = static_cast<uint8>(PatternBefore + 1);
+		TestEqual(FString::Printf(TEXT("%s: server pattern counter +1"), Case.Weapon), Inventory->GetServerPatternSeq(), PatternExpected);
+		TestTrue(FString::Printf(TEXT("%s: the shot used the server counter"), Case.Weapon), Hitscan && Hitscan->GetLastServerPatternSeq() == PatternExpected);
+		TestEqual(FString::Printf(TEXT("%s: one server ray per pellet"), Case.Weapon), Hitscan ? Hitscan->GetLastServerDirs().Num() : 0, FMath::Max(Def->PelletCount, 1));
 		const FVeloxServerShotInfo& Shot = Fire->GetLastServerShot();
 		TestFalse(FString::Printf(TEXT("%s not rejected"), Case.Weapon), Shot.bRejected);
 		TestEqual(FString::Printf(TEXT("%s hit the dummy"), Case.Weapon), Shot.NumHits, 1);
@@ -749,7 +814,9 @@ bool FVeloxCombatHitscanDummyTest::RunTest(const FString& Parameters)
 
 	// Same weapon again within its interval: the shooter's own NextFireTime refuses (one rail per 1.5 s).
 	FString Error;
+	const uint8 PatternBeforeRefused = Inventory->GetServerPatternSeq();
 	TestFalse(TEXT("rail refire blocked within 1.5 s"), VeloxWeaponCheats::FireTestShot(*Shooter, TEXT("RG"), Dummy, 0.f, Error));
+	TestEqual(TEXT("refused shot: pattern counter unchanged"), Inventory->GetServerPatternSeq(), PatternBeforeRefused);
 
 	// LG range 1920 cm: a dummy at 25 m is out of reach.
 	W.Advance(1.6f);
@@ -758,6 +825,77 @@ bool FVeloxCombatHitscanDummyTest::RunTest(const FString& Parameters)
 	Dummy->GetCharacterMovement()->Velocity = FVector::ZeroVector;
 	TestTrue(TEXT("LG fired at 25 m"), VeloxWeaponCheats::FireTestShot(*Shooter, TEXT("LG"), Dummy, 0.f, Error));
 	TestEqual(TEXT("LG out of range: no damage"), DummyHealth->GetHealth(), 100.f);
+
+	// B21: the SG pattern is the server's. Two shots with the same server counter state but different client ShotSeq give
+	// identical rays (= VeloxShotDirs::Build with MakeSeed(counter + 1, PlayerId)); the next counter value gives another.
+	{
+		const int32 SGIndex = Table->FindBySlot(3);
+		const UVeloxWeaponDefinition* SGDef = Table->Get(SGIndex);
+		const AController* ShooterController = Shooter->GetController();
+		const int32 ShooterPlayerId = PS(Shooter)->GetPlayerId();
+		constexpr uint8 CounterState = 41;
+		struct FSGShot
+		{
+			bool bFired = false;
+			uint8 ShotSeq = 0;
+			uint8 PatternSeq = 0;
+			FVector CentreDir = FVector::ZeroVector;
+			TArray<FVector, TInlineAllocator<1>> Dirs;
+		};
+		auto FireSG = [&](uint8 Counter)
+		{
+			FSGShot Out;
+			W.Advance(SGDef->GetSafeFireInterval() + 0.1f);
+			DummyASC->SetNumericAttributeBase(UVeloxHealthSet::GetHealthAttribute(), 100.f);
+			DummyASC->SetNumericAttributeBase(UVeloxHealthSet::GetArmorAttribute(), 100.f);
+			Dummy->SetActorLocation(FVector(1000, 0, Dummy->GetActorLocation().Z), false, nullptr, ETeleportType::TeleportPhysics);
+			Dummy->GetCharacterMovement()->Velocity = FVector::ZeroVector;
+			Inventory->SetServerPatternSeqForTest(Counter);
+			FString SGError;
+			Out.bFired = VeloxWeaponCheats::FireTestShot(*Shooter, TEXT("SG"), Dummy, 0.f, SGError);
+			const FGameplayAbilitySpec* SGSpec = Inventory->FindFireSpec(SGIndex);
+			const UVeloxGameplayAbility_FireHitscan* SG = SGSpec ? Cast<UVeloxGameplayAbility_FireHitscan>(SGSpec->GetPrimaryInstance()) : nullptr;
+			if (Out.bFired && SG && ShooterController)
+			{
+				Out.ShotSeq = SG->GetLastServerShot().ShotSeq;
+				Out.PatternSeq = SG->GetLastServerPatternSeq();
+				Out.CentreDir = ShooterController->GetControlRotation().Vector();
+				Out.Dirs = SG->GetLastServerDirs();
+			}
+			return Out;
+		};
+		auto SameDirs = [](const TArray<FVector, TInlineAllocator<1>>& A, const TArray<FVector, TInlineAllocator<1>>& B)
+		{
+			if (A.Num() != B.Num() || A.Num() == 0)
+			{
+				return false;
+			}
+			for (int32 RayIndex = 0; RayIndex < A.Num(); ++RayIndex)
+			{
+				if (!A[RayIndex].Equals(B[RayIndex], 1e-9))
+				{
+					return false;
+				}
+			}
+			return true;
+		};
+
+		const FSGShot ShotA = FireSG(CounterState);
+		const FSGShot ShotB = FireSG(CounterState);
+		const FSGShot ShotC = FireSG(CounterState + 1);
+		if (TestTrue(TEXT("SG fired three times"), ShotA.bFired && ShotB.bFired && ShotC.bFired))
+		{
+			TestNotEqual(TEXT("SG: different client ShotSeq"), ShotA.ShotSeq, ShotB.ShotSeq);
+			TestEqual(TEXT("SG: pattern seq = counter + 1"), static_cast<int32>(ShotA.PatternSeq), CounterState + 1);
+			TestTrue(TEXT("SG: same centre ray"), ShotA.CentreDir.Equals(ShotB.CentreDir, 1e-9));
+			TestEqual(TEXT("SG: one server ray per pellet"), ShotA.Dirs.Num(), SGDef->PelletCount);
+			TestTrue(TEXT("SG: same server counter, different ShotSeq -> identical Request.Dirs"), SameDirs(ShotA.Dirs, ShotB.Dirs));
+			TArray<FVector, TInlineAllocator<1>> Expected;
+			VeloxShotDirs::Build(*SGDef, ShotA.CentreDir, VeloxShotDirs::MakeSeed(CounterState + 1, ShooterPlayerId), Expected);
+			TestTrue(TEXT("SG: rays = Build(MakeSeed(server counter, PlayerId))"), SameDirs(ShotA.Dirs, Expected));
+			TestFalse(TEXT("SG: next server counter -> another pattern"), SameDirs(ShotA.Dirs, ShotC.Dirs));
+		}
+	}
 	return true;
 }
 
