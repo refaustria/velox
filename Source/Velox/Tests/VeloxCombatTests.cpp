@@ -1,5 +1,6 @@
 // Velox - combat foundation tests (ADR 0003 section 9, task 01).
-//   Velox.Combat.DamageMath    Q3 G_Damage/CheckArmor/G_RadiusDamage table (world-free).
+//   Velox.Combat.DamageMath    Q3 G_Damage/CheckArmor/G_RadiusDamage table (world-free); M3-02: Quad x3 rows (incl. self),
+//                              Battle Suit (radius 0/0 with knockback, direct x 0.5), the regeneration table.
 //   Velox.Combat.Ammo          ammo clamp, cost check, GE_AmmoCost/GE_SpawnInit layout (world-free).
 //   Velox.Combat.KnockbackSeq  ShouldReplayPredictedKnockback wrap cases (world-free); the per-life sequence scenarios
 //                              of B25 (fresh life, hitscan noted / not noted before a rocket, ServerNoteShot ignored
@@ -155,6 +156,90 @@ bool FVeloxCombatDamageMathTest::RunTest(const FString& Parameters)
 	const FVector Dir = FVeloxDamageMath::RadiusKnockbackDir(FVector(0, 0, 0), FVector(100, 0, 0), 60.f);
 	TestTrue(TEXT("radius dir lifted"), Dir.Equals(FVector(100, 0, 60).GetSafeNormal(), 1e-4));
 	TestTrue(TEXT("radius dir degenerate"), FVeloxDamageMath::RadiusKnockbackDir(FVector(0, 0, -60), FVector::ZeroVector, -60.f).IsZero());
+
+	// --- ADR 0004 section 3, Quad (x3 at fire on the raw damage, Q3 s_quadFactor; settings defaults are the table).
+	const UVeloxCombatSettings& Defaults = *GetDefault<UVeloxCombatSettings>();
+	TestEqual(TEXT("QuadDamageFactor default 3"), Defaults.QuadDamageFactor, 3.f);
+	TestEqual(TEXT("BattleSuitDirectDamageScale default 0.5"), FromSettings.BattleSuitDirectDamageScale, 0.5f);
+	const float Quad = Defaults.QuadDamageFactor;
+	TestEqual(TEXT("ScaleDamage identity"), FVeloxDamageMath::ScaleDamage(7, 1.f), 7);
+	TestEqual(TEXT("quad MG 7 -> 21"), FVeloxDamageMath::ScaleDamage(7, Quad), 21);
+	TestEqual(TEXT("quad rocket 100 -> 300"), FVeloxDamageMath::ScaleDamage(100, Quad), 300);
+	TestEqual(TEXT("ScaleDamage truncates (Q3 int damage *= float)"), FVeloxDamageMath::ScaleDamage(15, 0.5f), 7);
+	TestEqual(TEXT("ScaleDamage never negative"), FVeloxDamageMath::ScaleDamage(5, -1.f), 0);
+	{
+		// Quad rocket on self: 300 raw -> 150 self. Knockback from the raw damage, capped at MaxKnockbackDamage 200
+		// (ADR 0003 section 2, unchanged by ADR 0004): 2500 cm/s = 2 x 1250, not 3 x (see the task report).
+		const FVeloxDamageResult QuadSelf = Hit(FVeloxDamageMath::ScaleDamage(100, Quad), 0, true);
+		TestEqual(TEXT("quad self rocket: 300 raw -> 150 health"), QuadSelf.HealthLoss, 150);
+		TestEqual(TEXT("quad self rocket: knockback 200 x 12.5 (cap)"), QuadSelf.KnockbackSpeed, 2500.f);
+		// Below the cap the knockback triples: a 50-point splash -> 150 -> 3 x 625 cm/s, self 75.
+		const FVeloxDamageResult QuadSplash = Hit(FVeloxDamageMath::ScaleDamage(50, Quad), 0, true);
+		TestEqual(TEXT("quad self splash 50: knockback 3 x 625"), QuadSplash.KnockbackSpeed, 3.f * 625.f);
+		TestEqual(TEXT("quad self splash 50: health 75"), QuadSplash.HealthLoss, 75);
+		// Quad rocket direct on an enemy with 100 armor: 300 -> save min(100, 198) = 100, health 200.
+		const FVeloxDamageResult QuadDirect = Hit(FVeloxDamageMath::ScaleDamage(100, Quad), 100);
+		TestTrue(TEXT("quad rocket 300 vs 100 armor: -200 / -100"), QuadDirect.HealthLoss == 200 && QuadDirect.ArmorLoss == 100);
+		// Quad shotgun: per pellet 10 -> 30, 11 pellets vs 0 armor -> 330.
+		TestEqual(TEXT("quad SG 11 x 30"), Hit(FVeloxDamageMath::ScaleDamage(10, Quad), 0, false, false, 11).HealthLoss, 330);
+		// Splash scaled before the falloff (Q3 multiplies splashDamage at fire): (int)(300 x 0.555) = 166, not 3 x 55.
+		TestEqual(TEXT("quad splash scaled before the falloff"), FVeloxDamageMath::RadiusPoints(FVeloxDamageMath::ScaleDamage(100, Quad), 133.5f, 300.f), 166);
+	}
+
+	// --- Battle Suit (victim side, Q3 G_Damage order): knockback from the raw damage, radius -> nothing, direct x 0.5.
+	{
+		FVeloxDamageInput Suit;
+		Suit.Damage = 100;
+		Suit.bBattleSuit = true;
+		Suit.bRadius = true;
+		const FVeloxDamageResult Radius = FVeloxDamageMath::Apply(Suit, FVeloxCombatParams());
+		TestTrue(TEXT("suit radius 100: 0 / 0"), Radius.HealthLoss == 0 && Radius.ArmorLoss == 0);
+		TestEqual(TEXT("suit radius 100: knockback 1250 stays"), Radius.KnockbackSpeed, 1250.f);
+		Suit.bSelf = true;
+		const FVeloxDamageResult SelfRadius = FVeloxDamageMath::Apply(Suit, FVeloxCombatParams());
+		TestTrue(TEXT("suit self rocket jump: 0 / 0, knockback 1250"), SelfRadius.HealthLoss == 0 && SelfRadius.ArmorLoss == 0 && SelfRadius.KnockbackSpeed == 1250.f);
+		Suit.bSelf = false;
+		Suit.bRadius = false;
+		const FVeloxDamageResult Direct = FVeloxDamageMath::Apply(Suit, FVeloxCombatParams());
+		TestEqual(TEXT("suit direct 100 vs 0 armor: 50"), Direct.HealthLoss, 50);
+		TestEqual(TEXT("suit direct 100: knockback from the raw 100"), Direct.KnockbackSpeed, 1250.f);
+		Suit.Armor = 100;
+		const FVeloxDamageResult Armored = FVeloxDamageMath::Apply(Suit, FVeloxCombatParams());
+		TestTrue(TEXT("suit direct 100 -> 50 vs 100 armor: -17 / -33"), Armored.HealthLoss == 17 && Armored.ArmorLoss == 33);
+		Suit.Armor = 0;
+		Suit.Damage = 1;
+		TestEqual(TEXT("suit direct 1 -> 0 -> minimum 1"), FVeloxDamageMath::Apply(Suit, FVeloxCombatParams()).HealthLoss, 1);
+		Suit.Damage = 7;
+		TestEqual(TEXT("suit MG 7 -> 3"), FVeloxDamageMath::Apply(Suit, FVeloxCombatParams()).HealthLoss, 3);
+		Suit.Damage = 10;
+		TestEqual(TEXT("suit SG 11 x 10 -> 11 x 5"), FVeloxDamageMath::ApplyPellets(Suit, 11, FVeloxCombatParams()).HealthLoss, 55);
+		Suit.Damage = FVeloxDamageMath::ScaleDamage(100, Quad);
+		TestEqual(TEXT("quad rocket direct on a suit: 300 -> 150"), FVeloxDamageMath::Apply(Suit, FVeloxCombatParams()).HealthLoss, 150);
+		Suit.bProtected = true;
+		TestEqual(TEXT("suit + protected: no knockback"), FVeloxDamageMath::Apply(Suit, FVeloxCombatParams()).KnockbackSpeed, 0.f);
+	}
+
+	// --- Regeneration (Q3 ClientTimerActions): +15 to max x 1.1, then +5 to the hard cap; settings defaults.
+	{
+		const FVeloxRegenParams Regen = Defaults.BuildRegenParams();
+		TestTrue(TEXT("regen defaults 15 / 5 / 1.1"), Regen.HealthPerTick == 15 && Regen.OverTick == 5 && FMath::IsNearlyEqual(Regen.SoftCapScale, 1.1f));
+		const int32 Max = 100;
+		const int32 Cap = FMath::RoundToInt32(Defaults.HealthHardCap);
+		int32 H = 50;
+		const int32 Expected[] = { 65, 80, 95, 110, 115, 120 };
+		for (const int32 Want : Expected)
+		{
+			const int32 Next = FVeloxDamageMath::RegenStep(H, Max, Cap, Regen);
+			TestEqual(FString::Printf(TEXT("regen %d -> %d"), H, Want), Next, Want);
+			H = Next;
+		}
+		TestEqual(TEXT("regen 98 -> 110 (soft cap)"), FVeloxDamageMath::RegenStep(98, Max, Cap, Regen), 110);
+		TestEqual(TEXT("regen 100 -> 105 (at max: the +5 branch)"), FVeloxDamageMath::RegenStep(100, Max, Cap, Regen), 105);
+		TestEqual(TEXT("regen 150 -> 155"), FVeloxDamageMath::RegenStep(150, Max, Cap, Regen), 155);
+		TestEqual(TEXT("regen 198 -> 200 (hard cap)"), FVeloxDamageMath::RegenStep(198, Max, Cap, Regen), 200);
+		TestEqual(TEXT("regen 200 stays"), FVeloxDamageMath::RegenStep(200, Max, Cap, Regen), 200);
+		TestEqual(TEXT("regen 1 -> 16"), FVeloxDamageMath::RegenStep(1, Max, Cap, Regen), 16);
+	}
 	return true;
 }
 

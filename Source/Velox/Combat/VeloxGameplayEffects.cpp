@@ -6,6 +6,7 @@
 #include "Combat/VeloxAmmoSet.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxDamageExecution.h"
+#include "Combat/VeloxDamageMath.h"
 #include "Combat/VeloxGameplayEffectContext.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxGameplayTags.h"
@@ -94,6 +95,8 @@ UVeloxGE_SpawnInit::UVeloxGE_SpawnInit()
 		FGameplayTagContainer StateTags;
 		StateTags.AddTag(State_Dead);
 		StateTags.AddTag(State_SpawnProtected);
+		// ADR 0004 section 3: powerups are lost on death (the parent tag matches every Velox.Powerup.<Name>).
+		StateTags.AddTag(Powerup);
 		Remove->RemoveGameplayEffectQueries.Add(FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(StateTags));
 		FGameplayEffectQuery DecayQuery;
 		DecayQuery.EffectDefinition = UVeloxGE_HealthDecay::StaticClass();
@@ -174,7 +177,7 @@ namespace VeloxEffects
 		FGameplayEffectSpecHandle Spec = SourceASC->MakeOutgoingSpec(UVeloxGE_Damage::StaticClass(), 1.f, ContextHandle);
 		if (FGameplayEffectSpec* Data = Spec.Data.Get())
 		{
-			Data->SetSetByCallerMagnitude(VeloxGameplayTags::SetByCaller_Damage, static_cast<float>(Params.Damage));
+			Data->SetSetByCallerMagnitude(VeloxGameplayTags::SetByCaller_Damage, static_cast<float>(FVeloxDamageMath::ScaleDamage(Params.Damage, Params.DamageScale)));
 			Data->SetSetByCallerMagnitude(VeloxGameplayTags::SetByCaller_PelletHits, static_cast<float>(FMath::Max(Params.PelletHits, 1)));
 			if (Params.DamageTag.IsValid())
 			{
@@ -270,5 +273,12 @@ namespace VeloxEffects
 			Data->SetSetByCallerMagnitude(VeloxGameplayTags::SetByCaller_Duration, Duration);
 		}
 		return Spec;
+	}
+
+	FGameplayTag GetMatchFrozenTag()
+	{
+		// Native tags are registered at module start; a missing tag (task 05 not merged) is not an error.
+		static const FName TagName(TEXT("Velox.State.MatchFrozen"));
+		return FGameplayTag::RequestGameplayTag(TagName, false);
 	}
 }

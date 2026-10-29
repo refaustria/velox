@@ -8,7 +8,11 @@
 //   Velox.Items.Pickup        private game world: Health.Medium refused at 100, taken at 50 -> 75 while standing in it,
 //                             replicated state + registry delegates, respawn at exactly +35 s and the standing pawn retakes
 //                             it, Reset; armor / ammo / weapon grants (weapon ammo top-up +1), mode respawn scale, a powerup
-//                             without its effect stays; client prediction (hide, predicted weapon slot, timeout -> shown).
+//                             taken (tag, 30 s); client prediction (hide, predicted weapon slot, timeout -> shown).
+//   Velox.Items.PowerupStacking  task 02: powerup GE layout, grant / in-place extension (ModifyActiveEffectStartTime) with
+//                             the rule's arithmetic, Quad x3 on a dummy, Battle Suit, Regen ticks and decay skip, loss on
+//                             GE_SpawnInit, no regen while dead, frozen = no damage (once task 05 is merged), projectile
+//                             Quad state and Reset.
 
 #include "Misc/AutomationTest.h"
 
@@ -30,10 +34,14 @@
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
 #include "GameModes/VeloxPlayerState.h"
+#include "Movement/VeloxMovementComponent.h"
 #include "Items/VeloxItemDefinition.h"
 #include "Items/VeloxItemRegistrySubsystem.h"
 #include "Items/VeloxPickup.h"
 #include "Items/VeloxPickupRules.h"
+#include "Items/VeloxPowerupEffects.h"
+#include "Weapons/VeloxProjectile.h"
+#include "Weapons/VeloxCombatFeedbackComponent.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
 #include "Weapons/VeloxWeaponTable.h"
@@ -272,6 +280,9 @@ bool FVeloxItemsContentTest::RunTest(const FString& Parameters)
 			TestEqual(FString::Printf(TEXT("%s: 30 s"), Row.Name), Def->PowerupSeconds, 30.f);
 			TestTrue(FString::Printf(TEXT("%s: initial delay 30-60"), Row.Name), Def->InitialSpawnDelay.Min == 30.f && Def->InitialSpawnDelay.Max == 60.f);
 			TestTrue(FString::Printf(TEXT("%s: global sound"), Row.Name), Def->bGlobalPickupSound);
+			const UVeloxGE_Powerup* Effect = Def->PowerupEffect ? Def->PowerupEffect->GetDefaultObject<UVeloxGE_Powerup>() : nullptr;
+			TestTrue(FString::Printf(TEXT("%s: powerup effect grants Velox.Powerup.%s"), Row.Name, *FString(Row.Name).RightChop(8)),
+				Effect && Effect->GetPowerupTag().ToString() == FString(TEXT("Velox.")) + Row.Name);
 		}
 		else
 		{
@@ -532,17 +543,21 @@ bool FVeloxItemsPickupTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("weapon respawn from the mode: 5 s"), RailPickup && FMath::IsNearlyEqual(RailPickup->GetTimeUntilRespawn(), 5.0, 3.0 / 60.0));
 	AddInfo(FString::Printf(TEXT("RG owned before: %d, slugs %.0f -> %.0f"), bOwnedRG ? 1 : 0, SlugsBeforeWeapon, PS->GetAmmoSet()->GetSlugs()));
 
-	// --- A powerup without its effect (task 02 adds it) stays.
+	// --- Quad (task 02): after its 30-60 s initial delay, taken -> Velox.Powerup.Quad for 30 s (Velox.Items.PowerupStacking
+	// covers the extension, the x3 damage and the loss on respawn).
 	AVeloxPickup* QuadPickup = AVeloxPickup::SpawnPickup(W.World, Quad, FVector(0, -600, 0));
 	W.Advance(0.1f);
 	TestTrue(TEXT("Quad: initial delay 30-60 s"), QuadPickup && QuadPickup->GetTimeUntilRespawn() >= 29.9 && QuadPickup->GetTimeUntilRespawn() <= 60.0);
-	if (QuadPickup && !Quad->PowerupEffect)
+	TestTrue(TEXT("Quad: effect is UVeloxGE_Powerup_Quad"), Quad->PowerupEffect == UVeloxGE_Powerup_Quad::StaticClass());
+	if (QuadPickup)
 	{
 		W.AdvanceTo(W.World->GetTimeSeconds() + QuadPickup->GetTimeUntilRespawn() + 0.1);
-		AddExpectedMessagePlain(TEXT("reason=no_powerup_effect"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
 		MoveTo(*Pawn, FVector(0, -600, 0));
-		W.Advance(0.5f);
-		TestTrue(TEXT("Quad without an effect: refused, stays"), QuadPickup->IsAvailable() && QuadPickup->GetTakeCount() == 0);
+		W.Advance(2.f / 60.f);
+		TestEqual(TEXT("Quad: taken"), static_cast<int32>(QuadPickup->GetTakeCount()), 1);
+		TestTrue(TEXT("Quad: tag"), ASC->HasMatchingGameplayTag(VeloxGameplayTags::Powerup_Quad));
+		TestEqual(TEXT("Quad: 30 s"), VeloxPowerups::GetRemainingSeconds(*ASC, UVeloxGE_Powerup_Quad::StaticClass()), 30.f, 0.1f);
+		TestTrue(TEXT("Quad: respawn 120 s"), FMath::IsNearlyEqual(QuadPickup->GetTimeUntilRespawn(), 120.0, 3.0 / 60.0));
 	}
 
 	// --- Client prediction (roles switched to a client's): hide + predicted weapon slot, no server answer -> shown again.
@@ -575,6 +590,184 @@ bool FVeloxItemsPickupTest::RunTest(const FString& Parameters)
 	PS->SetRole(ROLE_Authority);
 	Inventory->PredictOwned(SG, W.World->GetTimeSeconds() + 10.0);
 	TestFalse(TEXT("PredictOwned is ignored on the server"), Inventory->OwnsIndex(SG));
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------- PowerupStacking
+
+namespace VeloxItemTest
+{
+	int32 NumPowerupEffects(const UAbilitySystemComponent& ASC)
+	{
+		return ASC.GetActiveEffects(FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(VeloxGameplayTags::Powerup))).Num();
+	}
+
+	/** GE_Damage from Source onto Target (direction up, so knockback is visible). */
+	void ApplyTestDamage(UAbilitySystemComponent& Source, UAbilitySystemComponent& Target, int32 Damage, float DamageScale, bool bRadius)
+	{
+		FVeloxDamageSpecParams Params;
+		Params.Damage = Damage;
+		Params.DamageScale = DamageScale;
+		Params.DamageTag = VeloxGameplayTags::Damage_Environment;
+		Params.Direction = FVector(0, 0, 1);
+		Params.bRadius = bRadius;
+		const FGameplayEffectSpecHandle Spec = VeloxEffects::MakeDamageSpec(&Source, Params);
+		if (Spec.IsValid())
+		{
+			Source.ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), &Target);
+		}
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxItemsPowerupStackingTest, "Velox.Items.PowerupStacking", VeloxItemTest::Flags)
+
+bool FVeloxItemsPowerupStackingTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxItemTest;
+
+	const UVeloxItemDefinition* QuadItem = AVeloxPickup::LoadDefinitionByName(TEXT("Powerup.Quad"));
+	if (!TestNotNull(TEXT("Quad item asset"), QuadItem))
+	{
+		return false;
+	}
+	FItemTestWorld W;
+	AVeloxCharacter* Pawn = W.SpawnPawn(FVector(0, 0, 100));
+	AVeloxCharacter* Dummy = W.SpawnPawn(FVector(-900, -900, 100));
+	AVeloxPlayerState* PS = Pawn ? Pawn->GetPlayerState<AVeloxPlayerState>() : nullptr;
+	AVeloxPlayerState* DummyPS = Dummy ? Dummy->GetPlayerState<AVeloxPlayerState>() : nullptr;
+	if (!TestNotNull(TEXT("pawn"), PS) || !TestNotNull(TEXT("dummy"), DummyPS))
+	{
+		return false;
+	}
+	W.Advance(0.5f);
+	UVeloxAbilitySystemComponent* ASC = PS->GetVeloxAbilitySystemComponent();
+	UVeloxAbilitySystemComponent* DummyASC = DummyPS->GetVeloxAbilitySystemComponent();
+	const UVeloxHealthSet* DummyHealth = DummyPS->GetHealthSet();
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PS->GetCombatSettings());
+	const TSubclassOf<UVeloxGE_Powerup> QuadClass = UVeloxGE_Powerup_Quad::StaticClass();
+
+	// --- Class layout: HasDuration from SetByCaller.Duration, grants its tag, looping cue, Regen periodic 1 s.
+	const UVeloxGE_Powerup* QuadCDO = GetDefault<UVeloxGE_Powerup_Quad>();
+	TestTrue(TEXT("Quad GE: HasDuration"), QuadCDO->DurationPolicy == EGameplayEffectDurationType::HasDuration);
+	TestTrue(TEXT("Quad GE: grants Velox.Powerup.Quad"), QuadCDO->GetGrantedTags().HasTagExact(VeloxGameplayTags::Powerup_Quad));
+	TestTrue(TEXT("Quad GE: looping cue"), QuadCDO->GameplayCues.Num() == 1 && QuadCDO->GameplayCues[0].GameplayCueTags.HasTagExact(VeloxPowerupTags::GameplayCue_Powerup_Quad));
+	const UVeloxGE_Powerup* RegenCDO = GetDefault<UVeloxGE_Powerup_Regen>();
+	TestTrue(TEXT("Regen GE: period 1 s, not on application"), RegenCDO->Period.GetValueAtLevel(1.f) == 1.f && !RegenCDO->bExecutePeriodicEffectOnApplication);
+	TestTrue(TEXT("Suit / Haste tags"), GetDefault<UVeloxGE_Powerup_BattleSuit>()->GetPowerupTag() == VeloxGameplayTags::Powerup_BattleSuit
+		&& GetDefault<UVeloxGE_Powerup_Haste>()->GetPowerupTag() == VeloxGameplayTags::Powerup_Haste);
+
+	// --- First grant: applied, 30 s, tag and cue (tint on the pawn's feedback component).
+	TestTrue(TEXT("grant: applied"), VeloxPowerups::GrantOrExtend(*ASC, QuadClass, 30.f) == EVeloxPowerupGrant::Applied);
+	TestTrue(TEXT("grant: tag"), ASC->HasMatchingGameplayTag(VeloxGameplayTags::Powerup_Quad));
+	TestEqual(TEXT("grant: 30 s"), VeloxPowerups::GetRemainingSeconds(*ASC, QuadClass), 30.f, 0.01f);
+	const UVeloxCombatFeedbackComponent* Feedback = Pawn->FindComponentByClass<UVeloxCombatFeedbackComponent>();
+	TestTrue(TEXT("grant: looping cue reached the pawn (tint)"), Feedback && Feedback->GetActivePowerups().HasTagExact(VeloxGameplayTags::Powerup_Quad));
+	TestTrue(TEXT("grant: blue tint"), Feedback && Feedback->GetPowerupTint().Equals(Settings.PowerupTints.FindRef(VeloxGameplayTags::Powerup_Quad)));
+	const TArray<FActiveGameplayEffectHandle> Handles = ASC->GetActiveEffects(FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(VeloxGameplayTags::Powerup_Quad)));
+
+	// --- Quad x3 on a dummy (outgoing scale from the shooter's tag, MakeDamageSpec): MG 7 -> 21, vs no armor.
+	DummyASC->SetNumericAttributeBase(UVeloxHealthSet::GetArmorAttribute(), 0.f);
+	SetHealth(*Dummy, 100.f);
+	const float Scale = VeloxPowerups::GetOutgoingDamageScale(ASC, Settings);
+	TestEqual(TEXT("quad: outgoing scale 3"), Scale, 3.f);
+	TestEqual(TEXT("dummy: no quad, scale 1"), VeloxPowerups::GetOutgoingDamageScale(DummyASC, Settings), 1.f);
+	ApplyTestDamage(*ASC, *DummyASC, 7, Scale, false);
+	TestEqual(TEXT("quad MG on the dummy: 100 -> 79"), DummyHealth->GetHealth(), 79.f);
+
+	// --- Extension arithmetic: 10 s later 20 s remain; a second Quad (rule: 20 + 30) extends in place to 50 s.
+	W.Advance(10.f);
+	const float Remaining = VeloxPowerups::GetRemainingSeconds(*ASC, QuadClass);
+	TestEqual(TEXT("10 s later: 20 s left"), Remaining, 20.f, 0.05f);
+	FVeloxPickupQuery Query;
+	Query.Type = EVeloxItemType::Powerup;
+	Query.PowerupSeconds = QuadItem->PowerupSeconds;
+	Query.PowerupRemaining = Remaining;
+	const FVeloxPickupGain Gain = VeloxPickupRules::Gain(Query);
+	TestEqual(TEXT("rule: remaining + 30"), Gain.PowerupSeconds, Remaining + 30.f, 1e-3f);
+	TestTrue(TEXT("second grant: extended in place (ModifyActiveEffectStartTime)"), VeloxPowerups::GrantOrExtend(*ASC, QuadClass, Gain.PowerupSeconds) == EVeloxPowerupGrant::Extended);
+	TestEqual(TEXT("extended: ~50 s"), VeloxPowerups::GetRemainingSeconds(*ASC, QuadClass), Gain.PowerupSeconds, 0.01f);
+	const TArray<FActiveGameplayEffectHandle> HandlesAfter = ASC->GetActiveEffects(FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(VeloxGameplayTags::Powerup_Quad)));
+	TestTrue(TEXT("extended: same single effect (no removal)"), Handles.Num() == 1 && HandlesAfter.Num() == 1 && Handles[0] == HandlesAfter[0]);
+	TestTrue(TEXT("extended: cue not restarted"), Feedback && Feedback->GetActivePowerups().HasTagExact(VeloxGameplayTags::Powerup_Quad));
+	W.Advance(Gain.PowerupSeconds - 0.2f);
+	TestTrue(TEXT("still active just before the extended end"), ASC->HasMatchingGameplayTag(VeloxGameplayTags::Powerup_Quad));
+	W.Advance(0.4f);
+	TestFalse(TEXT("expired at the extended end"), ASC->HasMatchingGameplayTag(VeloxGameplayTags::Powerup_Quad));
+	TestTrue(TEXT("expired: tint off"), Feedback && !Feedback->GetActivePowerups().HasTagExact(VeloxGameplayTags::Powerup_Quad) && Feedback->GetPowerupTint().A == 0.f);
+
+	// --- Battle Suit on the dummy: radius 100 -> no loss (knockback 1250 stays), direct 100 -> 50.
+	TestTrue(TEXT("suit: applied"), VeloxPowerups::GrantOrExtend(*DummyASC, UVeloxGE_Powerup_BattleSuit::StaticClass(), 30.f) == EVeloxPowerupGrant::Applied);
+	SetHealth(*Dummy, 100.f);
+	const UVeloxMovementComponent* DummyMovement = Dummy->GetVeloxMovementComponent();
+	ApplyTestDamage(*ASC, *DummyASC, 100, 1.f, true);
+	TestEqual(TEXT("suit radius 100: no health loss"), DummyHealth->GetHealth(), 100.f);
+	TestTrue(TEXT("suit radius 100: knockback 1250 cm/s"), DummyMovement && DummyMovement->GetPendingKnockback().Velocity.Equals(FVector(0, 0, 1250), 0.5));
+	ApplyTestDamage(*ASC, *DummyASC, 100, 1.f, false);
+	TestEqual(TEXT("suit direct 100: -50"), DummyHealth->GetHealth(), 50.f);
+
+	// --- Regen on the dummy: 50 -> 65 -> 80 per second (not on application); over max no decay, +5.
+	TestTrue(TEXT("regen: applied"), VeloxPowerups::GrantOrExtend(*DummyASC, UVeloxGE_Powerup_Regen::StaticClass(), 30.f) == EVeloxPowerupGrant::Applied);
+	TestEqual(TEXT("regen: not on application"), DummyHealth->GetHealth(), 50.f);
+	W.Advance(1.05f);
+	TestEqual(TEXT("regen: 50 -> 65 after 1 s"), DummyHealth->GetHealth(), 65.f);
+	W.Advance(1.f);
+	TestEqual(TEXT("regen: 65 -> 80 after 2 s"), DummyHealth->GetHealth(), 80.f);
+	SetHealth(*Dummy, 150.f);
+	W.Advance(1.f);
+	TestEqual(TEXT("regen over max: 150 -> 155, no decay"), DummyHealth->GetHealth(), 155.f);
+
+	// --- Lost on death: GE_SpawnInit (respawn) removes every powerup of the dummy (suit and regen), nothing else needed.
+	TestEqual(TEXT("dummy holds two powerups"), NumPowerupEffects(*DummyASC), 2);
+	DummyASC->ApplyGameplayEffectSpecToSelf(*VeloxEffects::MakeSpawnInitSpec(DummyASC, Settings).Data.Get());
+	TestEqual(TEXT("spawn init: no powerup effects"), NumPowerupEffects(*DummyASC), 0);
+	TestFalse(TEXT("spawn init: no Velox.Powerup tag"), DummyASC->HasMatchingGameplayTag(VeloxGameplayTags::Powerup));
+	TestEqual(TEXT("spawn init: health 125"), DummyHealth->GetHealth(), 125.f);
+
+	// --- A dead target regenerates nothing (Q3 runs the timer actions for living clients only).
+	TestTrue(TEXT("regen again"), VeloxPowerups::GrantOrExtend(*DummyASC, UVeloxGE_Powerup_Regen::StaticClass(), 30.f) == EVeloxPowerupGrant::Applied);
+	SetHealth(*Dummy, 20.f);
+	DummyASC->ApplyGameplayEffectToSelf(GetDefault<UVeloxGE_Dead>(), 1.f, DummyASC->MakeEffectContext());
+	W.Advance(1.05f);
+	TestEqual(TEXT("dead: no regen tick"), DummyHealth->GetHealth(), 20.f);
+
+	// --- Match frozen (task 05's tag): treated like dead by the damage execution; skipped while 05 is not merged.
+	const FGameplayTag Frozen = VeloxEffects::GetMatchFrozenTag();
+	if (Frozen.IsValid())
+	{
+		ASC->AddLooseGameplayTag(Frozen);
+		const float Before = PS->GetHealthSet()->GetHealth();
+		ApplyTestDamage(*DummyASC, *ASC, 50, 1.f, false);
+		TestEqual(TEXT("frozen: no damage"), PS->GetHealthSet()->GetHealth(), Before);
+		ASC->RemoveLooseGameplayTag(Frozen);
+	}
+	else
+	{
+		AddInfo(TEXT("Velox.State.MatchFrozen not registered (task 05 not merged): frozen check skipped"));
+	}
+
+	// --- Projectiles carry the shot's Quad state (replicated, initial only) and die on ResetLevel (Reset).
+	UVeloxWeaponDefinition* Rocket = NewObject<UVeloxWeaponDefinition>(GetTransientPackage());
+	Rocket->Damage = 100;
+	Rocket->SplashDamage = 100;
+	Rocket->SplashRadiusCm = 300.f;
+	Rocket->ProjectileSpeed = 100.f;
+	Rocket->ProjectileLifetime = 10.f;
+	FVeloxProjectileLaunch Launch;
+	Launch.Definition = Rocket;
+	Launch.Shooter = Pawn;
+	Launch.SourceASC = ASC;
+	Launch.Origin = FVector(0, 0, 2000);
+	Launch.Dir = FVector::UpVector;
+	Launch.bQuad = true;
+	AVeloxProjectile* Projectile = AVeloxProjectile::SpawnServerProjectile(*W.World, nullptr, Launch);
+	if (TestNotNull(TEXT("projectile"), Projectile))
+	{
+		TestTrue(TEXT("projectile: quad captured"), Projectile->IsQuad());
+		TestEqual(TEXT("projectile: quad splash 100 -> 300"), AVeloxProjectile::ScaledShotDamage(Rocket->SplashDamage, Projectile->IsQuad(), ASC), 300);
+		TestEqual(TEXT("projectile: no quad, 100"), AVeloxProjectile::ScaledShotDamage(Rocket->SplashDamage, false, ASC), 100);
+		Projectile->Reset();
+		TestFalse(TEXT("projectile: destroyed by Reset (ResetLevel)"), IsValid(Projectile));
+	}
 	return true;
 }
 

@@ -42,6 +42,11 @@ struct FVeloxProjectileLaunch
 	/** Unit direction (quantized normal, renormalised). */
 	FVector Dir = FVector::ForwardVector;
 	uint8 ShotSeq = 0;
+	/**
+	 * ADR 0004 section 3: the shooter had Quad Damage at fire (Q3 stores the factor in the missile). Server: the shooter
+	 * ASC's tag; owning client's fake: its local state (see UVeloxGameplayAbility_FireProjectile).
+	 */
+	bool bQuad = false;
 	/** Server: forward simulation at spawn (s); 0 for the fake and for a shooter on the server's machine. */
 	float ForwardSimSeconds = 0.f;
 	/** The owner's move-timed self splash of this shot (0 = none) on OwnerMovement, and its explosion origin. */
@@ -95,14 +100,21 @@ public:
 	 * first owner move with time stamp >= MoveTime (UVeloxMovementComponent::AddMoveTimedEvent). bPredicted (owning
 	 * client): FVeloxProjectileSim::SelfKnockback -> AddKnockback(Predicted, ShotSeq). Server (remote owner): GE_Damage
 	 * with bSelf/bRadius (half damage, full knockback through AddKnockback(Server)), then ServerResolveSelfKnockbackShot.
-	 * The server also registers the shot (ServerBeginSelfKnockbackShot). Returns the event id.
+	 * The server also registers the shot (ServerBeginSelfKnockbackShot). Returns the event id. bQuad: the shot's Quad
+	 * state (the splash damage is scaled before the falloff, both ends alike).
 	 */
 	static int32 ScheduleOwnerSelfSplash(UVeloxMovementComponent& OwnerMovement, const UVeloxWeaponDefinition& Definition, UAbilitySystemComponent* SourceASC, float MoveTime,
-		const FVector& Origin, uint8 ShotSeq, bool bPredicted);
+		const FVector& Origin, uint8 ShotSeq, bool bPredicted, bool bQuad = false);
 
 	/** Evaluates the owner's self splash now (the events above, a fake's pawn hit, the server deadline). */
 	static void RunOwnerSelfSplash(UVeloxMovementComponent& OwnerMovement, const UVeloxWeaponDefinition& Definition, UAbilitySystemComponent* SourceASC, const FVector& Origin,
-		uint8 ShotSeq, bool bPredicted, const TCHAR* Reason);
+		uint8 ShotSeq, bool bPredicted, const TCHAR* Reason, bool bQuad = false);
+
+	/**
+	 * The shot's direct or splash base damage with its Quad state applied (Q3 multiplies the missile's damage and
+	 * splashDamage at fire, so the falloff truncates the scaled value): FVeloxDamageMath::ScaleDamage(Base, QuadDamageFactor).
+	 */
+	static int32 ScaledShotDamage(int32 BaseDamage, bool bQuad, const UAbilitySystemComponent* SettingsASC);
 
 	/**
 	 * UVeloxCombatFeedbackComponent hook: an executed impact cue reached CueAvatar. On the owning client it ends the fake
@@ -114,6 +126,7 @@ public:
 	bool IsFake() const { return bFake; }
 	bool HasExploded() const { return bExploded; }
 	uint8 GetShotSeq() const { return ShotSeq; }
+	bool IsQuad() const { return bQuad; }
 	const UVeloxWeaponDefinition* GetDefinition() const { return Definition; }
 	FVector GetStartLocation() const { return StartLocation; }
 	FVector GetLaunchVelocity() const { return LaunchVelocity; }
@@ -127,6 +140,8 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
+	/** ResetLevel (match restart, ADR 0004 section 5): a projectile in flight is destroyed, its owner's pending self splash dropped. */
+	virtual void Reset() override;
 	//~End of AActor interface
 
 protected:
@@ -161,6 +176,10 @@ protected:
 
 	UPROPERTY(Replicated)
 	TObjectPtr<const UVeloxWeaponDefinition> Definition;
+
+	/** ADR 0004 section 3: fired under Quad Damage (direct and splash damage x QuadDamageFactor at the explosion). */
+	UPROPERTY(Replicated)
+	bool bQuad = false;
 
 	FVeloxProjectileState State;
 	TWeakObjectPtr<UAbilitySystemComponent> SourceASC;

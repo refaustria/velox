@@ -12,7 +12,7 @@
 
 #include "VeloxItemDefinition.generated.h"
 
-class UGameplayEffect;
+class UVeloxGE_Powerup;
 class UVeloxWeaponDefinition;
 
 UCLASS(BlueprintType, Const, Meta = (DisplayName = "Velox Item Definition"))
@@ -71,11 +71,11 @@ public:
 	FGameplayTag AmmoTag;
 
 	/**
-	 * Powerup items: the duration effect (task 02 adds UVeloxGE_Powerup and its four subclasses and narrows this type;
-	 * until then the grant refuses powerups and logs why).
+	 * Powerup items: the duration effect, one of the four UVeloxGE_Powerup subclasses (Items/VeloxPowerupEffects.h). A
+	 * powerup item without one is refused (logged).
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item", Meta = (EditCondition = "Type == EVeloxItemType::Powerup"))
-	TSubclassOf<UGameplayEffect> PowerupEffect;
+	TSubclassOf<UVeloxGE_Powerup> PowerupEffect;
 
 	/** Powerup items: seconds one pickup adds (Q3 30). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item", Meta = (ClampMin = "0", Units = "s", EditCondition = "Type == EVeloxItemType::Powerup"))

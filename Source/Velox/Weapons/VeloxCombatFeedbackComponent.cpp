@@ -3,10 +3,17 @@
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 
 #include "Combat/VeloxCombatLog.h"
+#include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxGameplayEffectContext.h"
+#include "Components/MeshComponent.h"
+#include "Core/VeloxGameplayTags.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "GameModes/VeloxPlayerState.h"
 #include "HAL/IConsoleManager.h"
+#include "Items/VeloxPowerupEffects.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Weapons/VeloxProjectile.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxCombatFeedbackComponent)
@@ -27,6 +34,10 @@ UVeloxCombatFeedbackComponent::UVeloxCombatFeedbackComponent(const FObjectInitia
 
 void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters)
 {
+	if (HandlePowerupCue(CueTag, EventType))
+	{
+		return;
+	}
 	const FVector Start = Parameters.EffectContext.IsValid() && Parameters.EffectContext.HasOrigin() ? Parameters.EffectContext.GetOrigin() : Parameters.Location;
 	const FString TagName = CueTag.ToString();
 	const bool bBeam = TagName.EndsWith(TEXT(".Beam"));
@@ -79,4 +90,66 @@ void UVeloxCombatFeedbackComponent::OnHitConfirmed(uint8 ShotSeq, uint8 TotalDam
 	const UWorld* World = GetWorld();
 	LastHitConfirmTime = World ? World->GetTimeSeconds() : 0.0;
 	++NumHitConfirms;
+}
+
+bool UVeloxCombatFeedbackComponent::HandlePowerupCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType)
+{
+	const FGameplayTag Powerup = VeloxPowerupTags::PowerupTagForCue(CueTag);
+	if (!Powerup.IsValid())
+	{
+		return false;
+	}
+	const bool bWasActive = ActivePowerups.HasTagExact(Powerup);
+	if (EventType == EGameplayCueEvent::OnActive || EventType == EGameplayCueEvent::WhileActive)
+	{
+		ActivePowerups.AddTag(Powerup);
+	}
+	else if (EventType == EGameplayCueEvent::Removed)
+	{
+		ActivePowerups.RemoveTag(Powerup);
+	}
+	if (bWasActive != ActivePowerups.HasTagExact(Powerup))
+	{
+		ApplyPowerupTint();
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxPowerupTint pawn=%s powerup=%s %s tint=%s"), *GetNameSafe(GetOwner()), *Powerup.ToString(), bWasActive ? TEXT("off") : TEXT("on"),
+			*PowerupTint.ToString());
+	}
+	return true;
+}
+
+void UVeloxCombatFeedbackComponent::ApplyPowerupTint()
+{
+	// One tint at a time, the most significant powerup first (Q3 draws the quad shell over the others).
+	const FGameplayTag Priority[] = {
+		VeloxGameplayTags::Powerup_Quad, VeloxGameplayTags::Powerup_BattleSuit, VeloxGameplayTags::Powerup_Regen, VeloxGameplayTags::Powerup_Haste,
+	};
+	const APawn* Pawn = Cast<APawn>(GetOwner());
+	const AVeloxPlayerState* PlayerState = Pawn ? Pawn->GetPlayerState<AVeloxPlayerState>() : nullptr;
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PlayerState ? PlayerState->GetCombatSettings() : nullptr);
+	PowerupTint = FLinearColor(0.f, 0.f, 0.f, 0.f);
+	for (const FGameplayTag& Tag : Priority)
+	{
+		const FLinearColor* Color = ActivePowerups.HasTagExact(Tag) ? Settings.PowerupTints.Find(Tag) : nullptr;
+		if (Color)
+		{
+			PowerupTint = *Color;
+			break;
+		}
+	}
+	if (!GetOwner())
+	{
+		return;
+	}
+	// The body's dynamic materials (AVeloxCharacter's M_PlayerBody instance); a material without the parameter ignores it.
+	TInlineComponentArray<UMeshComponent*> Meshes(GetOwner());
+	for (UMeshComponent* Mesh : Meshes)
+	{
+		for (int32 Index = 0; Mesh && Index < Mesh->GetNumMaterials(); ++Index)
+		{
+			if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(Index)))
+			{
+				Material->SetVectorParameterValue(PowerupTintParameter, PowerupTint);
+			}
+		}
+	}
 }
