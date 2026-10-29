@@ -23,6 +23,7 @@
 #include "Items/VeloxItemDefinition.h"
 #include "Items/VeloxItemLog.h"
 #include "Items/VeloxItemRegistrySubsystem.h"
+#include "Items/VeloxPowerupEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Net/UnrealNetwork.h"
@@ -458,7 +459,7 @@ bool AVeloxPickup::TryPickup(AVeloxCharacter* Pawn, bool bLogRefusal)
 
 	if (Definition->Type == EVeloxItemType::Powerup && !Definition->PowerupEffect)
 	{
-		UE_CLOG(bLogRefusal, LogVeloxItems, Warning, TEXT("VeloxPickupRefused item=%s by=%s reason=no_powerup_effect (task 02)"), *GetNameSafe(Definition),
+		UE_CLOG(bLogRefusal, LogVeloxItems, Warning, TEXT("VeloxPickupRefused item=%s by=%s reason=no_powerup_effect"), *GetNameSafe(Definition),
 			*AVeloxPlayerState::VeloxPlayerLabel(PlayerState));
 		return false;
 	}
@@ -554,21 +555,14 @@ bool AVeloxPickup::GrantTo(AVeloxCharacter& Pawn, const FVeloxPickupGain& Gain)
 
 bool AVeloxPickup::GrantPowerup(AVeloxCharacter& Pawn, const FVeloxPickupGain& Gain)
 {
-	// ADR 0004 section 3 is task 02 (UVeloxGE_Powerup, extension in place via ModifyActiveEffectStartTime). Until then:
-	// the ADR's fallback, remove and re-apply with the summed duration (SetByCaller.Duration).
+	// ADR 0004 section 3: Gain.PowerupSeconds is the rule's total (remaining + item seconds); an active powerup is extended
+	// in place (ModifyActiveEffectStartTime), with remove + re-apply as the fallback (VeloxPowerups::GrantOrExtend).
 	UVeloxAbilitySystemComponent* ASC = Pawn.GetVeloxAbilitySystemComponent();
 	if (!ASC || !Definition->PowerupEffect)
 	{
 		return false;
 	}
-	ASC->RemoveActiveGameplayEffectBySourceEffect(Definition->PowerupEffect, nullptr);
-	const FGameplayEffectSpecHandle Spec = VeloxEffects::MakeDurationSpec(ASC, Definition->PowerupEffect, Gain.PowerupSeconds);
-	if (!Spec.IsValid())
-	{
-		return false;
-	}
-	ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-	return true;
+	return VeloxPowerups::GrantOrExtend(*ASC, Definition->PowerupEffect, Gain.PowerupSeconds) != EVeloxPowerupGrant::Failed;
 }
 
 void AVeloxPickup::ServerRespawn()

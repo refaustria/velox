@@ -1,7 +1,8 @@
 // Velox - native combat feedback on the pawn (ADR 0003 section 5): AVeloxCharacter::HandleGameplayCue forwards weapon
 // cues here, AVeloxPlayerController::ClientConfirmHit the server's hit confirmations. M2 draws debug shapes only
 // (non-shipping: tracer, impact sphere, beam state) and keeps the hit-marker state for the HUD; M5 adds GCN_* notifies
-// under /Game/GameplayCues for the same tags without code changes.
+// under /Game/GameplayCues for the same tags without code changes. M3 (ADR 0004 section 3): the looping powerup cues
+// GameplayCue.Powerup.<Name> tint the body (vector parameter PowerupTintParameter on the pawn's dynamic materials).
 
 #pragma once
 
@@ -28,11 +29,28 @@ public:
 	int32 GetNumHitConfirms() const { return NumHitConfirms; }
 	bool IsBeamActive() const { return bBeamActive; }
 
+	/** Velox.Powerup.<Name> tags whose looping cue is active on this pawn. */
+	const FGameplayTagContainer& GetActivePowerups() const { return ActivePowerups; }
+
+	/** The body tint shown for the active powerups (UVeloxCombatSettings::PowerupTints); alpha 0 = none. */
+	FLinearColor GetPowerupTint() const { return PowerupTint; }
+
 	/** Executed weapon cues seen by this pawn since spawn (tests, logs; ADR 0003 B21: one .Impact per hitscan shot). */
 	int32 GetNumFireCues() const { return NumFireCues; }
 	int32 GetNumImpactCues() const { return NumImpactCues; }
 
+protected:
+	/** Vector parameter of the body material that carries the powerup tint (M_PlayerBody, ADR 0004 section 3). */
+	UPROPERTY(EditDefaultsOnly, Category = "Velox|Feedback")
+	FName PowerupTintParameter = TEXT("PowerupTint");
+
 private:
+	/** Looping powerup cue: OnActive/WhileActive add, Removed removes; returns false for any other cue. */
+	bool HandlePowerupCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType);
+	void ApplyPowerupTint();
+
+	FGameplayTagContainer ActivePowerups;
+	FLinearColor PowerupTint = FLinearColor(0.f, 0.f, 0.f, 0.f);
 	int32 NumFireCues = 0;
 	int32 NumImpactCues = 0;
 	double LastHitConfirmTime = -1.0;

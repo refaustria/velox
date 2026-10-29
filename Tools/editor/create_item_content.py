@@ -97,6 +97,17 @@ def asset_name(item):
     return f"DA_Item_{TYPE_NAMES[item['type']]}_{item['name']}"
 
 
+def powerup_effect_class(item):
+    """UVeloxGE_Powerup_<Name> for powerup items (ADR 0004 section 3), None otherwise."""
+    if item["type"] != POWERUP:
+        return None
+    path = f"/Script/Velox.VeloxGE_Powerup_{item['name']}"
+    cls = unreal.load_class(None, path)
+    if cls is None:
+        fail(f"{asset_name(item)}: {path} not found (build the editor first)")
+    return cls
+
+
 def item_values(item):
     type_name = TYPE_NAMES[item["type"]]
     initial = POWERUP_INITIAL_DELAY if item["type"] == POWERUP else (0.0, 0.0)
@@ -113,7 +124,7 @@ def item_values(item):
         "bot_base_value": float(item["bot"]),
         "weapon": None,
         "ammo_tag": tag("Velox.Ammo." + item["ammo"]) if "ammo" in item else unreal.GameplayTag(),
-        "powerup_effect": None,  # task 02 sets UVeloxGE_Powerup_<Name>
+        "powerup_effect": powerup_effect_class(item),
         "powerup_seconds": float(item.get("powerup_s", 0.0)),
         "pickup_cue_tag": unreal.GameplayTag(),
         "placeholder_color": item["color"],
@@ -162,6 +173,11 @@ def verify_items():
                 fail(f"{path}.{k} = {got}, expected {want}")
         if ("weapon" in item) != (da.get_editor_property("weapon") is not None):
             fail(f"{path}.weapon mismatch")
+        effect = da.get_editor_property("powerup_effect")
+        want_effect = f"VeloxGE_Powerup_{item['name']}" if item["type"] == POWERUP else None
+        got_effect = effect.get_name() if effect is not None else None
+        if got_effect != want_effect:
+            fail(f"{path}.powerup_effect = {got_effect}, expected {want_effect}")
     log(f"verified {len(ITEMS)} item definitions")
 
 

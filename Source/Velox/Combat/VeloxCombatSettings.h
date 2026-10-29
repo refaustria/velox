@@ -53,6 +53,9 @@ public:
 	/** Damage-math parameters; non-shipping `velox.combat.<Field>` cvars override the asset values. */
 	FVeloxCombatParams BuildCombatParams() const;
 
+	/** Regeneration parameters (ADR 0004 section 3). */
+	FVeloxRegenParams BuildRegenParams() const;
+
 	/** The ammo row for Tag or Attribute; null if unknown. */
 	const FVeloxAmmoTypeInfo* FindAmmoType(const FGameplayTag& Tag) const;
 	const FVeloxAmmoTypeInfo* FindAmmoType(const FGameplayAttribute& Attribute) const;
@@ -250,6 +253,38 @@ public:
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Items", Meta = (ClampMin = "0", Units = "s"))
 	float PickupPredictionTimeout = 0.5f;
+
+	// Powerups (ADR 0004 section 3). Durations live on the item definitions (PowerupSeconds), never here.
+	/** Quad Damage: raw damage of every hit times this at fire (Q3 g_quadfactor 3), knockback included. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Powerups", Meta = (ClampMin = "1"))
+	float QuadDamageFactor = 3.f;
+
+	/** Battle Suit: a non-radius hit's damage times this (Q3 0.5, truncated); radius hits cost nothing (knockback stays). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Powerups", Meta = (ClampMin = "0", ClampMax = "1"))
+	float BattleSuitDirectDamageScale = 0.5f;
+
+	/** Regeneration: health per second below max health (Q3 15). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Powerups", Meta = (ClampMin = "0"))
+	int32 RegenHealthPerTick = 15;
+
+	/** Regeneration: health per second from max health up to HealthHardCap (Q3 5). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Powerups", Meta = (ClampMin = "0"))
+	int32 RegenOverTick = 5;
+
+	/** Regeneration: the RegenHealthPerTick step stops at MaxHealth x this (Q3 1.1). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Powerups", Meta = (ClampMin = "1"))
+	float RegenSoftCapScale = 1.1f;
+
+	/** Haste: fire interval divided by this (Q3 1.3); task 03 applies it (client rule and server bucket). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Powerups", Meta = (ClampMin = "1"))
+	float HasteFireRateScale = 1.3f;
+
+	/**
+	 * Body tint per active powerup (vector parameter UVeloxCombatFeedbackComponent::PowerupTintParameter on the body
+	 * material): Quad blue, Haste yellow, Regen red, Battle Suit green (readability over fidelity). Alpha 0 = no tint.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Readability", Meta = (Categories = "Velox.Powerup"))
+	TMap<FGameplayTag, FLinearColor> PowerupTints;
 
 	/** The six ammo types (attribute, cap). Filled with the Q3 defaults by the constructor. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Ammo")

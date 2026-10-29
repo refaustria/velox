@@ -116,6 +116,12 @@ bool UVeloxGameplayAbility_Fire::CanActivateAbility(const FGameplayAbilitySpecHa
 	{
 		return false;
 	}
+	// ADR 0004 section 5: no firing while the match is frozen (task 05's tag; after its merge an ActivationBlockedTags entry).
+	const FGameplayTag MatchFrozenTag = VeloxEffects::GetMatchFrozenTag();
+	if (ASC && MatchFrozenTag.IsValid() && ASC->HasMatchingGameplayTag(MatchFrozenTag))
+	{
+		return false;
+	}
 
 	const UWorld* World = ActorInfo->AvatarActor.IsValid() ? ActorInfo->AvatarActor->GetWorld() : nullptr;
 	if (!World)

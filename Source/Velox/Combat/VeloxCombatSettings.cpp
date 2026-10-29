@@ -50,6 +50,14 @@ UVeloxCombatSettings::UVeloxCombatSettings()
 		FColor(255, 40, 40), FColor(40, 140, 255), FColor(40, 255, 70), FColor(255, 230, 30),
 		FColor(255, 60, 220), FColor(30, 240, 240), FColor(255, 140, 20), FColor(160, 90, 255),
 	};
+
+	// ADR 0004 section 3: Quad blue, Haste yellow, Regen red, Battle Suit green.
+	PowerupTints = {
+		{ VeloxGameplayTags::Powerup_Quad, FLinearColor(0.15f, 0.35f, 1.f, 1.f) },
+		{ VeloxGameplayTags::Powerup_Haste, FLinearColor(1.f, 0.85f, 0.1f, 1.f) },
+		{ VeloxGameplayTags::Powerup_Regen, FLinearColor(1.f, 0.1f, 0.1f, 1.f) },
+		{ VeloxGameplayTags::Powerup_BattleSuit, FLinearColor(0.15f, 1.f, 0.2f, 1.f) },
+	};
 }
 
 int32 UVeloxCombatSettings::GetSpawnAmmo(const FGameplayTag& AmmoTag) const
@@ -130,6 +138,16 @@ FVeloxCombatParams UVeloxCombatSettings::BuildCombatParams() const
 	MaxKnockback = Get(CVar_MaxKnockbackDamage, MaxKnockback);
 #endif
 	P.MaxKnockbackDamage = FMath::RoundToInt32(MaxKnockback);
+	P.BattleSuitDirectDamageScale = BattleSuitDirectDamageScale;
+	return P;
+}
+
+FVeloxRegenParams UVeloxCombatSettings::BuildRegenParams() const
+{
+	FVeloxRegenParams P;
+	P.HealthPerTick = RegenHealthPerTick;
+	P.OverTick = RegenOverTick;
+	P.SoftCapScale = RegenSoftCapScale;
 	return P;
 }
 
