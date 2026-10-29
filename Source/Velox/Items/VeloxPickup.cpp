@@ -18,6 +18,7 @@
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
+#include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameplayEffect.h"
 #include "Items/VeloxItemDefinition.h"
@@ -264,8 +265,8 @@ bool AVeloxPickup::IsPawnEligible(const AVeloxCharacter* Pawn) const
 		return false;
 	}
 	const UVeloxAbilitySystemComponent* ASC = Pawn->GetVeloxAbilitySystemComponent();
-	// Task 05 adds Velox.State.MatchFrozen here (intermission, ADR 0004 section 5).
-	return ASC && !ASC->HasMatchingGameplayTag(VeloxGameplayTags::State_Dead);
+	// MatchFrozen = intermission (ADR 0004 section 5): no pickups.
+	return ASC && !ASC->HasMatchingGameplayTag(VeloxGameplayTags::State_Dead) && !ASC->HasMatchingGameplayTag(VeloxMatchTags::State_MatchFrozen);
 }
 
 bool AVeloxPickup::BuildQuery(const AVeloxCharacter* Pawn, FVeloxPickupQuery& OutQuery) const
@@ -353,6 +354,17 @@ void AVeloxPickup::GetOverlappingPawns(TArray<AVeloxCharacter*>& OutPawns) const
 	}
 }
 
+bool AVeloxPickup::ShouldRecheck(const AVeloxCharacter* Pawn) const
+{
+	// A pawn refused for a reason that can pass while it stands there: full health, or the intermission freeze.
+	if (IsPawnEligible(Pawn))
+	{
+		return true;
+	}
+	const UVeloxAbilitySystemComponent* ASC = Pawn ? Pawn->GetVeloxAbilitySystemComponent() : nullptr;
+	return ASC && IsValid(Pawn) && !Pawn->IsCorpse() && ASC->HasMatchingGameplayTag(VeloxMatchTags::State_MatchFrozen);
+}
+
 void AVeloxPickup::CheckOverlappingPawns(bool bLogRefusals)
 {
 	TArray<AVeloxCharacter*> Pawns;
@@ -366,12 +378,12 @@ void AVeloxPickup::CheckOverlappingPawns(bool bLogRefusals)
 			{
 				break;
 			}
-			if (!TryPickup(Pawn, bLogRefusals) && IsAvailable() && IsPawnEligible(Pawn))
+			if (!TryPickup(Pawn, bLogRefusals) && IsAvailable() && ShouldRecheck(Pawn))
 			{
 				bRefusedPawnInside = true;
 			}
 		}
-		else if (IsPlaceholderVisible() && !TryPredictTake(Pawn) && IsPlaceholderVisible() && IsPawnEligible(Pawn))
+		else if (IsPlaceholderVisible() && !TryPredictTake(Pawn) && IsPlaceholderVisible() && ShouldRecheck(Pawn))
 		{
 			bRefusedPawnInside = true;
 		}
@@ -389,7 +401,7 @@ void AVeloxPickup::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponen
 	}
 	if (HasAuthority())
 	{
-		if (!TryPickup(Pawn, true) && IsAvailable() && IsPawnEligible(Pawn))
+		if (!TryPickup(Pawn, true) && IsAvailable() && ShouldRecheck(Pawn))
 		{
 			// Q3 evaluates touches every frame: a pawn refused now (full health) takes it once it can.
 			SetOverlapRecheck(true);
@@ -397,7 +409,7 @@ void AVeloxPickup::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponen
 	}
 	else if (Pawn->IsLocallyControlled())
 	{
-		if (!TryPredictTake(Pawn) && IsPlaceholderVisible() && IsPawnEligible(Pawn))
+		if (!TryPredictTake(Pawn) && IsPlaceholderVisible() && ShouldRecheck(Pawn))
 		{
 			SetOverlapRecheck(true);
 		}

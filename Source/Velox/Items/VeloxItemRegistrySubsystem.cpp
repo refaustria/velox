@@ -3,6 +3,8 @@
 #include "Items/VeloxItemRegistrySubsystem.h"
 
 #include "Engine/World.h"
+#include "GameModes/VeloxGameModeDefinition.h"
+#include "GameModes/VeloxGameState.h"
 #include "Items/VeloxItemDefinition.h"
 #include "Items/VeloxPickup.h"
 
@@ -16,6 +18,33 @@ UVeloxItemRegistrySubsystem* UVeloxItemRegistrySubsystem::Get(const UWorld* Worl
 bool UVeloxItemRegistrySubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
+}
+
+FVeloxItemModeRules UVeloxItemRegistrySubsystem::MakeModeRules(const UVeloxGameModeDefinition* Definition)
+{
+	FVeloxItemModeRules Rules;
+	if (Definition)
+	{
+		Rules.ItemRespawnScale = Definition->ItemRespawnScale;
+		Rules.WeaponRespawnSeconds = Definition->WeaponRespawnSeconds;
+		Rules.bWeaponStay = Definition->bWeaponStay;
+	}
+	return Rules;
+}
+
+void UVeloxItemRegistrySubsystem::RefreshModeRules()
+{
+	const UWorld* World = GetWorld();
+	const AVeloxGameState* State = World ? World->GetGameState<AVeloxGameState>() : nullptr;
+	ModeRules = MakeModeRules(State ? State->GetGameModeDefinition() : nullptr);
+}
+
+EVeloxItemTimerVisibility UVeloxItemRegistrySubsystem::GetItemTimerVisibility() const
+{
+	const UWorld* World = GetWorld();
+	const AVeloxGameState* State = World ? World->GetGameState<AVeloxGameState>() : nullptr;
+	const UVeloxGameModeDefinition* Definition = State ? State->GetGameModeDefinition() : nullptr;
+	return Definition ? Definition->ItemTimers : EVeloxItemTimerVisibility::Spectators;
 }
 
 void UVeloxItemRegistrySubsystem::RegisterPickup(AVeloxPickup* Pickup)

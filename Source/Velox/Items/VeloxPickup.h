@@ -124,6 +124,8 @@ protected:
 private:
 	double GetServerNow() const;
 	bool IsPawnEligible(const AVeloxCharacter* Pawn) const;
+	/** Refused now, but worth re-checking every frame while it stands inside (full health, intermission freeze). */
+	bool ShouldRecheck(const AVeloxCharacter* Pawn) const;
 	/** Pawns whose capsule overlaps the trigger (server: all; clients: only the locally controlled one). */
 	void GetOverlappingPawns(TArray<AVeloxCharacter*>& OutPawns) const;
 	/**

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "GameplayTagContainer.h"
+#include "GameModes/VeloxMatchRules.h"
 #include "Items/VeloxPickupRules.h"
 #include "Subsystems/WorldSubsystem.h"
 
@@ -12,6 +13,7 @@
 
 class APlayerState;
 class AVeloxPickup;
+class UVeloxGameModeDefinition;
 class UWorld;
 
 UCLASS()
@@ -38,6 +40,19 @@ public:
 	 */
 	const FVeloxItemModeRules& GetModeRules() const { return ModeRules; }
 	void SetModeRules(const FVeloxItemModeRules& InRules) { ModeRules = InRules; }
+	/**
+	 * Server: takes ModeRules from AVeloxGameState::GetGameModeDefinition() (null in the base mode and before the
+	 * GameState exists: the FFA defaults). Called by AVeloxGameMode whenever it hands the definition to the GameState.
+	 */
+	void RefreshModeRules();
+	/** Rules of a definition (null = the FFA defaults). */
+	static FVeloxItemModeRules MakeModeRules(const UVeloxGameModeDefinition* Definition);
+
+	/**
+	 * Who sees item respawn timers (ADR 0004 section 4). Read live from the GameState's definition, so it is valid on
+	 * clients too (the definition replicates initial-only); null definition = Spectators (the FFA/Duel default).
+	 */
+	EVeloxItemTimerVisibility GetItemTimerVisibility() const;
 
 	/** (Pickup, Taker). Server: on the take. Clients: when the take replicates (TakeCount changed). */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnVeloxPickupTaken, AVeloxPickup* /*Pickup*/, APlayerState* /*TakenBy*/);

@@ -33,6 +33,8 @@
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
+#include "GameModes/VeloxGameModeDefinition.h"
+#include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "Items/VeloxItemDefinition.h"
@@ -503,6 +505,38 @@ bool FVeloxItemsPickupTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Reset: available, no taker"), Pickup->IsAvailable() && Pickup->GetLastTakenBy() == nullptr);
 	TestEqual(TEXT("Reset: respawn event"), RespawnEvents, 2);
 	TestEqual(TEXT("Reset: refused at 100"), static_cast<int32>(Pickup->GetTakeCount()), 2);
+
+	// --- Intermission: a pawn with Velox.State.MatchFrozen is refused (M3-01b), takes the item once it is removed.
+	{
+		AVeloxPickup* Frozen = AVeloxPickup::SpawnPickup(W.World, Medium, FVector(300, 300, 0));
+		W.Advance(0.1f);
+		FActiveGameplayEffectHandle FrozenHandle = ASC->ApplyGameplayEffectToSelf(GetMutableDefault<UVeloxGE_MatchFrozen>(), 1.f, ASC->MakeEffectContext());
+		TestTrue(TEXT("MatchFrozen applied"), ASC->HasMatchingGameplayTag(VeloxMatchTags::State_MatchFrozen));
+		MoveTo(*Pawn, FVector(300, 300, 0));
+		SetHealth(*Pawn, 50.f);
+		W.Advance(0.2f);
+		TestTrue(TEXT("MatchFrozen: refused, item stays"), Frozen && Frozen->IsAvailable() && Frozen->GetTakeCount() == 0);
+		TestEqual(TEXT("MatchFrozen: health unchanged"), Health->GetHealth(), 50.f);
+		ASC->RemoveActiveGameplayEffect(FrozenHandle);
+		W.Advance(0.2f);
+		TestTrue(TEXT("unfrozen: taken while standing in it"), Frozen && Frozen->GetTakeCount() == 1);
+		SetHealth(*Pawn, 100.f);
+	}
+
+	// --- Mode rules from a definition (null = FFA defaults) and the timer visibility without a GameState.
+	{
+		const FVeloxItemModeRules Defaults = UVeloxItemRegistrySubsystem::MakeModeRules(nullptr);
+		TestTrue(TEXT("null definition: FFA defaults"), Defaults.ItemRespawnScale == 1.f && Defaults.WeaponRespawnSeconds == 5.f && !Defaults.bWeaponStay);
+		UVeloxGameModeDefinition* Def = NewObject<UVeloxGameModeDefinition>(GetTransientPackage());
+		Def->ItemRespawnScale = 0.5f;
+		Def->WeaponRespawnSeconds = 30.f;
+		Def->bWeaponStay = true;
+		const FVeloxItemModeRules FromDef = UVeloxItemRegistrySubsystem::MakeModeRules(Def);
+		TestTrue(TEXT("definition rules copied"), FromDef.ItemRespawnScale == 0.5f && FromDef.WeaponRespawnSeconds == 30.f && FromDef.bWeaponStay);
+		Registry->RefreshModeRules();
+		TestTrue(TEXT("no GameState definition: defaults"), Registry->GetModeRules().ItemRespawnScale == 1.f && Registry->GetModeRules().WeaponRespawnSeconds == 5.f);
+		TestEqual(TEXT("no definition: timers for spectators"), static_cast<int32>(Registry->GetItemTimerVisibility()), static_cast<int32>(EVeloxItemTimerVisibility::Spectators));
+	}
 
 	// --- Red armor 0 -> 100 with the mode's ItemRespawnScale 0.5 (25 s -> 12.5 s).
 	FVeloxItemModeRules Rules;
