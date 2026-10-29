@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged; report in notes/04c-report.md)
 **Depends on:** 04, 04b (review `docs/reviews/m2-04-weapons-hitscan-review.md` defect 4, ADR 0003 Amendment B21). Must land before 09; 05 adopts the unkeyed impact-cue rule from the start, 08 does not depend on it.
 
 ## Goal
