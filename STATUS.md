@@ -37,11 +37,11 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **Resumed 2026-10-29.** Running: sanity build + 10-round KnockbackRun soak (dev, main checkout, port 7811) and architect review of 05+06 (docs only). Disk freed 2026-10-29 (docker build cache 22 GB, home caches, build artefacts; human's standing OK): 33 GB free.
+- **Resumed 2026-10-29.** Sanity build OK (47 tests, `Saved/CI/20261029-113051-3132749`). Running: 04c server pattern seed (dev-hard, worktree, port 7812) and architect review of 05+06 (docs only). Disk freed 2026-10-29 (docker build cache 22 GB, home caches, build artefacts; human's standing OK): 33 GB free.
 - **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`.
 
 ## Blocked
-- (watch item) **KnockbackRun grace loss**: after the 06 merge, one full-list soak failed KnockbackRun with "grace in the server's response 0.150 < 0.167: response container lost it" (`Saved/CI/20261025-034018-2760259/nettest`); the rerun passed, the 06 agent saw the same script fail once (90.6 cm, grace 0.133) and PadRun once (11.7 cm) under machine load, and KnockbackRun then passed 4/4. 06 did not touch Movement; 05 did (predicted-knockback channel, move-timed events). **First thing after the pause: 10-round soak of KnockbackRun on the merged head and on 06df0fa (pre-05 baseline) to decide regression vs load flakiness.**
+- ~~KnockbackRun grace loss~~ closed 2026-10-29: on an idle machine KnockbackRun 10/10 + full list 3/3 (13/13 KnockbackRun, `Saved/CI/20261029-113137-3134000`); the pause-day failures were load artefacts from parallel agent builds. Lesson: soak measurements only on an otherwise idle machine. (minor) PadRun one 1.74 cm stray (A31 class) in round 2, passed.
 - (watch item) one 5.14 cm StrafeRun correction in a post-M1-merge soak round (`Saved/CI/20261025-022110-2542422/nettest/StrafeRun-*`); 10 follow-up rounds clean.
 - Mac client build: human has Xcode but no UE 5.8 yet (Epic Games Launcher install needed, ~40 GB).
 
