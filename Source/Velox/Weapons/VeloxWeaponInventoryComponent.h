@@ -76,6 +76,13 @@ public:
 	void SetServerPatternSeqForTest(uint8 Value) { ServerPatternSeqCounter = Value; }
 
 	/**
+	 * ADR 0003 B25: the shot counter restarts per life, so the first shot of every life is 1 on both ends and matches the
+	 * fresh movement component's ConfirmedSelfKnockbackSeq = 0. Server: ResetToLoadout; owning client: the first
+	 * ability-actor-info init of each new pawn (AVeloxCharacter::InitAbilityActorInfo).
+	 */
+	void ResetShotSeq() { ShotSeqCounter = 0; }
+
+	/**
 	 * ADR 0003 B18: local world time at which the running switch ends on this machine (Now + Wait + Drop + Raise, set by
 	 * the switch ability on every machine that runs it); 0 = no switch. The shooter's machine fires only at or after it.
 	 * Not replicated.
@@ -94,7 +101,7 @@ public:
 	bool AddWeapon(const UVeloxWeaponDefinition* Definition, int32 Ammo = -1);
 	/**
 	 * Owns exactly the spawn loadout of the combat settings and selects its first entry (Q3: everything is lost on death).
-	 * Ammo comes from GE_SpawnInit. Clears SwitchEndTime.
+	 * Ammo comes from GE_SpawnInit. Clears SwitchEndTime and the shot counter (ResetShotSeq).
 	 */
 	void ResetToLoadout();
 	void RemoveAllWeapons();

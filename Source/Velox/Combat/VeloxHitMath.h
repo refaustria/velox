@@ -153,7 +153,7 @@ struct FVeloxHitMath
 
 	/**
 	 * Q3 ShotgunPattern: Count pellets, offsets uniform in the square [-tan(Spread), tan(Spread)]^2 along right/up
-	 * (Q3: crandom() * 700 at 8192 u). Deterministic for Seed (ADR 0003 section 5: ShotSeq ^ PlayerId), so the client's
+	 * (Q3: crandom() * 700 at 8192 u). Deterministic for Seed (ADR 0003 B21: VeloxShotDirs::MakeSeed(PatternSeq, PlayerId), PatternSeq being the server's counter), so the client's
 	 * tracers and the server's pellets agree.
 	 */
 	template <typename AllocatorType>

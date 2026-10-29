@@ -2,7 +2,12 @@
 
 #include "Weapons/VeloxShotValidation.h"
 
+#include "CollisionQueryParams.h"
+#include "Core/VeloxCollisionChannels.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "Weapons/VeloxFireRateBucket.h"
+#include "Weapons/VeloxGameplayAbility_FireProjectile.h"
 #include "Weapons/VeloxShotTargetData.h"
 
 const TCHAR* LexToString(EVeloxShotReject Reason)
@@ -24,8 +29,12 @@ EVeloxShotReject VeloxShotValidation::Validate(const FGameplayAbilityTargetData*
 	float SpacingTolerance, FVeloxValidatedShot& OutShot)
 {
 	OutShot = FVeloxValidatedShot();
+	// Exact struct types only (no IsChildOf): the payload of a foreign subclass would be read with the wrong layout.
+	const UScriptStruct* Type = Raw ? Raw->GetScriptStruct() : nullptr;
+	const bool bProjectile = Type == FGameplayAbilityTargetData_VeloxProjectileShot::StaticStruct();
 	const FGameplayAbilityTargetData_VeloxShot* ShotData =
-		(Raw && Raw->GetScriptStruct() == FGameplayAbilityTargetData_VeloxShot::StaticStruct()) ? static_cast<const FGameplayAbilityTargetData_VeloxShot*>(Raw) : nullptr;
+		(bProjectile || Type == FGameplayAbilityTargetData_VeloxShot::StaticStruct()) ? static_cast<const FGameplayAbilityTargetData_VeloxShot*>(Raw) : nullptr;
+	const FGameplayAbilityTargetData_VeloxProjectileShot* ProjectileData = bProjectile ? static_cast<const FGameplayAbilityTargetData_VeloxProjectileShot*>(Raw) : nullptr;
 	OutShot.ShotSeq = ShotData ? ShotData->ShotSeq : 0;
 
 	switch (Bucket.Consume(Now, Interval, Capacity, FVeloxFireRateBucket::MinSpacingFor(Interval, SpacingTolerance)))
@@ -47,7 +56,7 @@ EVeloxShotReject VeloxShotValidation::Validate(const FGameplayAbilityTargetData*
 	{
 		return EVeloxShotReject::Dir;
 	}
-	if (!FMath::IsFinite(ShotData->ViewServerTime) || !FMath::IsFinite(ShotData->HintTargetStamp))
+	if (!FMath::IsFinite(ShotData->ViewServerTime) || !FMath::IsFinite(ShotData->HintTargetStamp) || (ProjectileData && !FMath::IsFinite(ProjectileData->FireMoveTimeStamp)))
 	{
 		return EVeloxShotReject::Time;
 	}
@@ -56,5 +65,45 @@ EVeloxShotReject VeloxShotValidation::Validate(const FGameplayAbilityTargetData*
 	OutShot.ViewServerTime = ShotData->ViewServerTime;
 	OutShot.HintTarget = ShotData->bHasHint ? ShotData->HintTarget : TWeakObjectPtr<AActor>();
 	OutShot.HintTargetStamp = ShotData->bHasHint ? ShotData->HintTargetStamp : 0.f;
+	OutShot.FireMoveTimeStamp = ProjectileData ? ProjectileData->FireMoveTimeStamp : 0.f;
+	OutShot.bProjectileShot = bProjectile;
 	return EVeloxShotReject::None;
+}
+
+float VeloxShotValidation::ClampFireMoveTimeStamp(float ClientStamp, float LastMoveStamp, float MaxRewindSeconds, float ResetPeriod, EVeloxFireStampClamp& OutResult)
+{
+	if (FMath::Abs(ClientStamp - LastMoveStamp) > 0.5f * ResetPeriod)
+	{
+		OutResult = EVeloxFireStampClamp::Reset;
+		return ClientStamp;
+	}
+	const float Window = FMath::Max(MaxRewindSeconds, 0.f);
+	const float Clamped = FMath::Clamp(ClientStamp, LastMoveStamp - Window, LastMoveStamp + Window);
+	OutResult = Clamped != ClientStamp ? EVeloxFireStampClamp::Clamped : EVeloxFireStampClamp::None;
+	return Clamped;
+}
+
+FVector VeloxShotValidation::ValidateOrigin(const UWorld& World, const APawn& Shooter, const FVector& ClientOrigin, float MaxOriginErrorCm, const TCHAR*& OutSnapReason)
+{
+	// Within 1 cm of the eye the occlusion trace is skipped (nothing can lie in between).
+	constexpr double NoTraceWithinCmSquared = 1.0;
+	OutSnapReason = nullptr;
+	const FVector Eye = Shooter.GetPawnViewLocation();
+	if (ClientOrigin.ContainsNaN())
+	{
+		OutSnapReason = TEXT("nan");
+	}
+	else if (FVector::Dist(ClientOrigin, Eye) > MaxOriginErrorCm)
+	{
+		OutSnapReason = TEXT("distance");
+	}
+	else if (FVector::DistSquared(ClientOrigin, Eye) > NoTraceWithinCmSquared)
+	{
+		const FCollisionQueryParams OccParams(SCENE_QUERY_STAT(VeloxShotOrigin), true, &Shooter);
+		if (World.LineTraceTestByChannel(Eye, ClientOrigin, Velox_TraceChannel_Weapon, OccParams))
+		{
+			OutSnapReason = TEXT("occluded");
+		}
+	}
+	return OutSnapReason ? Eye : ClientOrigin;
 }

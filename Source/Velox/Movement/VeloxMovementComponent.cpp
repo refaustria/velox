@@ -196,8 +196,9 @@ void UVeloxMovementComponent::PerformMovement(float DeltaSeconds)
 	KnockbackGrace = FMath::Max(0.f, KnockbackGrace - DeltaSeconds);
 
 	// Move-timed events (projectile self splash): live owning-client moves and server moves only. A replay re-applies the
-	// recorded result instead (PrepMoveFor); a correction teleport is not a move.
-	if (!bInClientReplay && !bApplyingCorrection && MoveTimedEvents.Num() > 0 && CharacterOwner && CharacterOwner->GetLocalRole() != ROLE_SimulatedProxy)
+	// recorded result instead (PrepMoveFor). A correction teleport is not a move and never reaches this point
+	// (bApplyingCorrection is cleared at the top of every move, A19), so only the replay flag is tested.
+	if (!bInClientReplay && MoveTimedEvents.Num() > 0 && CharacterOwner && CharacterOwner->GetLocalRole() != ROLE_SimulatedProxy)
 	{
 		RunDueMoveTimedEvents(GetCurrentMoveTimeStamp());
 	}
@@ -300,6 +301,14 @@ void UVeloxMovementComponent::ServerResolveSelfKnockbackShot(uint8 Seq)
 	ConfirmedSelfKnockbackSeq = NewerShotSeq(ConfirmedSelfKnockbackSeq, Seq);
 }
 
+void UVeloxMovementComponent::ServerNoteShot(uint8 Seq)
+{
+	if (ServerUnresolvedSelfKnockbackSeqs.IsEmpty())
+	{
+		ConfirmedSelfKnockbackSeq = NewerShotSeq(ConfirmedSelfKnockbackSeq, Seq);
+	}
+}
+
 int32 UVeloxMovementComponent::AddMoveTimedEvent(float MoveTime, FVeloxMoveTimedCallback&& Callback)
 {
 	FMoveTimedEvent& Event = MoveTimedEvents.AddDefaulted_GetRef();
@@ -328,6 +337,13 @@ bool UVeloxMovementComponent::RunMoveTimedEventNow(int32 EventId)
 bool UVeloxMovementComponent::CancelMoveTimedEvent(int32 EventId)
 {
 	return MoveTimedEvents.RemoveAll([EventId](const FMoveTimedEvent& E) { return E.Id == EventId; }) > 0;
+}
+
+int32 UVeloxMovementComponent::CancelAllMoveTimedEvents()
+{
+	const int32 Count = MoveTimedEvents.Num();
+	MoveTimedEvents.Reset();
+	return Count;
 }
 
 bool UVeloxMovementComponent::HasMoveTimedEvent(int32 EventId) const

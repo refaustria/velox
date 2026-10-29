@@ -15,6 +15,7 @@
 #include "GameFramework/Character.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
+#include "Movement/VeloxMovementComponent.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
 #include "TimerManager.h"
 #include "Weapons/VeloxShotTargetData.h"
@@ -196,6 +197,14 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 		{
 			// B18: a shot of the pending weapon within the switch tolerance completes the switch first.
 			FinalisePendingSwitch(*Definition);
+			// B25: no self-knockback potential; keeps the owner's confirmed self-knockback sequence near the counter.
+			if (const ACharacter* ShooterCharacter = Cast<ACharacter>(GetShooterPawn()))
+			{
+				if (UVeloxMovementComponent* ShooterMovement = Cast<UVeloxMovementComponent>(ShooterCharacter->GetCharacterMovement()))
+				{
+					ShooterMovement->ServerNoteShot(Valid.ShotSeq);
+				}
+			}
 			FShotInput Shot;
 			Shot.Origin = Valid.Origin;
 			Shot.Dir = Valid.Dir;

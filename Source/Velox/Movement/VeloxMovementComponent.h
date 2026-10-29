@@ -132,6 +132,15 @@ public:
 	void ServerResolveSelfKnockbackShot(uint8 Seq);
 
 	/**
+	 * Server, remote owner (ADR 0003 B25): an accepted shot Seq without self-knockback potential (hitscan, a projectile
+	 * without splash). While no self-knockback shot is unresolved, ConfirmedSelfKnockbackSeq moves up to the newer of
+	 * itself and Seq, so int8(Seq - Confirmed) of the next rocket stays within the shots fired in one RTT however much
+	 * hitscan fire preceded it. Ignored while a self-knockback shot is unresolved (an out-of-order confirmation would
+	 * drop that shot's recorded prediction from a replay).
+	 */
+	void ServerNoteShot(uint8 Seq);
+
+	/**
 	 * Move-timed events (task 05: the owner's self splash of a projectile, evaluated in the owner's move timeline on both
 	 * the owning client and the server so prediction and authority agree to the move). Callback runs at the end of the
 	 * first live (owning client) or server-processed (authority) move whose time stamp is >= MoveTime, never in a replay.
@@ -142,6 +151,8 @@ public:
 	/** Runs the event now if it is still pending (server deadline). */
 	bool RunMoveTimedEventNow(int32 EventId);
 	bool CancelMoveTimedEvent(int32 EventId);
+	/** Drops every pending move-timed event without running it (death flow, ADR 0003 B25/B27); returns how many. */
+	int32 CancelAllMoveTimedEvents();
 	bool HasMoveTimedEvent(int32 EventId) const;
 	int32 GetNumMoveTimedEvents() const { return MoveTimedEvents.Num(); }
 

@@ -9,6 +9,7 @@
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxGameplayEffectContext.h"
 #include "Combat/VeloxGameplayEffects.h"
+#include "Combat/VeloxHealthSet.h"
 #include "Combat/VeloxHitboxComponent.h"
 #include "Components/SphereComponent.h"
 #include "Core/VeloxCollisionChannels.h"
@@ -18,6 +19,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/Pawn.h"
+#include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameplayCueInterface.h"
 #include "GameplayPrediction.h"
@@ -109,15 +111,27 @@ namespace VeloxProjectilePrivate
 		}
 	}
 
-	/** One GE_Damage from SourceASC onto Victim (direct or splash). */
+	/** What one ApplyDamage did to a victim other than the shooter (B26 hit confirm, Q3 PERS_HITS excludes self). */
+	struct FConfirmTally
+	{
+		int32 Victims = 0;
+		int32 Damage = 0;
+		bool bKill = false;
+	};
+
+	/** One GE_Damage from SourceASC onto Victim (direct or splash); a non-self victim is counted into Tally. */
 	void ApplyDamage(UAbilitySystemComponent& SourceASC, AActor* Victim, const UVeloxWeaponDefinition& Definition, int32 Damage, const FVector& Direction, const FVector& HitLocation,
-		uint8 ShotSeq, bool bRadius, AActor* Causer)
+		uint8 ShotSeq, bool bRadius, AActor* Causer, FConfirmTally& Tally)
 	{
 		UAbilitySystemComponent* VictimASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Victim);
 		if (!VictimASC)
 		{
 			return;
 		}
+		const bool bSelf = VictimASC == &SourceASC;
+		const UVeloxHealthSet* Health = bSelf ? nullptr : VictimASC->GetSet<UVeloxHealthSet>();
+		const float Before = Health ? Health->GetHealth() + Health->GetArmor() : 0.f;
+		const bool bWasAlive = Health && Health->GetHealth() > 0.f;
 		FVeloxDamageSpecParams Params;
 		Params.Damage = Damage;
 		Params.DamageTag = Definition.DamageTag;
@@ -125,13 +139,23 @@ namespace VeloxProjectilePrivate
 		Params.HitLocation = HitLocation;
 		Params.KnockbackScale = Definition.KnockbackScale;
 		Params.ShotSeq = ShotSeq;
-		Params.bSelf = VictimASC == &SourceASC;
+		Params.bSelf = bSelf;
 		Params.bRadius = bRadius;
 		Params.Causer = Causer;
 		const FGameplayEffectSpecHandle Spec = VeloxEffects::MakeDamageSpec(&SourceASC, Params);
 		if (Spec.IsValid())
 		{
 			SourceASC.ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), VictimASC);
+		}
+		if (!bSelf)
+		{
+			// A protected or zero-point hit still counts as a hit (damage 0), like the hitscan confirm.
+			++Tally.Victims;
+			if (Health)
+			{
+				Tally.Damage += FMath::Max(FMath::RoundToInt32(Before - (Health->GetHealth() + Health->GetArmor())), 0);
+				Tally.bKill |= bWasAlive && Health->GetHealth() <= 0.f;
+			}
 		}
 	}
 }
@@ -431,9 +455,10 @@ void AVeloxProjectile::ServerExplode(const FVeloxProjectileImpact& Impact)
 #endif
 
 	// Direct hit (never the owner: Step ignores it), direction = flight direction.
+	FConfirmTally Confirm;
 	if (Impact.Pawn && Definition->Damage > 0)
 	{
-		ApplyDamage(*ASC, Impact.Pawn, *Definition, Definition->Damage, LaunchVelocity, Origin, ShotSeq, false, this);
+		ApplyDamage(*ASC, Impact.Pawn, *Definition, Definition->Damage, LaunchVelocity, Origin, ShotSeq, false, this, Confirm);
 	}
 
 	// Q3 G_RadiusDamage: every living pawn but the direct victim with Dist < radius and LOS, zero points included (B3).
@@ -449,7 +474,7 @@ void AVeloxProjectile::ServerExplode(const FVeloxProjectileImpact& Impact)
 	FVeloxProjectileSim::CollectSplash(Origin, Targets, Impact.Pawn, Definition->SplashDamage, Definition->SplashRadiusCm, Settings.RadiusKnockbackZOffset, LineOfSight, Splash);
 	for (const FVeloxSplashHit& Hit : Splash)
 	{
-		ApplyDamage(*ASC, Hit.Actor, *Definition, Hit.Points, Hit.Dir, Origin, ShotSeq, true, this);
+		ApplyDamage(*ASC, Hit.Actor, *Definition, Hit.Points, Hit.Dir, Origin, ShotSeq, true, this, Confirm);
 #if !UE_BUILD_SHIPPING
 		Info.Splash.Emplace(Hit.Actor, Hit.Points);
 #endif
@@ -459,8 +484,29 @@ void AVeloxProjectile::ServerExplode(const FVeloxProjectileImpact& Impact)
 		OwnerMovement->ServerResolveSelfKnockbackShot(ShotSeq);
 	}
 
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileExplode seq=%u weapon=%s owner=%s at=%s age_ms=%.1f direct=%s splash=%d self=%s"), ShotSeq, *GetNameSafe(Definition), *GetNameSafe(OwnerPawn),
-		*Origin.ToCompactString(), State.Age * 1000.0, *GetNameSafe(Impact.Pawn), Splash.Num(), bSkipOwner ? TEXT("move_timed") : (bResolveOwnerHere ? TEXT("here") : TEXT("local")));
+	// B26: one server-confirmed hit marker per explosion with a non-owner victim (also after the shooter died: the
+	// controller comes from the PlayerState that owns the source ASC).
+	const uint8 ConfirmDamage = static_cast<uint8>(FMath::Clamp(Confirm.Damage, 0, static_cast<int32>(MAX_uint8)));
+	bool bConfirmSent = false;
+	if (Confirm.Victims > 0)
+	{
+		const APlayerState* ShooterPS = Cast<APlayerState>(ASC->GetOwnerActor());
+		if (AVeloxPlayerController* VeloxPC = ShooterPS ? Cast<AVeloxPlayerController>(ShooterPS->GetPlayerController()) : nullptr)
+		{
+			VeloxPC->ClientConfirmHit(ShotSeq, ConfirmDamage, Confirm.bKill ? VeloxHitConfirmFlags::Kill : VeloxHitConfirmFlags::None);
+			bConfirmSent = true;
+		}
+	}
+#if !UE_BUILD_SHIPPING
+	Info.ConfirmedVictims = Confirm.Victims;
+	Info.ConfirmedDamage = ConfirmDamage;
+	Info.bKill = Confirm.bKill;
+	Info.bConfirmSent = bConfirmSent;
+#endif
+
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileExplode seq=%u weapon=%s owner=%s at=%s age_ms=%.1f direct=%s splash=%d self=%s confirm_victims=%d confirm_dmg=%u kill=%d confirm_sent=%d"),
+		ShotSeq, *GetNameSafe(Definition), *GetNameSafe(OwnerPawn), *Origin.ToCompactString(), State.Age * 1000.0, *GetNameSafe(Impact.Pawn), Splash.Num(),
+		bSkipOwner ? TEXT("move_timed") : (bResolveOwnerHere ? TEXT("here") : TEXT("local")), Confirm.Victims, ConfirmDamage, Confirm.bKill ? 1 : 0, bConfirmSent ? 1 : 0);
 
 	// The authoritative explosion for every client, the owner included: outside any prediction window (an explosion
 	// inside the fire RPC's forward simulation would otherwise carry the shot's key and skip the predicting client).
@@ -478,6 +524,7 @@ void AVeloxProjectile::ServerExplode(const FVeloxProjectileImpact& Impact)
 		if (FVeloxGameplayEffectContext* Context = FVeloxGameplayEffectContext::Get(Params.EffectContext))
 		{
 			Context->ShotSeq = ShotSeq;
+			Context->PatternSeq = 0; // B21: projectiles have no spread pattern
 			Context->HitLocation = Origin;
 		}
 		ASC->ExecuteGameplayCue(Definition->ImpactCueTag, Params);
@@ -621,7 +668,9 @@ void AVeloxProjectile::RunOwnerSelfSplash(UVeloxMovementComponent& OwnerMovement
 		else if (bHit)
 		{
 			// The GE path: half damage, full knockback through UVeloxHealthSet -> AddKnockback(Server) (ADR 0003 section 2).
-			ApplyDamage(InSourceASC ? *InSourceASC : *VictimASC, Pawn, Definition, Hit.Points, Hit.Dir, Origin, InShotSeq, true, nullptr);
+			// The owner's own splash never confirms a hit (Q3 PERS_HITS excludes self).
+			FConfirmTally SelfOnly;
+			ApplyDamage(InSourceASC ? *InSourceASC : *VictimASC, Pawn, Definition, Hit.Points, Hit.Dir, Origin, InShotSeq, true, nullptr, SelfOnly);
 		}
 	}
 	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSelfSplash role=%s reason=%s seq=%u ts=%.6f pos=%s origin=%s hit=%d dist=%.2f points=%d"), bPredicted ? TEXT("client") : TEXT("server"), Reason, InShotSeq,
