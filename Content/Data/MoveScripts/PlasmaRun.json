@@ -1,0 +1,11 @@
+{
+ "name": "PlasmaRun",
+ "note": "L_CombatTest, task M2-08i / ADR 0003 B38. The server gives all weapons (infra/ci/nettest.sh). From the FireRun start pose the client selects the plasma gun during a 5 s warm-up (B24), then holds fire for 5 s (about 50 shots at the 0.1 s interval) at a floor point 2 m in front of it, so every ball explodes on the floor and both ends evaluate one move-timed self splash per shot (out of radius: hit=0, no knockback). nettest asserts one VeloxMoveShot (source=move) per server VeloxProjectileShot sequence and at most one server VeloxSelfSplash per sequence.",
+ "startYaw": 0,
+ "startLocation": [-1700, 0, 100],
+ "rows": [
+  {"duration": 5.0, "label": "warm-up (select PG)", "weapon": 8, "aimPoint": [-1500, 0, 0]},
+  {"duration": 5.0, "label": "plasma hold", "fire": true, "aimPoint": [-1500, 0, 0]},
+  {"duration": 2.0, "label": "settle", "aimPoint": [-1500, 0, 0]}
+ ]
+}

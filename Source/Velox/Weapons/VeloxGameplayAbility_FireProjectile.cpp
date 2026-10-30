@@ -220,8 +220,11 @@ void UVeloxGameplayAbility_FireProjectile::EndAbility(const FGameplayAbilitySpec
 		if (bWasCancelled)
 		{
 			// Death / reset: the shot is dropped with its life (the move stream's record, if any, expires as an orphan).
-			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShotDropped seq=%u reason=cancelled (fire RPC waiting for its move)"), PendingServerShot.ShotSeq);
+			// B38: its ammo was paid when the RPC was accepted; a dropped shot is not refunded (a dead player loses one round).
+			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShotDropped seq=%u reason=cancelled ammo_paid=%d (fire RPC waiting for its move)"), PendingServerShot.ShotSeq,
+				bPendingAmmoPaid ? 1 : 0);
 			bHasPendingServerShot = false;
+			bPendingAmmoPaid = false;
 			if (UVeloxWeaponInventoryComponent* Inventory = GetInventory())
 			{
 				Inventory->RemovePendingRpcShot(PendingServerShot.ShotSeq, this);
@@ -233,6 +236,7 @@ void UVeloxGameplayAbility_FireProjectile::EndAbility(const FGameplayAbilitySpec
 			LaunchPendingServerShot();
 		}
 	}
+	ClearPendingServerShotTimer();
 	if (TargetDataDelegateHandle.IsValid())
 	{
 		if (UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr)
@@ -269,8 +273,18 @@ void UVeloxGameplayAbility_FireProjectile::Reject(uint8 ShotSeq, const TCHAR* Re
 void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbilityTargetDataHandle& Data, FGameplayTag ApplicationTag)
 {
 	UAbilitySystemComponent* ASC = CurrentActorInfo ? CurrentActorInfo->AbilitySystemComponent.Get() : nullptr;
-	if (!ASC || !IsActive() || bHasPendingServerShot)
+	if (!ASC || !IsActive())
 	{
+		return;
+	}
+	if (bHasPendingServerShot)
+	{
+		// B38 / review defect 5: one target data per activation; a second one while the first waits is a modified client.
+		const FGameplayAbilityTargetData* Second = Data.Num() > 0 ? Data.Get(0) : nullptr;
+		const int32 SecondSeq = Second && Second->GetScriptStruct() == FGameplayAbilityTargetData_VeloxProjectileShot::StaticStruct()
+			? static_cast<const FGameplayAbilityTargetData_VeloxProjectileShot*>(Second)->ShotSeq
+			: -1;
+		UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxShotRpcIgnored seq=%d pending_seq=%u reason=pending"), SecondSeq, PendingServerShot.ShotSeq);
 		return;
 	}
 	// velox.combat.DebugHoldShotRpc (non-shipping): process this target data later, as a reliable resend would.
@@ -330,9 +344,15 @@ void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbi
 				Inventory->AddPendingRpcShot(Valid.ShotSeq, Valid.FireMoveTimeStamp, this);
 				const AVeloxPlayerState* PlayerState = CurrentActorInfo ? Cast<AVeloxPlayerState>(CurrentActorInfo->OwnerActor.Get()) : nullptr;
 				const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PlayerState ? PlayerState->GetCombatSettings() : nullptr);
-				FTimerHandle Timeout;
-				GetWorld()->GetTimerManager().SetTimer(Timeout, FTimerDelegate::CreateUObject(this, &ThisClass::OnPendingServerShotTimeout),
+				// B38: the timeout belongs to this instance and to this sequence (cleared on launch, cancel and EndAbility).
+				ClearPendingServerShotTimer();
+				PendingServerShotTimerSeq = Valid.ShotSeq;
+				GetWorld()->GetTimerManager().SetTimer(PendingServerShotTimer, FTimerDelegate::CreateUObject(this, &ThisClass::OnPendingServerShotTimeout),
 					FMath::Max(Settings.MaxRewindSeconds, UE_KINDA_SMALL_NUMBER), false);
+				// B38 / ruling 1c: the ammo is paid now, inside the RPC's prediction window, so the key ack and the cost
+				// replicate together (paying at the later launch lets the predicted cost rebound for one update).
+				ApplyAmmoCost(*Definition);
+				bPendingAmmoPaid = true;
 				UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxProjectileShotPending seq=%u fire_ts=%.6f"), Valid.ShotSeq, Valid.FireMoveTimeStamp);
 				return;
 			}
@@ -352,6 +372,7 @@ void UVeloxGameplayAbility_FireProjectile::LaunchPendingServerShot()
 		return;
 	}
 	bHasPendingServerShot = false;
+	ClearPendingServerShotTimer();
 	const FVeloxValidatedShot Shot = PendingServerShot;
 	UVeloxWeaponInventoryComponent* Inventory = GetInventory();
 	if (Inventory)
@@ -362,6 +383,7 @@ void UVeloxGameplayAbility_FireProjectile::LaunchPendingServerShot()
 	UAbilitySystemComponent* ASC = CurrentActorInfo ? CurrentActorInfo->AbilitySystemComponent.Get() : nullptr;
 	if (!Definition || !ASC)
 	{
+		bPendingAmmoPaid = false;
 		return;
 	}
 	// The activation's prediction key, as inside OnServerTargetData: the predicting client skips the fire cue echo and
@@ -369,7 +391,9 @@ void UVeloxGameplayAbility_FireProjectile::LaunchPendingServerShot()
 	FScopedPredictionWindow ScopedPrediction(ASC, CurrentActivationInfo.GetActivationPredictionKey(), false);
 	FVeloxMoveShotRecord Record;
 	const bool bAdopted = Inventory && Inventory->AdoptMoveShotRecord(Shot.ShotSeq, Record);
+	// bPendingAmmoPaid stays set through the launch (LaunchServerShot skips the cost), then resets with the pending state.
 	LaunchServerShot(*Definition, Shot.Origin, Shot.Dir, Shot.ShotSeq, true, Shot.FireMoveTimeStamp, bAdopted ? &Record : nullptr);
+	bPendingAmmoPaid = false;
 }
 
 void UVeloxGameplayAbility_FireProjectile::ResumePendingServerShot()
@@ -392,11 +416,27 @@ void UVeloxGameplayAbility_FireProjectile::CancelPendingServerShot()
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, true);
 	}
 	bHasPendingServerShot = false;
+	bPendingAmmoPaid = false;
+	ClearPendingServerShotTimer();
+}
+
+void UVeloxGameplayAbility_FireProjectile::ClearPendingServerShotTimer()
+{
+	if (PendingServerShotTimer.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(PendingServerShotTimer);
+		}
+		PendingServerShotTimer.Invalidate();
+	}
 }
 
 void UVeloxGameplayAbility_FireProjectile::OnPendingServerShotTimeout()
 {
-	if (bHasPendingServerShot)
+	PendingServerShotTimer.Invalidate();
+	// B38: only the shot this timer was armed for (a later pending shot keeps waiting for its own move or timeout).
+	if (bHasPendingServerShot && PendingServerShot.ShotSeq == PendingServerShotTimerSeq)
 	{
 		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShotPendingTimeout seq=%u fire_ts=%.6f (no owner move reached the fire stamp)"), PendingServerShot.ShotSeq,
 			PendingServerShot.FireMoveTimeStamp);
@@ -516,6 +556,11 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 			Launch.SelfSplashEventId = AVeloxProjectile::ScheduleOwnerSelfSplash(*Movement, Definition, ASC, EventTime, SplashOrigin, ShotSeq, false, bSelfSplashQuad);
 			// ADR 0003 B35: no move-shot for this sequence (the fire move merged in a burst loss, or no move stream).
 			LastServerShotSource = TEXT("rpc");
+			// B38: a fire move with this sequence arriving later must not schedule a second self splash (reason=rpc_done).
+			if (UVeloxWeaponInventoryComponent* Inventory = GetInventory())
+			{
+				Inventory->NoteRpcLaunchedShot(ShotSeq);
+			}
 			const double Late = LateMs(LastMoveTimeStamp, ClientFireMoveTimeStamp, Movement->MinTimeBetweenTimeStampResets);
 			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileShot seq=%u weapon=%s fire_ts=%.6f client_ts=%.6f last_ts=%.6f flight_ms=%.1f event_ts=%.6f splash_origin=%s source=rpc late_ms=%.1f"), ShotSeq,
 				*GetNameSafe(&Definition), FireMoveTimeStamp, ClientFireMoveTimeStamp, LastMoveTimeStamp, Flight * 1000.0, EventTime, *SplashOrigin.ToCompactString(), Late);
@@ -536,7 +581,10 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 		UE_LOG(LogVeloxCombat, Warning, TEXT("VeloxProjectileShot seq=%u: %s has no ProjectileClass (base class used)"), ShotSeq, *GetNameSafe(&Definition));
 	}
 
-	ApplyAmmoCost(Definition);
+	if (!bPendingAmmoPaid)
+	{
+		ApplyAmmoCost(Definition);
+	}
 	if (Definition.FireCueTag.IsValid())
 	{
 		// Inside the activation's prediction window on a remote shot: the predicting client skips the echo.

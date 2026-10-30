@@ -322,7 +322,9 @@ void UVeloxMovementComponent::ServerBeginSelfKnockbackShot(uint8 Seq)
 	{
 		ConfirmedSelfKnockbackSeq = static_cast<uint8>(Seq - 1);
 	}
-	ServerUnresolvedSelfKnockbackSeqs.Add(Seq);
+	// ADR 0003 B38: idempotent per sequence (sequences are unique per life, B25); a duplicate would never resolve and would
+	// stop ServerNoteShot from advancing ConfirmedSelfKnockbackSeq for the rest of the life.
+	ServerUnresolvedSelfKnockbackSeqs.AddUnique(Seq);
 }
 
 void UVeloxMovementComponent::ServerResolveSelfKnockbackShot(uint8 Seq)
