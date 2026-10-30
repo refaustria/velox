@@ -82,6 +82,8 @@ struct FVeloxSegmentBlockInfo
 	/** Segment target (raycast end). */
 	FVector Target = FVector::ZeroVector;
 	FVector Hit = FVector::ZeroVector;
+	/** Distance from the raycast start to the hit (cm; D44 report field). */
+	float HitDistCm = 0.f;
 	/** Distance from the raycast start to the segment target (cm). */
 	float RemainingCm = 0.f;
 };

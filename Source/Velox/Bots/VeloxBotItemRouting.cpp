@@ -418,6 +418,12 @@ UVeloxBotItemRouter* UVeloxBotItemRouter::Get(const UWorld* World)
 	return World ? World->GetSubsystem<UVeloxBotItemRouter>() : nullptr;
 }
 
+FVector UVeloxBotItemRouter::GetOnMeshExtent()
+{
+	const float Radius = GetDefault<UVeloxBotItemRouter>()->AirborneProjectRadiusCm;
+	return FVector(Radius, Radius, UVeloxBotSettings::Get().OnMeshHalfHeightCm);
+}
+
 bool UVeloxBotItemRouter::ShouldCreateSubsystem(UObject* Outer) const
 {
 	if (!Super::ShouldCreateSubsystem(Outer))
@@ -668,7 +674,8 @@ bool UVeloxBotItemRouter::BeginEvaluation(AVeloxBotController& Bot, FBotRouteSta
 	const FVector AgentLocation = BotLocation;
 	const bool bAirborne = !Movement->IsOnGround();
 	{
-		const FVector Extent(AirborneProjectRadiusCm, AirborneProjectRadiusCm, bAirborne ? AirborneProjectDownCm * 0.5f : GroundProjectHalfHeightCm);
+		// D41: on the ground the shared on-mesh extent, so the router, the controller's off-mesh test and the D35 check agree.
+		const FVector Extent = bAirborne ? FVector(AirborneProjectRadiusCm, AirborneProjectRadiusCm, AirborneProjectDownCm * 0.5f) : GetOnMeshExtent();
 		const FVector Probe = bAirborne ? BotLocation - FVector(0.0, 0.0, AirborneProjectDownCm * 0.5f) : BotLocation;
 		FNavLocation Projected;
 		if (!NavSys->ProjectPointToNavigation(Probe, Projected, Extent, NavData, Filter))
