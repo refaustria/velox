@@ -147,6 +147,12 @@ namespace VeloxMoveSim
 	VELOX_API FVector JumpPadLaunchVelocity(const FVector& From, const FVector& Target, float GravityZ);
 
 	/**
+	 * Ballistic position at time T of a body launched from Origin with velocity V0 under GravityZ (cm/s^2, negative is down):
+	 * Origin + V0 * T + 0.5 * (0, 0, GravityZ) * T^2. No drag, no collision (bots: jump pad landing, ADR 0005 section 4).
+	 */
+	VELOX_API FVector BallisticPoint(const FVector& Origin, const FVector& V0, float GravityZ, float T);
+
+	/**
 	 * Reference frame, no collision (tests and bot planning; the CMC adds sweeps, floor logic and the apex substep).
 	 * Ground + bJumpHeld: Jump first (no friction in the jump frame, Q3 PM_WalkMove checks jump before PM_Friction),
 	 * then the frame continues as air. Ground otherwise: GroundMove, Z = 0. Air: AirMove + ApplyGravity.

@@ -17,7 +17,13 @@ Layout:
   edge (same geometry as pad A of L_MovementTest: apex 30 cm above the platform for the capsule),
   Yellow Armor on a 15 degree ramp (y 1200) with a platform at its top,
   50 m corridor along the north wall (x -2500..2500, 250 high wall at y 1500, markers every 500 cm), Haste at its start,
-  Quad near the centre (500, 0), 8 PlayerStarts, one CameraActor tagged Intermission above the arena, static sun and
+  Quad near the centre (500, 0), 8 PlayerStarts,
+  M4 (ADR 0005 sections 4 and 14): a third platform in the south-east quadrant (350 cm high, 400 x 400, no pad,
+  Ammo.Rockets at its centre - moved there from its grid slot, which keeps a label - and a label) reachable only by a
+  rocket jump, and AVeloxNavLink actors for the bots: one JumpPad
+  link per pad (pad floor point -> the platform centre), Drop links at every free platform edge (60 cm inside the edge ->
+  the floor 150 cm out; edges facing the corridor wall 100 cm away and the ramp's own edge get none), one RocketJump link
+  onto the rockets platform (450 cm east of its east edge -> its centre), one NavMeshBoundsVolume over the arena, one CameraActor tagged Intermission above the arena, static sun and
   sky light, WorldSettings.DefaultGameMode = AVeloxGameMode_FFA (AVeloxGameMode until task 05 adds the FFA class).
 """
 import math
@@ -46,8 +52,23 @@ GRID = [
     "Weapon.MachineGun", "Weapon.Shotgun", "Weapon.RocketLauncher", "Weapon.LightningGun", "Weapon.Railgun", "Weapon.PlasmaGun",
     "Powerup.Regen", "Powerup.BattleSuit",
 ]
+# M4: grid slots whose item now stands elsewhere (one placed instance per definition: Velox.Items.ItemTestMap asserts 23
+# distinct items, and the bots' item goals by tag stay unambiguous). Value: the slot's label text.
+GRID_MOVED = {"Ammo.Rockets": "moved to the rocket-jump\nplatform (south-east)"}
 
 PLATFORM_TOP = 300.0
+MEGA_PAD = (-2300.0, 1200.0)      # (pad x, y): platform x -1700..-1300, y 1000..1400
+RA_PAD = (1300.0, 1200.0)         # platform x 1900..2300, y 1000..1400
+
+# Third platform (M4, ADR 0005 section 14): reachable only by a rocket jump, carries Ammo.Rockets as the reason to go.
+ROCKETS_CENTER = (1800.0, -1000.0)
+ROCKETS_TOP = 350.0
+ROCKETS_SIZE = 400.0
+ROCKET_JUMP_RUNUP = 450.0         # link start east of the platform's east edge (run-up + rise before the edge)
+
+# Nav link conventions (Tools/editor/README.md): drop start 60 cm inside the edge, end on the floor 150 cm out.
+DROP_INSET = 60.0
+DROP_OUT = 150.0
 PLATFORM_SIZE = 400.0
 PAD_TO_EDGE = 600.0      # pad centre to the platform's near edge (pad A of the movement map)
 PAD_LAUNCH_Z = 70.0      # trigger centre above the floor
@@ -85,11 +106,14 @@ STARTS = [  # (label, x, y, yaw)
 ERRORS = []
 COUNTS = {}
 EXPECTED = {
-    "ground": 1, "wall": 4, "cross": 2, "platform": 3, "ramp": 1, "corridorwall": 1, "marker": 11,
+    "ground": 1, "wall": 4, "cross": 2, "platform": 4, "ramp": 1, "corridorwall": 1, "marker": 11,
     "pickup": 23, "jumppad": 2, "targetpoint": 2, "playerstart": 8, "camera": 1, "light": 2,
+    "navbounds": 1,
+    "navlink": 2 + 12 + 1,   # 2 JumpPad, 12 Drop (Mega 3, RA 3, rockets 4, ramp top 2), 1 RocketJump
 }
 MATS = {}
 EAS = None
+LINKS = []
 STATIC = unreal.ComponentMobility.STATIC
 _MESH = {}
 PADS = []
@@ -197,8 +221,12 @@ def build_arena():
 def build_grid():
     for i, name in enumerate(GRID):
         x = GRID_X0 + i * GRID_DX
-        _, da = place_item(name, (x, GRID_Y, 0))
-        text(f"Label_{name.replace('.', '_')}", (x, -HALF_Y + 10, 260), respawn_text(name, da), 90, folder="Labels")
+        if name in GRID_MOVED:
+            # The slot stays (marker, label) so every other grid item keeps its position.
+            text(f"Label_{name.replace('.', '_')}", (x, -HALF_Y + 10, 260), f"{name}\n{GRID_MOVED[name]}", 90, folder="Labels")
+        else:
+            _, da = place_item(name, (x, GRID_Y, 0))
+            text(f"Label_{name.replace('.', '_')}", (x, -HALF_Y + 10, 260), respawn_text(name, da), 90, folder="Labels")
         box("marker", f"GridMarker_{i + 1:02d}", (x, GRID_Y, 0.5), (90, 90, 1), "MarkerA" if i % 2 == 0 else "MarkerB",
             collide=False, folder="Items")
 
@@ -229,13 +257,74 @@ def build_platform_item(tag, item, pad_x, y):
     PADS.append(a)
     _, da = place_item(item, (cx, y, PLATFORM_TOP), folder=tag)
     text(f"Label_{tag}", (pad_x - 150, y, 140), respawn_text(item, da) + "\n3 m platform, jump pad", 0, folder=tag)
+    # Bots: pad trigger centre on the floor -> the item at the platform centre (the authored landing point).
+    nav_link(f"{tag}_PadLink", unreal.VeloxNavLinkType.JUMP_PAD, (pad_x, y, 0.0), (cx, y, PLATFORM_TOP), pad=a)
+    drop_links(tag, cx, y, PLATFORM_SIZE, PLATFORM_TOP, "SEW")
     box("marker", f"{tag}_PadTargetMarker", (edge, y, PLATFORM_TOP + 2), (120, 120, 4), "Target", collide=False,
         folder=tag, mesh_path=CYLINDER)
 
 
+def nav_link(label, link_type, start, end, pad=None, both_ways=False, required_speed=0.0, folder="NavLinks"):
+    """AVeloxNavLink at the start point (LinkStart = 0), LinkEnd relative; ADR 0005 section 4."""
+    a = EAS.spawn_actor_from_class(unreal.VeloxNavLink, unreal.Vector(*start))
+    a.set_actor_label(label)
+    a.set_folder_path(folder)
+    a.set_editor_property("type", link_type)
+    a.set_editor_property("link_start", unreal.Vector(0.0, 0.0, 0.0))
+    a.set_editor_property("link_end", unreal.Vector(end[0] - start[0], end[1] - start[1], end[2] - start[2]))
+    a.set_editor_property("both_ways", both_ways)
+    a.set_editor_property("required_speed_cm_s", required_speed)
+    if pad is not None:
+        a.set_editor_property("jump_pad", pad)
+    count("navlink")
+    LINKS.append(a)
+    return a
+
+
+def drop_links(tag, cx, cy, size, top, edges):
+    """Drop links from the platform top (DROP_INSET inside the edge) to the floor (DROP_OUT outside), edge midpoints."""
+    h = size / 2
+    for e in edges:
+        d = {"N": (0.0, 1.0), "S": (0.0, -1.0), "E": (1.0, 0.0), "W": (-1.0, 0.0)}[e]
+        start = (cx + d[0] * (h - DROP_INSET), cy + d[1] * (h - DROP_INSET), top)
+        end = (cx + d[0] * (h + DROP_OUT), cy + d[1] * (h + DROP_OUT), 0.0)
+        nav_link(f"{tag}_Drop{e}", unreal.VeloxNavLinkType.DROP, start, end)
+
+
+def build_rockets_platform():
+    """M4 third platform: 350 cm, 400 x 400, no pad, Ammo.Rockets at its centre; reached by the RocketJump link only."""
+    tag = "Rockets"
+    cx, cy = ROCKETS_CENTER
+    box("platform", f"{tag}_Platform", (cx, cy, ROCKETS_TOP / 2), (ROCKETS_SIZE, ROCKETS_SIZE, ROCKETS_TOP), "Platform", folder=tag)
+    _, da = place_item("Ammo.Rockets", (cx, cy, ROCKETS_TOP), folder=tag)
+    east = cx + ROCKETS_SIZE / 2
+    text(f"Label_{tag}", (east + 60, cy, 200), respawn_text("Ammo.Rockets", da) + "\n3.5 m platform, rocket jump", 0, folder=tag)
+    nav_link(f"{tag}_RocketJumpLink", unreal.VeloxNavLinkType.ROCKET_JUMP, (east + ROCKET_JUMP_RUNUP, cy, 0.0), (cx, cy, ROCKETS_TOP))
+    drop_links(tag, cx, cy, ROCKETS_SIZE, ROCKETS_TOP, "NSEW")
+
+
+NAV_BOUNDS_BRUSH = 200.0   # a Python-spawned NavMeshBoundsVolume gets the default 200 cm cube brush; scale = size / 200
+
+
+def nav_bounds(label, center, size):
+    """NavMeshBoundsVolume over the whole map (ADR 0005 section 3; bWholeWorldNavigable is not a config property in 5.8)."""
+    v = EAS.spawn_actor_from_class(unreal.NavMeshBoundsVolume, unreal.Vector(*center))
+    v.set_actor_label(label)
+    v.set_folder_path("Navigation")
+    v.set_actor_scale3d(unreal.Vector(size[0] / NAV_BOUNDS_BRUSH, size[1] / NAV_BOUNDS_BRUSH, size[2] / NAV_BOUNDS_BRUSH))
+    origin, extent = v.get_actor_bounds(False)
+    log(f"{label}: origin {origin} extent {extent}")
+    want = unreal.Vector(size[0] / 2, size[1] / 2, size[2] / 2)
+    if abs(extent.x - want.x) > 1.0 or abs(extent.y - want.y) > 1.0 or abs(extent.z - want.z) > 1.0:
+        fail(f"{label}: bounds extent {extent} differs from {want} (brush is not the default 200 cm cube)")
+    count("navbounds")
+    return v
+
+
 def build_platforms():
-    build_platform_item("MegaHealth", "Health.Mega", -2300.0, 1200.0)
-    build_platform_item("RedArmor", "Armor.Red", 1300.0, 1200.0)
+    build_platform_item("MegaHealth", "Health.Mega", *MEGA_PAD)
+    build_platform_item("RedArmor", "Armor.Red", *RA_PAD)
+    build_rockets_platform()
 
 
 def build_ramp():
@@ -248,6 +337,8 @@ def build_ramp():
     box("ramp", "Ramp_YellowArmor", (cx, RAMP_Y, cz), (RAMP_LEN, RAMP_W, thick), "RampWalkable",
         rot=unreal.Rotator(0, RAMP_DEG, 0), folder="YellowArmor")
     box("platform", "Ramp_TopPlatform", (RAMP_X0 + run + 200, RAMP_Y, rise / 2), (400, RAMP_W, rise), "Platform", folder="YellowArmor")
+    # Bots: east and south edges of the ramp top (north faces the corridor wall, west is the ramp).
+    drop_links("RampTop", RAMP_X0 + run + 200, RAMP_Y, 400.0, rise, "SE")
     mid = RAMP_LEN / 2
     _, da = place_item("Armor.Yellow", (RAMP_X0 + mid * math.cos(rad), RAMP_Y, mid * math.sin(rad)), folder="YellowArmor")
     text("Label_YellowArmor", (RAMP_X0 - 100, RAMP_Y, 140), respawn_text("Armor.Yellow", da) + "\n15 deg ramp", 0, folder="YellowArmor")
@@ -310,11 +401,14 @@ def set_game_mode():
 
 
 def check_pads():
+    world = unreal.EditorLevelLibrary.get_editor_world()
     for a in PADS:
         v = a.compute_launch_velocity(VALIDATION_GRAVITY_Z)
         log(f"{a.get_actor_label()}: launch {v} |v|={v.length():.0f} cm/s")
         if v.length() <= 0.0 or v.length() > PAD_MAX_LAUNCH_SPEED:
             fail(f"{a.get_actor_label()}: launch speed {v.length():.0f} out of range")
+        # Informational; the runtime check is velox.bots.DumpPadLandings on the server.
+        log(f"{a.get_actor_label()}: compute_landing_point {a.compute_landing_point(world)}")
 
 
 def build_map():
@@ -341,10 +435,12 @@ def build_map():
     build_corridor()
     build_quad()
     build_starts_camera_lights()
+    # Arena plus walls, floor slab to above the platforms (bots path on walkable surfaces only).
+    nav_bounds("NavMeshBounds", (0.0, 0.0, 300.0), (2 * HALF_X + 400, 2 * HALF_Y + 400, 1000.0))
     set_game_mode()
     check_pads()
 
-    # Markers: 18 grid + 11 corridor + 2 pad targets = 31; platforms: 2 item platforms + ramp top = 3.
+    # Markers: 18 grid + 11 corridor + 2 pad targets = 31; platforms: 2 item platforms + ramp top + rockets platform = 4.
     expected = dict(EXPECTED)
     expected["marker"] = len(GRID) + 11 + 2
     log("spawned: " + ", ".join(f"{k}={v}" for k, v in sorted(COUNTS.items())))
@@ -357,6 +453,14 @@ def build_map():
     log(f"VeloxPickups={len(pickups)} distinct definitions={len(defs)} (expected 23/23)")
     if len(pickups) != 23 or len(defs) != 23:
         fail("pickup count or distinct definition count differs from 23")
+    links = [a for a in actors if isinstance(a, unreal.VeloxNavLink)]
+    kinds = {}
+    for a in links:
+        k = str(a.get_editor_property("type"))
+        kinds[k] = kinds.get(k, 0) + 1
+    log(f"VeloxNavLinks={len(links)} by type {kinds} (expected {EXPECTED['navlink']}: 2 JumpPad, 12 Drop, 1 RocketJump)")
+    if len(links) != EXPECTED["navlink"]:
+        fail(f"nav link count {len(links)} differs from {EXPECTED['navlink']}")
     unreal.SystemLibrary.execute_console_command(unreal.EditorLevelLibrary.get_editor_world(), "MAP CHECK")
     if not les.save_current_level():
         fail("save_current_level failed")
