@@ -39,6 +39,12 @@ namespace VeloxBotSubsystemPrivate
 	constexpr float NavPollSeconds = 0.1f;
 	/** One warning if the initial build has not finished after this long (ADR 0005 section 13: <= 1 s expected). */
 	constexpr double NavSlowWarnSeconds = 30.0;
+	/** Task M4-08: fixed work of the VeloxBotCost calib_* fields (measurement sizes, not tunables). */
+	constexpr int32 CalibAluIterations = 20000;
+	constexpr int32 CalibMemReads = 2000;
+	constexpr int32 CalibTableEntries = 1 << 18;
+	constexpr int32 CalibAllocRounds = 4;
+	constexpr int32 CalibClockReads = 1000;
 	/** Content folder of the DA_Bot_* presets (Tools/editor/create_bot_content.py). */
 	const TCHAR* const BotContentDir = TEXT("/Game/Bots");
 
@@ -102,6 +108,10 @@ void UVeloxBotSubsystem::Deinitialize()
 		}
 	}
 	NavReadyCallbacks.Reset();
+	FWorldDelegates::OnWorldTickStart.Remove(TickStartHandle);
+	FWorldDelegates::OnWorldPreActorTick.Remove(PreActorHandle);
+	FWorldDelegates::OnWorldPostActorTick.Remove(PostActorHandle);
+	FWorldDelegates::OnWorldTickEnd.Remove(TickEndHandle);
 	Super::Deinitialize();
 }
 
@@ -116,6 +126,11 @@ void UVeloxBotSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	BudgetWindowStart = InWorld.GetTimeSeconds();
 	BudgetFrameStart = GFrameCounter;
 	InWorld.GetTimerManager().SetTimer(BudgetHandle, this, &ThisClass::LogBudget, UVeloxBotCombatSettings::Get().BudgetLogIntervalSeconds, true);
+	// Task M4-08: the frame phases of the VeloxBotCost line (report-only).
+	TickStartHandle = FWorldDelegates::OnWorldTickStart.AddUObject(this, &ThisClass::HandleWorldTickStart);
+	PreActorHandle = FWorldDelegates::OnWorldPreActorTick.AddUObject(this, &ThisClass::HandleWorldPreActorTick);
+	PostActorHandle = FWorldDelegates::OnWorldPostActorTick.AddUObject(this, &ThisClass::HandleWorldPostActorTick);
+	TickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &ThisClass::HandleWorldTickEnd);
 
 	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(&InWorld);
 	if (!NavSys)
@@ -560,6 +575,135 @@ void UVeloxBotSubsystem::RecordBotTick(const AVeloxBotController& Bot, double Mi
 	}
 }
 
+const TCHAR* LexToString(EVeloxBotCost Cost)
+{
+	switch (Cost)
+	{
+	case EVeloxBotCost::Super: return TEXT("super");
+	case EVeloxBotCost::Perceive: return TEXT("perceive");
+	case EVeloxBotCost::PerceiveTraces: return TEXT("traces");
+	case EVeloxBotCost::Decide: return TEXT("decide");
+	case EVeloxBotCost::Move: return TEXT("move");
+	case EVeloxBotCost::OffMesh: return TEXT("offmesh");
+	case EVeloxBotCost::Follow: return TEXT("follow");
+	case EVeloxBotCost::Segment: return TEXT("segment");
+	case EVeloxBotCost::Overlay: return TEXT("overlay");
+	case EVeloxBotCost::Act: return TEXT("act");
+	case EVeloxBotCost::Apply: return TEXT("apply");
+	case EVeloxBotCost::Fire: return TEXT("fire");
+	default: break;
+	}
+	return TEXT("?");
+}
+
+void VeloxBotCost::Note(const UWorld* World, EVeloxBotCost Cost, double Micros)
+{
+	if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World))
+	{
+		Bots->NoteCost(Cost, Micros);
+	}
+}
+
+void UVeloxBotSubsystem::HandleWorldTickStart(UWorld* InWorld, ELevelTick /*TickType*/, float /*DeltaSeconds*/)
+{
+	if (InWorld == GetWorld())
+	{
+		FrameTickStartCycles = FPlatformTime::Cycles64();
+		FramePreActorCycles = 0;
+		FramePostActorCycles = 0;
+	}
+}
+
+void UVeloxBotSubsystem::HandleWorldPreActorTick(UWorld* InWorld, ELevelTick /*TickType*/, float /*DeltaSeconds*/)
+{
+	if (InWorld == GetWorld() && FrameTickStartCycles != 0)
+	{
+		FramePreActorCycles = FPlatformTime::Cycles64();
+	}
+}
+
+void UVeloxBotSubsystem::HandleWorldPostActorTick(UWorld* InWorld, ELevelTick /*TickType*/, float /*DeltaSeconds*/)
+{
+	if (InWorld == GetWorld() && FramePreActorCycles != 0)
+	{
+		FramePostActorCycles = FPlatformTime::Cycles64();
+	}
+}
+
+void UVeloxBotSubsystem::HandleWorldTickEnd(UWorld* InWorld, ELevelTick /*TickType*/, float /*DeltaSeconds*/)
+{
+	if (InWorld != GetWorld() || FrameTickStartCycles == 0)
+	{
+		return;
+	}
+	const uint64 End = FPlatformTime::Cycles64();
+	const auto Us = [](uint64 A, uint64 B) { return FPlatformTime::ToMilliseconds64(B - A) * 1000.0; };
+	const double World = Us(FrameTickStartCycles, End);
+	FrameWorldMicros += World;
+	FrameWorldMaxMicros = FMath::Max(FrameWorldMaxMicros, World);
+	if (FramePreActorCycles != 0 && FramePostActorCycles != 0)
+	{
+		FrameDispatchMicros += Us(FrameTickStartCycles, FramePreActorCycles);
+		FrameActorMicros += Us(FramePreActorCycles, FramePostActorCycles);
+		FrameFlushMicros += Us(FramePostActorCycles, End);
+	}
+	++FrameCount;
+	FrameTickStartCycles = 0;
+}
+
+FVeloxBotCalib UVeloxBotSubsystem::RunCalib()
+{
+	using namespace VeloxBotSubsystemPrivate;
+	if (CalibTable.Num() == 0)
+	{
+		CalibTable.SetNumUninitialized(CalibTableEntries);
+		for (int32 i = 0; i < CalibTableEntries; ++i)
+		{
+			CalibTable[i] = static_cast<uint32>((static_cast<uint64>(i) * 2654435761ull + 12345u) % CalibTableEntries);
+		}
+	}
+	const auto Us = [](uint64 A, uint64 B) { return FPlatformTime::ToMilliseconds64(B - A) * 1000.0; };
+	FVeloxBotCalib Out;
+	const uint64 T0 = FPlatformTime::Cycles64();
+	volatile uint64 Lcg = CalibSink | 1u;
+	for (int32 i = 0; i < CalibAluIterations; ++i)
+	{
+		Lcg = Lcg * 6364136223846793005ull + 1442695040888963407ull;
+	}
+	const uint64 T1 = FPlatformTime::Cycles64();
+	uint32 J = static_cast<uint32>(Lcg) & (CalibTableEntries - 1);
+	for (int32 i = 0; i < CalibMemReads; ++i)
+	{
+		J = CalibTable[(J + static_cast<uint32>(i) * 7919u) & (CalibTableEntries - 1)];
+	}
+	const uint64 T2 = FPlatformTime::Cycles64();
+	void* Blocks[64];
+	for (int32 r = 0; r < CalibAllocRounds; ++r)
+	{
+		for (int32 i = 0; i < UE_ARRAY_COUNT(Blocks); ++i)
+		{
+			Blocks[i] = FMemory::Malloc(32 + 16 * i);
+		}
+		for (int32 i = 0; i < UE_ARRAY_COUNT(Blocks); ++i)
+		{
+			FMemory::Free(Blocks[i]);
+		}
+	}
+	const uint64 T3 = FPlatformTime::Cycles64();
+	uint64 ClockSum = 0;
+	for (int32 i = 0; i < CalibClockReads; ++i)
+	{
+		ClockSum += FPlatformTime::Cycles64();
+	}
+	const uint64 T4 = FPlatformTime::Cycles64();
+	CalibSink += Lcg + J + ClockSum;
+	Out.AluMicros = Us(T0, T1);
+	Out.MemMicros = Us(T1, T2);
+	Out.AllocMicros = Us(T2, T3);
+	Out.ClockMicros = Us(T3, T4);
+	return Out;
+}
+
 void UVeloxBotSubsystem::LogBudget()
 {
 	const UWorld* World = GetWorld();
@@ -579,7 +723,33 @@ void UVeloxBotSubsystem::LogBudget()
 		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotBudget bots=%d mean_us=%.1f max_us=%.1f max_path_us=%.1f max_fire_us=%.1f paths=%.1f/s traces=%.1f/s navrays=%.1f/s ticks=%lld over=%d stalls=%d frames=%llu window=%.1f s run_mean_us=%.1f run_max_us=%.1f heard=%d dodges=%d"), NumLive,
 			BudgetMicros / BudgetTicks, BudgetMaxMicros, BudgetMaxPathMicros, BudgetMaxFireMicros, BudgetPaths / Window, BudgetTraces / Window, BudgetNavRaycasts / Window, BudgetTicks, BudgetOver, BudgetStalls, static_cast<uint64>(GFrameCounter - BudgetFrameStart), Window, GetBudgetMeanMicros(),
 			TotalMaxMicros, Heard, Dodges);
+		// Task M4-08 (report-only): per category the mean wall clock per bot tick and the largest single scope (us);
+		// nested categories are inclusive in their parent (VeloxBotCost.h). frame_*: the server world tick per frame.
+		FString Cats;
+		for (int32 i = 0; i < static_cast<int32>(EVeloxBotCost::Num); ++i)
+		{
+			Cats += FString::Printf(TEXT(" %s=%.1f/%.0f"), LexToString(static_cast<EVeloxBotCost>(i)), CostSum[i] / BudgetTicks, CostMax[i]);
+		}
+		const double Frames = FMath::Max<double>(FrameCount, 1.0);
+		// calib_*: fixed work on the game thread, timed once per window (about 0.2 ms in all). They stay flat when the bot
+		// categories and the non-bot frame (frame_other_us) rise together: the process runs its own code slower (task M4-08),
+		// not the CPU, the memory, the allocator or the clock.
+		const FVeloxBotCalib Calib = RunCalib();
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotCost ticks=%lld%s frame_us=%.1f frame_max_us=%.0f frame_dispatch_us=%.1f frame_actors_us=%.1f frame_flush_us=%.1f frame_bots_us=%.1f frame_other_us=%.1f world_frames=%lld calib_alu_us=%.1f calib_mem_us=%.1f calib_alloc_us=%.1f calib_clock_us=%.1f"),
+			BudgetTicks, *Cats, FrameWorldMicros / Frames, FrameWorldMaxMicros, FrameDispatchMicros / Frames, FrameActorMicros / Frames, FrameFlushMicros / Frames,
+			BudgetMicros / Frames, FMath::Max(0.0, (FrameWorldMicros - BudgetMicros) / Frames), FrameCount, Calib.AluMicros, Calib.MemMicros, Calib.AllocMicros, Calib.ClockMicros);
 	}
+	for (int32 i = 0; i < static_cast<int32>(EVeloxBotCost::Num); ++i)
+	{
+		CostSum[i] = 0.0;
+		CostMax[i] = 0.0;
+	}
+	FrameWorldMicros = 0.0;
+	FrameWorldMaxMicros = 0.0;
+	FrameDispatchMicros = 0.0;
+	FrameActorMicros = 0.0;
+	FrameFlushMicros = 0.0;
+	FrameCount = 0;
 	BudgetWindowStart = Now;
 	BudgetMicros = 0.0;
 	BudgetMaxMicros = 0.0;

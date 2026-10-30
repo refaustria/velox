@@ -6,6 +6,7 @@
 #include "Bots/VeloxBotCoreTypes.h"
 #include "Bots/VeloxBotLog.h"
 #include "Bots/VeloxBotPathFollowingComponent.h"
+#include "Bots/VeloxBotCost.h"
 #include "Bots/VeloxBotSubsystem.h"
 #include "Bots/VeloxWeaponChoice.h"
 #include "Character/VeloxCharacter.h"
@@ -467,12 +468,16 @@ namespace VeloxBotCombatGlue
 				// World-only LOS: pawn capsules ignore the Weapon channel, so other players never block sight.
 				FCollisionQueryParams Query = TraceParams;
 				Query.AddIgnoredActor(Other);
-				++Traces;
-				bool bClear = !World->LineTraceTestByChannel(Eye, Centre, Velox_TraceChannel_Weapon, Query);
-				if (!bClear)
+				bool bClear = false;
 				{
+					const FVeloxBotCostScope Cost(World, EVeloxBotCost::PerceiveTraces);
 					++Traces;
-					bClear = !World->LineTraceTestByChannel(Eye, Centre + FVector(0.0, 0.0, Settings.HeadOffsetCm), Velox_TraceChannel_Weapon, Query);
+					bClear = !World->LineTraceTestByChannel(Eye, Centre, Velox_TraceChannel_Weapon, Query);
+					if (!bClear)
+					{
+						++Traces;
+						bClear = !World->LineTraceTestByChannel(Eye, Centre + FVector(0.0, 0.0, Settings.HeadOffsetCm), Velox_TraceChannel_Weapon, Query);
+					}
 				}
 				if (!bClear)
 				{

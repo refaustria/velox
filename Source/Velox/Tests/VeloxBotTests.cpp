@@ -2241,3 +2241,33 @@ bool FVeloxBotsFollowTest::RunTest(const FString& Parameters)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+// ------------------------------------------------------------------------------------------ task M4-08: cost counters
+// Velox.Bots.CostCategories  The VeloxBotCost line's category names: every category has a distinct field name (the
+// runner keys on them), and a scope without a bot subsystem (no world) is a no-op.
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+#include "Bots/VeloxBotCost.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxBotsCostCategoriesTest, "Velox.Bots.CostCategories", VeloxBotTestsShared::BotTestFlags)
+bool FVeloxBotsCostCategoriesTest::RunTest(const FString& Parameters)
+{
+	TSet<FString> Names;
+	for (int32 i = 0; i < static_cast<int32>(EVeloxBotCost::Num); ++i)
+	{
+		const FString Name = LexToString(static_cast<EVeloxBotCost>(i));
+		TestNotEqual(FString::Printf(TEXT("category %d has a name"), i), Name, FString(TEXT("?")));
+		TestFalse(FString::Printf(TEXT("category %d name contains no '=' or ' '"), i), Name.Contains(TEXT("=")) || Name.Contains(TEXT(" ")));
+		TestFalse(FString::Printf(TEXT("category name %s is unique"), *Name), Names.Contains(Name));
+		Names.Add(Name);
+	}
+	TestEqual(TEXT("Num is not a category"), FString(LexToString(EVeloxBotCost::Num)), FString(TEXT("?")));
+	{
+		// No world: the scope must not crash and must not need a subsystem.
+		const FVeloxBotCostScope Scope(nullptr, EVeloxBotCost::Act);
+	}
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS
