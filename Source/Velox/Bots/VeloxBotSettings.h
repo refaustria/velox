@@ -59,6 +59,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Goals", Meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float FightWeakWeaponScale = 0.25f;
 
+	/**
+	 * Need of an unowned weapon for a bot whose WeaponStrength is 1 (ADR 0005 D22): Need = lerp(1, this, WeaponStrength),
+	 * so an armed bot stops hoarding weapons while an MG-only bot still goes and arms.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Goals", Meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float UnownedWeaponNeedFloor = 0.3f;
+
 	/** Pad / rocket jump: arrival radius at the link start (cm; ADR 0005 section 4, D4). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
 	float LinkStartAcceptanceCm = 30.f;

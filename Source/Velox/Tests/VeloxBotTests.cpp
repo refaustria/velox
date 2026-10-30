@@ -624,17 +624,23 @@ bool FVeloxBotsItemValueTest::RunTest(const FString& Parameters)
 	using VeloxBotTestsShared::Mega;
 	const FVeloxItemScoringParams Hard = VeloxItemValue::MakeParams(VeloxBotTestsShared::HardParams());
 
-	// Mega uses the hard cap: a 100-health bot still wants it (need 0.5, section 7); at 50 health need 0.75.
+	// ADR 0005 D21: the Mega's need is the deficit to the hard cap over MaxHealth, clamped (a bot at or below MaxHealth
+	// wants it fully; travel time ranks them).
 	{
-		const float Need100 = VeloxItemValue::Need(Mega(100, 2.f));
-		const float Need50 = VeloxItemValue::Need(Mega(50, 2.f));
-		TestNearlyEqual(TEXT("Mega need at 100/100 = 0.5"), Need100, 0.5f, 1e-6f);
-		TestNearlyEqual(TEXT("Mega need at 50/100 = 0.75"), Need50, 0.75f, 1e-6f);
-		const float S100 = VeloxItemValue::Score(Mega(100, 2.f), Hard);
-		const float S50 = VeloxItemValue::Score(Mega(50, 2.f), Hard);
-		TestTrue(TEXT("Mega at 100 health scores less than at 50"), S100 < S50);
-		TestNearlyEqual(TEXT("Mega score ratio 100 vs 50 health = need ratio 2/3"), S100 / S50, 2.f / 3.f, 1e-5f);
-		TestNearlyEqual(TEXT("Mega score = 100 x 0.5 / (2 + 1)"), S100, 50.f / 3.f, 1e-4f);
+		TestNearlyEqual(TEXT("D21 Mega need at 100 = 1.0"), VeloxItemValue::Need(Mega(100, 2.f)), 1.f, 1e-6f);
+		TestNearlyEqual(TEXT("D21 Mega need at 125 = 0.75"), VeloxItemValue::Need(Mega(125, 2.f)), 0.75f, 1e-6f);
+		TestNearlyEqual(TEXT("D21 Mega need at 150 = 0.5"), VeloxItemValue::Need(Mega(150, 2.f)), 0.5f, 1e-6f);
+		TestNearlyEqual(TEXT("D21 Mega need at 200 = 0"), VeloxItemValue::Need(Mega(200, 2.f)), 0.f, 1e-6f);
+		TestNearlyEqual(TEXT("D21 Mega need at 50 = 1.0 (equal to 100)"), VeloxItemValue::Need(Mega(50, 2.f)), 1.f, 1e-6f);
+		TestNearlyEqual(TEXT("D21 Score(Mega, 100 health, 2 s) = 100 / 3"), VeloxItemValue::Score(Mega(100, 2.f), Hard), 100.f / 3.f, 1e-4f);
+		TestNearlyEqual(TEXT("D21 Score(Mega, 125 health, 3 s) = 18.75"), VeloxItemValue::Score(Mega(125, 3.f), Hard), 18.75f, 1e-4f);
+		// A MaxHealth-capped health item is unchanged: (MaxHealth - Health) / MaxHealth.
+		FVeloxItemScoringInput Medium = Mega(60, 2.f);
+		Medium.HealthCap = EVeloxHealthCap::MaxHealth;
+		Medium.bMajorItem = false;
+		TestNearlyEqual(TEXT("D21 MaxHealth-capped health need at 60/100 = 0.4 (unchanged)"), VeloxItemValue::Need(Medium), 0.4f, 1e-6f);
+		Medium.Health = 125;
+		TestNearlyEqual(TEXT("D21 MaxHealth-capped health need above MaxHealth = 0 (unchanged)"), VeloxItemValue::Need(Medium), 0.f, 1e-6f);
 	}
 
 	// Red armor at 200 armor -> 0.
@@ -663,7 +669,7 @@ bool FVeloxBotsItemValueTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Timing skill 0 ignores an unavailable item"), VeloxItemValue::Score(In, Skill0), 0.f);
 		const float S1 = VeloxItemValue::Score(In, Skill1);
 		TestTrue(TEXT("Timing skill 1, MaxWait 30: > 0"), S1 > 0.f);
-		TestNearlyEqual(TEXT("Timing score = 75 / (5 + 25 + 1)"), S1, 75.f / 31.f, 1e-4f);
+		TestNearlyEqual(TEXT("Timing score = 100 / (5 + 25 + 1)"), S1, 100.f / 31.f, 1e-4f);
 		In.TimeUntilRespawn = 3.f;
 		TestTrue(TEXT("Respawning before arrival: no wait, scored at skill 0"), VeloxItemValue::Score(In, Skill0) > 0.f);
 	}
@@ -698,6 +704,31 @@ bool FVeloxBotsItemValueTest::RunTest(const FString& Parameters)
 		TestNearlyEqual(TEXT("Ammo for an owned weapon: ammo need"), VeloxItemValue::Need(A), 0.8f, 1e-6f);
 		A.bOwnsWeaponUsingAmmo = false;
 		TestNearlyEqual(TEXT("Ammo without its weapon: x 0.1"), VeloxItemValue::Need(A), 0.08f, 1e-6f);
+
+		// ADR 0005 D22: an unowned weapon's need = lerp(1, UnownedWeaponNeedFloor, OwnedWeaponStrength); owned unchanged.
+		FVeloxItemScoringInput U = W;
+		U.bOwnsWeapon = false;
+		U.UnownedWeaponNeedFloor = 0.3f;
+		U.OwnedWeaponStrength = 0.f;
+		TestNearlyEqual(TEXT("D22 unowned weapon need at strength 0 = 1"), VeloxItemValue::Need(U), 1.f, 1e-6f);
+		U.OwnedWeaponStrength = 1.f;
+		TestNearlyEqual(TEXT("D22 unowned weapon need at strength 1 = floor 0.3"), VeloxItemValue::Need(U), 0.3f, 1e-6f);
+		U.OwnedWeaponStrength = 0.22f;
+		TestNearlyEqual(TEXT("D22 unowned weapon need at strength 0.22 = 0.846"), VeloxItemValue::Need(U), 1.f - 0.7f * 0.22f, 1e-6f);
+		FVeloxItemScoringInput R = U;
+		R.TravelSeconds = 2.f;
+		R.OwnedWeaponStrength = 20.f / 90.f;
+		TestNearlyEqual(TEXT("D22 MG-only bot: RL 60 at 2 s = 16.9"), VeloxItemValue::Score(R, Hard), 60.f * (1.f - 0.7f * 20.f / 90.f) / 3.f, 1e-4f);
+		FVeloxItemScoringInput O = U;
+		O.bOwnsWeapon = true;
+		TestNearlyEqual(TEXT("D22 owned weapon need unchanged (0.3 x ammo need) at strength 0.22"), VeloxItemValue::Need(O), 0.3f * 0.8f, 1e-6f);
+		O.OwnedWeaponStrength = 0.f;
+		TestNearlyEqual(TEXT("D22 owned weapon need unchanged at strength 0"), VeloxItemValue::Need(O), 0.3f * 0.8f, 1e-6f);
+		FVeloxItemScoringInput H = Mega(60, 2.f);
+		H.HealthCap = EVeloxHealthCap::MaxHealth;
+		H.OwnedWeaponStrength = 0.f;
+		H.UnownedWeaponNeedFloor = 0.3f;
+		TestNearlyEqual(TEXT("D22 health need ignores the weapon strength"), VeloxItemValue::Need(H), 0.4f, 1e-6f);
 	}
 
 	// Powerup beats Mega at equal travel (even a Mega at 0 health).
@@ -855,7 +886,9 @@ bool FVeloxBotsDecisionTest::RunTest(const FString& Parameters)
 	{
 		FVeloxBotDecisionInput In = Base;
 		In.bEnemyVisible = true;
-		In.Items = {MegaCandidate(100, 2.f)};
+		// D21: a bot at 150 health wants the Mega at half need (16.7), below the biased fight 24.
+		In.Health = 150;
+		In.Items = {MegaCandidate(150, 2.f)};
 		const FVeloxBotGoalChoice G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
 		TestTrue(TEXT("Enemy visible + healthy -> Fight"), G.Type == EVeloxBotGoal::Fight);
 		TestEqual(TEXT("Fight goal carries the enemy"), G.EnemyId, 42);
@@ -995,6 +1028,80 @@ bool FVeloxBotsDecisionTest::RunTest(const FString& Parameters)
 			TestTrue(TEXT("D13 current Fight: item 20 < 23.4 keeps the Fight"), Pick(In) == EVeloxBotGoal::Fight);
 			In.Items[0].Score = 24.f;
 			TestTrue(TEXT("D13 current Fight: item 24 > 23.4 -> Item"), Pick(In) == EVeloxBotGoal::Item);
+		}
+
+		// ADR 0005 D22 worked cases. Item scores from VeloxItemValue (D21 Mega need, D22 unowned weapon floor 0.3): armor and
+		// the Mega 3 s away, weapons 2 s away (the ADR's numbers), TravelOffset 1.
+		{
+			const FVeloxItemScoringParams MediumScoring = VeloxItemValue::MakeParams(Medium);
+			auto Armor = [](int32 Id, float Base, int32 BotArmor)
+			{
+				FVeloxItemScoringInput A;
+				A.CandidateId = Id;
+				A.Type = EVeloxItemType::Armor;
+				A.BotBaseValue = Base;
+				A.bMajorItem = true;
+				A.Armor = BotArmor;
+				A.MaxArmor = 200;
+				A.TravelSeconds = 3.f;
+				return A;
+			};
+			auto UnownedWeapon = [](int32 Id, float Base, float Strength)
+			{
+				FVeloxItemScoringInput W;
+				W.CandidateId = Id;
+				W.Type = EVeloxItemType::Weapon;
+				W.BotBaseValue = Base;
+				W.OwnedWeaponStrength = Strength;
+				W.UnownedWeaponNeedFloor = 0.3f;
+				W.TravelSeconds = 2.f;
+				return W;
+			};
+			auto Candidate = [&MediumScoring](const FVeloxItemScoringInput& Si)
+			{
+				FVeloxGoalItemCandidate C;
+				C.CandidateId = Si.CandidateId;
+				C.Score = VeloxItemValue::Score(Si, MediumScoring);
+				C.TravelSeconds = Si.TravelSeconds;
+				C.bMajorItem = Si.bMajorItem;
+				return C;
+			};
+			const FVeloxGoalItemCandidate YA0 = Candidate(Armor(11, 70.f, 0));
+			const FVeloxGoalItemCandidate LG = Candidate(UnownedWeapon(12, 55.f, RL));
+			TestNearlyEqual(TEXT("D22 YA at 0 armor, 3 s = 17.5"), YA0.Score, 17.5f, 1e-4f);
+			TestNearlyEqual(TEXT("D22 LG for an RL owner, 2 s = 5.5"), LG.Score, 5.5f, 1e-4f);
+
+			// 125/0 RL (biased fight 11.25) vs {YA 17.5, LG 5.5} -> Item YA (the LG next door no longer wins).
+			FVeloxBotDecisionInput A = D13(125, 0, RL, 0.f);
+			A.Items = {YA0, LG};
+			TestNearlyEqual(TEXT("D22 125/0 RL threshold 11.25"), Threshold(A), 11.25f, 1e-3f);
+			const FVeloxBotGoalChoice GA = VeloxBotDecision::ChooseGoal(A, Medium, Stream);
+			TestTrue(TEXT("D22 125/0 RL vs {YA 17.5, LG 5.5} -> Item"), GA.Type == EVeloxBotGoal::Item);
+			TestEqual(TEXT("D22 125/0 RL vs {YA 17.5, LG 5.5} -> the YA"), GA.ItemId, 11);
+
+			// 125/100 RL (18) under an Item goal vs {LG 5.5, YA at 100 armor 8.75, RA at 100 armor 11.25} -> Fight.
+			const FVeloxGoalItemCandidate YA100 = Candidate(Armor(13, 70.f, 100));
+			const FVeloxGoalItemCandidate RA100 = Candidate(Armor(14, 90.f, 100));
+			TestNearlyEqual(TEXT("D22 YA at 100 armor = 8.75"), YA100.Score, 8.75f, 1e-4f);
+			TestNearlyEqual(TEXT("D22 RA at 100 armor = 11.25"), RA100.Score, 11.25f, 1e-4f);
+			FVeloxBotDecisionInput B = D13(125, 100, RL, 0.f);
+			B.Items = {LG, YA100, RA100};
+			B.Current.Type = EVeloxBotGoal::Item;
+			B.Current.ItemId = 14;
+			TestNearlyEqual(TEXT("D22 125/100 RL threshold 18"), Threshold(B), 18.f, 1e-3f);
+			TestTrue(TEXT("D22 125/100 RL under an Item goal vs {LG, YA, RA} -> Fight"), Pick(B) == EVeloxBotGoal::Fight);
+
+			// 125/100 RL vs the Mega at 125 health, 3 s (18.75) under an Item goal -> Item (18 < 18.75 x 1.3).
+			FVeloxItemScoringInput MegaIn = VeloxBotTestsShared::Mega(125, 3.f);
+			MegaIn.CandidateId = 15;
+			const FVeloxGoalItemCandidate MegaC = Candidate(MegaIn);
+			TestNearlyEqual(TEXT("D22 Mega at 125 health, 3 s = 18.75"), MegaC.Score, 18.75f, 1e-4f);
+			FVeloxBotDecisionInput C = D13(125, 100, RL, 0.f);
+			C.Items = {MegaC};
+			C.Current.Type = EVeloxBotGoal::Item;
+			C.Current.ItemId = 15;
+			const FVeloxBotGoalChoice GC = VeloxBotDecision::ChooseGoal(C, Medium, Stream);
+			TestTrue(TEXT("D22 125/100 RL under an Item goal vs Mega 18.75 -> Item"), GC.Type == EVeloxBotGoal::Item && GC.ItemId == 15);
 		}
 	}
 	return true;
@@ -1292,7 +1399,7 @@ bool FVeloxBotsItemRoutingTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("hard cap copied"), In.HealthHardCap, 200);
 		TestEqual(TEXT("armor copied"), In.Armor, 20);
 		TestEqual(TEXT("travel copied"), In.TravelSeconds, 2.f);
-		TestEqual(TEXT("Mega need at 50 / hard cap 200 = 0.75"), VeloxItemValue::Need(In), 0.75f);
+		TestEqual(TEXT("D21 Mega need at 50 (hard cap 200, MaxHealth 100) = 1.0"), VeloxItemValue::Need(In), 1.f);
 
 		FVeloxRoutingItemFacts RL = Item(2, EVeloxItemType::Weapon, 60.f);
 		RL.WeaponTag = VeloxGameplayTags::Weapon_RocketLauncher;
@@ -1326,20 +1433,20 @@ bool FVeloxBotsItemRoutingTest::RunTest(const FString& Parameters)
 
 	// Duel denial: a major item counts with at least MajorItemMinNeed while it would grant something.
 	{
-		FVeloxRoutingBotFacts B = Bot(150, 0);
+		FVeloxRoutingBotFacts B = Bot(175, 0);
 		FVeloxRoutingItemFacts Mega = Item(1, EVeloxItemType::Health, 100.f, true);
 		Mega.HealthCap = EVeloxHealthCap::HardCap;
 		const float Plain = VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Mega, B, 1.f), NoTiming);
-		TestEqual(TEXT("FFA: Mega at 150 = 100 x 0.25 / 2"), Plain, 12.5f, 1e-4f);
+		TestEqual(TEXT("FFA: Mega at 175 = 100 x 0.25 / 2 (D21)"), Plain, 12.5f, 1e-4f);
 		B.MajorItemMinNeed = 0.8f;
 		const float Denied = VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Mega, B, 1.f), NoTiming);
-		TestEqual(TEXT("Duel: Mega at 150 = 100 x 0.8 / 2"), Denied, 40.f, 1e-3f);
+		TestEqual(TEXT("Duel: Mega at 175 = 100 x 0.8 / 2"), Denied, 40.f, 1e-3f);
 		FVeloxRoutingBotFacts Full = Bot(200, 0);
 		Full.MajorItemMinNeed = 0.8f;
 		TestEqual(TEXT("Duel: Mega at the hard cap stays 0 (the pickup would refuse)"), VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Mega, Full, 1.f), NoTiming), 0.f);
 		FVeloxRoutingBotFacts Low = Bot(20, 0);
 		Low.MajorItemMinNeed = 0.8f;
-		TestEqual(TEXT("Duel: a need above the floor is unchanged (0.9)"), VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Mega, Low, 1.f), NoTiming), 45.f, 1e-3f);
+		TestEqual(TEXT("Duel: a need above the floor is unchanged (1.0, D21)"), VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Mega, Low, 1.f), NoTiming), 50.f, 1e-3f);
 		FVeloxRoutingItemFacts Medium = Item(2, EVeloxItemType::Health, 40.f, false);
 		FVeloxRoutingBotFacts Hurt = Bot(90, 0);
 		Hurt.MajorItemMinNeed = 0.8f;
@@ -1367,6 +1474,11 @@ bool FVeloxBotsItemRoutingTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("partial path: score 0"), C.Score, 0.f);
 		const FVeloxGoalItemCandidate None = VeloxBotItemRouting::MakeGoalCandidate(Quad, B, FVeloxRoutingPathResult(), 1000.f, NoTiming);
 		TestFalse(TEXT("no path: unreachable"), None.bReachable);
+		// ADR 0005 D24: only a partial path from a grounded start marks the item Unreachable.
+		TestTrue(TEXT("D24 partial path, grounded start -> Unreachable"), VeloxBotItemRouting::ShouldMarkUnreachable(Partial, false));
+		TestFalse(TEXT("D24 partial path, airborne start -> not Unreachable"), VeloxBotItemRouting::ShouldMarkUnreachable(Partial, true));
+		TestFalse(TEXT("D24 failed query (no path) -> not Unreachable"), VeloxBotItemRouting::ShouldMarkUnreachable(FVeloxRoutingPathResult(), false));
+		TestFalse(TEXT("D24 full path -> not Unreachable"), VeloxBotItemRouting::ShouldMarkUnreachable(FullPath(500.0), false));
 		const FVeloxGoalItemCandidate Ok = VeloxBotItemRouting::MakeGoalCandidate(Quad, B, FullPath(2000.0), 1000.f, NoTiming);
 		TestEqual(TEXT("full path: Score at cost / speed"), Ok.Score, 110.f / 3.f, 1e-3f);
 		TestEqual(TEXT("full path: travel"), Ok.TravelSeconds, 2.f, 1e-5f);
@@ -1535,6 +1647,33 @@ bool FVeloxBotsItemRoutingTest::RunTest(const FString& Parameters)
 		Own(DryMG, VeloxGameplayTags::Weapon_MachineGun, VeloxGameplayTags::Ammo_Bullets, 0);
 		TestEqual(TEXT("WeaponStrength: MG without bullets, nothing else -> 0"), VeloxBotItemRouting::WeaponStrength(DryMG, MediumPrefs), 0.f);
 		TestEqual(TEXT("WeaponStrength: empty table -> 1 (neutral)"), VeloxBotItemRouting::WeaponStrength(RL, TArray<FVeloxBotWeaponPreference>()), 1.f);
+
+		// ADR 0005 D22: FillDerivedBotFacts sets WeaponStrength(BotFacts, MediumPrefs) and the floor; MakeScoringInput copies
+		// both into OwnedWeaponStrength / UnownedWeaponNeedFloor.
+		FVeloxRoutingItemFacts RGItem = Item(20, EVeloxItemType::Weapon, 60.f);
+		RGItem.WeaponTag = VeloxGameplayTags::Weapon_Railgun;
+		RGItem.AmmoTag = VeloxGameplayTags::Ammo_Slugs;
+		auto Carried = [&RGItem](FVeloxRoutingBotFacts Facts, TConstArrayView<FVeloxBotWeaponPreference> Prefs)
+		{
+			VeloxBotItemRouting::FillDerivedBotFacts(Facts, Prefs, 0.3f);
+			return VeloxBotItemRouting::MakeScoringInput(RGItem, Facts, 2.f);
+		};
+		FVeloxRoutingBotFacts RLOwner = RL;
+		RLOwner.Ammo[VeloxGameplayTags::Ammo_Rockets].X = 5;
+		const FVeloxItemScoringInput ForRL = Carried(RLOwner, MediumPrefs);
+		TestEqual(TEXT("D22 MakeScoringInput: RL owner OwnedWeaponStrength 1"), ForRL.OwnedWeaponStrength, 1.f, 1e-5f);
+		TestEqual(TEXT("D22 MakeScoringInput: floor carried"), ForRL.UnownedWeaponNeedFloor, 0.3f, 1e-6f);
+		TestEqual(TEXT("D22 MakeScoringInput: RL owner, unowned RG need = floor 0.3"), VeloxItemValue::Need(ForRL), 0.3f, 1e-5f);
+		FVeloxRoutingBotFacts MGOnly;
+		Own(MGOnly, VeloxGameplayTags::Weapon_MachineGun, VeloxGameplayTags::Ammo_Bullets, 100);
+		const FVeloxItemScoringInput ForMG = Carried(MGOnly, MediumPrefs);
+		TestEqual(TEXT("D22 MakeScoringInput: MG-only OwnedWeaponStrength 20/90"), ForMG.OwnedWeaponStrength, 20.f / 90.f, 1e-5f);
+		TestEqual(TEXT("D22 MakeScoringInput: MG-only, unowned RG need 0.845"), VeloxItemValue::Need(ForMG), 1.f - 0.7f * 20.f / 90.f, 1e-5f);
+		const FVeloxItemScoringInput ForNothing = Carried(FVeloxRoutingBotFacts(), MediumPrefs);
+		TestEqual(TEXT("D22 MakeScoringInput: nothing owned OwnedWeaponStrength 0"), ForNothing.OwnedWeaponStrength, 0.f);
+		TestEqual(TEXT("D22 MakeScoringInput: nothing owned, unowned RG need 1"), VeloxItemValue::Need(ForNothing), 1.f, 1e-6f);
+		const FVeloxItemScoringInput ForEmptyTable = Carried(RLOwner, TArray<FVeloxBotWeaponPreference>());
+		TestEqual(TEXT("D22 MakeScoringInput: empty table OwnedWeaponStrength 1 (neutral)"), ForEmptyTable.OwnedWeaponStrength, 1.f);
 	}
 	return true;
 }
