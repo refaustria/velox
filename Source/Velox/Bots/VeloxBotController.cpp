@@ -2,6 +2,8 @@
 
 #include "Bots/VeloxBotController.h"
 
+#include "Bots/VeloxBotCost.h"
+
 #include "Bots/VeloxBotDifficulty.h"
 #include "Bots/VeloxBotItemRouting.h"
 #include "Bots/VeloxBotLog.h"
@@ -723,7 +725,12 @@ void AVeloxBotController::EnsureMove(double T)
 		// Never re-query mid-traversal: the maneuver ends the link segment.
 		return;
 	}
-	if (UpdateOffMeshRecovery(T))
+	bool bOffMeshActive = false;
+	{
+		const FVeloxBotCostScope Cost(GetWorld(), EVeloxBotCost::OffMesh);
+		bOffMeshActive = UpdateOffMeshRecovery(T);
+	}
+	if (bOffMeshActive)
 	{
 		// The recovery owns the move (a direct move); a D35 request against it is dropped.
 		State.bRepathRequested = false;
@@ -1282,7 +1289,10 @@ void AVeloxBotController::ApplyInput(const FVeloxBotInput& Input, float DeltaSec
 		return Sum;
 	};
 	const double NextFireBefore = SumNextFireTime();
-	ASC->ProcessAbilityInput(DeltaSeconds, false);
+	{
+		const FVeloxBotCostScope Cost(GetWorld(), EVeloxBotCost::Fire);
+		ASC->ProcessAbilityInput(DeltaSeconds, false);
+	}
 	State.bShotFiredThisTick = SumNextFireTime() != NextFireBefore;
 }
 
@@ -1304,8 +1314,12 @@ void AVeloxBotController::UpdateControlRotation(float DeltaTime, bool bUpdatePaw
 void AVeloxBotController::Tick(float DeltaSeconds)
 {
 	const uint64 StartCycles = FPlatformTime::Cycles64();
-	// AAIController::Tick ends with UpdateControlRotation: re-applies last tick's view (the override), harmless.
-	Super::Tick(DeltaSeconds);
+	const UWorld* const CostWorld = GetWorld();
+	{
+		// AAIController::Tick ends with UpdateControlRotation: re-applies last tick's view (the override), harmless.
+		const FVeloxBotCostScope Cost(CostWorld, EVeloxBotCost::Super);
+		Super::Tick(DeltaSeconds);
+	}
 
 	AVeloxCharacter* Character = GetBotCharacter();
 	if (!Character || Character->IsCorpse() || !HasAuthority())
@@ -1325,21 +1339,34 @@ void AVeloxBotController::Tick(float DeltaSeconds)
 		SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Think);
 		{
 			SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Perceive);
+			const FVeloxBotCostScope Cost(CostWorld, EVeloxBotCost::Perceive);
 			Perceive(DeltaSeconds);
 		}
 		{
 			SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Path);
-			Decide(DeltaSeconds);
+			{
+				const FVeloxBotCostScope Cost(CostWorld, EVeloxBotCost::Decide);
+				Decide(DeltaSeconds);
+			}
+			const FVeloxBotCostScope Cost(CostWorld, EVeloxBotCost::Move);
 			EnsureMove(Now());
 		}
 		{
 			SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Steer);
-			Navigate(DeltaSeconds);
-			UpdateCombat(DeltaSeconds);
+			{
+				const FVeloxBotCostScope Cost(CostWorld, EVeloxBotCost::Follow);
+				Navigate(DeltaSeconds);
+			}
+			{
+				const FVeloxBotCostScope Cost(CostWorld, EVeloxBotCost::Overlay);
+				UpdateCombat(DeltaSeconds);
+			}
+			const FVeloxBotCostScope Cost(CostWorld, EVeloxBotCost::Act);
 			Act(DeltaSeconds);
 		}
 		{
 			SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Apply);
+			const FVeloxBotCostScope Cost(CostWorld, EVeloxBotCost::Apply);
 			ApplyInput(State.Pending, DeltaSeconds);
 		}
 	}

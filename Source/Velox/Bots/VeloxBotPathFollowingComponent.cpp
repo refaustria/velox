@@ -212,6 +212,7 @@ bool UVeloxBotPathFollowingComponent::UpdateSegmentBlocked(const FVector& Feet, 
 	{
 		return bSegmentBlocked;
 	}
+	const FVeloxBotCostScope Cost(GetWorld(), EVeloxBotCost::Segment);
 	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
 	NextSegmentBlockCheckTime = Now + Settings.SegmentBlockCheckSeconds;
 	UWorld* World = GetWorld();

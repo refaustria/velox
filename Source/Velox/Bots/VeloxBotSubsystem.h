@@ -4,7 +4,9 @@
 
 #pragma once
 
+#include "Bots/VeloxBotCost.h"
 #include "Engine/TimerHandle.h"
+#include "Engine/EngineBaseTypes.h"
 #include "Stats/Stats.h"
 #include "Subsystems/WorldSubsystem.h"
 
@@ -24,6 +26,15 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Perceive"), STAT_VeloxBots_Perceive, STATGROUP_V
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Path"), STAT_VeloxBots_Path, STATGROUP_VeloxBots, VELOX_API);
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Steer"), STAT_VeloxBots_Steer, STATGROUP_VeloxBots, VELOX_API);
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Apply"), STAT_VeloxBots_Apply, STATGROUP_VeloxBots, VELOX_API);
+
+/** Task M4-08: wall clock of the fixed calibration work in the VeloxBotCost line (us). */
+struct FVeloxBotCalib
+{
+	double AluMicros = 0.0;
+	double MemMicros = 0.0;
+	double AllocMicros = 0.0;
+	double ClockMicros = 0.0;
+};
 
 /** A link end matched by FindLinkByStart. */
 struct FVeloxNavLinkMatch
@@ -120,6 +131,16 @@ public:
 	void RecordBotTick(const AVeloxBotController& Bot, double Micros, int32 PathQueries, bool bFireTick = false);
 	void NoteTraces(int32 Count) { BudgetTraces += Count; }
 	void NoteNavRaycast() { ++BudgetNavRaycasts; }
+	/**
+	 * Task M4-08 (report-only): wall clock of one category scope of a bot tick (VeloxBotCost.h). Printed per window as the
+	 * `VeloxBotCost` line: per category the mean per bot tick and the window maximum, plus the server frame's phases.
+	 */
+	void NoteCost(EVeloxBotCost Cost, double Micros)
+	{
+		const int32 i = static_cast<int32>(Cost);
+		CostSum[i] += Micros;
+		CostMax[i] = FMath::Max(CostMax[i], Micros);
+	}
 
 	/** Whole-run budget figures (functional tests, velox.bots.List). */
 	double GetBudgetMeanMicros() const { return TotalTicks > 0 ? TotalMicros / TotalTicks : 0.0; }
@@ -137,6 +158,13 @@ protected:
 private:
 	void PollNavReady();
 	void LogBudget();
+	/** Task M4-08: the server frame's phases (report-only, `VeloxBotCost frame_*`). */
+	void HandleWorldTickStart(UWorld* InWorld, ELevelTick TickType, float DeltaSeconds);
+	void HandleWorldPreActorTick(UWorld* InWorld, ELevelTick TickType, float DeltaSeconds);
+	void HandleWorldPostActorTick(UWorld* InWorld, ELevelTick TickType, float DeltaSeconds);
+	void HandleWorldTickEnd(UWorld* InWorld, ELevelTick TickType, float DeltaSeconds);
+	/** Task M4-08: the calib_* fixed work of the VeloxBotCost line. */
+	FVeloxBotCalib RunCalib();
 	UFUNCTION()
 	void HandleProjectileEndPlay(AActor* Actor, EEndPlayReason::Type EndPlayReason);
 	UFUNCTION()
@@ -180,4 +208,25 @@ private:
 	double TotalMicros = 0.0;
 	double TotalMaxMicros = 0.0;
 	int64 TotalTicks = 0;
+
+	// Task M4-08 (report-only) per-category bot tick cost and server frame phases of the window.
+	double CostSum[static_cast<int32>(EVeloxBotCost::Num)] = {};
+	double CostMax[static_cast<int32>(EVeloxBotCost::Num)] = {};
+	uint64 FrameTickStartCycles = 0;
+	uint64 FramePreActorCycles = 0;
+	uint64 FramePostActorCycles = 0;
+	double FrameWorldMicros = 0.0;
+	double FrameWorldMaxMicros = 0.0;
+	double FrameDispatchMicros = 0.0;
+	double FrameActorMicros = 0.0;
+	double FrameFlushMicros = 0.0;
+	int64 FrameCount = 0;
+	/** Keeps the calib_* loops from being optimised away. */
+	uint64 CalibSink = 0;
+	/** Random-walk table of calib_mem_us. */
+	TArray<uint32> CalibTable;
+	FDelegateHandle TickStartHandle;
+	FDelegateHandle PreActorHandle;
+	FDelegateHandle PostActorHandle;
+	FDelegateHandle TickEndHandle;
 };

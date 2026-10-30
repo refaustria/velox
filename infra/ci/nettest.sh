@@ -1377,6 +1377,10 @@ if script in ("BotRun", "BotDuel"):
             continue
         if "VeloxBotBudget bots=" in l:
             d = kv(l); budget_windows.append(d); budget_stamps.append(utc(l)); continue
+        if "VeloxBotCost ticks=" in l:
+            # Task M4-08 (report-only): the category line logged right after its budget window.
+            if budget_windows: budget_windows[-1]["_cost"] = kv(l)
+            continue
         if "VeloxBotRouteStats " in l:
             route_stats.append(kv(l)); route_stamps.append(utc(l))
 
@@ -1469,6 +1473,35 @@ if script in ("BotRun", "BotDuel"):
             continue
         if any(w["start"] is not None and w["start"] - 0.5 <= rts <= w["end"] + 0.5 for w in basis):
             rs_basis.append(rs_)
+
+    # ---- Task M4-08 (report-only): per-category bot tick cost and the non-bot frame, clean vs other windows. A ratio of
+    # frame_other_us (the server frame minus the bot ticks) close to the bots' own ratio means the whole game thread ran
+    # slower, not the bots; flat calib_* means the CPU, memory, allocator and clock did not.
+    COST_KEYS = ["super", "perceive", "traces", "decide", "move", "offmesh", "follow", "segment", "overlay", "act", "apply", "fire"]
+    FRAME_KEYS = ["frame_bots_us", "frame_other_us", "frame_dispatch_us", "frame_actors_us", "frame_flush_us", "calib_alu_us", "calib_mem_us", "calib_alloc_us", "calib_clock_us"]
+    def cost_val(w_, k_):
+        c_ = w_["d"].get("_cost", {})
+        try:
+            if k_ == "frame_other_us" and k_ not in c_ and "frame_us" in c_:
+                return max(0.0, float(c_["frame_us"]) - float(c_["frame_bots_us"]))
+            return float(c_[k_].split("/")[0])
+        except (KeyError, ValueError):
+            return None
+    def cost_mean(ws_, k_):
+        v_ = [x_ for x_ in (cost_val(w_, k_) for w_ in ws_) if x_ is not None]
+        return sum(v_) / len(v_) if v_ else None
+    other_w = [w for w in windows if w["cls"] != "clean"]
+    if any("_cost" in w["d"] for w in windows):
+        def pair(k_):
+            a_, b_ = cost_mean(clean_w, k_), cost_mean(other_w, k_)
+            return "%s=%s|%s" % (k_, "%.1f" % a_ if a_ is not None else "-", "%.1f" % b_ if b_ is not None else "-")
+        def ratio(k_):
+            a_, b_ = cost_mean(clean_w, k_), cost_mean(other_w, k_)
+            return ("%.1f" % (b_ / a_)) if (a_ and b_ is not None and a_ > 0) else "-"
+        cost_breakdown = "cost breakdown (us per bot tick / per frame; clean|other windows %d|%d): %s %s; slowdown other/clean: bots=%s frame_other=%s" % (
+            len(clean_w), len(other_w), " ".join(pair(k_) for k_ in COST_KEYS), " ".join(pair(k_) for k_ in FRAME_KEYS), ratio("frame_bots_us"), ratio("frame_other_us"))
+    else:
+        cost_breakdown = "cost breakdown: n/a (no VeloxBotCost lines)"
 
     # ---- Duel timing (D46 3): timed returns are the Mega takes after a VeloxPickupRespawn; the Live reset take is reported only.
     live_t = next((num(kv(l), "now") for l in S if "VeloxMatch phase=Live" in l), 0.0)
@@ -1564,6 +1597,7 @@ if script in ("BotRun", "BotDuel"):
             sum(1 for w in windows if w["cls"] == "frames"), n_win,
             sum(w["stalls"] for w in windows if w["stalls"] is not None) if any(w["stalls"] is not None for w in windows) else "n/a",
             ",".join(("%.0f" % w["fdef"]) if w["fdef"] is not None else "n/a" for w in windows), " INVALID (frame_deficit > 10 %% in %d windows)" % deficit_bad if invalid else ""),
+        cost_breakdown,
         "host sidecar: %s; load_start=%s load_end=%s gate=%s waited_s=%s%s" % (
             "%d samples" % len(host) if host else "n/a (no sidecar)", gate.get("load_start", "n/a"), gate.get("load_end", "n/a"), gate.get("gate", "n/a"),
             gate.get("gate_waited_s", "n/a"), " TIMEOUT (started above the gate)" if gate.get("gate_timeout") == "1" else ""),
