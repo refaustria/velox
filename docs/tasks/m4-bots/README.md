@@ -15,7 +15,8 @@ Spec: `docs/adr/0005-bots.md` (ADR 0005; implementation notes list the tasks). T
 | 04c-b | [hop-headroom-and-progress-stuck](04c-b-hop-headroom-and-progress-stuck.md) | dev-hard | 2 h | 04b | Wave 3.6 | done (partial, open items) |
 | 04c-c | [combat-events-ft-and-giveup](04c-c-combat-events-ft-and-giveup.md) | dev | 2 h | 04b | Wave 3.6 | done |
 | 04d | [balance-followup](04d-balance-followup.md) | dev-hard | 2 h | 04c-a, ADR 0005 D20-D26 | Wave 3.7 (before 07) | done (D24 band via 04e) |
-| 07 | [bot-soak-and-playtest](07-bot-soak-and-playtest.md) | dev | 2 h | 04c-b, 04c-c, 04d | Wave 4 | todo |
+| 04e | [platform-nav-islands](04e-platform-nav-islands.md) | dev | 1-2 h | 04d | Wave 3.7 | in progress |
+| 07 | [bot-soak-and-playtest](07-bot-soak-and-playtest.md) | dev | 2 h | 04c-b, 04c-c, 04d, 04e, 04f | Wave 4 | todo |
 
 ## Wave plan (from ADR 0005)
 - **Wave 1:** 01 || 02 || 03
