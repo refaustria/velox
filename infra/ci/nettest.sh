@@ -14,7 +14,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 GREP=/usr/bin/grep   # the interactive shell's grep is a ugrep wrapper; use the real one
 PORT=7777
-SCRIPTS_ARG="StrafeRun,PadRun,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun"
+SCRIPTS_ARG="StrafeRun,PadRun,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun,BotRun,BotDuel"
 REPEAT=1
 KEEP_GOING=0
 CLIENT_TIMEOUT="${VELOX_NETTEST_TIMEOUT:-120}"
@@ -32,6 +32,10 @@ PKT_ARGS=()
 COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun RocketJumpRunHold PlasmaRun "
 # Scripts on L_ItemTest (M3 task 04); the client runs velox.items.Watch.
 ITEM_SCRIPTS=" ItemRun "
+# Bot soaks (M4 task 07, ADR 0005 section 14 / D36), both on L_ItemTest with the server options in the map URL.
+BOT_SCRIPTS=" BotRun BotDuel "
+BOT_RUN_SECONDS=90      # BotWatch.json
+BOT_DUEL_SECONDS=120    # velox.bots.Watch 120 (wall time after the spectator connected)
 
 nettest_usage() {
   cat <<USAGE
@@ -45,6 +49,11 @@ with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHold
 (task 08f, not in the default list) is RocketJumpRun with the server holding the rocket's fire RPC 300 ms
 (velox.combat.DebugHoldShotRpc 300 5 1, ADR 0003 B35). PlasmaRun (task 08i, not in the default list) holds plasma fire
 for 5 s at 50 ms one way (ADR 0003 B38: one move-carried schedule per shot sequence).
+BotRun and BotDuel (M4 task 07, ADR 0005 D36) run on L_ItemTest with the server's game options in the map URL. BotRun:
+FFA, 3 Medium bots (velox.bots.Debug 1), the client plays BotWatch.json (90 s, no input) with velox.bots.Watch.
+BotDuel: Duel, 2 Hard bots, the client joins with ?SpectatorOnly=1 and velox.bots.Watch 120 quits it. Both are judged
+from the server log (per-round rules); after the last round the runner evaluates the repeat set (D36: sums over
+--repeat 3) from <script>.stats.json and prints "set evaluation" lines. Set bands are only judged for --repeat 3.
 
 Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
@@ -109,6 +118,20 @@ run_one() {
   PKT_ARGS=(-PktLag="$lag" -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=$((lag - 20)) -PktIncomingLagMax=$((lag + 20)) -PktIncomingLoss=2)
   if [[ "$script" == LatchRun ]]; then cexec="velox.move.Preset Q3, $cexec"; sexec="velox.move.Preset Q3"; fi
   if [[ "$COMBAT_SCRIPTS" == *" $script "* ]]; then map="L_CombatTest"; fi
+  local connect_url="127.0.0.1:$PORT" client_timeout="$CLIENT_TIMEOUT"
+  case "$script" in
+    BotRun)
+      # FFA with 3 Medium bots; the playing client idles through BotWatch.json and velox.bots.Watch 90 ends it. Client
+      # corrections are report-only (LogCorrections), rocket hits on the human are legitimate corrections.
+      map="L_ItemTest?game=FFA?Bots=3?BotDifficulty=Medium"; sexec="velox.bots.Debug 1"
+      cexec="$cexec, velox.move.LogCorrections 1, velox.bots.Watch $BOT_RUN_SECONDS"; script_args=(-VeloxScript=BotWatch)
+      client_timeout=$(( CLIENT_TIMEOUT > BOT_RUN_SECONDS + 90 ? CLIENT_TIMEOUT : BOT_RUN_SECONDS + 90 )) ;;
+    BotDuel)
+      # Two Hard bots duel; the client is a spectator and quits itself 120 s after it connected.
+      map="L_ItemTest?game=Duel?Bots=2?BotsFill=1?BotDifficulty=Hard"; sexec="velox.bots.Debug 1"
+      cexec="$cexec, velox.bots.Watch $BOT_DUEL_SECONDS"; connect_url="127.0.0.1:$PORT?SpectatorOnly=1"; script_args=()
+      client_timeout=$(( CLIENT_TIMEOUT > BOT_DUEL_SECONDS + 90 ? CLIENT_TIMEOUT : BOT_DUEL_SECONDS + 90 )) ;;
+  esac
   if [[ "$ITEM_SCRIPTS" == *" $script "* ]]; then
     # M3 task 04 / ADR 0004 section 10: velox.items.Watch logs the client's placeholder and Health/Armor/Bullets changes.
     map="L_ItemTest"; cexec="$cexec, velox.items.Watch"
@@ -155,13 +178,13 @@ run_one() {
   sleep 2
 
   info "[$script] starting client (${CLIENT_FPS} Hz, packet simulation ${lag} ms one way), log $clog"
-  "$EDITOR_CMD" "$VELOX_PROJECT" "127.0.0.1:$PORT" -game -log -stdout -FullStdOutLogOutput -nullrhi -nosound -unattended -nopause -nosplash \
+  "$EDITOR_CMD" "$VELOX_PROJECT" "$connect_url" -game -log -stdout -FullStdOutLogOutput -nullrhi -nosound -unattended -nopause -nosplash \
     -ExecCmds="$cexec" "${script_args[@]}" -WINDOWED -ResX=320 -ResY=240 \
     "${PKT_ARGS[@]}" >"$clog" 2>&1 &
   CLIENT_PID=$!
   waited=0
   while kill -0 "$CLIENT_PID" 2>/dev/null; do
-    if (( waited >= CLIENT_TIMEOUT )); then echo "[$script] client timeout after ${CLIENT_TIMEOUT}s" >&2; break; fi
+    if (( waited >= client_timeout )); then echo "[$script] client timeout after ${client_timeout}s" >&2; break; fi
     if ! kill -0 "$SERVER_PID" 2>/dev/null; then echo "[$script] server died" >&2; break; fi
     sleep 1; waited=$((waited + 1))
   done
@@ -226,6 +249,10 @@ if script in ("RocketJumpRun", "RocketJumpRunHold"):
         f = kv(final)
         if f.get("result") != "PASS":
             fails.append("RocketJumpTest result=%s: %s" % (f.get("result"), final.split("VeloxRocketJump:", 1)[-1].strip()[:200]))
+elif script in ("BotRun", "BotDuel"):
+    # velox.bots.Watch ends the client after the wall-time window (exit code 0); BotWatch.json is only the idle human. Its
+    # script clock stops while the human pawn is dead (bots kill it), so there is no VeloxNetSoak result line to demand.
+    f = {}
 else:
     final = next((l for l in reversed(C) if "VeloxNetSoak: script=" in l), None)
     if final is None:
@@ -1074,6 +1101,238 @@ elif script == "ItemRun":
     if corr:
         fails.append("%d client correction(s) during ItemRun (want 0): %s" % (len(corr), fmt(corr)))
 
+if script in ("BotRun", "BotDuel"):
+    # M4 task 07 / ADR 0005 section 14 and D36: the bot soak. Everything is judged from the SERVER log (velox.bots.Debug 1
+    # writes one VeloxBot line per bot per second); the client log only supplies the report-only corrections and the
+    # velox.bots.Watch lines. The per-run numbers go to <script>.stats.json for the set evaluation after the last round
+    # (D36: sums and per-round caps over the repeat set). Port of scratchpad/post04f/summary.py with the D36 bands.
+    import collections, datetime, json
+    duel = script == "BotDuel"
+    duration = 120.0 if duel else 90.0
+    TSR = re.compile(r"^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]")
+    POSR = re.compile(r"VeloxBot name=(\S+) (.*?) pos=V\(X=([-\d.]+), Y=([-\d.]+), Z=([-\d.]+)\)")
+    ATR = re.compile(r"at=V\(X=([-\d.]+), Y=([-\d.]+), Z=([-\d.]+)\)")
+    MAJOR = re.compile(r"item=DA_Item_(Health_Mega|Armor_Red|Armor_Yellow|Powerup_[A-Za-z]+)")
+    MAJOR_ALL = ["Health_Mega", "Armor_Red", "Armor_Yellow", "Powerup_BattleSuit", "Powerup_Haste", "Powerup_Quad", "Powerup_Regen"]
+    DWELL_RADIUS, DWELL_MAX, LINK_DT_MAX, BUDGET_MAX = 150.0, 8, 8.0, 300.0
+    STUCK_MAX, PICKUPS_MIN = 6, 15
+
+    def stamp(line):
+        m = TSR.match(line)
+        if not m:
+            return None
+        y_, mo, d_, h, mi, s_, ms = (int(v) for v in m.groups())
+        return datetime.datetime(y_, mo, d_, h, mi, s_, ms * 1000).timestamp()
+
+    bots = set()
+    for l in S:
+        m = re.search(r"VeloxBot name=(\S+) ", l)
+        if m:
+            bots.add(m.group(1))
+    nav_built = any("VeloxNav built" in l for l in S)
+    phases = [re.search(r"VeloxMatch phase=(\w+)", l).group(1) for l in S if "VeloxMatch phase=" in l]
+    pickups = collections.Counter()
+    mega = []                      # (t, by, respawn_in)
+    kills = frags_total = suicides = 0
+    stuck = []                     # (bot, t, x, y, rule, goal)
+    rules = collections.Counter(); reasons = collections.Counter(); offmesh = collections.Counter()
+    link_ok = link_total = 0
+    link_max, link_max_desc = 0.0, "-"
+    link_over = []
+    refused = giveup = no_nav = recovered = repaths = hear = dodges = camp_lines = 0
+    allun = collections.Counter()
+    errors = []
+    goals = collections.Counter(); vis_armed = vis_armed_fight = supp1 = debug_lines = noammo = 0
+    live = False; camp = {}; dwell = {}
+    max_dwell, max_dwell_at = 0, "-"
+    budget_windows = []
+    route_stats = []
+    for l in S:
+        if "Error:" in l or "Ensure condition" in l:
+            errors.append(l.strip()[:160])
+        if "VeloxMatch phase=Live" in l:
+            live = True; dwell.clear(); continue
+        if "VeloxPickup item=" in l:
+            m = re.search(r"by=(\S+)", l)
+            if m and m.group(1) in bots:
+                im = re.search(r"item=(\S+)", l)
+                pickups[im.group(1)] += 1
+                if "item=DA_Item_Health_Mega" in l:
+                    d = kv(l); mega.append((num(d, "t"), m.group(1), num(d, "respawn_in")))
+            continue
+        if "VeloxKill victim=" in l and "ignored" not in l:
+            m = re.search(r"killer=(\S+) suicide=(\d)", l)
+            if m and m.group(2) == "1":
+                suicides += 1
+            elif m:
+                frags_total += 1
+                if m.group(1) in bots:
+                    kills += 1
+            continue
+        if "VeloxBotStuck bot=" in l:
+            d = kv(l); at = ATR.search(l)
+            x_, y_ = (float(at.group(1)), float(at.group(2))) if at else (0.0, 0.0)
+            stuck.append((d.get("bot"), stamp(l), x_, y_, d.get("rule", "?"), d.get("goal", "?")))
+            rules[d.get("rule", "?")] += 1
+            continue
+        if "VeloxBotRepath" in l:
+            repaths += 1; continue
+        if "VeloxBotHear " in l:
+            hear += 1; continue
+        if "VeloxBotDodge " in l:
+            dodges += 1; continue
+        if "VeloxBotOffMesh" in l:
+            if "result=no_nav_point" in l: no_nav += 1
+            if "result=giveup" in l: giveup += 1
+            if " recovered " in l: recovered += 1
+            continue
+        if "VeloxBotLink bot=" in l and "result=" in l:
+            d = kv(l); link_total += 1
+            if d.get("result") == "ok": link_ok += 1
+            else: reasons[d.get("reason", "?")] += 1
+            dt = num(d, "dt")
+            if dt > link_max: link_max, link_max_desc = dt, "%s:%s:%s" % (d.get("bot"), d.get("link"), d.get("reason"))
+            if dt > LINK_DT_MAX: link_over.append("%s:%s:%s:%.2f" % (d.get("bot"), d.get("link"), d.get("reason"), dt))
+            continue
+        m = POSR.search(l)
+        if m:
+            name, body = m.group(1), m.group(2)
+            x_, y_ = float(m.group(3)), float(m.group(4))
+            gm = re.search(r"goal=(\S+)", body); g = gm.group(1).lower() if gm else "?"
+            goals[g] += 1; debug_lines += 1
+            if " supp=1" in l: supp1 += 1
+            if "fire=noammo" in body: noammo += 1
+            w = re.search(r"wstr=(-?[\d.]+)", body)
+            if " vis=1" in body and w and float(w.group(1)) >= 0.5:
+                vis_armed += 1
+                if g == "fight": vis_armed_fight += 1
+            if live:
+                # D34: consecutive 1 Hz samples within 150 cm (2-D) of the run's first sample; camp=1 samples excluded.
+                if camp.get(name, 0):
+                    dwell.pop(name, None)
+                else:
+                    dd = dwell.get(name)
+                    if dd and math.hypot(x_ - dd[0], y_ - dd[1]) <= DWELL_RADIUS:
+                        dd[2] += 1
+                    else:
+                        dd = dwell[name] = [x_, y_, 1]
+                    if dd[2] > max_dwell:
+                        max_dwell, max_dwell_at = dd[2], "%s@(%.0f,%.0f),goal=%s" % (name, dd[0], dd[1], g)
+            continue
+        m = re.search(r"VeloxBotRoute bot=(\S+) (.*)", l)
+        if m:
+            if " refused " in l: refused += 1
+            cm = re.search(r" camp=(\d)", l)
+            if cm:
+                camp[m.group(1)] = int(cm.group(1))
+                camp_lines += int(cm.group(1))
+            c = re.search(r"candidates=\[(.*)\]", l)
+            if c:
+                st = re.search(r"start=(\w+)", l); start = st.group(1) if st else "-"
+                cands = [v for v in c.group(1).split(",") if v]
+                if cands and all("!unreachable" in v for v in cands):
+                    allun[start] += 1
+            continue
+        if "VeloxBotBudget bots=" in l:
+            d = kv(l); budget_windows.append(d); continue
+        if "VeloxBotRouteStats " in l:
+            route_stats.append(kv(l))
+
+    bursts = []
+    per_bot = collections.defaultdict(list)
+    for s_ in stuck:
+        if s_[1] is not None: per_bot[s_[0]].append(s_[1])
+    for b_, ts_ in per_bot.items():
+        ts_.sort()
+        if any(ts_[i + 2] - ts_[i] <= 10.0 for i in range(len(ts_) - 2)): bursts.append(b_)
+    pocket = [s_ for s_ in stuck if abs(s_[2]) < 150.0 and abs(s_[3]) < 150.0]
+    means = [num(d, "mean_us") for d in budget_windows]
+    budget_mean = sum(means) / len(means) if means else 0.0
+    run_mean = num(budget_windows[-1], "run_mean_us") if budget_windows else 0.0
+    fire_windows = [num(d, "max_fire_us") for d in budget_windows]
+    fire_over = sum(1 for v in fire_windows if v > 2000.0)
+    nbots = sum(pickups.values())
+    major_taken = sorted({MAJOR.search("item=" + k).group(1) for k in pickups if MAJOR.search("item=" + k)})
+    # Duel timing: a Mega take by a bot within 3 s after the Mega became available again: the previous take's respawn
+    # (t_prev + respawn_in), or the Countdown -> Live level reset (every pickup is available again at the Live time).
+    live_t = next((num(kv(l), "now") for l in S if "VeloxMatch phase=Live" in l), 0.0)
+    mega_lags = []
+    avail = live_t
+    for (t_, _by, resp_) in mega:
+        if t_ >= live_t:
+            mega_lags.append(t_ - avail)
+        avail = max(live_t, t_ + resp_) if t_ >= live_t else live_t
+    mega_fast = sum(1 for v in mega_lags if -0.5 <= v <= 3.0)
+    total_goals = sum(goals.values())
+    fight_share = 100.0 * goals.get("fight", 0) / total_goals if total_goals else 0.0
+    armed_share = 100.0 * vis_armed_fight / vis_armed if vis_armed else 0.0
+    supp_share = 100.0 * supp1 / debug_lines if debug_lines else 0.0
+
+    # Client corrections are report-only (rocket hits on the human are legitimate corrections): drop the M1 convergence rules.
+    if script == "BotRun":
+        fails[:] = [fl for fl in fails if not fl.startswith("replay ")]
+    if not nav_built: fails.append("no 'VeloxNav built' line (nav not built)")
+    if not bots: fails.append("no VeloxBot debug lines (velox.bots.Debug 1 inactive or no bots)")
+    if stuck and len(stuck) > STUCK_MAX: fails.append("VeloxBotStuck %d > %d" % (len(stuck), STUCK_MAX))
+    if bursts: fails.append("strike burst (>= 3 strikes of one bot within 10 s): %s" % ",".join(bursts))
+    if max_dwell > DWELL_MAX: fails.append("max_dwell_s %d > %d at %s" % (max_dwell, DWELL_MAX, max_dwell_at))
+    if link_over: fails.append("VeloxBotLink dt > %.0f s: %s" % (LINK_DT_MAX, ",".join(link_over[:5])))
+    if no_nav: fails.append("VeloxBotOffMesh result=no_nav_point x%d" % no_nav)
+    if giveup: fails.append("VeloxBotOffMesh result=giveup x%d" % giveup)
+    if refused: fails.append("VeloxBotRoute refused x%d" % refused)
+    if allun.get("air", 0): fails.append("all-candidates-unreachable evaluations with start=air: %d (D33)" % allun["air"])
+    if errors: fails.append("%d Error:/ensure line(s) in the server log: %s" % (len(errors), errors[0]))
+    if budget_mean > BUDGET_MAX: fails.append("VeloxBotBudget mean_us %.1f > %.0f" % (budget_mean, BUDGET_MAX))
+    if not budget_windows: fails.append("no VeloxBotBudget lines")
+    if duel:
+        if "Countdown" not in phases or "Live" not in phases or phases.index("Countdown") > phases.index("Live"):
+            fails.append("phase did not go Countdown -> Live without a human: %s" % ">".join(phases))
+        if frags_total < 1: fails.append("no frag in %.0f s" % duration)
+        if mega_fast < 1: fails.append("no Mega take by a bot within 3 s of its respawn (takes=%d lags=%s)" % (len(mega), ["%.1f" % v for v in mega_lags]))
+        if camp_lines < 1: fails.append("no VeloxBotRoute camp=1 line")
+    else:
+        if kills < 1: fails.append("no kill by a bot")
+        if nbots < PICKUPS_MIN: fails.append("pickups by bots %d < %d" % (nbots, PICKUPS_MIN))
+        if not mega: fails.append("no DA_Item_Health_Mega pickup by a bot")
+        if link_ok < 2: fails.append("VeloxBotLink result=ok %d < 2" % link_ok)
+
+    pos_txt = " ".join("%s@(%.0f,%.0f)" % (b_, x_, y_) for b_, _, x_, y_, _, _ in stuck[:12])
+    rs_paths = [num(d, "paths_per_s") for d in route_stats]
+    detail_lines = [
+        "kills_by_bots=%d frags=%d suicides=%d pickups_by_bots=%d [%s] major=[%s]" % (kills, frags_total, suicides, nbots,
+            " ".join("%s=%d" % (k.replace("DA_Item_", ""), v) for k, v in sorted(pickups.items())), ",".join(major_taken)),
+        "links ok=%d/%d longest_dt=%.2f [%s] failed_reasons=[%s]" % (link_ok, link_total, link_max, link_max_desc, " ".join("%s=%d" % kv_ for kv_ in sorted(reasons.items()))),
+        "stuck=%d rules=[%s] bursts=%d pocket_strikes=%d at: %s" % (len(stuck), " ".join("%s=%d" % kv_ for kv_ in sorted(rules.items())), len(bursts), len(pocket), pos_txt or "-"),
+        "max_dwell_s=%d [%s] repaths=%d%s offmesh recovered=%d no_nav_point=%d giveup=%d refused=%d hear=%d dodge=%d camp_route_lines=%d" % (
+            max_dwell, max_dwell_at, repaths, " (FLAG > %d)" % int(duration) if repaths > duration else "", recovered, no_nav, giveup, refused, hear, dodges, camp_lines),
+        "budget mean_us=%.1f run_mean_us=%.1f max_us=%.0f max_path_us=%.0f max_fire_us=%.0f (windows over 2000 us: %d/%d%s) paths/s=%.1f max_deferred_frames=%d" % (
+            budget_mean, run_mean, max([num(d, "max_us") for d in budget_windows] or [0]), max([num(d, "max_path_us") for d in budget_windows] or [0]),
+            max(fire_windows or [0]), fire_over, len(fire_windows), " FLAG D14" if fire_windows and fire_over * 4 > len(fire_windows) else "",
+            sum(rs_paths) / len(rs_paths) if rs_paths else 0.0, int(max([num(d, "max_deferred_frames") for d in route_stats] or [0]))),
+        "goals=[%s] fight_share=%.1f%% armed_fight_share=%.1f%% (%d/%d) supp1=%.1f%% fire_noammo=%d/%d allunreachable air=%d ground=%d" % (
+            " ".join("%s=%d" % kv_ for kv_ in sorted(goals.items())), fight_share, armed_share, vis_armed_fight, vis_armed, supp_share, noammo, debug_lines,
+            allun.get("air", 0), allun.get("ground", 0)),
+    ]
+    if duel:
+        detail_lines.append("phases=%s mega_takes=%d lags_after_respawn_s=[%s] within_3s=%d" % (">".join(phases), len(mega), ",".join("%.1f" % v for v in mega_lags), mega_fast))
+    else:
+        cmax_ = max([c[1] for c in corr] or [0.0])
+        detail_lines.append("client corrections (report-only) non-echo=%d max=%.1f cm echoes=%d" % (len(nonecho), cmax_, len(echoes)))
+    watch = [l for l in C if "VeloxBotWatch" in l]
+    detail_lines.append("client watch lines=%d (feed=%d phase=%d pickup=%d)" % (len(watch), sum(1 for l in watch if " feed " in l), sum(1 for l in watch if " phase=" in l and "old=" in l), sum(1 for l in watch if " pickup " in l)))
+    stats = {"script": script, "pass": not fails, "stuck": len(stuck), "kills": kills, "frags": frags_total, "pickups": nbots, "major": major_taken,
+             "pocket": len(pocket), "bursts": len(bursts), "max_dwell": max_dwell, "repaths": repaths, "mega_fast": mega_fast}
+    with open(os.path.join(out_dir, script + ".stats.json"), "w") as sf:
+        json.dump(stats, sf)
+    head = "%-18s %s kills=%d frags=%d pickups=%d stuck=%d max_dwell_s=%d link_max_dt=%.2f budget_mean_us=%.1f" % (script, "FAIL" if fails else "PASS", kills, frags_total, nbots, len(stuck), max_dwell, link_max, budget_mean)
+    with open(result_path, "w") as out:
+        out.write(head + "\n")
+        for fl in fails:
+            out.write("    - " + fl + "\n")
+        for dl in detail_lines:
+            out.write("    . " + dl + "\n")
+    sys.exit(1 if fails else 0)
+
 # ---- global rules on non-echo corrections (the intended ones are excluded)
 rest = [c for c in nonecho if c not in excluded]
 xs = [c[1] for c in rest]
@@ -1119,6 +1378,47 @@ sys.exit(1 if fails else 0)
 PY
 }
 
+# bot_set_eval <script> <base_dir> <rounds> : ADR 0005 D36 set bands over the per-round <script>.stats.json files
+# (round-<k>/ directories for --repeat > 1). Judged for --repeat 3 only; other counts are reported, not judged.
+bot_set_eval() {
+  python3 -I - "$1" "$2" "$3" <<'PY'
+import json, os, sys
+script, base, rounds = sys.argv[1], sys.argv[2], int(sys.argv[3])
+MAJOR_ALL = ["Health_Mega", "Armor_Red", "Armor_Yellow", "Powerup_BattleSuit", "Powerup_Haste", "Powerup_Quad", "Powerup_Regen"]
+runs = []
+for k in range(1, rounds + 1):
+    d = os.path.join(base, "round-%d" % k) if rounds > 1 else base
+    try:
+        runs.append(json.load(open(os.path.join(d, script + ".stats.json"))))
+    except (OSError, ValueError):
+        print("=== %s set evaluation: round %d has no stats (run aborted) ===" % (script, k)); sys.exit(1)
+S = lambda key: sum(r[key] for r in runs)
+major = sorted({m for r in runs for m in r["major"]})
+missing = [m for m in MAJOR_ALL if m not in major]
+fails = []
+judged = rounds == 3
+if script == "BotRun":
+    if S("stuck") > 10: fails.append("sum VeloxBotStuck %d > 10" % S("stuck"))
+    if S("kills") < 12: fails.append("sum kills by bots %d < 12" % S("kills"))
+    if missing: fails.append("bMajorItem never taken by a bot: %s" % ",".join(missing))
+else:
+    if S("frags") < 9: fails.append("sum frags %d < 9" % S("frags"))
+    if S("stuck") > 10: fails.append("sum VeloxBotStuck %d > 10" % S("stuck"))
+print("=== %s set evaluation over %d round(s) (D36%s) ===" % (script, rounds, "" if judged else "; bands are defined for --repeat 3: reported, not judged"))
+print("  per round: kills=%s frags=%s stuck=%s pickups=%s max_dwell_s=%s repaths=%s" % (
+    [r["kills"] for r in runs], [r["frags"] for r in runs], [r["stuck"] for r in runs], [r["pickups"] for r in runs], [r["max_dwell"] for r in runs], [r["repaths"] for r in runs]))
+print("  sums: stuck=%d kills=%d frags=%d pocket_strikes=%d%s major_covered=%d/7 [%s]%s" % (
+    S("stuck"), S("kills"), S("frags"), S("pocket"), " (FLAG: pocket strike -> architect)" if S("pocket") else "", len(major) if not missing else 7 - len(missing), ",".join(major),
+    " missing=[%s]" % ",".join(missing) if missing else ""))
+if not judged:
+    sys.exit(0)
+for f in fails:
+    print("  - " + f)
+print("  set %s" % ("FAIL" if fails else "PASS"))
+sys.exit(1 if fails else 0)
+PY
+}
+
 main() {
   DRY_RUN=0
   local scripts=() s
@@ -1150,6 +1450,8 @@ main() {
     case "$s" in
       FireRunControl|FireRunHold) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "$s needs FireRun.json" ;;
       RocketJumpRun|RocketJumpRunHold) ;;   # drive velox.combat.RocketJumpTest, no JSON script
+      BotRun) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/BotWatch.json" ]] || die "BotRun needs BotWatch.json" ;;
+      BotDuel) ;;   # a spectator client: velox.bots.Watch, no JSON script (BotRun uses BotWatch.json)
       *) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/$s.json" ]] || die "unknown script '$s'" ;;
     esac
   done
@@ -1175,6 +1477,15 @@ main() {
     fi
   done
   echo "Rounds passed: $passed_rounds/$rounds_run (requested $REPEAT)"
+  for s in "${scripts[@]}"; do
+    if [[ "$BOT_SCRIPTS" == *" $s "* ]]; then
+      if (( rounds_run == REPEAT )); then
+        bot_set_eval "$s" "$base_dir" "$REPEAT" || failed=1
+      else
+        echo "=== $s set evaluation skipped: only $rounds_run of $REPEAT rounds ran ==="
+      fi
+    fi
+  done
   echo "Logs: $base_dir"
   if [[ "$failed" == 1 ]]; then echo "NET SOAK FAILED" >&2; exit 1; fi
   info "NET SOAK OK"

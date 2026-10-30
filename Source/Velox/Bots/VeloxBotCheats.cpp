@@ -21,6 +21,12 @@
 //                                                     name, bot flag, colour, score - the scoreboard's data.
 //   velox.bots.After <seconds> <command ...>          runs a console command after Seconds of game-world time (headless
 //                                                     scripts; a map change such as a client's connect restarts the count).
+// Task 07 (ADR 0005 section 14, D36):
+//   velox.bots.Watch [seconds]                        client observer (nettest.sh BotRun / BotDuel): once connected logs
+//                                                     VeloxBotWatch lines for match phase changes, replicated kill-feed
+//                                                     entries and pickup placeholder changes (with the last taker), a
+//                                                     VeloxBotWatch tick line every 10 s, and quits the process after
+//                                                     Seconds of wall time (0 / omitted = no quit).
 
 #include "AI/Navigation/NavigationTypes.h"
 #include "Bots/VeloxBotController.h"
@@ -41,8 +47,11 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameModes/VeloxGameState.h"
+#include "GameModes/VeloxMatchRules.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameplayTagContainer.h"
+#include "Items/VeloxItemDefinition.h"
 #include "Items/VeloxItemRegistrySubsystem.h"
 #include "Items/VeloxPickup.h"
 #include "HAL/IConsoleManager.h"
@@ -508,6 +517,112 @@ namespace VeloxBotCheats
 			return false;
 		}));
 	}
+
+	// ---------------------------------------------------------------------------------------- Watch (task 07)
+
+	/** State of one velox.bots.Watch run; shared by the ticker and the kill-feed delegate. */
+	struct FWatchState
+	{
+		double Seconds = 0.0;
+		double Started = -1.0;
+		double NextTick = 0.0;
+		bool bHavePhase = false;
+		bool bFeedBound = false;
+		EVeloxMatchPhase Phase = EVeloxMatchPhase::Warmup;
+		int32 FeedEntries = 0;
+		int32 PickupTakes = 0;
+		TMap<TWeakObjectPtr<AVeloxPickup>, bool> Visible;
+	};
+
+	/** The client game world with a game state (null until connected). */
+	UWorld* FindClientWorldWithState()
+	{
+		if (!GEngine)
+		{
+			return nullptr;
+		}
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			UWorld* World = Context.World();
+			if (World && World->IsGameWorld() && World->GetNetMode() == NM_Client && World->GetGameState())
+			{
+				return World;
+			}
+		}
+		return nullptr;
+	}
+
+	void WatchCommand(const TArray<FString>& Args, UWorld* /*World*/)
+	{
+		TSharedRef<FWatchState> State = MakeShared<FWatchState>();
+		State->Seconds = Args.IsValidIndex(0) ? FMath::Max(0.0, FCString::Atod(*Args[0])) : 0.0;
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([State](float) -> bool
+		{
+			UWorld* World = FindClientWorldWithState();
+			AVeloxGameState* GameState = World ? World->GetGameState<AVeloxGameState>() : nullptr;
+			if (!World || !GameState)
+			{
+				return true;
+			}
+			const double Now = FPlatformTime::Seconds();
+			if (State->Started < 0.0)
+			{
+				State->Started = Now;
+				State->NextTick = Now;
+				UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotWatch started seconds=%.0f"), State->Seconds);
+			}
+			if (!State->bFeedBound)
+			{
+				State->bFeedBound = true;
+				// Replicated entries, including the ones a late joiner receives on connect.
+				GameState->OnKillFeedEntry.AddLambda([State](const FVeloxKillFeedEntry& Entry)
+				{
+					++State->FeedEntries;
+					UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotWatch feed seq=%u killer=%s victim=%s tag=%s suicide=%d"), static_cast<uint32>(Entry.Seq), *Entry.KillerName,
+						*Entry.VictimName, *Entry.DamageTag.ToString(), Entry.bSuicide ? 1 : 0);
+				});
+			}
+			if (!State->bHavePhase || State->Phase != GameState->GetPhase())
+			{
+				UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotWatch phase=%s old=%s"), LexToString(GameState->GetPhase()), State->bHavePhase ? LexToString(State->Phase) : TEXT("-"));
+				State->Phase = GameState->GetPhase();
+				State->bHavePhase = true;
+			}
+			if (const UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(World))
+			{
+				for (AVeloxPickup* Pickup : Registry->GetPickups())
+				{
+					const bool bVisible = Pickup->IsPlaceholderVisible();
+					const bool* Known = State->Visible.Find(Pickup);
+					if (Known && *Known && !bVisible)
+					{
+						++State->PickupTakes;
+						UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotWatch pickup item=%s taken_by=%s"), *GetNameSafe(Pickup->GetDefinition()),
+							*AVeloxPlayerState::VeloxPlayerLabel(Pickup->GetLastTakenBy()));
+					}
+					State->Visible.Add(Pickup, bVisible);
+				}
+			}
+			if (Now >= State->NextTick)
+			{
+				State->NextTick = Now + 10.0;
+				UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotWatch t=%.0f phase=%s players=%d feed=%d pickups_taken=%d"), Now - State->Started, LexToString(State->Phase),
+					GameState->PlayerArray.Num(), State->FeedEntries, State->PickupTakes);
+			}
+			if (State->Seconds > 0.0 && Now - State->Started >= State->Seconds)
+			{
+				UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotWatch done seconds=%.0f phase=%s feed=%d pickups_taken=%d"), Now - State->Started, LexToString(State->Phase), State->FeedEntries,
+					State->PickupTakes);
+				FPlatformMisc::RequestExitWithStatus(false, 0);
+				return false;
+			}
+			return true;
+		}), 0.25f);
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs WatchCmd(TEXT("velox.bots.Watch"),
+		TEXT("velox.bots.Watch [seconds]: client observer; logs VeloxBotWatch phase / feed / pickup lines once connected and quits after Seconds of wall time (soak, BotDuel spectator). Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&WatchCommand));
 
 	FAutoConsoleCommandWithWorldAndArgs KillCmd(TEXT("velox.bots.Kill"), TEXT("velox.bots.Kill <bot>: environment-damage kill of a bot by the local player (authority world). Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KillCommand));

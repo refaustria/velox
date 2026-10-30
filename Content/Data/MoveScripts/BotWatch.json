@@ -1,0 +1,9 @@
+{
+ "name": "BotWatch",
+ "note": "L_ItemTest, M4 task 07 / ADR 0005 section 14 and D36. A passive human for the BotRun soak: spawns at (-2700,-1700), the south-wall item grid start used by ItemRun, and then does nothing for 90 s with no input, so the three bots play (and may shoot it) while the client stays connected under 100 ms / 2 % packet simulation. The server log is what infra/ci/nettest.sh judges; the client log is for the report-only corrections and the velox.bots.Watch lines.",
+ "startYaw": 0,
+ "startLocation": [-2700, -1700, 100],
+ "rows": [
+  {"duration": 90.0, "yaw": 0, "label": "watch"}
+ ]
+}
