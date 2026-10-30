@@ -16,8 +16,9 @@ Spec: `docs/adr/0005-bots.md` (ADR 0005; implementation notes list the tasks). T
 | 04c-c | [combat-events-ft-and-giveup](04c-c-combat-events-ft-and-giveup.md) | dev | 2 h | 04b | Wave 3.6 | done |
 | 04d | [balance-followup](04d-balance-followup.md) | dev-hard | 2 h | 04c-a, ADR 0005 D20-D26 | Wave 3.7 (before 07) | done (D24 band via 04e) |
 | 04e | [platform-nav-islands](04e-platform-nav-islands.md) | dev | 1-2 h | 04d | Wave 3.7 | done |
-| 04f | [link-timeout-hop-gate-fight-stall](04f-link-timeout-hop-gate-fight-stall.md) | dev-hard | 2-3 h | 04c-b, 04d merged; ADR 0005 D27-D34 | Wave 3.7 (parallel with 04e, before 07) | done (bands open) |
-| 07 | [bot-soak-and-playtest](07-bot-soak-and-playtest.md) | dev | 2 h | 04c-b, 04c-c, 04d, 04e, 04f | Wave 4 | todo |
+| 04f | [link-timeout-hop-gate-fight-stall](04f-link-timeout-hop-gate-fight-stall.md) | dev-hard | 2-3 h | 04c-b, 04d merged; ADR 0005 D27-D34 | Wave 3.7 (parallel with 04e, before 07) | done (its bands superseded by D36; open points ruled in D37) |
+| 04g | [segment-blocked-repath](04g-segment-blocked-repath.md) | dev-hard | 2 h | 04e, 04f merged; ADR 0005 D35-D37 | Wave 3.8 (parallel with 07's tooling; before 07's acceptance rounds) | todo |
+| 07 | [bot-soak-and-playtest](07-bot-soak-and-playtest.md) | dev | 2 h | 04c-b, 04c-c, 04d, 04e, 04f; acceptance rounds on a head with 04g (D38) | Wave 4 | todo (may start now, D38) |
 
 ## Wave plan (from ADR 0005)
 - **Wave 1:** 01 || 02 || 03
@@ -25,8 +26,9 @@ Spec: `docs/adr/0005-bots.md` (ADR 0005; implementation notes list the tasks). T
 - **Wave 3:** 05 || 06 (file ownership below) -> one `architect` review pass over 04/05/06
 - **Wave 3.5:** 04b (review follow-up of 04: tunables into data, `infra/ci/fts.sh`; `docs/reviews/m4-01-02-04-review.md`)
 - **Wave 3.6:** 04c-a/b/c (final review `docs/reviews/m4-05-06-04b-review.md`)
-- **Wave 3.7:** 04d (ADR 0005 D20-D26)
-- **Wave 4:** 07, ROADMAP M4 ticks, human playtest on the Apple Silicon Mac
+- **Wave 3.7:** 04d (ADR 0005 D20-D26); 04e || 04f (D27-D34)
+- **Wave 3.8:** 04g (D35 segment line-of-walk check, D37 (d) single link budget) || 07's tooling, checklist and `BotWatch` mode (D38). The two soaks never overlap on the machine.
+- **Wave 4:** 07's acceptance rounds on the head with 04g, ROADMAP M4 ticks, human playtest on the Apple Silicon Mac. Bands are judged on the repeat set (D36); the fix loop ends with 04g.
 
 File ownership in wave 3: 05 owns `Bots/VeloxBotCombat.*` and the controller's `UpdateCombat`/`Act` phases; 06 owns `Bots/VeloxBotItemRouting.*` and `UpdateGoal`; both append rows to `Tests/VeloxBotTests.cpp` in their own section. Neither edits the other's files; shared needs go to the lead.
 
