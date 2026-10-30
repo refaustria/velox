@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev-hard
-**Status:** todo
+**Status:** partially done (merged 88cfaa6), open items for architect
 **Depends on:** 04b, ADR 0005 D18, review F2
 
 ## Goal
@@ -18,3 +18,13 @@ Do not touch ItemRouting/Decision (04c-a) or fire/hear/dodge/off-mesh giveup (04
 ## Acceptance criteria
 - [ ] Repeat the 04b ramp-top run: `VeloxBotStuck` ≤ 2, no bot stays > 5 s within 300 cm of the ramp underside
 - [ ] build.sh green; fts.sh OK 5/5; -DisableAdaptiveUnity build succeeds
+
+## Notes / outcome
+dev-hard, 2026-10-30. Headroom guard (sweep 124 cm, ≤ every 0.1 s, plain path segments) + progress rule (`StuckProgressCm` 100 within `StuckSeconds` 2). FtOffMesh `ramp_strip_wall` now asserts the goal: old code FAIL (25 s hopping), new PASS 2.43 s. build.sh 95 green, fts 5/5 ×3, unity build OK.
+FFA 3 Medium 120 s seeds 1–10: stuck 0/2/7/2/4/1/0/1/0/1 (8/10 meet ≤ 2; old 1/1/0/0/0/1/4/1). Ramp underside: longest stay outside Fight 0–4 s (met).
+For architect (one pass before 07):
+1. Ratify: progress clock pauses while the combat overlay owns the wish (enforcing: 10–22 strikes/run; resetting: 9 s scrape).
+2. Drop-link Approach phase has no timeout; one bot hung 57 s (stuck and off-mesh rules are suspended on links).
+3. Remaining progress strikes: bunny-hop reversal / wall scraping; proposal "no hop when velocity points away from the target".
+4. Combat-overlay stalls (7 s against a platform face) caught by neither rule; dodge jump bypasses the headroom guard.
+5. AgentHeight 140 = capsule height lets nav lead under the slab (D18 alternative AgentHeight 255).
