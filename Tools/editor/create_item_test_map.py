@@ -15,7 +15,9 @@ Layout:
   does not take anything else,
   Mega Health and Red Armor on 3 m platforms (400 x 400), each reachable only by a jump pad 600 cm before the platform
   edge (same geometry as pad A of L_MovementTest: apex 30 cm above the platform for the capsule),
-  Yellow Armor on a 15 degree ramp (y 1200) with a platform at its top,
+  Yellow Armor on a 15 degree ramp (y 1200) with a platform at its top and three fill boxes (Ramp_Fill_1..3, X -400..172.7,
+  Z 0 up to the ramp underside at their low-X end) sealing the void under the thin ramp (ADR 0005 D41: no walkable floor
+  under a walkable surface closer than the agent height),
   50 m corridor along the north wall (x -2500..2500, 250 high wall at y 1500, markers every 500 cm), Haste at its start,
   Quad near the centre (500, 0), 8 PlayerStarts,
   M4 (ADR 0005 sections 4 and 14): a third platform in the south-east quadrant (350 cm high, 400 x 400, no pad,
@@ -106,7 +108,7 @@ STARTS = [  # (label, x, y, yaw)
 ERRORS = []
 COUNTS = {}
 EXPECTED = {
-    "ground": 1, "wall": 4, "cross": 2, "platform": 4, "ramp": 1, "corridorwall": 1, "marker": 11,
+    "ground": 1, "wall": 4, "cross": 2, "platform": 7, "ramp": 1, "corridorwall": 1, "marker": 11,
     "pickup": 23, "jumppad": 2, "targetpoint": 2, "playerstart": 8, "camera": 1, "light": 2,
     "navbounds": 1,
     "navlink": 2 + 12 + 1,   # 2 JumpPad, 12 Drop (Mega 3, RA 3, rockets 4, ramp top 2), 1 RocketJump
@@ -343,6 +345,10 @@ def build_ramp():
     box("ramp", "Ramp_YellowArmor", (cx, RAMP_Y, cz), (RAMP_LEN, RAMP_W, thick), "RampWalkable",
         rot=unreal.Rotator(0, RAMP_DEG, 0), folder="YellowArmor")
     box("platform", "Ramp_TopPlatform", (RAMP_X0 + run + 200, RAMP_Y, rise / 2), (400, RAMP_W, rise), "Platform", folder="YellowArmor")
+    # D41: seal the void under the ramp so no floor-level nav exists below the ramp surface (underside at the low-X end
+    # of each box = (X + 600) * tan(15 deg) - thick / cos(15 deg); residual clearance < 60 cm).
+    for i, (x0, x1, top) in enumerate(((-400.0, -200.0, 33.0), (-200.0, 0.0, 86.0), (0.0, run + RAMP_X0, 140.0)), start=1):
+        box("platform", f"Ramp_Fill_{i}", ((x0 + x1) / 2, RAMP_Y, top / 2), (x1 - x0, RAMP_W, top), "Platform", folder="YellowArmor")
     # Bots: east and south edges of the ramp top (north faces the corridor wall, west is the ramp).
     drop_links("RampTop", RAMP_X0 + run + 200, RAMP_Y, 400.0, rise, "SE")
     mid = RAMP_LEN / 2
