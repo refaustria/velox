@@ -1100,6 +1100,276 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// ------------------------------------------------------------------------------------------------ task 06: item routing
+//   Velox.Bots.ItemRouting  world-free rules of Bots/VeloxBotItemRouting.h: scoring input assembly from bot and item facts
+//                           (ownership, ammo, Duel denial), travel time from paths, partial path = score 0 and never
+//                           chosen, path-query selection (budget, current goal first, Duel camp slot), committed-goal
+//                           timing gate, Duel minimum score -> camping through ChooseGoal, evaluation due rule, camp
+//                           point, refusal guard, item labels.
+
+#include "Bots/VeloxBotItemRouting.h"
+
+namespace VeloxBotRoutingTests
+{
+	FVeloxRoutingBotFacts Bot(int32 Health, int32 Armor)
+	{
+		FVeloxRoutingBotFacts B;
+		B.Health = Health;
+		B.MaxHealth = 100;
+		B.HealthHardCap = 200;
+		B.Armor = Armor;
+		B.MaxArmor = 200;
+		B.Ammo.Add(VeloxGameplayTags::Ammo_Rockets, FIntPoint(10, 200));
+		B.Ammo.Add(VeloxGameplayTags::Ammo_Slugs, FIntPoint(0, 200));
+		B.OwnedWeaponTags.Add(VeloxGameplayTags::Weapon_RocketLauncher);
+		B.OwnedAmmoTags.Add(VeloxGameplayTags::Ammo_Rockets);
+		return B;
+	}
+
+	FVeloxRoutingItemFacts Item(int32 Id, EVeloxItemType Type, float BaseValue, bool bMajor = false)
+	{
+		FVeloxRoutingItemFacts I;
+		I.CandidateId = Id;
+		I.Type = Type;
+		I.BotBaseValue = BaseValue;
+		I.bMajorItem = bMajor;
+		return I;
+	}
+
+	FVeloxItemScoringParams Timing(float Skill, float MaxWait)
+	{
+		FVeloxItemScoringParams P;
+		P.ItemTimingSkill = Skill;
+		P.MaxWaitSeconds = MaxWait;
+		return P;
+	}
+
+	FVeloxRoutingPathResult FullPath(double Cost)
+	{
+		FVeloxRoutingPathResult P;
+		P.bFound = true;
+		P.Cost = Cost;
+		P.Length = Cost;
+		return P;
+	}
+
+	FVeloxRoutingPreScore Pre(int32 Id, float Score, bool bMajor = false, bool bAvailable = true, float Respawn = 0.f, float Straight = 1.f)
+	{
+		FVeloxRoutingPreScore P;
+		P.CandidateId = Id;
+		P.PreScore = Score;
+		P.bMajorItem = bMajor;
+		P.bAvailable = bAvailable;
+		P.TimeUntilRespawn = Respawn;
+		P.StraightSeconds = Straight;
+		return P;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxBotsItemRoutingTest, "Velox.Bots.ItemRouting", VeloxBotTestsShared::BotTestFlags)
+
+bool FVeloxBotsItemRoutingTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxBotRoutingTests;
+	const FVeloxItemScoringParams NoTiming = Timing(0.f, 0.f);
+
+	// Scoring input from the facts: health / armor, weapon ownership, the ammo of the item's tag.
+	{
+		const FVeloxRoutingBotFacts B = Bot(50, 20);
+		FVeloxRoutingItemFacts Mega = Item(1, EVeloxItemType::Health, 100.f, true);
+		Mega.HealthCap = EVeloxHealthCap::HardCap;
+		const FVeloxItemScoringInput In = VeloxBotItemRouting::MakeScoringInput(Mega, B, 2.f);
+		TestEqual(TEXT("health copied"), In.Health, 50);
+		TestEqual(TEXT("hard cap copied"), In.HealthHardCap, 200);
+		TestEqual(TEXT("armor copied"), In.Armor, 20);
+		TestEqual(TEXT("travel copied"), In.TravelSeconds, 2.f);
+		TestEqual(TEXT("Mega need at 50 / hard cap 200 = 0.75"), VeloxItemValue::Need(In), 0.75f);
+
+		FVeloxRoutingItemFacts RL = Item(2, EVeloxItemType::Weapon, 60.f);
+		RL.WeaponTag = VeloxGameplayTags::Weapon_RocketLauncher;
+		RL.AmmoTag = VeloxGameplayTags::Ammo_Rockets;
+		const FVeloxItemScoringInput RLIn = VeloxBotItemRouting::MakeScoringInput(RL, B, 1.f);
+		TestTrue(TEXT("owned weapon -> bOwnsWeapon"), RLIn.bOwnsWeapon);
+		TestEqual(TEXT("weapon item: ammo of its ammo tag"), RLIn.Ammo, 10);
+		TestEqual(TEXT("weapon item: ammo cap"), RLIn.AmmoMax, 200);
+		TestEqual(TEXT("owned weapon need = 0.3 x ammo need"), VeloxItemValue::Need(RLIn), 0.3f * 190.f / 200.f, 1e-5f);
+
+		FVeloxRoutingItemFacts RG = Item(3, EVeloxItemType::Weapon, 50.f);
+		RG.WeaponTag = VeloxGameplayTags::Weapon_Railgun;
+		RG.AmmoTag = VeloxGameplayTags::Ammo_Slugs;
+		TestFalse(TEXT("unowned weapon"), VeloxBotItemRouting::MakeScoringInput(RG, B, 1.f).bOwnsWeapon);
+		TestEqual(TEXT("unowned weapon need 1"), VeloxItemValue::Need(VeloxBotItemRouting::MakeScoringInput(RG, B, 1.f)), 1.f);
+
+		FVeloxRoutingItemFacts Slugs = Item(4, EVeloxItemType::Ammo, 10.f);
+		Slugs.AmmoTag = VeloxGameplayTags::Ammo_Slugs;
+		FVeloxRoutingItemFacts Rockets = Item(5, EVeloxItemType::Ammo, 10.f);
+		Rockets.AmmoTag = VeloxGameplayTags::Ammo_Rockets;
+		TestFalse(TEXT("slugs without a railgun: no weapon uses them"), VeloxBotItemRouting::MakeScoringInput(Slugs, B, 1.f).bOwnsWeaponUsingAmmo);
+		TestTrue(TEXT("rockets with the launcher"), VeloxBotItemRouting::MakeScoringInput(Rockets, B, 1.f).bOwnsWeaponUsingAmmo);
+		TestEqual(TEXT("unusable ammo need x 0.1"), VeloxItemValue::Need(VeloxBotItemRouting::MakeScoringInput(Slugs, B, 1.f)), 0.1f, 1e-5f);
+
+		FVeloxRoutingItemFacts Unknown = Item(6, EVeloxItemType::Ammo, 10.f);
+		Unknown.AmmoTag = VeloxGameplayTags::Ammo_Slugs;
+		FVeloxRoutingBotFacts NoAmmo = B;
+		NoAmmo.Ammo.Reset();
+		TestEqual(TEXT("ammo type without a row: cap 0, need 0"), VeloxItemValue::Need(VeloxBotItemRouting::MakeScoringInput(Unknown, NoAmmo, 1.f)), 0.f);
+	}
+
+	// Duel denial: a major item counts with at least MajorItemMinNeed while it would grant something.
+	{
+		FVeloxRoutingBotFacts B = Bot(150, 0);
+		FVeloxRoutingItemFacts Mega = Item(1, EVeloxItemType::Health, 100.f, true);
+		Mega.HealthCap = EVeloxHealthCap::HardCap;
+		const float Plain = VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Mega, B, 1.f), NoTiming);
+		TestEqual(TEXT("FFA: Mega at 150 = 100 x 0.25 / 2"), Plain, 12.5f, 1e-4f);
+		B.MajorItemMinNeed = 0.8f;
+		const float Denied = VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Mega, B, 1.f), NoTiming);
+		TestEqual(TEXT("Duel: Mega at 150 = 100 x 0.8 / 2"), Denied, 40.f, 1e-3f);
+		FVeloxRoutingBotFacts Full = Bot(200, 0);
+		Full.MajorItemMinNeed = 0.8f;
+		TestEqual(TEXT("Duel: Mega at the hard cap stays 0 (the pickup would refuse)"), VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Mega, Full, 1.f), NoTiming), 0.f);
+		FVeloxRoutingBotFacts Low = Bot(20, 0);
+		Low.MajorItemMinNeed = 0.8f;
+		TestEqual(TEXT("Duel: a need above the floor is unchanged (0.9)"), VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Mega, Low, 1.f), NoTiming), 45.f, 1e-3f);
+		FVeloxRoutingItemFacts Medium = Item(2, EVeloxItemType::Health, 40.f, false);
+		FVeloxRoutingBotFacts Hurt = Bot(90, 0);
+		Hurt.MajorItemMinNeed = 0.8f;
+		TestEqual(TEXT("Duel: minor items are not raised"), VeloxItemValue::Score(VeloxBotItemRouting::MakeScoringInput(Medium, Hurt, 1.f), NoTiming), 40.f * 0.1f / 2.f, 1e-4f);
+	}
+
+	// Travel time from the path: cost (length + link entering costs) over the preset speed.
+	{
+		FVeloxRoutingPathResult P = FullPath(3000.0);
+		P.Length = 2500.0;
+		TestEqual(TEXT("cost above length wins (entering costs)"), VeloxBotItemRouting::PathTravelSeconds(P, 1000.f), 3.f, 1e-5f);
+		P.Cost = 0.0;
+		TestEqual(TEXT("no cost: the length"), VeloxBotItemRouting::PathTravelSeconds(P, 1000.f), 2.5f, 1e-5f);
+		TestTrue(TEXT("zero speed: effectively unreachable"), VeloxBotItemRouting::TravelSeconds(100.0, 0.f) > 1000.f);
+	}
+
+	// Partial / missing path: unreachable, score 0, never chosen even when it is by far the best item.
+	{
+		const FVeloxRoutingBotFacts B = Bot(100, 0);
+		const FVeloxRoutingItemFacts Quad = Item(7, EVeloxItemType::Powerup, 110.f, true);
+		FVeloxRoutingPathResult Partial = FullPath(500.0);
+		Partial.bPartial = true;
+		const FVeloxGoalItemCandidate C = VeloxBotItemRouting::MakeGoalCandidate(Quad, B, Partial, 1000.f, NoTiming);
+		TestFalse(TEXT("partial path: unreachable"), C.bReachable);
+		TestEqual(TEXT("partial path: score 0"), C.Score, 0.f);
+		const FVeloxGoalItemCandidate None = VeloxBotItemRouting::MakeGoalCandidate(Quad, B, FVeloxRoutingPathResult(), 1000.f, NoTiming);
+		TestFalse(TEXT("no path: unreachable"), None.bReachable);
+		const FVeloxGoalItemCandidate Ok = VeloxBotItemRouting::MakeGoalCandidate(Quad, B, FullPath(2000.0), 1000.f, NoTiming);
+		TestEqual(TEXT("full path: Score at cost / speed"), Ok.Score, 110.f / 3.f, 1e-3f);
+		TestEqual(TEXT("full path: travel"), Ok.TravelSeconds, 2.f, 1e-5f);
+
+		FVeloxRoutingItemFacts Shard = Item(8, EVeloxItemType::Armor, 5.f);
+		const FVeloxGoalItemCandidate Minor = VeloxBotItemRouting::MakeGoalCandidate(Shard, B, FullPath(1000.0), 1000.f, NoTiming);
+		FVeloxBotDecisionInput In;
+		In.Items = {C, Minor};
+		FRandomStream Stream(1);
+		const FVeloxBotGoalChoice Choice = VeloxBotDecision::ChooseGoal(In, VeloxBotTestsShared::HardParams(), Stream);
+		TestEqual(TEXT("the unreachable Quad is not chosen; the reachable shard is"), Choice.ItemId, 8);
+		TestTrue(TEXT("item goal"), Choice.Type == EVeloxBotGoal::Item);
+	}
+
+	// Path-query selection: at most MaxQueries, current goal first, Duel camp slot, best pre-scores, ties by id.
+	{
+		TArray<int32> Ids;
+		const TArray<FVeloxRoutingPreScore> P = {Pre(1, 5.f), Pre(2, 9.f), Pre(3, 0.f), Pre(4, 7.f), Pre(5, 9.f), Pre(6, 1.f), Pre(7, 0.f, true, false, 20.f, 3.f),
+			Pre(8, 0.f, true, false, 30.f, 1.f)};
+		VeloxBotItemRouting::SelectQueryCandidates(P, 4, INDEX_NONE, false, Ids);
+		TestEqual(TEXT("budget: 4 queries"), Ids.Num(), 4);
+		TestTrue(TEXT("best first, ties by id (2 before 5), then 4, 1"), Ids == TArray<int32>({2, 5, 4, 1}));
+		VeloxBotItemRouting::SelectQueryCandidates(P, 4, 6, false, Ids);
+		TestTrue(TEXT("current goal (6, low score) first"), Ids.Num() == 4 && Ids[0] == 6 && Ids[1] == 2 && Ids[2] == 5 && Ids[3] == 4);
+		VeloxBotItemRouting::SelectQueryCandidates(P, 4, 3, false, Ids);
+		TestEqual(TEXT("current goal is queried even at pre-score 0"), Ids[0], 3);
+		VeloxBotItemRouting::SelectQueryCandidates(P, 4, 99, false, Ids);
+		TestTrue(TEXT("a current goal not in the list is ignored"), Ids == TArray<int32>({2, 5, 4, 1}));
+		VeloxBotItemRouting::SelectQueryCandidates(P, 4, INDEX_NONE, true, Ids);
+		TestTrue(TEXT("Duel: the next major (lead 17 s beats 29 s) takes a slot"), Ids.Num() == 4 && Ids[0] == 7 && Ids[1] == 2 && Ids[2] == 5 && Ids[3] == 4);
+		VeloxBotItemRouting::SelectQueryCandidates(P, 4, 6, true, Ids);
+		TestTrue(TEXT("Duel: current goal, camp candidate, then two best"), Ids == TArray<int32>({6, 7, 2, 5}));
+		VeloxBotItemRouting::SelectQueryCandidates(P, 0, 6, true, Ids);
+		TestEqual(TEXT("budget 0: no queries"), Ids.Num(), 0);
+		VeloxBotItemRouting::SelectQueryCandidates(TArray<FVeloxRoutingPreScore>({Pre(3, 0.f)}), 4, INDEX_NONE, false, Ids);
+		TestEqual(TEXT("nothing worth a query"), Ids.Num(), 0);
+	}
+
+	// Committed goal: the timing gate widens by the travel time at commit (no turn-back when closing in fast).
+	{
+		const FVeloxItemScoringParams Hard = Timing(1.f, 8.f);
+		FVeloxItemScoringInput In;
+		In.Type = EVeloxItemType::Powerup;
+		In.BotBaseValue = 110.f;
+		In.bAvailable = false;
+		In.TimeUntilRespawn = 12.f;
+		In.TravelSeconds = 2.f;
+		TestEqual(TEXT("wait 10 > 8: plain score 0"), VeloxItemValue::Score(In, Hard), 0.f);
+		TestEqual(TEXT("committed with 5 s travel at commit: wait gate 13"), VeloxBotItemRouting::CommittedScore(In, Hard, 5.f), 110.f / 13.f, 1e-3f);
+		TestEqual(TEXT("commit 0 = plain"), VeloxBotItemRouting::CommittedScore(In, Hard, 0.f), 0.f);
+		TestEqual(TEXT("skill 0 ignores unavailable items even when committed"), VeloxBotItemRouting::CommittedScore(In, Timing(0.f, 0.f), 5.f), 0.f);
+		In.TimeUntilRespawn = 20.f;
+		TestEqual(TEXT("beyond the widened gate: 0"), VeloxBotItemRouting::CommittedScore(In, Hard, 5.f), 0.f);
+		In.bAvailable = true;
+		TestEqual(TEXT("available: same as Score"), VeloxBotItemRouting::CommittedScore(In, Hard, 5.f), VeloxItemValue::Score(In, Hard));
+	}
+
+	// Duel minimum score -> camping: minor items below the floor count as 0, ChooseGoal camps the next major.
+	{
+		FVeloxGoalItemCandidate Ammo;
+		Ammo.CandidateId = 1;
+		Ammo.Score = 1.2f;
+		FVeloxGoalItemCandidate Mega;
+		Mega.CandidateId = 2;
+		Mega.bMajorItem = true;
+		Mega.bAvailable = false;
+		Mega.TimeUntilRespawn = 20.f;
+		Mega.TravelSeconds = 3.f;
+		Mega.Location = FVector(100, 200, 300);
+		FVeloxGoalItemCandidate RA = Mega;
+		RA.CandidateId = 3;
+		RA.TimeUntilRespawn = 25.f;
+		TArray<FVeloxGoalItemCandidate> Items = {Ammo, Mega, RA};
+		VeloxBotItemRouting::ApplyMinScore(Items, 0.f);
+		TestEqual(TEXT("floor 0: unchanged"), Items[0].Score, 1.2f);
+		VeloxBotItemRouting::ApplyMinScore(Items, 3.f);
+		TestEqual(TEXT("below the floor: 0"), Items[0].Score, 0.f);
+		FVeloxBotDecisionInput In;
+		In.bDuel = true;
+		In.Items = Items;
+		FRandomStream Stream(1);
+		const FVeloxBotGoalChoice Camp = VeloxBotDecision::ChooseGoal(In, VeloxBotTestsShared::HardParams(), Stream);
+		TestTrue(TEXT("Duel, nothing worth it: Roam (camp)"), Camp.Type == EVeloxBotGoal::Roam);
+		TestEqual(TEXT("camps the Mega (17 s lead before the RA's 22 s)"), Camp.ItemId, 2);
+		In.bDuel = false;
+		In.RoamPoints = {FVector(1, 2, 3)};
+		const FVeloxBotGoalChoice Roam = VeloxBotDecision::ChooseGoal(In, VeloxBotTestsShared::HardParams(), Stream);
+		TestTrue(TEXT("FFA: plain roam, no camp item"), Roam.Type == EVeloxBotGoal::Roam && Roam.ItemId == INDEX_NONE);
+	}
+
+	// Evaluation due, camp point, refusal guard, labels.
+	{
+		TestTrue(TEXT("cadence up"), VeloxBotItemRouting::IsEvaluationDue(10.0, 10.0, false, false));
+		TestFalse(TEXT("cadence not up"), VeloxBotItemRouting::IsEvaluationDue(9.9, 10.0, false, false));
+		TestTrue(TEXT("goal lost (taken / reached): immediately"), VeloxBotItemRouting::IsEvaluationDue(9.0, 10.0, true, false));
+		TestTrue(TEXT("event (respawn, filter change): immediately"), VeloxBotItemRouting::IsEvaluationDue(9.0, 10.0, false, true));
+
+		const FVector CampP = VeloxBotItemRouting::CampPoint(FVector(0, 0, 300), FVector(1000, 0, 0), 200.f);
+		TestTrue(TEXT("camp point 200 cm toward the bot, at the item's height"), CampP.Equals(FVector(200, 0, 300), 1e-3));
+		TestTrue(TEXT("bot on the item: the item"), VeloxBotItemRouting::CampPoint(FVector(5, 5, 0), FVector(5, 5, 90), 200.f).Equals(FVector(5, 5, 0), 1e-3));
+
+		TestFalse(TEXT("refusal: not yet"), VeloxBotItemRouting::IsRefusedAtArrival(true, true, 10.0, 11.0, 1.5f));
+		TestTrue(TEXT("refusal: 1.5 s at an available item"), VeloxBotItemRouting::IsRefusedAtArrival(true, true, 10.0, 11.5, 1.5f));
+		TestFalse(TEXT("waiting at an unavailable item is not a refusal"), VeloxBotItemRouting::IsRefusedAtArrival(true, false, 10.0, 20.0, 1.5f));
+		TestFalse(TEXT("not arrived"), VeloxBotItemRouting::IsRefusedAtArrival(false, true, 10.0, 20.0, 1.5f));
+
+		TestEqual(TEXT("label"), VeloxBotItemRouting::ItemLabel(VeloxGameplayTags::Item_Health_Mega), FString(TEXT("Health.Mega")));
+		TestEqual(TEXT("label of no tag"), VeloxBotItemRouting::ItemLabel(FGameplayTag()), FString(TEXT("-")));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
 
 // ======================================================================================================== task 05

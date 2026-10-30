@@ -3,6 +3,7 @@
 #include "Bots/VeloxBotController.h"
 
 #include "Bots/VeloxBotDifficulty.h"
+#include "Bots/VeloxBotItemRouting.h"
 #include "Bots/VeloxBotLog.h"
 #include "Bots/VeloxBotSettings.h"
 #include "Bots/VeloxBotSubsystem.h"
@@ -494,12 +495,36 @@ void AVeloxBotController::Perceive(float DeltaSeconds)
 
 void AVeloxBotController::UpdateGoal(float /*DeltaSeconds*/)
 {
-	// Task 06 replaces this with item routing (section 7). Until then: roam when there is nothing to do.
+	// Task 06: item routing (ADR 0005 sections 2, 7) through UVeloxBotItemRouter; roam when it finds nothing.
 	const double T = Now();
-	if (State.Goal.Type == EVeloxBotGoal::None && T >= State.NextRoamTime)
+	UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(GetWorld());
+	if (!Router)
 	{
-		State.NextRoamTime = T + RepathIntervalSeconds;
-		StartRoam();
+		if (State.Goal.Type == EVeloxBotGoal::None && T >= State.NextRoamTime)
+		{
+			State.NextRoamTime = T + RepathIntervalSeconds;
+			StartRoam();
+		}
+		return;
+	}
+	FVeloxBotGoal NewGoal;
+	switch (Router->UpdateBot(*this, Params, State.Goal, State.bGoalArrived, Stream, NewGoal))
+	{
+	case EVeloxRouteUpdate::NewGoal:
+		SetGoal(NewGoal);
+		break;
+	case EVeloxRouteUpdate::Roam:
+		// The current roam point stays until reached; a lost goal (None) or an item / camp goal gets a new point.
+		if (State.Goal.Type != EVeloxBotGoal::Roam || State.Goal.Item.IsValid())
+		{
+			if (!StartRoam())
+			{
+				SetGoal(FVeloxBotGoal());
+			}
+		}
+		break;
+	default:
+		break;
 	}
 }
 
