@@ -1,7 +1,7 @@
 # 04b — Bot tunables into data (ReactionJitter, fight score, maneuver constants) and a CI script for the headless functional tests
 
 **Milestone:** M4 Bots
-**Agent:** dev
+**Agent:** dev-hard (scope grown after 05/06)
 **Status:** todo
 **Depends on:** 04 (merged), the wave-3 merge of 05 and 06 (this task edits `SetMoveSegment` and one line of 06's routing glue; run it after both are merged). ADR 0005 D4, D9 (`docs/reviews/m4-01-02-04-review.md` F2, F3).
 
@@ -43,3 +43,9 @@ Standard dev format. List every new property with its default, the `DefaultGame.
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+## Added by the lead after the 05/06 merges (2026-10-30) — task now dev-hard
+- **05/06 integration**: fill `VeloxBotItemRoutingPrivate::FillEnemyInput` from `AVeloxBotController::GetCombatState()`; route the router's path queries through the subsystem's `RecordBotTick` path flag so `VeloxBotBudget paths=/s` counts them (and count the controller's own MoveTo queries).
+- **Corner stuck** (06 report §1): 11/15 `VeloxBotStuck` at the inner corners of L_ItemTest's central cross. Fix with the smaller blast radius: nav agent radius ~45 (re-check FT_BotNavigation/strafe corridor) or a follower corner offset. Acceptance: FFA 3 Medium bots 120 s ×4 runs, `VeloxBotStuck ≤ 2` each.
+- **Off-mesh recovery** (06 §3): a bot whose feet are off the nav mesh with no path must recover (project to nearest nav point and move there, or a stuck strike that triggers it). Acceptance: Duel dedicated `?Bots=2?BotsFill=1?BotDifficulty=Hard` 180 s ×3 with no unrecovered stranding.
+- **fts.sh** includes `velox.bots.FtItemRouting` as well (FtItemPickup, FtNavigation, FtStrafeCorridor, FtItemRouting → `[fts] OK 4/4`).

@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done with open items (merged; notes/06-report.md; follow-up 04b)
 **Depends on:** 04; ADR 0005 §2, §7. Parallel with 05 (file ownership in the README).
 
 ## Goal
