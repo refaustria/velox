@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev-hard (scope grown after 05/06)
-**Status:** todo
+**Status:** done with open items (see notes/04b-report.md)
 **Depends on:** 04 (merged), the wave-3 merge of 05 and 06 (this task edits `SetMoveSegment` and one line of 06's routing glue; run it after both are merged). ADR 0005 D4, D9 (`docs/reviews/m4-01-02-04-review.md` F2, F3).
 
 ## Goal
