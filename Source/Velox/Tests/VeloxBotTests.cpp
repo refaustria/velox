@@ -1025,6 +1025,8 @@ bool FVeloxBotsDecisionTest::RunTest(const FString& Parameters)
 		RA.TravelSeconds = 2.f;
 		FVeloxBotDecisionInput In = Base;
 		In.bDuel = true;
+		In.CampOverScore = 7.f;
+		In.CampMaxLeadSeconds = 20.f;
 		In.Items = {RA, MegaC};
 		In.RoamPoints = {FVector(5.0, 5.0, 5.0)};
 		const FVeloxBotGoalChoice G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
@@ -1033,6 +1035,65 @@ bool FVeloxBotsDecisionTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Duel camping point = item location"), G.Point, MegaC.Location);
 		In.bDuel = false;
 		TestEqual(TEXT("FFA: no camping, random roam"), VeloxBotDecision::ChooseGoal(In, Hard, Stream).ItemId, static_cast<int32>(INDEX_NONE));
+	}
+	{
+		// ADR 0005 D39: camping as a precedence rule with a lead horizon (Hard, Duel, no enemy).
+		FVeloxGoalItemCandidate MegaC, Item;
+		MegaC.CandidateId = 1;
+		MegaC.bMajorItem = true;
+		MegaC.bAvailable = false;
+		MegaC.TimeUntilRespawn = 18.f;
+		MegaC.TravelSeconds = 3.f;
+		MegaC.Location = FVector(1.0, 2.0, 3.0);
+		Item.CandidateId = 5;
+		Item.bAvailable = true;
+		Item.Score = 4.5f;
+		FVeloxBotDecisionInput In = Base;
+		In.bDuel = true;
+		In.CampOverScore = 7.f;
+		In.CampMaxLeadSeconds = 20.f;
+		In.Items = {MegaC, Item};
+		In.RoamPoints = {FVector(5.0, 5.0, 5.0)};
+		FVeloxBotGoalChoice G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D39 (1): lead 15 s, RL 4.5 -> camp the Mega"), G.Type == EVeloxBotGoal::Roam && G.ItemId == 1);
+		In.Items[1].Score = 8.75f;
+		G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D39 (2): lead 15 s, YA 8.75 -> Item"), G.Type == EVeloxBotGoal::Item && G.ItemId == 5);
+		In.Items[0].TimeUntilRespawn = 33.f;
+		In.Items[1].Score = 4.5f;
+		G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D39 (3): lead 30 s, RL 4.5 -> Item"), G.Type == EVeloxBotGoal::Item && G.ItemId == 5);
+		In.Items[0].TimeUntilRespawn = 18.f;
+		In.Current.Type = EVeloxBotGoal::Roam;
+		In.Current.ItemId = 1;
+		In.Items[1].Score = 8.f;
+		G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D39 (4): camping the Mega, item 8.0 < 7 x 1.3 -> stays camping"), G.Type == EVeloxBotGoal::Roam && G.ItemId == 1);
+		In.Items[1].Score = 9.2f; // Hard GoalSwitchHysteresis is 1.3 (bar 9.1), not 1.25
+		G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D39 (4): camping the Mega, item 9.2 > 7 x 1.3 -> Item"), G.Type == EVeloxBotGoal::Item && G.ItemId == 5);
+		In.Current = FVeloxBotGoalChoice();
+		In.Items[1].Score = 0.f;
+		In.bEnemyVisible = true;
+		In.EnemyId = 42;
+		In.Health = 100;
+		G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D39 (5): enemy visible, no item -> Fight"), G.Type == EVeloxBotGoal::Fight);
+		In.bEnemyVisible = false;
+		In.bDuel = false;
+		G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D39 (6): FFA, no item -> random roam"), G.Type == EVeloxBotGoal::Roam && G.ItemId == INDEX_NONE);
+		// Plain section 7 rule: both knobs 0 -> camp only when no item is choosable, any lead.
+		In.bDuel = true;
+		In.CampOverScore = 0.f;
+		In.CampMaxLeadSeconds = 0.f;
+		In.Items[0].TimeUntilRespawn = 63.f;
+		In.Items[1].Score = 4.5f;
+		G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D39 knobs 0: an item scores -> Item"), G.Type == EVeloxBotGoal::Item && G.ItemId == 5);
+		In.Items[1].Score = 0.f;
+		G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D39 knobs 0: nothing scores, lead 60 s -> camp anyway"), G.Type == EVeloxBotGoal::Roam && G.ItemId == 1);
 	}
 	{
 		// ADR 0005 D13 worked Medium cases (FightItemBias 1.5, items 3 s away, Fight 12 / 200 / 0.25). Item scores are the

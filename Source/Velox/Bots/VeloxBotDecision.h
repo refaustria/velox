@@ -54,6 +54,10 @@ struct FVeloxBotDecisionInput
 {
 	bool bPostMatch = false;
 	bool bDuel = false;
+	/** Duel camping (D39): a camp-able major beats items scoring below CampOverScore. 0 = camp only when no item is choosable. */
+	float CampOverScore = 0.f;
+	/** Duel camping (D39): only majors with TimeUntilRespawn - TravelSeconds <= this are camp candidates. 0 = any lead. */
+	float CampMaxLeadSeconds = 0.f;
 
 	/** Best visible enemy (section 6). */
 	bool bEnemyVisible = false;
@@ -88,9 +92,10 @@ namespace VeloxBotDecision
 	 * the list with Score > 0 is kept unless the best scores > current x GoalSwitchHysteresis. Enemy visible -> Fight
 	 * unless the best item's score > FightItemBias x FightScore (then Item); D13 hysteresis: with a current Item goal the
 	 * fight wins only when FightItemBias x FightScore > Item.Score x GoalSwitchHysteresis, with a current Fight goal the
-	 * item wins only when Item.Score > FightItemBias x FightScore x GoalSwitchHysteresis. No enemy -> the best item, else Roam: in Duel
-	 * the unavailable reachable major item with the smallest TimeUntilRespawn - TravelSeconds (camping, ItemId set), else
-	 * the current Roam point while it is still the goal, else a random RoamPoints entry (stream), else None.
+	 * item wins only when Item.Score > FightItemBias x FightScore x GoalSwitchHysteresis. No enemy -> in Duel the unavailable reachable major
+	 * item with the smallest lead TimeUntilRespawn - TravelSeconds (<= CampMaxLeadSeconds when > 0) is camped (Roam, ItemId set)
+	 * when there is no best item or it scores < CampOverScore (x GoalSwitchHysteresis while already camping it); else the
+	 * best item, else Roam: the current Roam point while it is still the goal, else a random RoamPoints entry (stream), else None.
 	 */
 	VELOX_API FVeloxBotGoalChoice ChooseGoal(const FVeloxBotDecisionInput& In, const FVeloxBotDifficultyParams& Params, FRandomStream& Stream);
 }

@@ -268,6 +268,14 @@ public:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0"))
 	float DuelMinItemScore = 3.f;
 
+	/** Duel (ADR 0005 D39): a major coming up within DuelCampMaxLeadSeconds beats any item scoring below this. 0 = camp only when no item is choosable. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0"))
+	float DuelCampOverScore = 7.f;
+
+	/** Duel (D39): camp candidates are majors with TimeUntilRespawn - TravelSeconds <= this. 0 = any lead. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float DuelCampMaxLeadSeconds = 20.f;
+
 	/**
 	 * Duel: a major item whose need is above 0 but below this counts with this need (denial: the take also restarts the
 	 * opponent's wait for it). 0 = the plain section 7 need. Task 06 refinement, see the report.

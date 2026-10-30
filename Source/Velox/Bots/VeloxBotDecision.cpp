@@ -60,6 +60,7 @@ namespace VeloxBotDecisionPrivate
 
 	const FVeloxGoalItemCandidate* DuelCampItem(const FVeloxBotDecisionInput& In)
 	{
+		// ADR 0005 D39: with a lead horizon only majors coming up within it are camp candidates (0 = any lead).
 		const FVeloxGoalItemCandidate* Best = nullptr;
 		float BestLead = 0.f;
 		for (const FVeloxGoalItemCandidate& C : In.Items)
@@ -69,6 +70,10 @@ namespace VeloxBotDecisionPrivate
 				continue;
 			}
 			const float Lead = C.TimeUntilRespawn - C.TravelSeconds;
+			if (In.CampMaxLeadSeconds > 0.f && Lead > In.CampMaxLeadSeconds)
+			{
+				continue;
+			}
 			if (!Best || Lead < BestLead || (Lead == BestLead && C.CandidateId < Best->CandidateId))
 			{
 				Best = &C;
@@ -132,17 +137,24 @@ namespace VeloxBotDecision
 			return Goal;
 		}
 
-		if (Item)
-		{
-			return VeloxBotDecisionPrivate::MakeItemGoal(*Item, EVeloxBotGoal::Item);
-		}
-
+		// ADR 0005 D39: in Duel a major coming up within the lead horizon beats any item scoring under CampOverScore
+		// (the bar is raised by the D13 hysteresis while already camping it).
 		if (In.bDuel)
 		{
 			if (const FVeloxGoalItemCandidate* Camp = VeloxBotDecisionPrivate::DuelCampItem(In))
 			{
-				return VeloxBotDecisionPrivate::MakeItemGoal(*Camp, EVeloxBotGoal::Roam);
+				const bool bCampCurrent = In.Current.Type == EVeloxBotGoal::Roam && In.Current.ItemId == Camp->CandidateId;
+				const float Bar = In.CampOverScore * (bCampCurrent ? Params.GoalSwitchHysteresis : 1.f);
+				if (!Item || Item->Score < Bar)
+				{
+					return VeloxBotDecisionPrivate::MakeItemGoal(*Camp, EVeloxBotGoal::Roam);
+				}
 			}
+		}
+
+		if (Item)
+		{
+			return VeloxBotDecisionPrivate::MakeItemGoal(*Item, EVeloxBotGoal::Item);
 		}
 
 		if (In.Current.Type == EVeloxBotGoal::Roam && In.Current.ItemId == INDEX_NONE)

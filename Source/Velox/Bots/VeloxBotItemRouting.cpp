@@ -858,6 +858,8 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 	FVeloxBotDecisionInput In;
 	In.bPostMatch = bPostMatch;
 	In.bDuel = bDuel;
+	In.CampOverScore = bDuel ? DuelCampOverScore : 0.f;
+	In.CampMaxLeadSeconds = bDuel ? DuelCampMaxLeadSeconds : 0.f;
 	In.Health = BotFacts.Health;
 	In.Armor = BotFacts.Armor;
 	In.WeaponStrength = BotFacts.WeaponStrength;
@@ -995,9 +997,10 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 		VeloxBotItemRoutingPrivate::FilterName(E.Filter), *CandidateText);
 	if (OutUpdate != EVeloxRouteUpdate::Unchanged)
 	{
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRoute bot=%s goal=%s item=%s camp=%d score=%.2f travel=%.2f available=%d respawn_in=%.1f paths=%d filter=%s from=%s fight=%.2f start=%s eval_s=%.3f t=%.2f candidates=[%s]"),
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRoute bot=%s goal=%s item=%s camp=%d score=%.2f travel=%.2f available=%d respawn_in=%.1f lead=%.1f paths=%d filter=%s from=%s fight=%.2f start=%s eval_s=%.3f t=%.2f candidates=[%s]"),
 			*Bot.GetBotName(), OutUpdate == EVeloxRouteUpdate::Roam ? TEXT("Roam") : VeloxBotItemRoutingPrivate::GoalName(Choice.Type), *VeloxBotItemRoutingPrivate::PickupLabel(ChosenPickup),
-			bCamp ? 1 : 0, Choice.Score, Chosen ? Chosen->TravelSeconds : 0.f, Chosen ? (Chosen->bAvailable ? 1 : 0) : 1, Chosen ? Chosen->TimeUntilRespawn : 0.f, E.PathQueries,
+			bCamp ? 1 : 0, Choice.Score, Chosen ? Chosen->TravelSeconds : 0.f, Chosen ? (Chosen->bAvailable ? 1 : 0) : 1, Chosen ? Chosen->TimeUntilRespawn : 0.f,
+			Chosen ? Chosen->TimeUntilRespawn - Chosen->TravelSeconds : 0.f, E.PathQueries,
 			VeloxBotItemRoutingPrivate::FilterName(E.Filter), VeloxBotItemRoutingPrivate::GoalName(Current.Type), Record.BiasedFightScore, E.bAirborneStart ? TEXT("air") : TEXT("ground"),
 			Now - E.StartTime, Now, *CandidateText);
 	}
