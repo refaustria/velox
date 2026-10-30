@@ -14,6 +14,10 @@ Layout (X forward, floor top at Z=0):
   bunny-hop gaps   y 7600/8400/9200, gaps 500/700/900 cm over a 100 cm drop; walled floor-height runways behind
                    the start platforms (run-up 1200/2500/4500 cm to x -1600/-2900/-4900, markers every 512 cm,
                    PlayerStart_Gap<n> at each runway start); pit-exit steps beside each start platform
+  bot nav links    (M4, ADR 0005 section 4) AVeloxNavLink: JumpPad links for pads A/B/C (pad floor point -> landing
+                   marker / ledge), Drop links at the free edges of the pad A platform and the pad C ledge, gap links
+                   500 cm -> Jump (both ways), 700 cm -> JumpFast, none for 900 cm (beyond a bot's reliable speed);
+                   one NavMeshBoundsVolume over the whole map
 """
 import math
 import unreal
@@ -192,6 +196,62 @@ PAD_MAX_LAUNCH_SPEED = 4000.0              # ADR 0002 section 4 default, checked
 VALIDATION_GRAVITY_Z = -2000.0             # UVeloxMovementSettings default (ADR 0002 section 1)
 PADS = []
 
+# Bot nav links (ADR 0005 section 4; conventions in Tools/editor/README.md).
+DROP_INSET = 60.0          # drop start inside the platform edge
+DROP_OUT = 150.0           # drop end on the floor outside the edge
+GAP_TAKEOFF_INSET = 60.0   # gap link start inside the start platform edge (x 400)
+GAP_LAND_INSET = 100.0     # gap link end inside the landing platform edge
+GAP_LINKS = {              # gap -> (link type name, both ways, required take-off speed cm/s); 900: no link
+    500: ("JUMP", True, 740.0),
+    700: ("JUMP_FAST", False, 1100.0),
+}
+LINKS = []
+
+
+def nav_link(label, link_type, start, end, pad=None, both_ways=False, required_speed=0.0, folder="NavLinks"):
+    """AVeloxNavLink at the start point (LinkStart = 0), LinkEnd relative."""
+    a = EAS.spawn_actor_from_class(unreal.VeloxNavLink, unreal.Vector(*start))
+    a.set_actor_label(label)
+    a.set_folder_path(folder)
+    a.set_editor_property("type", link_type)
+    a.set_editor_property("link_start", unreal.Vector(0.0, 0.0, 0.0))
+    a.set_editor_property("link_end", unreal.Vector(end[0] - start[0], end[1] - start[1], end[2] - start[2]))
+    a.set_editor_property("both_ways", both_ways)
+    a.set_editor_property("required_speed_cm_s", required_speed)
+    if pad is not None:
+        a.set_editor_property("jump_pad", pad)
+    count("navlink")
+    LINKS.append(a)
+    return a
+
+
+def drop_links(tag, cx, cy, size, top, edges):
+    """Drop links from the platform top (DROP_INSET inside the edge) to the floor (DROP_OUT outside), edge midpoints."""
+    h = size / 2
+    for e in edges:
+        d = {"N": (0.0, 1.0), "S": (0.0, -1.0), "E": (1.0, 0.0), "W": (-1.0, 0.0)}[e]
+        start = (cx + d[0] * (h - DROP_INSET), cy + d[1] * (h - DROP_INSET), top)
+        end = (cx + d[0] * (h + DROP_OUT), cy + d[1] * (h + DROP_OUT), 0.0)
+        nav_link(f"{tag}_Drop{e}", unreal.VeloxNavLinkType.DROP, start, end)
+
+
+NAV_BOUNDS_BRUSH = 200.0   # a Python-spawned NavMeshBoundsVolume gets the default 200 cm cube brush; scale = size / 200
+
+
+def nav_bounds(label, center, size):
+    """NavMeshBoundsVolume over the whole map (ADR 0005 section 3; bWholeWorldNavigable is not a config property in 5.8)."""
+    v = EAS.spawn_actor_from_class(unreal.NavMeshBoundsVolume, unreal.Vector(*center))
+    v.set_actor_label(label)
+    v.set_folder_path("Navigation")
+    v.set_actor_scale3d(unreal.Vector(size[0] / NAV_BOUNDS_BRUSH, size[1] / NAV_BOUNDS_BRUSH, size[2] / NAV_BOUNDS_BRUSH))
+    origin, extent = v.get_actor_bounds(False)
+    log(f"{label}: origin {origin} extent {extent}")
+    want = unreal.Vector(size[0] / 2, size[1] / 2, size[2] / 2)
+    if abs(extent.x - want.x) > 1.0 or abs(extent.y - want.y) > 1.0 or abs(extent.z - want.z) > 1.0:
+        fail(f"{label}: bounds extent {extent} differs from {want} (brush is not the default 200 cm cube)")
+    count("navbounds")
+    return v
+
 
 def build_pads():
     def pad(name, x, y, target_loc):
@@ -217,29 +277,40 @@ def build_pads():
         pm.set_relative_scale3d(unreal.Vector(PAD_TRIGGER_EXTENT[0] / 50.0, PAD_TRIGGER_EXTENT[1] / 50.0, 0.1))
         count("jumppad")
         PADS.append(a)
+        return a
 
     def target(name, x, y, z):
         box("target", f"JumpPad{name}_Target", (x, y, z + 2), (120, 120, 4), "Target", collide=False,
             folder="JumpPads", mesh_path=CYLINDER)
 
     # A: platform 800 cm away / 320 cm up (platform x 1100..1500, top Z=320).
-    pad("A", 500, -1500, (1100, -1500, 420))
+    pad_a = pad("A", 500, -1500, (1100, -1500, 420))
     box("platform", "JumpPadA_Platform", (1300, -1500, 160), (400, 400, 320), "Platform", folder="JumpPads")
     target("A", 1300, -1500, 320)
+    nav_link("JumpPadA_Link", unreal.VeloxNavLinkType.JUMP_PAD, (500, -1500, 0), (1300, -1500, 320), pad=pad_a)
+    drop_links("JumpPadA_Platform", 1300, -1500, 400, 320, "NSEW")
     text("PadA_Text", (200, -1500, 140), "Pad A: +800 fwd / +320 up", folder="JumpPads")
     # B: flat, 1600 cm (target level with the launch point: minimum-speed 45 degree arc).
-    pad("B", 500, -2500, (2100, -2500, PAD_LAUNCH_Z))
+    pad_b = pad("B", 500, -2500, (2100, -2500, PAD_LAUNCH_Z))
     target("B", 2100, -2500, 0)
+    nav_link("JumpPadB_Link", unreal.VeloxNavLinkType.JUMP_PAD, (500, -2500, 0), (2100, -2500, 0), pad=pad_b)
     text("PadB_Text", (200, -2500, 140), "Pad B: flat 1600", folder="JumpPads")
     # C: vertical 640 cm (capsule centre rises 640 cm); ledge beside the pad, marker disc at the apex.
-    pad("C", 500, -3500, (500, -3500, PAD_LAUNCH_Z + 680))
+    pad_c = pad("C", 500, -3500, (500, -3500, PAD_LAUNCH_Z + 680))
     box("platform", "JumpPadC_Ledge", (900, -3500, 320), (400, 400, 640), "Platform", folder="JumpPads")
     target("C", 500, -3500, 680)
+    # Vertical pad: the pawn steers onto the ledge after the launch (PadRun holds forward), so the link ends on the ledge.
+    nav_link("JumpPadC_Link", unreal.VeloxNavLinkType.JUMP_PAD, (500, -3500, 0), (900, -3500, 640), pad=pad_c)
+    # The west edge faces pad C 400 cm away: a drop there would land on the pad, so it gets no link.
+    drop_links("JumpPadC_Ledge", 900, -3500, 400, 640, "NSE")
     text("PadC_Text", (200, -3500, 140), "Pad C: vertical 680", folder="JumpPads")
 
 
 def check_pads():
+    world = unreal.EditorLevelLibrary.get_editor_world()
     for a in PADS:
+        # Informational; the runtime check is velox.bots.DumpPadLandings on the server.
+        log(f"{a.get_actor_label()}: compute_landing_point {a.compute_landing_point(world)}")
         v = a.compute_launch_velocity(VALIDATION_GRAVITY_Z)
         speed = v.length()
         log(f"{a.get_actor_label()}: launch {v} |v|={speed:.0f} cm/s")
@@ -266,6 +337,10 @@ def build_gaps():
         land_start = 400.0 + gap
         box("gapplat", f"GapLand_{gap}", (land_start + 400, y, -50), (800, 400, 100), "Platform", folder="Gaps")
         text(f"GapText_{gap}", (-300, y, 140), f"gap {gap} cm", folder="Gaps")
+        if gap in GAP_LINKS:
+            kind, both, speed = GAP_LINKS[gap]
+            nav_link(f"Gap{gap}_Link", getattr(unreal.VeloxNavLinkType, kind), (400.0 - GAP_TAKEOFF_INSET, y, 0.0),
+                     (land_start + GAP_LAND_INSET, y, 0.0), both_ways=both, required_speed=speed)
 
         # Straight runway at floor height, ending where the start platform begins (x=-400), walled on both sides.
         L = GAP_RUNWAYS[gap]
@@ -322,6 +397,8 @@ EXPECTED = {
     "step": 36, "jumppad": 3, "targetpoint": 3, "target": 3, "pit": 1, "gapplat": 6,
     "runway": 3, "gapwall": 9, "gapmarker": 17, "pitstep": 12,
     "playerstart": 5, "light": 2,
+    "navbounds": 1,
+    "navlink": 3 + 4 + 3 + 2,  # pad links A/B/C, drops (pad A platform 4, pad C ledge 3), gaps 500/700
 }
 
 
@@ -351,6 +428,8 @@ def build_map():
     build_pads()
     build_gaps()
     build_lighting_and_starts()
+    # Everything: ground slab, gap runways (x to -4910), pit and gap lanes (y to 9900), ramp tops (z to ~1230).
+    nav_bounds("NavMeshBounds", (500.0, 2850.0, 600.0), (11200.0, 14500.0, 1800.0))
     check_pads()
 
     log("spawned: " + ", ".join(f"{k}={v}" for k, v in sorted(COUNTS.items())))
@@ -364,9 +443,13 @@ def build_map():
         fail(f"level has fewer actors ({n_level}) than spawned ({n_spawned})")
     n_sm = sum(1 for a in level_actors if isinstance(a, unreal.StaticMeshActor))
     n_ps = sum(1 for a in level_actors if isinstance(a, unreal.PlayerStart))
-    exp_sm = sum(v for k, v in EXPECTED.items() if k not in ("text", "playerstart", "light", "jumppad", "targetpoint"))
+    exp_sm = sum(v for k, v in EXPECTED.items() if k not in ("text", "playerstart", "light", "jumppad", "targetpoint", "navlink", "navbounds"))
     n_pads = sum(1 for a in level_actors if isinstance(a, unreal.VeloxJumpPad))
     n_tp = sum(1 for a in level_actors if isinstance(a, unreal.TargetPoint))
+    n_links = sum(1 for a in level_actors if isinstance(a, unreal.VeloxNavLink))
+    log(f"VeloxNavLinks={n_links} (expected {EXPECTED['navlink']})")
+    if n_links != EXPECTED["navlink"]:
+        fail(f"nav link count {n_links} differs from {EXPECTED['navlink']}")
     log(f"StaticMeshActors={n_sm} (expected {exp_sm}) PlayerStarts={n_ps} (expected 5) "
         f"VeloxJumpPads={n_pads} (expected 3) TargetPoints={n_tp} (expected 3)")
     if n_sm != exp_sm or n_ps != 5 or n_pads != 3 or n_tp != 3:

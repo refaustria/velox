@@ -5,8 +5,11 @@
 #include "Components/ArrowComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "CollisionQueryParams.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/VeloxCollisionChannels.h"
 #include "Core/VeloxLog.h"
+#include "Engine/HitResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
 #include "Movement/VeloxMoveSim.h"
@@ -118,6 +121,46 @@ FVector AVeloxJumpPad::GetLandingPoint(float GravityZ) const
 	}
 	const double FlightTime = 2.0 * LaunchVelocity.Z / G;
 	return GetLaunchOrigin() + FVector(LaunchVelocity.X, LaunchVelocity.Y, 0.0) * FlightTime;
+}
+
+FVector AVeloxJumpPad::ComputeLandingPoint(const UWorld* World) const
+{
+	FVector Landing;
+	TryComputeLandingPoint(World, Landing);
+	return Landing;
+}
+
+bool AVeloxJumpPad::TryComputeLandingPoint(const UWorld* World, FVector& OutLanding) const
+{
+	const float GravityZ = GetDefault<UVeloxMovementSettings>()->BuildSimParams().GravityZ;
+	const FVector FootOffset(0.0, 0.0, Trigger->GetScaledBoxExtent().Z);
+	const FVector Foot = GetLaunchOrigin() - FootOffset;
+	OutLanding = Foot;
+	const FVector Launch = ComputeLaunchVelocity(GravityZ);
+	const double G = -static_cast<double>(GravityZ);
+	if (!World || Launch.IsNearlyZero() || G <= 0.0 || LandingSampleSeconds <= 0.f)
+	{
+		return false;
+	}
+
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(VeloxJumpPadLanding), false, this);
+	const double ApexTime = FMath::Max(0.0, Launch.Z / G);
+	const int32 NumSamples = FMath::Max(1, FMath::CeilToInt32(LandingMaxFlightSeconds / LandingSampleSeconds));
+	FVector Prev = VeloxMoveSim::BallisticPoint(Foot, Launch, GravityZ, static_cast<float>(ApexTime));
+	for (int32 i = 1; i <= NumSamples; ++i)
+	{
+		const float T = static_cast<float>(ApexTime + i * static_cast<double>(LandingSampleSeconds));
+		const FVector Next = VeloxMoveSim::BallisticPoint(Foot, Launch, GravityZ, T);
+		FHitResult Hit;
+		if (World->LineTraceSingleByChannel(Hit, Prev, Next, Velox_TraceChannel_Weapon, Query))
+		{
+			OutLanding = Hit.ImpactPoint;
+			return true;
+		}
+		Prev = Next;
+	}
+	OutLanding = Prev;
+	return false;
 }
 
 FString AVeloxJumpPad::DescribeLaunchProblem(const FVector& Launch, float GravityZ) const

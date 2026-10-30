@@ -223,6 +223,12 @@ namespace VeloxMoveSim
 		return Dir * (Dist * S) + FVector(0.0, 0.0, (Height + R) * S);
 	}
 
+	FVector BallisticPoint(const FVector& Origin, const FVector& V0, float GravityZ, float T)
+	{
+		const double Time = static_cast<double>(T);
+		return Origin + V0 * Time + FVector(0.0, 0.0, 0.5 * static_cast<double>(GravityZ) * Time * Time);
+	}
+
 	void StepFrame(FVeloxMoveState& S, const FVeloxMoveInput& In, float Dt, const FVeloxMoveParams& P)
 	{
 		if (S.bOnGround && In.bJumpHeld)

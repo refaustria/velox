@@ -110,4 +110,65 @@ bool FVeloxMovementJumpPadTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// ADR 0005 section 4: VeloxMoveSim::BallisticPoint, the arc AVeloxJumpPad::ComputeLandingPoint traces for bot nav links.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxMovementBallisticPointTest, "Velox.Movement.BallisticPoint",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FVeloxMovementBallisticPointTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxJumpPadTest;
+
+	const float GravityZ = GetDefault<UVeloxMovementSettings>()->BuildSimParams().GravityZ;
+	const double G = -static_cast<double>(GravityZ);
+	TestTrue(TEXT("default gravity points down"), G > 0.0);
+
+	const FVector Origin(-1234.5, 678.0, 90.0);
+	const FVector V0(600.0, -350.0, 1200.0);
+
+	// t = 0 is the origin; the formula matches the analytic flight position at arbitrary times.
+	TestTrue(TEXT("t=0 is the origin"), VeloxMoveSim::BallisticPoint(Origin, V0, GravityZ, 0.f).Equals(Origin, 1e-6));
+	for (const double T : { 0.1, 0.37, 1.0, 1.9 })
+	{
+		TestTrue(FString::Printf(TEXT("t=%.2f matches Origin + V0 t + g t^2 / 2"), T),
+			VeloxMoveSim::BallisticPoint(Origin, V0, GravityZ, static_cast<float>(T)).Equals(FlightPosition(Origin, V0, G, T), 1e-3));
+	}
+
+	// Apex at t = Vz / |g|: height Vz^2 / 2|g| above the origin, the highest point, and the arc is symmetric about it.
+	const double ApexT = V0.Z / G;
+	const FVector Apex = VeloxMoveSim::BallisticPoint(Origin, V0, GravityZ, static_cast<float>(ApexT));
+	TestTrue(TEXT("apex height is Vz^2 / 2g"), FMath::IsNearlyEqual(Apex.Z - Origin.Z, V0.Z * V0.Z / (2.0 * G), 1e-2));
+	for (const double Dt : { 1.0 / 60.0, 0.1, 0.25 })
+	{
+		const FVector Before = VeloxMoveSim::BallisticPoint(Origin, V0, GravityZ, static_cast<float>(ApexT - Dt));
+		const FVector After = VeloxMoveSim::BallisticPoint(Origin, V0, GravityZ, static_cast<float>(ApexT + Dt));
+		TestTrue(FString::Printf(TEXT("symmetric heights at apex +- %.3f s"), Dt), FMath::IsNearlyEqual(Before.Z, After.Z, 1e-2));
+		TestTrue(FString::Printf(TEXT("apex is higher than apex +- %.3f s"), Dt), Apex.Z > Before.Z && Apex.Z > After.Z);
+		TestTrue(FString::Printf(TEXT("horizontal motion is uniform around the apex (+- %.3f s)"), Dt),
+			FVector::Dist2D(Before, Apex) > 0.0 && FMath::IsNearlyEqual(FVector::Dist2D(Before, Apex), FVector::Dist2D(Apex, After), 1e-2));
+	}
+
+	// Symmetric landing: back at the launch height at t = 2 Vz / |g|, 2 Vz Vxy / |g| away horizontally.
+	const double LandT = 2.0 * V0.Z / G;
+	const FVector Land = VeloxMoveSim::BallisticPoint(Origin, V0, GravityZ, static_cast<float>(LandT));
+	TestTrue(TEXT("lands at the launch height after 2 Vz / g"), FMath::IsNearlyEqual(Land.Z, Origin.Z, 1e-2));
+	TestTrue(TEXT("landing distance is Vxy * 2 Vz / g"), FMath::IsNearlyEqual(FVector::Dist2D(Land, Origin), V0.Size2D() * LandT, 1e-2));
+
+	// Consistency with the pad launch: pad A of L_MovementTest (AimAtTarget) reaches its target at the apex.
+	const FVector Pad(500.0, -1500.0, 70.0);
+	const FVector Target(1100.0, -1500.0, 420.0);
+	const FVector Launch = VeloxMoveSim::JumpPadLaunchVelocity(Pad, Target, GravityZ);
+	TestTrue(TEXT("pad A: the arc's apex is the AimAtTarget target (1 cm)"),
+		VeloxMoveSim::BallisticPoint(Pad, Launch, GravityZ, static_cast<float>(Launch.Z / G)).Equals(Target, LandingToleranceCm));
+	// Descending branch from the apex to the platform top (capsule bottom 30 cm above it): ~x 1276, on the 1100..1500 platform.
+	const double DescendT = DescendingTimeAtHeight(Launch, G, (320.0 + 70.0) - Pad.Z);
+	const FVector PadALanding = VeloxMoveSim::BallisticPoint(Pad, Launch, GravityZ, static_cast<float>(DescendT));
+	TestTrue(FString::Printf(TEXT("pad A: descending branch crosses the platform height on the platform (x=%.0f)"), PadALanding.X),
+		PadALanding.X > 1100.0 && PadALanding.X < 1500.0 && DescendT > Launch.Z / G);
+
+	// No gravity: a straight line.
+	TestTrue(TEXT("zero gravity is a straight line"), VeloxMoveSim::BallisticPoint(Origin, V0, 0.f, 2.f).Equals(Origin + V0 * 2.0, 1e-6));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
