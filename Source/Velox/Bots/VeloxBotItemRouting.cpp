@@ -147,6 +147,9 @@ namespace VeloxBotItemRoutingPrivate
 					{
 						Out.OwnedAmmoTags.AddUnique(Weapon->AmmoTag);
 					}
+					FVeloxRoutingWeaponAmmo& Use = Out.OwnedWeaponAmmo.FindOrAdd(Weapon->WeaponTag);
+					Use.AmmoTag = Weapon->AmmoTag;
+					Use.AmmoPerShot = Weapon->AmmoTag.IsValid() ? Weapon->AmmoPerShot : 0;
 				}
 			}
 		}
@@ -223,6 +226,34 @@ namespace VeloxBotItemRouting
 			In.BotBaseValue *= Bot.MajorItemMinNeed / Need;
 		}
 		return In;
+	}
+
+	float WeaponStrength(const FVeloxRoutingBotFacts& Bot, TConstArrayView<FVeloxBotWeaponPreference> Preferences)
+	{
+		float MaxWeight = 0.f;
+		for (const FVeloxBotWeaponPreference& Pref : Preferences)
+		{
+			MaxWeight = FMath::Max(MaxWeight, Pref.Weight);
+		}
+		if (MaxWeight <= 0.f)
+		{
+			return 1.f;
+		}
+		float Best = 0.f;
+		for (const FVeloxBotWeaponPreference& Pref : Preferences)
+		{
+			const FVeloxRoutingWeaponAmmo* Use = Bot.OwnedWeaponAmmo.Find(Pref.Weapon);
+			if (!Use || Pref.Weight <= Best)
+			{
+				continue;
+			}
+			const FIntPoint* Have = Use->AmmoTag.IsValid() && Use->AmmoPerShot > 0 ? Bot.Ammo.Find(Use->AmmoTag) : nullptr;
+			if (!Have || Have->X >= Use->AmmoPerShot)
+			{
+				Best = Pref.Weight;
+			}
+		}
+		return FMath::Clamp(Best / MaxWeight, 0.f, 1.f);
 	}
 
 	float TravelSeconds(double DistanceCm, float SpeedCmS)
@@ -801,6 +832,7 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 	In.bDuel = bDuel;
 	In.Health = BotFacts.Health;
 	In.Armor = BotFacts.Armor;
+	In.WeaponStrength = VeloxBotItemRouting::WeaponStrength(BotFacts, Params.WeaponPreferences);
 	VeloxBotItemRoutingPrivate::FillEnemyInput(Bot, Current, In);
 	{
 		// ADR 0005 D4 (task 04b): the fight score parameters are project settings.

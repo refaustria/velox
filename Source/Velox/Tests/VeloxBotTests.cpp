@@ -929,6 +929,74 @@ bool FVeloxBotsDecisionTest::RunTest(const FString& Parameters)
 		In.bDuel = false;
 		TestEqual(TEXT("FFA: no camping, random roam"), VeloxBotDecision::ChooseGoal(In, Hard, Stream).ItemId, static_cast<int32>(INDEX_NONE));
 	}
+	{
+		// ADR 0005 D13 worked Medium cases (FightItemBias 1.5, items 3 s away, Fight 12 / 200 / 0.25). Item scores are the
+		// ADR's numbers; WeaponStrength from the Medium table (RL 90 = max, MG 20 -> 20/90).
+		FVeloxBotDifficultyParams Medium = Hard;
+		Medium.FightItemBias = 1.5f;
+		Medium.GoalSwitchHysteresis = 1.3f;
+		const float RL = 1.f;
+		const float MG = 20.f / 90.f;
+		auto D13 = [&](int32 Health, int32 Armor, float Strength, float ItemScore)
+		{
+			FVeloxBotDecisionInput In = Base;
+			In.bEnemyVisible = true;
+			In.Health = Health;
+			In.Armor = Armor;
+			In.WeaponStrength = Strength;
+			In.Fight.BaseScore = 12.f;
+			In.Fight.FullStrength = 200.f;
+			In.Fight.WeakWeaponScale = 0.25f;
+			FVeloxGoalItemCandidate C;
+			C.CandidateId = 7;
+			C.Score = ItemScore;
+			C.TravelSeconds = 3.f;
+			In.Items = {C};
+			return In;
+		};
+		auto Threshold = [&](const FVeloxBotDecisionInput& In) { return Medium.FightItemBias * VeloxBotDecision::FightScore(In); };
+		auto Pick = [&](const FVeloxBotDecisionInput& In) { return VeloxBotDecision::ChooseGoal(In, Medium, Stream).Type; };
+
+		// 100/100 RL -> 18: Mega 12.5 loses, powerup 27.5 wins.
+		TestEqual(TEXT("D13 100/100 RL threshold 18"), Threshold(D13(100, 100, RL, 0.f)), 18.f, 1e-3f);
+		TestTrue(TEXT("D13 100/100 RL: Mega 12.5 -> Fight"), Pick(D13(100, 100, RL, 12.5f)) == EVeloxBotGoal::Fight);
+		TestTrue(TEXT("D13 100/100 RL: powerup 27.5 -> Item"), Pick(D13(100, 100, RL, 27.5f)) == EVeloxBotGoal::Item);
+		// 100/0 RL -> 9: Mega, YA 17.5, RA 22.5 win; shards / ammo 1.3 lose.
+		TestEqual(TEXT("D13 100/0 RL threshold 9"), Threshold(D13(100, 0, RL, 0.f)), 9.f, 1e-3f);
+		TestTrue(TEXT("D13 100/0 RL: Mega 12.5 -> Item"), Pick(D13(100, 0, RL, 12.5f)) == EVeloxBotGoal::Item);
+		TestTrue(TEXT("D13 100/0 RL: YA 17.5 -> Item"), Pick(D13(100, 0, RL, 17.5f)) == EVeloxBotGoal::Item);
+		TestTrue(TEXT("D13 100/0 RL: RA 22.5 -> Item"), Pick(D13(100, 0, RL, 22.5f)) == EVeloxBotGoal::Item);
+		TestTrue(TEXT("D13 100/0 RL: shard 1.3 -> Fight"), Pick(D13(100, 0, RL, 1.3f)) == EVeloxBotGoal::Fight);
+		// 60/0 MG-only -> 2.25: a 25-health at 2.5 wins (Q3 retreat).
+		TestEqual(TEXT("D13 60/0 MG threshold 2.25"), Threshold(D13(60, 0, MG, 0.f)), 2.25f, 1e-3f);
+		TestTrue(TEXT("D13 60/0 MG: 25-health 2.5 -> Item"), Pick(D13(60, 0, MG, 2.5f)) == EVeloxBotGoal::Item);
+		TestTrue(TEXT("D13 60/0 MG: 2.0 -> Fight"), Pick(D13(60, 0, MG, 2.f)) == EVeloxBotGoal::Fight);
+		// 100/100 MG-only -> 7.5: an unowned weapon at 15 wins (Q3 aggression 0 without a real gun).
+		TestEqual(TEXT("D13 100/100 MG threshold 7.5"), Threshold(D13(100, 100, MG, 0.f)), 7.5f, 1e-3f);
+		TestTrue(TEXT("D13 100/100 MG: weapon 15 -> Item"), Pick(D13(100, 100, MG, 15.f)) == EVeloxBotGoal::Item);
+		TestTrue(TEXT("D13 100/100 MG: 7.0 -> Fight"), Pick(D13(100, 100, MG, 7.f)) == EVeloxBotGoal::Fight);
+
+		// Hysteresis Item -> Fight (current Item goal, threshold 18, x 1.3): fight wins only above item x 1.3.
+		{
+			FVeloxBotDecisionInput In = D13(100, 100, RL, 15.f);
+			TestTrue(TEXT("D13 no current goal: item 15 vs 18 -> Fight"), Pick(In) == EVeloxBotGoal::Fight);
+			In.Current.Type = EVeloxBotGoal::Item;
+			In.Current.ItemId = 7;
+			TestTrue(TEXT("D13 current Item 15: 18 < 19.5 keeps the Item"), Pick(In) == EVeloxBotGoal::Item);
+			In.Items[0].Score = 13.f;
+			TestTrue(TEXT("D13 current Item 13: 18 > 16.9 -> Fight"), Pick(In) == EVeloxBotGoal::Fight);
+		}
+		// Hysteresis Fight -> Item (current Fight goal): item wins only above threshold x 1.3 = 23.4.
+		{
+			FVeloxBotDecisionInput In = D13(100, 100, RL, 20.f);
+			TestTrue(TEXT("D13 no current goal: item 20 vs 18 -> Item"), Pick(In) == EVeloxBotGoal::Item);
+			In.Current.Type = EVeloxBotGoal::Fight;
+			In.Current.EnemyId = 42;
+			TestTrue(TEXT("D13 current Fight: item 20 < 23.4 keeps the Fight"), Pick(In) == EVeloxBotGoal::Fight);
+			In.Items[0].Score = 24.f;
+			TestTrue(TEXT("D13 current Fight: item 24 > 23.4 -> Item"), Pick(In) == EVeloxBotGoal::Item);
+		}
+	}
 	return true;
 }
 
@@ -1407,6 +1475,66 @@ bool FVeloxBotsItemRoutingTest::RunTest(const FString& Parameters)
 
 		TestEqual(TEXT("label"), VeloxBotItemRouting::ItemLabel(VeloxGameplayTags::Item_Health_Mega), FString(TEXT("Health.Mega")));
 		TestEqual(TEXT("label of no tag"), VeloxBotItemRouting::ItemLabel(FGameplayTag()), FString(TEXT("-")));
+	}
+
+	// ADR 0005 D13 WeaponStrength: best owned weapon with >= 1 shot, its Weight / the table's max Weight.
+	{
+		using VeloxBotTestsShared::Pref;
+		// Medium table (section 9 defaults, RG / LG x 0.8): max = RL 90.
+		const TArray<FVeloxBotWeaponPreference> MediumPrefs = {
+			Pref(VeloxGameplayTags::Weapon_Gauntlet, 10.f, 0.f, 0.f, 100.f, 120.f),
+			Pref(VeloxGameplayTags::Weapon_MachineGun, 20.f, 0.f, 0.f, 20480.f, 20480.f),
+			Pref(VeloxGameplayTags::Weapon_Shotgun, 60.f, 0.f, 0.f, 500.f, 1000.f),
+			Pref(VeloxGameplayTags::Weapon_PlasmaGun, 50.f, 150.f, 300.f, 1500.f, 2500.f),
+			Pref(VeloxGameplayTags::Weapon_RocketLauncher, 90.f, 150.f, 300.f, 1500.f, 3000.f),
+			Pref(VeloxGameplayTags::Weapon_LightningGun, 68.f, 0.f, 200.f, 1500.f, 1900.f),
+			Pref(VeloxGameplayTags::Weapon_Railgun, 80.f, 400.f, 1200.f, 20480.f, 20480.f)};
+		TArray<FVeloxBotWeaponPreference> HardPrefs = MediumPrefs;
+		HardPrefs[5].Weight = 85.f;
+		HardPrefs[6].Weight = 100.f;
+
+		auto Own = [](FVeloxRoutingBotFacts& B, const FGameplayTag& Weapon, const FGameplayTag& Ammo, int32 Have, int32 PerShot = 1)
+		{
+			FVeloxRoutingWeaponAmmo& Use = B.OwnedWeaponAmmo.Add(Weapon);
+			Use.AmmoTag = Ammo;
+			Use.AmmoPerShot = Ammo.IsValid() ? PerShot : 0;
+			if (Ammo.IsValid())
+			{
+				B.Ammo.Add(Ammo, FIntPoint(Have, 200));
+			}
+		};
+		FVeloxRoutingBotFacts Spawn;
+		Spawn.Health = 100;
+		TestEqual(TEXT("WeaponStrength: nothing owned -> 0"), VeloxBotItemRouting::WeaponStrength(Spawn, MediumPrefs), 0.f);
+		Own(Spawn, VeloxGameplayTags::Weapon_Gauntlet, FGameplayTag(), 0);
+		TestEqual(TEXT("WeaponStrength: gauntlet only (no ammo) -> 10/90"), VeloxBotItemRouting::WeaponStrength(Spawn, MediumPrefs), 10.f / 90.f, 1e-5f);
+		Own(Spawn, VeloxGameplayTags::Weapon_MachineGun, VeloxGameplayTags::Ammo_Bullets, 100);
+		TestEqual(TEXT("WeaponStrength: MG-only (Medium) -> 20/90 ~ 0.22"), VeloxBotItemRouting::WeaponStrength(Spawn, MediumPrefs), 20.f / 90.f, 1e-5f);
+		TestEqual(TEXT("WeaponStrength: MG-only (Hard) -> 0.2"), VeloxBotItemRouting::WeaponStrength(Spawn, HardPrefs), 0.2f, 1e-5f);
+
+		FVeloxRoutingBotFacts SG = Spawn;
+		Own(SG, VeloxGameplayTags::Weapon_Shotgun, VeloxGameplayTags::Ammo_Shells, 10);
+		TestEqual(TEXT("WeaponStrength: SG (Hard) -> 0.6"), VeloxBotItemRouting::WeaponStrength(SG, HardPrefs), 0.6f, 1e-5f);
+		TestEqual(TEXT("WeaponStrength: SG (Medium) -> 60/90"), VeloxBotItemRouting::WeaponStrength(SG, MediumPrefs), 60.f / 90.f, 1e-5f);
+
+		FVeloxRoutingBotFacts RL = Spawn;
+		Own(RL, VeloxGameplayTags::Weapon_RocketLauncher, VeloxGameplayTags::Ammo_Rockets, 5);
+		TestEqual(TEXT("WeaponStrength: RL (Medium) -> 1"), VeloxBotItemRouting::WeaponStrength(RL, MediumPrefs), 1.f, 1e-5f);
+		RL.Ammo[VeloxGameplayTags::Ammo_Rockets].X = 0;
+		TestEqual(TEXT("WeaponStrength: empty RL -> MG 20/90"), VeloxBotItemRouting::WeaponStrength(RL, MediumPrefs), 20.f / 90.f, 1e-5f);
+		RL.Ammo[VeloxGameplayTags::Ammo_Rockets].X = 1;
+		TestEqual(TEXT("WeaponStrength: RL with one shot -> 1"), VeloxBotItemRouting::WeaponStrength(RL, MediumPrefs), 1.f, 1e-5f);
+
+		FVeloxRoutingBotFacts RG = Spawn;
+		Own(RG, VeloxGameplayTags::Weapon_Railgun, VeloxGameplayTags::Ammo_Slugs, 1, 2);
+		TestEqual(TEXT("WeaponStrength: RG with 1 slug of 2 per shot -> MG"), VeloxBotItemRouting::WeaponStrength(RG, HardPrefs), 0.2f, 1e-5f);
+		RG.Ammo[VeloxGameplayTags::Ammo_Slugs].X = 2;
+		TestEqual(TEXT("WeaponStrength: RG (Hard) -> 1"), VeloxBotItemRouting::WeaponStrength(RG, HardPrefs), 1.f, 1e-5f);
+
+		FVeloxRoutingBotFacts DryMG;
+		Own(DryMG, VeloxGameplayTags::Weapon_MachineGun, VeloxGameplayTags::Ammo_Bullets, 0);
+		TestEqual(TEXT("WeaponStrength: MG without bullets, nothing else -> 0"), VeloxBotItemRouting::WeaponStrength(DryMG, MediumPrefs), 0.f);
+		TestEqual(TEXT("WeaponStrength: empty table -> 1 (neutral)"), VeloxBotItemRouting::WeaponStrength(RL, TArray<FVeloxBotWeaponPreference>()), 1.f);
 	}
 	return true;
 }

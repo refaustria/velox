@@ -60,7 +60,7 @@ struct FVeloxBotDecisionInput
 	int32 EnemyId = INDEX_NONE;
 	FVector EnemyLocation = FVector::ZeroVector;
 
-	/** Own state. WeaponStrength 0..1: how good the best usable weapon is (e.g. its preference weight / the table max). */
+	/** Own state. WeaponStrength 0..1: VeloxBotItemRouting::WeaponStrength (D13; best usable weight / table max). */
 	int32 Health = 0;
 	int32 Armor = 0;
 	float WeaponStrength = 1.f;
@@ -86,7 +86,9 @@ namespace VeloxBotDecision
 	/**
 	 * PostMatch -> None. Best item: the highest-scoring reachable candidate with Score > 0; a current Item goal still in
 	 * the list with Score > 0 is kept unless the best scores > current x GoalSwitchHysteresis. Enemy visible -> Fight
-	 * unless the best item's score > FightItemBias x FightScore (then Item). No enemy -> the best item, else Roam: in Duel
+	 * unless the best item's score > FightItemBias x FightScore (then Item); D13 hysteresis: with a current Item goal the
+	 * fight wins only when FightItemBias x FightScore > Item.Score x GoalSwitchHysteresis, with a current Fight goal the
+	 * item wins only when Item.Score > FightItemBias x FightScore x GoalSwitchHysteresis. No enemy -> the best item, else Roam: in Duel
 	 * the unavailable reachable major item with the smallest TimeUntilRespawn - TravelSeconds (camping, ItemId set), else
 	 * the current Roam point while it is still the goal, else a random RoamPoints entry (stream), else None.
 	 */

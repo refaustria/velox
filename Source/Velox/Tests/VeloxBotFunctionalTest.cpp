@@ -130,13 +130,13 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("not tracking resets the clock"), SlowSince, -1.0);
 	}
 
-	// Task 04b (ADR 0005 D4): fight score and maneuver constants are settings; the loaded values (DefaultGame.ini) equal
-	// the ADR defaults, i.e. behaviour did not change.
+	// Task 04b (ADR 0005 D4) made these settings; task 04c-a (D13) changed the fight-score values. The loaded values
+	// (DefaultGame.ini) equal the ADR values.
 	{
 		const UVeloxBotSettings& S = UVeloxBotSettings::Get();
-		TestEqual(TEXT("FightBaseScore 20"), S.FightBaseScore, 20.f);
-		TestEqual(TEXT("FightFullStrength 100"), S.FightFullStrength, 100.f);
-		TestEqual(TEXT("FightWeakWeaponScale 0.5"), S.FightWeakWeaponScale, 0.5f);
+		TestEqual(TEXT("FightBaseScore 12 (D13)"), S.FightBaseScore, 12.f);
+		TestEqual(TEXT("FightFullStrength 200 (D13)"), S.FightFullStrength, 200.f);
+		TestEqual(TEXT("FightWeakWeaponScale 0.25 (D13)"), S.FightWeakWeaponScale, 0.25f);
 		TestEqual(TEXT("LinkStartAcceptanceCm 30"), S.LinkStartAcceptanceCm, 30.f);
 		TestEqual(TEXT("JumpFastSpeedFraction 0.9"), S.JumpFastSpeedFraction, 0.9f);
 		TestEqual(TEXT("JumpFastRunUpCm 600"), S.JumpFastRunUpCm, 600.f);

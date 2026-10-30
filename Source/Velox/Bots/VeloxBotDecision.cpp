@@ -103,7 +103,25 @@ namespace VeloxBotDecision
 		if (In.bEnemyVisible)
 		{
 			const float Fight = FightScore(In);
-			if (Item && Item->Score > Params.FightItemBias * Fight)
+			const float BiasedFight = Params.FightItemBias * Fight;
+			// ADR 0005 D13: the Fight <-> Item switch needs the GoalSwitchHysteresis margin in both directions.
+			bool bItemWins = false;
+			if (Item)
+			{
+				switch (In.Current.Type)
+				{
+				case EVeloxBotGoal::Item:
+					bItemWins = !(BiasedFight > Item->Score * Params.GoalSwitchHysteresis);
+					break;
+				case EVeloxBotGoal::Fight:
+					bItemWins = Item->Score > BiasedFight * Params.GoalSwitchHysteresis;
+					break;
+				default:
+					bItemWins = Item->Score > BiasedFight;
+					break;
+				}
+			}
+			if (bItemWins)
 			{
 				return VeloxBotDecisionPrivate::MakeItemGoal(*Item, EVeloxBotGoal::Item);
 			}
