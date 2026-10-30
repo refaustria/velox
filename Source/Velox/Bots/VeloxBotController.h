@@ -60,6 +60,8 @@ struct FVeloxBotState
 	const TCHAR* RepathReason = nullptr;
 	/** D35: repath requests issued this life (debug line repaths=). */
 	int32 Repaths = 0;
+	/** D44: world time of the first request of the pending repath (the issue logs age=; -1 = none pending). */
+	double RepathRequestedAt = -1.0;
 	/** Link fallbacks (section 4): a too-slow JumpFast forces _Walk, a rocket jump without impulse forces _Hop, until then. */
 	double WalkFilterUntil = -1.0;
 	double HopFilterUntil = -1.0;
@@ -87,6 +89,12 @@ struct FVeloxBotState
 	/** Set by ApplyInput: the fire ability's NextFireTime advanced this tick (D14, budget fire exclusion). */
 	bool bShotFiredThisTick = false;
 	int32 OffMeshRecoveries = 0;
+	/** D44: recovery attempts that found no reachable nav point this life (`result=no_nav_point`). */
+	int32 OffMeshNoNavPoints = 0;
+	/** D45: attempts whose fallback was blocked / a repeat with no tangent candidate (`result=no_clear_point`) this life. */
+	int32 OffMeshNoClearPoints = 0;
+	/** D45: recovery targets found by the tangent probes along a blocking wall (`target=tangent`) this life. */
+	int32 OffMeshTangentTargets = 0;
 	/** Target of the last recovery attempt (the next attempt avoids it). */
 	FVector OffMeshLastTarget = FVector::ZeroVector;
 
@@ -160,6 +168,12 @@ namespace VeloxBotRules
 	 * move is running (bRecoveryMoveActive and Now < RecoveryMoveUntil).
 	 */
 	VELOX_API bool UpdateOffMesh(double& OffMeshSince, bool bOnMesh, bool bRecoveryMoveActive, double RecoveryMoveUntil, double Now, float GraceSeconds);
+
+	/**
+	 * ADR 0005 D45: the 2-D tangent of a blocking wall from its impact normal (unit, perpendicular to the normal's 2-D part).
+	 * False when the normal's 2-D length is below 0.5 (a floor or ceiling hit has no wall to follow).
+	 */
+	VELOX_API bool WallTangent(const FVector& ImpactNormal, FVector2D& OutTangent);
 
 	/**
 	 * Name for a new bot: Requested if given and free, else the first free entry of Names; a taken name gets the lowest
@@ -326,8 +340,8 @@ public:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot")
 	TArray<float> OffMeshRecoverRingsCm = { 150.f, 300.f, 600.f, 1000.f };
 
-	/** Candidate directions per ring. */
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1"))
+	/** Candidate directions per ring. D45 test hook: 0 runs no ring probe (the swept fallback and its tangent probes still run). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0"))
 	int32 OffMeshRecoverDirections = 12;
 
 	/** Radius of the wall test toward a candidate (cm): thinner than the capsule, the walk slides along walls. */

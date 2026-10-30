@@ -129,6 +129,16 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
 	float SegmentBlockClearanceCm = 100.f;
 
+	/**
+	 * D41: vertical half extent of every grounded "am I on the nav mesh" projection (cm): the controller's off-mesh test,
+	 * the item router's ground start projection and the D35 segment check. Smaller than the engine's default query
+	 * extent (200) so a thin walkable surface overhead (ramp, catwalk) is not mistaken for the floor under the feet;
+	 * stairs and ramps still project, their polys follow the surface within step height. The horizontal half extent is
+	 * UVeloxBotItemRouter::AirborneProjectRadiusCm; UVeloxBotItemRouter::GetOnMeshExtent() builds the one extent all three use.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "10.0", Units = "cm"))
+	float OnMeshHalfHeightCm = 100.f;
+
 	/** A bot tick above this controller time is logged once (microseconds). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Debug", Meta = (ClampMin = "0.0"))
 	float BudgetWarnMicroseconds = 600.f;

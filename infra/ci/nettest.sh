@@ -1140,7 +1140,7 @@ if script in ("BotRun", "BotDuel"):
     link_ok = link_total = 0
     link_max, link_max_desc = 0.0, "-"
     link_over = []
-    refused = giveup = no_nav = recovered = repaths = hear = dodges = camp_lines = 0
+    refused = giveup = no_nav = no_clear = recovered = repaths = hear = dodges = camp_lines = 0
     allun = collections.Counter()
     errors = []
     goals = collections.Counter(); vis_armed = vis_armed_fight = supp1 = debug_lines = noammo = 0
@@ -1186,6 +1186,7 @@ if script in ("BotRun", "BotDuel"):
             dodges += 1; continue
         if "VeloxBotOffMesh" in l:
             if "result=no_nav_point" in l: no_nav += 1
+            if "result=no_clear_point" in l: no_clear += 1  # ADR 0005 D45: report-only, no band
             if "result=giveup" in l: giveup += 1
             if " recovered " in l: recovered += 1
             continue
@@ -1312,8 +1313,8 @@ if script in ("BotRun", "BotDuel"):
             " ".join("%s=%d" % (k.replace("DA_Item_", ""), v) for k, v in sorted(pickups.items())), ",".join(major_taken)),
         "links ok=%d/%d longest_dt=%.2f [%s] failed_reasons=[%s]" % (link_ok, link_total, link_max, link_max_desc, " ".join("%s=%d" % kv_ for kv_ in sorted(reasons.items()))),
         "stuck=%d rules=[%s] bursts=%d pocket_strikes=%d at: %s" % (len(stuck), " ".join("%s=%d" % kv_ for kv_ in sorted(rules.items())), len(bursts), len(pocket), pos_txt or "-"),
-        "max_dwell_s=%d [%s] repaths=%d%s offmesh recovered=%d no_nav_point=%d giveup=%d refused=%d hear=%d dodge=%d camp_route_lines=%d" % (
-            max_dwell, max_dwell_at, repaths, " (FLAG > %d)" % int(duration) if repaths > duration else "", recovered, no_nav, giveup, refused, hear, dodges, camp_lines),
+        "max_dwell_s=%d [%s] repaths=%d%s offmesh recovered=%d no_nav_point=%d no_clear_point=%d giveup=%d refused=%d hear=%d dodge=%d camp_route_lines=%d" % (
+            max_dwell, max_dwell_at, repaths, " (FLAG > %d)" % int(duration) if repaths > duration else "", recovered, no_nav, no_clear, giveup, refused, hear, dodges, camp_lines),
         "budget mean_us=%.1f run_mean_us=%.1f max_us=%.0f max_path_us=%.0f " % (
             budget_mean, run_mean, max([num(d, "max_us") for d in budget_windows] or [0]), max([num(d, "max_path_us") for d in budget_windows] or [0]))
         + ("max_fire_us=not judged (CONTENDED) deferred=not judged (CONTENDED)" if contended else

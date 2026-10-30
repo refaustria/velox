@@ -241,6 +241,13 @@ public:
 	static UVeloxBotItemRouter* Get(const UWorld* World);
 
 	/**
+	 * ADR 0005 D41: the one query extent of every grounded "am I on the nav mesh" projection - the router's ground start
+	 * projection, AVeloxBotController's off-mesh test and the D35 segment check:
+	 * (AirborneProjectRadiusCm, AirborneProjectRadiusCm, UVeloxBotSettings::OnMeshHalfHeightCm), from the config defaults.
+	 */
+	static FVector GetOnMeshExtent();
+
+	/**
 	 * AVeloxBotController::UpdateGoal, every server tick of a bot without a forced goal: watches the nav filter (logs
 	 * `VeloxBotFilter`, re-evaluates on a change), and when an evaluation is due and this frame's slot is free, evaluates
 	 * (steps 1-5 above). OutGoal is valid for NewGoal.
@@ -303,11 +310,10 @@ public:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1", Units = "cm"))
 	float AirborneProjectDownCm = 600.f;
 
-	/** On the ground: vertical half extent of the start projection onto the mesh (cm). */
-	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1", Units = "cm"))
-	float GroundProjectHalfHeightCm = 100.f;
-
-	/** ...and the horizontal radius of both start projections (cm). */
+	/**
+	 * ...and the horizontal radius of both start projections (cm). On the ground the vertical half extent is
+	 * UVeloxBotSettings::OnMeshHalfHeightCm (D41, GetOnMeshExtent).
+	 */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1", Units = "cm"))
 	float AirborneProjectRadiusCm = 100.f;
 

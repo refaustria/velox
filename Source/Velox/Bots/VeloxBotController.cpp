@@ -37,6 +37,22 @@
 
 namespace VeloxBotControllerPrivate
 {
+	/**
+	 * ADR 0005 D44: the nav point nearest to Point (2-D, within HorizontalExtentCm) inside the reachable window
+	 * [FeetZ - DownCm, FeetZ + StepHeight]. Detour ranks projection candidates by 2-D distance and uses the vertical extent
+	 * only as a filter, so a surface overhead inside a symmetric box shadows every acceptable point further away; the window
+	 * is therefore a shifted box whose top is the step height. The explicit Z guard covers the query-extent widening and
+	 * Detour's epsilon.
+	 */
+	bool ProjectReachable(const UNavigationSystemV1& NavSys, const ANavigationData& NavData, const FSharedConstNavQueryFilter& Filter, const FVector& Point, double FeetZ,
+		float StepHeight, float HorizontalExtentCm, float DownCm, FNavLocation& Out)
+	{
+		const float HalfZ = (StepHeight + DownCm) * 0.5f;
+		const FVector Centre(Point.X, Point.Y, FeetZ + StepHeight - HalfZ);
+		return NavSys.ProjectPointToNavigation(Centre, Out, FVector(HorizontalExtentCm, HorizontalExtentCm, HalfZ), &NavData, Filter) &&
+			Out.Location.Z <= FeetZ + StepHeight + KINDA_SMALL_NUMBER;
+	}
+
 	TAutoConsoleVariable<int32> CVarBotFreeze(TEXT("velox.bots.Freeze"), 0,
 		TEXT("1 = every bot releases all keys and stands (ADR 0005 section 14). Server."), ECVF_Default);
 
@@ -205,6 +221,17 @@ namespace VeloxBotRules
 	bool IsFightWatched(EVeloxBotGoal Goal, bool bMoveActive, bool bEnemyVisible, bool bOnGround, bool bOnLink)
 	{
 		return Goal == EVeloxBotGoal::Fight && !bMoveActive && bEnemyVisible && bOnGround && !bOnLink;
+	}
+
+	bool WallTangent(const FVector& ImpactNormal, FVector2D& OutTangent)
+	{
+		const FVector2D N2(ImpactNormal.X, ImpactNormal.Y);
+		if (N2.Size() < 0.5)
+		{
+			return false;
+		}
+		OutTangent = FVector2D(-N2.Y, N2.X).GetSafeNormal();
+		return true;
 	}
 
 	bool UpdateOffMesh(double& OffMeshSince, bool bOnMesh, bool bRecoveryMoveActive, double RecoveryMoveUntil, double Now, float GraceSeconds)
@@ -661,6 +688,10 @@ bool AVeloxBotController::EvaluateRocketJump(const AVeloxNavLink& Link, bool& bO
 
 void AVeloxBotController::RequestRepath(const TCHAR* Reason)
 {
+	if (!State.bRepathRequested)
+	{
+		State.RepathRequestedAt = Now();
+	}
 	State.bRepathRequested = true;
 	State.RepathReason = Reason;
 }
@@ -669,6 +700,7 @@ void AVeloxBotController::StopMove()
 {
 	// A dropped path is re-queried anyway; a pending D35 request has nothing left to replace.
 	State.bRepathRequested = false;
+	State.RepathRequestedAt = -1.0;
 	if (UPathFollowingComponent* Follow = GetPathFollowingComponent(); Follow && Follow->GetStatus() != EPathFollowingStatus::Idle)
 	{
 		StopMovement();
@@ -731,8 +763,12 @@ void AVeloxBotController::EnsureMove(double T)
 		State.bRepathRequested = false;
 		++State.Repaths;
 		const FVeloxSegmentBlockInfo& Block = Follow->GetLastSegmentBlock();
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRepath bot=%s reason=%s at=%s target=%s hit=%s remaining=%.0f"), *GetBotName(), State.RepathReason ? State.RepathReason : TEXT("-"),
-			*Character->GetActorLocation().ToCompactString(), *Block.Target.ToCompactString(), *Block.Hit.ToCompactString(), Block.RemainingCm);
+		// D44: at= is where the request is issued (a ground tick after RepathIntervalSeconds), from= the ray start where the
+		// follower found the block, age= the time in between.
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRepath bot=%s reason=%s at=%s from=%s target=%s hit=%s hit_dist=%.0f remaining=%.0f age=%.2f"), *GetBotName(),
+			State.RepathReason ? State.RepathReason : TEXT("-"), *Character->GetActorLocation().ToCompactString(), *Block.From.ToCompactString(), *Block.Target.ToCompactString(),
+			*Block.Hit.ToCompactString(), Block.HitDistCm, Block.RemainingCm, State.RepathRequestedAt >= 0.0 ? T - State.RepathRequestedAt : -1.0);
+		State.RepathRequestedAt = -1.0;
 	}
 
 	FAIMoveRequest Request(Target);
@@ -792,9 +828,13 @@ bool AVeloxBotController::UpdateOffMeshRecovery(double T)
 	}
 	const FSharedConstNavQueryFilter Filter = UNavigationQueryFilter::GetQueryFilter(*NavData, this, GetNavFilter());
 	const FVector Feet = Character->GetNavAgentLocation();
-	// The default query extent is what a path query's start projection uses: off it, MoveTo cannot start a path here.
+	// ADR 0005 D41: the shared on-mesh extent (UVeloxBotSettings::OnMeshHalfHeightCm, the same as the router's ground
+	// projection and the D35 segment check), not the agent's default query extent (100, 100, 200): from the floor the
+	// default reaches a thin walkable surface overhead (a ramp, a catwalk) and would call a bot in the void under it "on
+	// the mesh". The default extent is still what MoveTo's own start projection uses, so from under such a surface a goal
+	// path would start on the surface above: no goal moves are issued while bOffMeshRecovery (UpdateMove returns first).
 	FNavLocation OnMesh;
-	const bool bOnMesh = NavSys->ProjectPointToNavigation(Feet, OnMesh, INVALID_NAVEXTENT, NavData, Filter);
+	const bool bOnMesh = NavSys->ProjectPointToNavigation(Feet, OnMesh, UVeloxBotItemRouter::GetOnMeshExtent(), NavData, Filter);
 	const double OffSince = State.OffMeshSince;
 	const bool bStart = VeloxBotRules::UpdateOffMesh(State.OffMeshSince, bOnMesh, State.bOffMeshRecovery && State.bMoveActive, State.OffMeshMoveUntil, T, OffMeshGraceSeconds);
 	if (bOnMesh)
@@ -860,40 +900,44 @@ bool AVeloxBotController::UpdateOffMeshRecovery(double T)
 	const float SweepZ = Shape.GetCapsuleHalfHeight() + StepHeight;
 	FCollisionQueryParams SweepParams(SCENE_QUERY_STAT(VeloxBotOffMesh), false, Character);
 	const FCollisionObjectQueryParams StaticOnly(ECC_WorldStatic);
-	const FVector CandidateExtent(OffMeshCandidateExtentCm, OffMeshCandidateExtentCm, OffMeshRecoverHalfHeightCm);
 	const float StartAngle = Stream.FRandRange(0.f, 2.f * UE_PI);
-	const int32 NumDirections = FMath::Max(OffMeshRecoverDirections, 1);
+	const int32 NumDirections = FMath::Max(OffMeshRecoverDirections, 0);
 	const bool bAvoidLast = State.OffMeshAttempts > 1;
+	const FVector SweepStart(Feet.X, Feet.Y, Feet.Z + SweepZ);
+	int32 Tested = 0;
+	// One candidate test for the ring directions and the D45 tangent probes: the nearest point inside the reachable window
+	// (D44), not the previous attempt's target, closer than the ring's best so far, and a clear thin sweep at step height.
+	auto TestCandidate = [&](const FVector& Probe, float& BestDist, FNavLocation& Best) -> bool
+	{
+		FNavLocation Candidate;
+		++Tested;
+		if (!VeloxBotControllerPrivate::ProjectReachable(*NavSys, *NavData, Filter, Probe, Feet.Z, StepHeight, OffMeshCandidateExtentCm, OffMeshRecoverHalfHeightCm, Candidate))
+		{
+			return false;
+		}
+		const float Dist = FVector::Dist2D(Feet, Candidate.Location);
+		if (Dist >= BestDist || (bAvoidLast && FVector::Dist2D(Candidate.Location, State.OffMeshLastTarget) < OffMeshCandidateExtentCm))
+		{
+			return false;
+		}
+		const FVector SweepEnd(Candidate.Location.X, Candidate.Location.Y, Feet.Z + SweepZ);
+		if (GetWorld()->SweepTestByObjectType(SweepStart, SweepEnd, FQuat::Identity, StaticOnly, Shape, SweepParams))
+		{
+			return false;
+		}
+		BestDist = Dist;
+		Best = Candidate;
+		return true;
+	};
 	FNavLocation Point;
 	bool bFound = false;
-	int32 Tested = 0;
 	for (const float Ring : OffMeshRecoverRingsCm)
 	{
 		float BestDist = TNumericLimits<float>::Max();
 		for (int32 i = 0; i < NumDirections; ++i)
 		{
 			const float Angle = StartAngle + 2.f * UE_PI * i / NumDirections;
-			const FVector Probe = Feet + FVector(FMath::Cos(Angle) * Ring, FMath::Sin(Angle) * Ring, 0.0);
-			FNavLocation Candidate;
-			++Tested;
-			if (!NavSys->ProjectPointToNavigation(Probe, Candidate, CandidateExtent, NavData, Filter) || Candidate.Location.Z > Feet.Z + StepHeight)
-			{
-				continue;
-			}
-			const float Dist = FVector::Dist2D(Feet, Candidate.Location);
-			if (Dist >= BestDist || (bAvoidLast && FVector::Dist2D(Candidate.Location, State.OffMeshLastTarget) < OffMeshCandidateExtentCm))
-			{
-				continue;
-			}
-			const FVector SweepStart(Feet.X, Feet.Y, Feet.Z + SweepZ);
-			const FVector SweepEnd(Candidate.Location.X, Candidate.Location.Y, Feet.Z + SweepZ);
-			if (GetWorld()->SweepTestByObjectType(SweepStart, SweepEnd, FQuat::Identity, StaticOnly, Shape, SweepParams))
-			{
-				continue;
-			}
-			BestDist = Dist;
-			Point = Candidate;
-			bFound = true;
+			bFound |= TestCandidate(Feet + FVector(FMath::Cos(Angle) * Ring, FMath::Sin(Angle) * Ring, 0.0), BestDist, Point);
 		}
 		if (bFound)
 		{
@@ -905,9 +949,55 @@ bool AVeloxBotController::UpdateOffMeshRecovery(double T)
 	{
 		Kind = TEXT("nearest");
 		const float Far = OffMeshRecoverRingsCm.Num() > 0 ? OffMeshRecoverRingsCm.Last() : 1000.f;
-		if (!NavSys->ProjectPointToNavigation(Feet, Point, FVector(Far, Far, OffMeshRecoverHalfHeightCm), NavData, Filter))
+		// D41/D44: a point above step height is not a target (the surface over the bot's head, not a way out): the nearest
+		// point inside the reachable window [feet - OffMeshRecoverHalfHeightCm, feet + step]. Nothing there (within Far, 2-D)
+		// runs the attempt counter to the D17 terminal escape.
+		FNavLocation Nearest;
+		if (!VeloxBotControllerPrivate::ProjectReachable(*NavSys, *NavData, Filter, Feet, Feet.Z, StepHeight, Far, OffMeshRecoverHalfHeightCm, Nearest))
 		{
+			++State.OffMeshNoNavPoints;
 			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotOffMesh bot=%s at=%s attempt=%d tested=%d result=no_nav_point"), *GetBotName(), *Feet.ToCompactString(), State.OffMeshAttempts, Tested);
+			StopMove();
+			return true;
+		}
+		// D45: the fallback is swept like the candidates (the nearest window point may lie behind a wall) and skips the
+		// previous attempt's target. A blocked fallback probes along the blocking wall's tangent (the same rings, the same
+		// candidate test, the two directions only): a wall is what makes a slot, its exits lie along the wall.
+		FHitResult Hit;
+		const FVector SweepEnd(Nearest.Location.X, Nearest.Location.Y, Feet.Z + SweepZ);
+		const bool bBlocked = GetWorld()->SweepSingleByObjectType(Hit, SweepStart, SweepEnd, FQuat::Identity, StaticOnly, Shape, SweepParams);
+		const bool bRepeat = bAvoidLast && FVector::Dist2D(Nearest.Location, State.OffMeshLastTarget) < OffMeshCandidateExtentCm;
+		FVector2D Tangent;
+		if (!bBlocked && !bRepeat)
+		{
+			Point = Nearest;
+			bFound = true;
+		}
+		else if (bBlocked && VeloxBotRules::WallTangent(Hit.ImpactNormal, Tangent))
+		{
+			for (const float Ring : OffMeshRecoverRingsCm)
+			{
+				float BestDist = TNumericLimits<float>::Max();
+				for (const float Sign : { 1.f, -1.f })
+				{
+					bFound |= TestCandidate(Feet + FVector(Tangent * (Sign * Ring), 0.0), BestDist, Point);
+				}
+				if (bFound)
+				{
+					break;
+				}
+			}
+			if (bFound)
+			{
+				Kind = TEXT("tangent");
+				++State.OffMeshTangentTargets;
+			}
+		}
+		if (!bFound)
+		{
+			++State.OffMeshNoClearPoints;
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotOffMesh bot=%s at=%s attempt=%d tested=%d nearest=%s blocked=%d result=no_clear_point"), *GetBotName(), *Feet.ToCompactString(),
+				State.OffMeshAttempts, Tested, *Nearest.Location.ToCompactString(), bBlocked ? 1 : 0);
 			StopMove();
 			return true;
 		}

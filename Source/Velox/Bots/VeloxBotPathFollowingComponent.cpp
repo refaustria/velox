@@ -5,6 +5,7 @@
 #include "AI/Navigation/NavigationTypes.h"
 #include "Bots/VeloxBotCombat.h"
 #include "Bots/VeloxBotController.h"
+#include "Bots/VeloxBotItemRouting.h"
 #include "Bots/VeloxBotLog.h"
 #include "Bots/VeloxBotSettings.h"
 #include "Bots/VeloxBotSteering.h"
@@ -18,6 +19,7 @@
 #include "NavMesh/NavMeshPath.h"
 #include "NavMesh/RecastNavMesh.h"
 #include "NavigationData.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "NavigationSystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxBotPathFollowingComponent)
@@ -219,10 +221,13 @@ bool UVeloxBotPathFollowingComponent::UpdateSegmentBlocked(const FVector& Feet, 
 	{
 		return bSegmentBlocked;
 	}
-	// D35: the feet onto the mesh with the agent's default query extent; no projection (a hop apex) skips the check.
+	// D35: the feet onto the mesh; no projection (a hop apex, off the mesh) skips the check. D41 (task 04i): with the shared
+	// on-mesh extent, so this check and the controller's off-mesh test agree on "on the mesh" in the same tick.
 	const ANavigationData* NavData = NavSys->GetNavDataForProps(Bot->GetNavAgentPropertiesRef(), Feet);
 	FNavLocation Projected;
-	if (!NavData || !NavSys->ProjectPointToNavigation(Feet, Projected, INVALID_NAVEXTENT, NavData))
+	// D44: with the bot's own filter, like the raycast below and the controller's off-mesh test.
+	if (!NavData || !NavSys->ProjectPointToNavigation(Feet, Projected, UVeloxBotItemRouter::GetOnMeshExtent(), NavData,
+			UNavigationQueryFilter::GetQueryFilter(*NavData, Bot, Bot->GetNavFilter())))
 	{
 		return bSegmentBlocked;
 	}
@@ -245,6 +250,7 @@ bool UVeloxBotPathFollowingComponent::UpdateSegmentBlocked(const FVector& Feet, 
 		LastSegmentBlock.From = Start;
 		LastSegmentBlock.Target = Target;
 		LastSegmentBlock.Hit = HitLocation;
+		LastSegmentBlock.HitDistCm = HitDist;
 		LastSegmentBlock.RemainingCm = Remaining;
 	}
 	if (bBlocked != bSegmentBlocked)

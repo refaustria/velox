@@ -293,6 +293,17 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("back on the mesh: clock reset"), OffSince, -1.0);
 	}
 
+	// D45: the wall tangent of a blocked recovery fallback.
+	{
+		FVector2D Tangent;
+		TestTrue(TEXT("wall tangent: wall normal (0,-1,0)"), VeloxBotRules::WallTangent(FVector(0.0, -1.0, 0.0), Tangent));
+		TestTrue(TEXT("wall tangent: unit length"), FMath::IsNearlyEqual(Tangent.Size(), 1.0, 1e-4));
+		TestTrue(TEXT("wall tangent: perpendicular to (0,-1)"), FMath::IsNearlyZero(FVector2D::DotProduct(Tangent, FVector2D(0.0, -1.0)), 1e-4));
+		TestFalse(TEXT("wall tangent: floor normal (0,0,1) has none"), VeloxBotRules::WallTangent(FVector(0.0, 0.0, 1.0), Tangent));
+		TestTrue(TEXT("wall tangent: sloped normal (0.6,0,0.8)"), VeloxBotRules::WallTangent(FVector(0.6, 0.0, 0.8), Tangent));
+		TestTrue(TEXT("wall tangent: (0.6,0,0.8) -> (0,+-1)"), FMath::IsNearlyZero(Tangent.X, 1e-4) && FMath::IsNearlyEqual(FMath::Abs(Tangent.Y), 1.0, 1e-4));
+	}
+
 	// Names.
 	{
 		const TArray<FString> Names = { TEXT("Celer"), TEXT("Rapidus") };
@@ -1159,8 +1170,28 @@ namespace VeloxBotRoutingFt
 //                         goal south of it. Checks per case: a `VeloxBotOffMesh ... recovered` (the controller's recovery
 //                         count rises) within 10 s and the goal reached within 25 s. The placement is the test harness;
 //                         the bot only gets input.
+//                         Case "under_slab" (ADR 0005 D41, task 04i-B): a thin static slab is staged over open floor (the
+//                         nav mesh rebuilt at runtime), its underside above the capsule but below the agent height, so
+//                         the floor under it carries no mesh while the default query extent (Z 200) from the feet still
+//                         reaches the slab top (setup check). The bot stands beneath it with a forced Item goal. Checks:
+//                         no `recovered` while the feet are deeper inside the footprint than the on-mesh extent can see
+//                         past the eroded edge (half size - (extent XY - AgentRadius)), every recovery target Z <= feet Z
+//                         + step height, the bot out of the footprint and `recovered` within 10 s, the item within 25 s.
+//                         Every case (ADR 0005 D44): no `result=no_nav_point` (FVeloxBotState::OffMeshNoNavPoints unchanged).
+//                         Cases "slot_centre" / "slot_tangent" (D45): the worst point of the 100 cm slot north of the ramp
+//                         top (exits ~525/530 cm away along the wall); slot_tangent with OffMeshRecoverDirections 0 (no ring
+//                         probe: the swept fallback is blocked by the corridor wall and the tangent probes find the exit).
+//                         Checks: recovered on attempt 1, no stuck strike, no `no_clear_point`, the recovery target south of
+//                         Y 1450 and >= 500 cm along X; slot_tangent: exactly one `target=tangent`.
 
 #if !UE_BUILD_SHIPPING
+
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "StaticMeshCompiler.h"
+#include "NavMesh/RecastNavMesh.h"
+#include "NavigationSystem.h"
 
 namespace VeloxBotOffMeshFt
 {
@@ -1176,6 +1207,12 @@ namespace VeloxBotOffMeshFt
 		 * where a bunny-hopping bot used to hit the slab and oscillate; the hop headroom guard makes it walk there.
 		 */
 		bool bCheckGoal = true;
+		/** D41: stage the slab over Start; the goal is then an Item goal, the Armor Shard nearest to Goal. */
+		bool bUnderSlab = false;
+		/** D45 test hook: the case's bot gets OffMeshRecoverDirections 0 (no ring probe; fallback + tangent only). */
+		bool bNoRings = false;
+		/** D45 slot checks: first attempt, no strike, no no_clear_point, exit along the slot. */
+		bool bSlotChecks = false;
 	};
 
 	/** L_ItemTest (Tools/editor/create_item_test_map.py): corridor wall y 1500..1600, platforms y 1000..1400, cross 200 high. */
@@ -1183,8 +1220,32 @@ namespace VeloxBotOffMeshFt
 		{ TEXT("ra_strip"), FVector(2100.0, 1450.0, 0.0), FVector(2100.0, 500.0, 0.0), true },
 		{ TEXT("mega_strip"), FVector(-1500.0, 1450.0, 0.0), FVector(-1500.0, 500.0, 0.0), true },
 		{ TEXT("ramp_strip_wall"), FVector(364.0, 1462.0, 0.0), FVector(400.0, 600.0, 0.0), true },
+		// D45: the slot's worst point (east exit ~530 cm, west ~525 cm), with the ring search and without it.
+		{ TEXT("slot_centre"), FVector(100.0, 1462.5, 0.0), FVector(400.0, 600.0, 0.0), true, false, false, true },
+		{ TEXT("slot_tangent"), FVector(100.0, 1462.5, 0.0), FVector(400.0, 600.0, 0.0), true, false, true, true },
 		{ TEXT("cross_top"), FVector(0.0, 200.0, 200.0), FVector(800.0, 600.0, 0.0), true },
+		// Open floor west of the cross, clear of the grid (y -1700), the Mega pad and PlayerStart_5 (-1200, -900); the
+		// goal is the Armor Shard on the grid (-2250, -1700).
+		{ TEXT("under_slab"), FVector(-1500.0, -500.0, 0.0), FVector(-2250.0, -1700.0, 0.0), true, true },
 	};
+
+	/** The under_slab case's slab: 20 cm thick, footprint centred on the case's Start. */
+	constexpr double SlabHalfSizeCm = 300.0;
+	constexpr double SlabThicknessCm = 20.0;
+	/**
+	 * Underside above the floor: above the capsule (140) so the bot stands beneath it, below what Recast needs for a
+	 * walkable span (AgentHeight 140 in CellHeight 10 cells plus rounding), so the floor beneath has no mesh: the D41 void.
+	 */
+	constexpr double SlabUndersideCm = 145.0;
+	/** Nav rebuild after staging: at least this long, then until the navigation build is idle (s). */
+	constexpr double SlabNavSettleSeconds = 3.0;
+	constexpr double SlabNavLimitSeconds = 15.0;
+	/** Part A's ramp probes (D41), logged with both extents for the record. */
+	const FVector RampProbes[] = { FVector(10.0, 1190.0, 10.0), FVector(135.0, 1198.0, 10.0), FVector(-300.0, 1200.0, 10.0) };
+	/** D45 slot exit: the recovery target lies south of this Y (no mesh north of it but the corridor behind the wall)... */
+	constexpr double SlotExitMaxY = 1450.0;
+	/** ...and at least this far along X from the start (every slot exit is ring-600 along the wall). */
+	constexpr double SlotExitMinAlongCm = 500.0;
 	constexpr double SettleSeconds = 0.5;
 	constexpr double RecoverLimitSeconds = 10.0;
 	constexpr double ArriveLimitSeconds = 25.0;
@@ -1199,9 +1260,95 @@ namespace VeloxBotOffMeshFt
 		double RunStart = 0.0;
 		double RecoveredAt = -1.0;
 		int32 RecoveriesAtStart = 0;
+		/** D44: `result=no_nav_point` count when the case started (asserted unchanged per case). */
+		int32 NoNavPointsAtStart = 0;
+		/** D45 slot checks: counters at the start, the per-tick observations and the target at `recovered`. */
+		int32 NoClearPointsAtStart = 0;
+		int32 TangentTargetsAtStart = 0;
+		int32 MaxAttempts = 0;
+		int32 LastStrikes = 0;
+		int32 StrikeRises = 0;
+		FVector ExitTarget = FVector::ZeroVector;
 		/** The pawn the case started with (a respawn mid-case fails it). */
 		TWeakObjectPtr<APawn> CasePawn;
+		/** under_slab: the staged slab, when the nav rebuild may be over, the item goal and the D41 observations. */
+		TWeakObjectPtr<AStaticMeshActor> Slab;
+		double SlabStagedAt = -1.0;
+		TWeakObjectPtr<AVeloxPickup> ItemGoal;
+		int32 EarlyRecoveries = 0;
+		int32 TargetsChecked = 0;
+		int32 TargetsAbove = 0;
+		double MaxTargetRiseCm = -1.0e9;
+		FVector LastTarget = FVector::ZeroVector;
+		double LeftSlabAt = -1.0;
+
+		void OnFinish() override
+		{
+			if (AStaticMeshActor* S = Slab.Get())
+			{
+				S->Destroy();
+			}
+		}
 	};
+
+	AStaticMeshActor* StageSlab(UWorld& World, const FVector& FloorCentre)
+	{
+		UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+		if (!Cube)
+		{
+			return nullptr;
+		}
+#if WITH_EDITOR
+		// An editor binary may still be compiling the mesh; a compiling mesh is not navigation relevant (no nav rebuild).
+		UStaticMesh* const Meshes[] = { Cube };
+		FStaticMeshCompilingManager::Get().FinishCompilation(Meshes);
+#endif
+		const FTransform Transform(FRotator::ZeroRotator, FloorCentre + FVector(0.0, 0.0, SlabUndersideCm + SlabThicknessCm * 0.5),
+			FVector(SlabHalfSizeCm * 2.0 / 100.0, SlabHalfSizeCm * 2.0 / 100.0, SlabThicknessCm / 100.0));
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AStaticMeshActor* Slab = World.SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), Transform, Params);
+		if (!Slab)
+		{
+			return nullptr;
+		}
+		// The component is registered at spawn and a registered Static component refuses a new mesh (it would not reach
+		// the nav octree): Movable, which still blocks and still feeds the runtime nav mesh (SetStaticMesh updates it).
+		UStaticMeshComponent* Mesh = Slab->GetStaticMeshComponent();
+		Mesh->SetMobility(EComponentMobility::Movable);
+		Mesh->SetStaticMesh(Cube);
+		return Mesh->GetStaticMesh() == Cube ? Slab : nullptr;
+	}
+
+	bool InsideSlab(const FVector& Point, const FVector& Centre, double Inset)
+	{
+		const double Half = SlabHalfSizeCm - Inset;
+		return FMath::Abs(Point.X - Centre.X) <= Half && FMath::Abs(Point.Y - Centre.Y) <= Half;
+	}
+
+	AVeloxPickup* NearestPickup(UWorld* World, const FGameplayTag& Tag, const FVector& Near)
+	{
+		const UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(World);
+		AVeloxPickup* Best = nullptr;
+		double BestDist = TNumericLimits<double>::Max();
+		for (AVeloxPickup* Pickup : Registry ? Registry->FindByTag(Tag) : TArray<AVeloxPickup*>())
+		{
+			const double Dist = Pickup ? FVector::Dist2D(Pickup->GetActorLocation(), Near) : BestDist;
+			if (Dist < BestDist)
+			{
+				Best = Pickup;
+				BestDist = Dist;
+			}
+		}
+		return Best;
+	}
+
+	/** One projection with both extents, for the setup check and the log. */
+	FString ProbeLabel(const UNavigationSystemV1& NavSys, const ANavigationData& NavData, const FVector& Point, const FVector& Extent, FNavLocation& Out, bool& bOutFound)
+	{
+		bOutFound = NavSys.ProjectPointToNavigation(Point, Out, Extent, &NavData);
+		return bOutFound ? Out.Location.ToCompactString() : FString(TEXT("none"));
+	}
 
 	bool StartCase(const TSharedRef<FOffMeshFt>& Ft)
 	{
@@ -1226,12 +1373,120 @@ namespace VeloxBotOffMeshFt
 		Ft->Bot = Bot;
 		Ft->CasePawn = Pawn;
 		Bot->SetFrozen(true);
-		VeloxBotFt::PlaceAtStart(*Pawn, Cases[Ft->CaseIndex].Start);
-		Ft->SettleUntil = Ft->Now() + SettleSeconds;
+		const FCase& Case = Cases[Ft->CaseIndex];
+		if (Case.bUnderSlab)
+		{
+			AStaticMeshActor* Slab = StageSlab(*World, Case.Start);
+			AVeloxPickup* Item = NearestPickup(World, FGameplayTag(VeloxGameplayTags::Item_Armor_Shard), Case.Goal);
+			if (!Slab || !Item)
+			{
+				Ft->Check(false, TEXT("under_slab_setup"), FString::Printf(TEXT("slab=%s item=%s"), *GetNameSafe(Slab), *GetNameSafe(Item)));
+				return false;
+			}
+			Ft->Slab = Slab;
+			Ft->ItemGoal = Item;
+			Ft->SlabStagedAt = Ft->Now();
+			Ft->EarlyRecoveries = 0;
+			Ft->TargetsChecked = 0;
+			Ft->TargetsAbove = 0;
+			Ft->MaxTargetRiseCm = -1.0e9;
+			Ft->LastTarget = FVector::ZeroVector;
+			Ft->LeftSlabAt = -1.0;
+		}
+		if (Case.bNoRings)
+		{
+			// Test hook (D45): the freshly added bot only; it is kicked at the next case.
+			Bot->OffMeshRecoverDirections = 0;
+		}
+		VeloxBotFt::PlaceAtStart(*Pawn, Case.Start);
+		Ft->SettleUntil = Ft->Now() + (Case.bUnderSlab ? SlabNavSettleSeconds : SettleSeconds);
 		Ft->bRunning = false;
 		Ft->bRecovered = false;
 		Ft->RecoveredAt = -1.0;
 		return true;
+	}
+
+	/**
+	 * under_slab, once the nav rebuild is idle: the setup check (the floor under the slab is a D41 void: nothing within
+	 * the shared on-mesh extent, while the default query extent reaches the slab top above step height) and the ramp
+	 * probes' log. False fails the case's setup.
+	 */
+	bool CheckSlabVoid(const TSharedRef<FOffMeshFt>& Ft, const AVeloxCharacter& Pawn)
+	{
+		UWorld* World = Ft->World.Get();
+		const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+		const UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+		const ANavigationData* NavData = Bots ? Bots->GetNavData() : nullptr;
+		if (!NavSys || !NavData)
+		{
+			Ft->Check(false, TEXT("under_slab_setup_void"), TEXT("no nav"));
+			return false;
+		}
+		const FVector Shared = UVeloxBotItemRouter::GetOnMeshExtent();
+		for (const FVector& Probe : RampProbes)
+		{
+			FNavLocation Out;
+			bool bDefault = false;
+			bool bShared = false;
+			const FString Default = ProbeLabel(*NavSys, *NavData, Probe, INVALID_NAVEXTENT, Out, bDefault);
+			const FString SharedLabel = ProbeLabel(*NavSys, *NavData, Probe, Shared, Out, bShared);
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s probe at=%s default_extent=%s shared_extent=%s (%s)"), Ft->Name, *Probe.ToCompactString(), *Default, *SharedLabel,
+				*Shared.ToCompactString());
+		}
+		const FVector Feet = Pawn.GetNavAgentLocation();
+		const float StepHeight = Pawn.GetVeloxMovementComponent()->MaxStepHeight;
+		FNavLocation DefaultOut;
+		FNavLocation SharedOut;
+		bool bDefault = false;
+		bool bShared = false;
+		const FString Default = ProbeLabel(*NavSys, *NavData, Feet, INVALID_NAVEXTENT, DefaultOut, bDefault);
+		const FString SharedLabel = ProbeLabel(*NavSys, *NavData, Feet, Shared, SharedOut, bShared);
+		FNavLocation TopOut;
+		bool bTop = false;
+		const FVector SlabTop = Cases[Ft->CaseIndex].Start + FVector(0.0, 0.0, SlabUndersideCm + SlabThicknessCm + 10.0);
+		const FString TopLabel = ProbeLabel(*NavSys, *NavData, SlabTop, FVector(50.0, 50.0, 50.0), TopOut, bTop);
+		const bool bVoid = !bShared && bDefault && DefaultOut.Location.Z > Feet.Z + StepHeight;
+		const UStaticMeshComponent* SlabMesh = Ft->Slab.IsValid() ? Ft->Slab->GetStaticMeshComponent() : nullptr;
+		Ft->Check(bVoid, TEXT("under_slab_setup_void"), FString::Printf(TEXT("feet=%s default_extent=%s shared_extent=%s slab_top=%s slab_nav_relevant=%d mesh_nav=%d query_collision=%d nav_wait_s=%.2f"), *Feet.ToCompactString(),
+			*Default, *SharedLabel, *TopLabel, SlabMesh && SlabMesh->IsNavigationRelevant() ? 1 : 0,
+			SlabMesh && SlabMesh->GetStaticMesh() && SlabMesh->GetStaticMesh()->IsNavigationRelevant() ? 1 : 0, SlabMesh && SlabMesh->IsQueryCollisionEnabled() ? 1 : 0,
+			Ft->Now() - Ft->SlabStagedAt));
+		return bVoid;
+	}
+
+	/** under_slab, every tick while running: the D41 observations. */
+	void ObserveSlab(const TSharedRef<FOffMeshFt>& Ft, const AVeloxBotController& Bot, const AVeloxCharacter& Pawn, double Elapsed)
+	{
+		const FCase& Case = Cases[Ft->CaseIndex];
+		const FVeloxBotState& State = Bot.GetBotState();
+		const FVector Feet = Pawn.GetNavAgentLocation();
+		const ARecastNavMesh* Recast = Cast<ARecastNavMesh>(UVeloxBotSubsystem::Get(Ft->World.Get()) ? UVeloxBotSubsystem::Get(Ft->World.Get())->GetNavData() : nullptr);
+		const double AgentRadius = Recast ? Recast->AgentRadius : 0.0;
+		// Deeper inside than the on-mesh query can see past the eroded edge: here "on the mesh" can only be the slab top.
+		const double BlindInset = FMath::Max(0.0, UVeloxBotItemRouter::GetOnMeshExtent().X - AgentRadius);
+		if (State.OffMeshRecoveries > Ft->RecoveriesAtStart && !Ft->bRecovered && InsideSlab(Feet, Case.Start, BlindInset))
+		{
+			++Ft->EarlyRecoveries;
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s recovered_under_slab at=%s blind_inset=%.0f"), Ft->Name, Case.Label, *Feet.ToCompactString(), BlindInset);
+		}
+		if (State.bOffMeshRecovery && !State.OffMeshLastTarget.Equals(Ft->LastTarget, 0.1))
+		{
+			Ft->LastTarget = State.OffMeshLastTarget;
+			const double Rise = State.OffMeshLastTarget.Z - Feet.Z;
+			++Ft->TargetsChecked;
+			Ft->MaxTargetRiseCm = FMath::Max(Ft->MaxTargetRiseCm, Rise);
+			if (Rise > Pawn.GetVeloxMovementComponent()->MaxStepHeight)
+			{
+				++Ft->TargetsAbove;
+			}
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s recovery_target to=%s feet=%s rise=%.1f"), Ft->Name, Case.Label, *State.OffMeshLastTarget.ToCompactString(),
+				*Feet.ToCompactString(), Rise);
+		}
+		if (Ft->LeftSlabAt < 0.0 && !InsideSlab(Feet, Case.Start, 0.0))
+		{
+			Ft->LeftSlabAt = Elapsed;
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s left_slab_s=%.2f at=%s"), Ft->Name, Case.Label, Elapsed, *Feet.ToCompactString());
+		}
 	}
 
 	bool Tick(const TSharedRef<FOffMeshFt>& Ft)
@@ -1252,31 +1507,78 @@ namespace VeloxBotOffMeshFt
 			{
 				return true;
 			}
+			if (Case.bUnderSlab)
+			{
+				UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(Ft->World.Get());
+				if (NavSys && NavSys->IsNavigationBuildInProgress() && T - Ft->SlabStagedAt < SlabNavLimitSeconds)
+				{
+					return true;
+				}
+				if (!CheckSlabVoid(Ft, *Pawn))
+				{
+					++Ft->CaseIndex;
+					return Ft->CaseIndex < UE_ARRAY_COUNT(Cases) && StartCase(Ft);
+				}
+			}
 			Ft->bRunning = true;
 			Ft->RunStart = T;
 			Ft->RecoveriesAtStart = Bot->GetBotState().OffMeshRecoveries;
+			Ft->NoNavPointsAtStart = Bot->GetBotState().OffMeshNoNavPoints;
+			Ft->NoClearPointsAtStart = Bot->GetBotState().OffMeshNoClearPoints;
+			Ft->TangentTargetsAtStart = Bot->GetBotState().OffMeshTangentTargets;
+			Ft->MaxAttempts = 0;
+			Ft->LastStrikes = Bot->GetBotState().StuckStrikes;
+			Ft->StrikeRises = 0;
+			Ft->ExitTarget = FVector::ZeroVector;
 			Bot->SetFrozen(false);
-			Bot->SetForcedPointGoal(Case.Goal);
-			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s start at=%s goal=%s"), Ft->Name, Case.Label, *Pawn->GetActorLocation().ToCompactString(), *Case.Goal.ToCompactString());
+			if (Case.bUnderSlab)
+			{
+				Bot->SetForcedItemGoal(Ft->ItemGoal.Get());
+			}
+			else
+			{
+				Bot->SetForcedPointGoal(Case.Goal);
+			}
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s start at=%s goal=%s"), Ft->Name, Case.Label, *Pawn->GetActorLocation().ToCompactString(),
+				Case.bUnderSlab && Ft->ItemGoal.IsValid() ? *Ft->ItemGoal->GetActorLocation().ToCompactString() : *Case.Goal.ToCompactString());
 			return true;
 		}
 		const double Elapsed = T - Ft->RunStart;
+		if (Case.bUnderSlab)
+		{
+			ObserveSlab(Ft, *Bot, *Pawn, Elapsed);
+		}
+		if (Case.bSlotChecks)
+		{
+			// D45: attempts until recovered; strikes compared tick to tick (the counter wraps at StuckStrikesToRoam).
+			const FVeloxBotState& St = Bot->GetBotState();
+			if (!Ft->bRecovered)
+			{
+				Ft->MaxAttempts = FMath::Max(Ft->MaxAttempts, St.OffMeshAttempts);
+			}
+			Ft->StrikeRises += St.StuckStrikes > Ft->LastStrikes ? 1 : 0;
+			Ft->LastStrikes = St.StuckStrikes;
+		}
 		if (!Ft->bRecovered && Bot->GetBotState().OffMeshRecoveries > Ft->RecoveriesAtStart)
 		{
 			Ft->bRecovered = true;
 			Ft->RecoveredAt = Elapsed;
+			Ft->ExitTarget = Bot->GetBotState().OffMeshLastTarget;
 		}
 		if (!Case.bCheckGoal && Ft->bRecovered && Elapsed >= Ft->RecoveredAt + SettleSeconds)
 		{
 			// Recovery only: back on the mesh and still there half a second later.
 			Ft->Check(Ft->RecoveredAt <= RecoverLimitSeconds, *FString::Printf(TEXT("%s_recovered"), Case.Label),
 				FString::Printf(TEXT("case=%s recovered_s=%.2f at=%s"), Case.Label, Ft->RecoveredAt, *Pawn->GetActorLocation().ToCompactString()));
+			const int32 NoNav = Bot->GetBotState().OffMeshNoNavPoints - Ft->NoNavPointsAtStart;
+			Ft->Check(NoNav == 0, *FString::Printf(TEXT("%s_no_nav_point"), Case.Label), FString::Printf(TEXT("case=%s no_nav_points=%d"), Case.Label, NoNav));
 			++Ft->CaseIndex;
 			return Ft->CaseIndex < UE_ARRAY_COUNT(Cases) && StartCase(Ft);
 		}
 		const FVector Location = Pawn->GetActorLocation();
 		const bool bSamePawn = Pawn == Ft->CasePawn.Get();
-		const bool bArrived = bSamePawn && (FVector::Dist2D(Location, Case.Goal) <= ArriveRadiusCm || Bot->GetBotState().bGoalArrived);
+		const FVector GoalAt = Case.bUnderSlab && Ft->ItemGoal.IsValid() ? Ft->ItemGoal->GetActorLocation() : Case.Goal;
+		const bool bArrived = bSamePawn && (FVector::Dist2D(Location, GoalAt) <= ArriveRadiusCm || Bot->GetBotState().bGoalArrived);
 		if (bSamePawn && !bArrived && Elapsed <= ArriveLimitSeconds)
 		{
 			return true;
@@ -1284,9 +1586,41 @@ namespace VeloxBotOffMeshFt
 		const FString Detail = FString::Printf(TEXT("case=%s recovered_s=%.2f arrived=%d same_pawn=%d seconds=%.2f end=%s"), Case.Label, Ft->RecoveredAt, bArrived ? 1 : 0,
 			bSamePawn ? 1 : 0, Elapsed, *Location.ToCompactString());
 		Ft->Check(Ft->bRecovered && Ft->RecoveredAt <= RecoverLimitSeconds, *FString::Printf(TEXT("%s_recovered"), Case.Label), Detail);
+		// D44: no attempt of the case may end without a reachable nav point (a respawned pawn starts a new tally: -1 fails).
+		const int32 NoNav = bSamePawn ? Bot->GetBotState().OffMeshNoNavPoints - Ft->NoNavPointsAtStart : -1;
+		Ft->Check(NoNav == 0, *FString::Printf(TEXT("%s_no_nav_point"), Case.Label), FString::Printf(TEXT("case=%s no_nav_points=%d"), Case.Label, NoNav));
+		if (Case.bSlotChecks)
+		{
+			const FVeloxBotState& St = Bot->GetBotState();
+			const int32 NoClear = bSamePawn ? St.OffMeshNoClearPoints - Ft->NoClearPointsAtStart : -1;
+			const int32 Tangents = bSamePawn ? St.OffMeshTangentTargets - Ft->TangentTargetsAtStart : -1;
+			const FString SlotDetail = FString::Printf(TEXT("case=%s max_attempts=%d strike_rises=%d no_clear_points=%d tangent_targets=%d exit_target=%s recovered_s=%.2f"), Case.Label,
+				Ft->MaxAttempts, Ft->StrikeRises, NoClear, Tangents, *Ft->ExitTarget.ToCompactString(), Ft->RecoveredAt);
+			Ft->Check(Ft->bRecovered && Ft->MaxAttempts == 1, *FString::Printf(TEXT("%s_first_attempt"), Case.Label), SlotDetail);
+			Ft->Check(Ft->StrikeRises == 0, *FString::Printf(TEXT("%s_no_strike"), Case.Label), SlotDetail);
+			Ft->Check(NoClear == 0, *FString::Printf(TEXT("%s_no_clear_point"), Case.Label), SlotDetail);
+			Ft->Check(Ft->bRecovered && Ft->ExitTarget.Y <= SlotExitMaxY && FMath::Abs(Ft->ExitTarget.X - Case.Start.X) >= SlotExitMinAlongCm,
+				*FString::Printf(TEXT("%s_exit"), Case.Label), SlotDetail);
+			if (Case.bNoRings)
+			{
+				Ft->Check(Tangents == 1, *FString::Printf(TEXT("%s_tangent"), Case.Label), SlotDetail);
+			}
+		}
 		if (Case.bCheckGoal)
 		{
 			Ft->Check(bArrived && Elapsed <= ArriveLimitSeconds, *FString::Printf(TEXT("%s_goal"), Case.Label), Detail);
+		}
+		if (Case.bUnderSlab)
+		{
+			const FString SlabDetail = FString::Printf(TEXT("case=%s early_recoveries=%d targets=%d targets_above_step=%d max_target_rise=%.1f left_slab_s=%.2f recovered_s=%.2f"), Case.Label,
+				Ft->EarlyRecoveries, Ft->TargetsChecked, Ft->TargetsAbove, Ft->MaxTargetRiseCm, Ft->LeftSlabAt, Ft->RecoveredAt);
+			Ft->Check(Ft->EarlyRecoveries == 0, TEXT("under_slab_no_recovered_under"), SlabDetail);
+			Ft->Check(Ft->TargetsChecked > 0 && Ft->TargetsAbove == 0, TEXT("under_slab_target_z"), SlabDetail);
+			Ft->Check(Ft->LeftSlabAt >= 0.0 && Ft->LeftSlabAt <= RecoverLimitSeconds, TEXT("under_slab_left"), SlabDetail);
+			if (AStaticMeshActor* Slab = Ft->Slab.Get())
+			{
+				Slab->Destroy();
+			}
 		}
 		++Ft->CaseIndex;
 		if (Ft->CaseIndex >= UE_ARRAY_COUNT(Cases))
@@ -1366,8 +1700,13 @@ namespace VeloxBotOffMeshFt
 //                                straight line to its stale segment target crosses a cross face. Checks per case: a
 //                                `VeloxBotRepath ... reason=segment_blocked` (the controller's repath count rises) within
 //                                1 s of the placement, no stuck strike for the whole case, 300 cm (2-D) away from the
-//                                pocket within 3 s and the item reached within 25 s. The placement is the test harness;
-//                                the bot only gets input.
+//                                pocket within 3 s and the item reached within 25 s. Case 3 "edge hug" (ADR 0005 D43, task
+//                                04i-B): the bot stands in the eroded band against the cross's north face (feet on the
+//                                y ~ 114 mesh edge) and gets a live item goal south-west, so its first segment runs along
+//                                that boundary edge to the arm's end: no `segment_blocked` repath and no stuck strike for
+//                                3 s (and no repath for the whole case), and the item reached within 25 s (the regression test for the 2 cm ray inset and the
+//                                guard for the shared on-mesh extent). The placement is the test harness; the bot only
+//                                gets input.
 
 #if !UE_BUILD_SHIPPING
 
@@ -1384,17 +1723,27 @@ namespace VeloxBotSegmentBlockedFt
 		FVector GoalNear;
 		/** Floor point (feet) in a cross pocket: the capsule touches both faces of the inner corner (cross arms 100 wide). */
 		FVector Pocket;
+		/** D43 edge hug: no pocket placement; Start is in the eroded band and the live path's first segment hugs the edge. */
+		bool bEdgeHug = false;
 	};
 
 	/** L_ItemTest (Tools/editor/create_item_test_map.py): cross arms 600 x 100, 200 high, at the origin. */
 	const FCase Cases[] = {
 		{ TEXT("nw_pocket_rl"), FVector(-1000.0, 500.0, 0.0), 0, FVector(1050.0, -1700.0, 0.0), FVector(-87.5, 87.5, 0.0) },
 		{ TEXT("se_pocket_ya"), FVector(1000.0, -500.0, 0.0), 1, FVector(-214.0, 1200.0, 0.0), FVector(87.5, -87.5, 0.0) },
+		// North face of the X arm (y 50; capsule 37.5 -> feet y >= 87.5; mesh edge y ~ 114 after AgentRadius 45 erosion),
+		// between the Y arm and the arm's west end; the Armor Shard (grid, -2250, -1700) lies behind the arm.
+		{ TEXT("edge_hug_shard"), FVector(-150.0, 95.0, 0.0), 2, FVector(-2250.0, -1700.0, 0.0), FVector::ZeroVector, true },
 	};
 
 	FGameplayTag GoalTag(int32 Index)
 	{
-		return Index == 0 ? FGameplayTag(VeloxGameplayTags::Item_Weapon_RocketLauncher) : FGameplayTag(VeloxGameplayTags::Item_Armor_Yellow);
+		switch (Index)
+		{
+		case 0: return FGameplayTag(VeloxGameplayTags::Item_Weapon_RocketLauncher);
+		case 1: return FGameplayTag(VeloxGameplayTags::Item_Armor_Yellow);
+		default: return FGameplayTag(VeloxGameplayTags::Item_Armor_Shard);
+		}
 	}
 
 	constexpr double SettleSeconds = 0.5;
@@ -1403,6 +1752,11 @@ namespace VeloxBotSegmentBlockedFt
 	constexpr double RepathLimitSeconds = 1.0;
 	constexpr double LeaveDistanceCm = 300.0;
 	constexpr double LeaveLimitSeconds = 3.0;
+	/** Edge hug: no segment_blocked repath and no strike in this window after the goal is set. */
+	constexpr double EdgeHugQuietSeconds = 3.0;
+	/** Edge hug setup check: the first segment's end lies on the edge (|dY| from the projected start) and this far west. */
+	constexpr double EdgeHugEdgeToleranceCm = 15.0;
+	constexpr double EdgeHugMinSegmentCm = 100.0;
 	/** FtOffMesh's limits. */
 	constexpr double ArriveLimitSeconds = 25.0;
 	constexpr double ArriveRadiusCm = 120.0;
@@ -1500,9 +1854,20 @@ namespace VeloxBotSegmentBlockedFt
 		const FString Detail = FString::Printf(TEXT("case=%s why=%s repath_s=%.2f leave_s=%.2f strikes=%d repaths=%d offmesh_recoveries=%d taken=%d seconds=%.2f end=%s"), Case.Label, *Why,
 			Ft->RepathAt, Ft->LeaveAt, Ft->Strikes, Bot ? Bot->GetRepathCount() - Ft->RepathsAtPlace : -1, OffMesh, Ft->bTaken ? 1 : 0, Elapsed,
 			Pawn ? *Pawn->GetActorLocation().ToCompactString() : TEXT("-"));
-		Ft->Check(Ft->RepathAt >= 0.0 && Ft->RepathAt <= RepathLimitSeconds, *FString::Printf(TEXT("%s_repath"), Case.Label), Detail);
+		if (Case.bEdgeHug)
+		{
+			// D43: a segment along a boundary edge is not blocked (the 2 cm inset): no repath in the first 3 s (the edge), and
+			// none on the rest of the walk either (task 04i-B: without the inset the edge itself reads clear on this mesh,
+			// but the walk's later stretch in the west wall's eroded band repaths on a t = 0 hit at ~3.1 s).
+			Ft->Check(Ft->RepathAt < 0.0 || Ft->RepathAt > EdgeHugQuietSeconds, *FString::Printf(TEXT("%s_no_repath"), Case.Label), Detail);
+			Ft->Check(Ft->RepathAt < 0.0, *FString::Printf(TEXT("%s_no_repath_case"), Case.Label), Detail);
+		}
+		else
+		{
+			Ft->Check(Ft->RepathAt >= 0.0 && Ft->RepathAt <= RepathLimitSeconds, *FString::Printf(TEXT("%s_repath"), Case.Label), Detail);
+			Ft->Check(Ft->LeaveAt >= 0.0 && Ft->LeaveAt <= LeaveLimitSeconds, *FString::Printf(TEXT("%s_leave"), Case.Label), Detail);
+		}
 		Ft->Check(Ft->Strikes == 0, *FString::Printf(TEXT("%s_no_stuck"), Case.Label), Detail);
-		Ft->Check(Ft->LeaveAt >= 0.0 && Ft->LeaveAt <= LeaveLimitSeconds, *FString::Printf(TEXT("%s_leave"), Case.Label), Detail);
 		Ft->Check(Why == TEXT("arrived") && Elapsed <= ArriveLimitSeconds, *FString::Printf(TEXT("%s_goal"), Case.Label), Detail);
 		++Ft->CaseIndex;
 		return Ft->CaseIndex < UE_ARRAY_COUNT(Cases) && StartCase(Ft);
@@ -1542,6 +1907,13 @@ namespace VeloxBotSegmentBlockedFt
 			Ft->Strikes = 0;
 			Ft->GoalSetAt = T;
 			Ft->Step = FSegmentBlockedFt::EStep::WaitPath;
+			if (Case.bEdgeHug)
+			{
+				// The window starts with the goal: every segment check of the live path counts.
+				Ft->PlacedAt = T;
+				Ft->RepathsAtPlace = Bot->GetRepathCount();
+				Ft->OffMeshAtPlace = Bot->GetBotState().OffMeshRecoveries;
+			}
 			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s start at=%s goal=%s goal_at=%s"), Ft->Name, Case.Label, *Pawn->GetActorLocation().ToCompactString(),
 				*GetNameSafe(Ft->Goal.Get()), Ft->Goal.IsValid() ? *Ft->Goal->GetActorLocation().ToCompactString() : TEXT("-"));
 			return true;
@@ -1556,6 +1928,21 @@ namespace VeloxBotSegmentBlockedFt
 					++Ft->CaseIndex;
 					return Ft->CaseIndex < UE_ARRAY_COUNT(Cases) && StartCase(Ft);
 				}
+				return true;
+			}
+			if (Case.bEdgeHug)
+			{
+				// No placement: the live path from the eroded band. Setup check: its first segment runs along the edge
+				// (start and segment end on one y within the tolerance, the end at least EdgeHugMinSegmentCm west).
+				const TArray<FNavPathPoint>& Points = Path->GetPathPoints();
+				const FVector PathStart = Points.Num() > 0 ? Points[0].Location : FVector::ZeroVector;
+				const FVector SegmentEnd = Points.Num() > 1 ? Points[1].Location : PathStart;
+				const bool bAlongEdge = FMath::Abs(SegmentEnd.Y - PathStart.Y) <= EdgeHugEdgeToleranceCm && PathStart.X - SegmentEnd.X >= EdgeHugMinSegmentCm;
+				UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s live at=%s path_points=%d path_start=%s first_segment_end=%s along_edge=%d"), Ft->Name, Case.Label,
+					*Pawn->GetActorLocation().ToCompactString(), Points.Num(), *PathStart.ToCompactString(), *SegmentEnd.ToCompactString(), bAlongEdge ? 1 : 0);
+				Ft->Check(bAlongEdge, *FString::Printf(TEXT("%s_setup_edge"), Case.Label),
+					FString::Printf(TEXT("path_start=%s first_segment_end=%s"), *PathStart.ToCompactString(), *SegmentEnd.ToCompactString()));
+				Ft->Step = FSegmentBlockedFt::EStep::Placed;
 				return true;
 			}
 			// Test harness: the pawn is put into the pocket at rest and the stale path stays (no PlaceAtStart: its
@@ -1587,7 +1974,7 @@ namespace VeloxBotSegmentBlockedFt
 			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s repath_s=%.2f from=%s target=%s hit=%s remaining=%.0f"), Ft->Name, Case.Label, Elapsed,
 				*Block.From.ToCompactString(), *Block.Target.ToCompactString(), *Block.Hit.ToCompactString(), Block.RemainingCm);
 		}
-		if (Ft->LeaveAt < 0.0 && FVector::Dist2D(Location, Case.Pocket) >= LeaveDistanceCm)
+		if (!Case.bEdgeHug && Ft->LeaveAt < 0.0 && FVector::Dist2D(Location, Case.Pocket) >= LeaveDistanceCm)
 		{
 			Ft->LeaveAt = Elapsed;
 			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s leave_s=%.2f at=%s"), Ft->Name, Case.Label, Elapsed, *Location.ToCompactString());
@@ -1675,7 +2062,7 @@ namespace VeloxBotSegmentBlockedFt
 	}
 
 	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtSegmentBlocked"),
-		TEXT("velox.bots.FtSegmentBlocked [quit]: FT_BotSegmentBlocked on L_ItemTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a bot put into a cross pocket with a stale path repaths within 1 s (no stuck strike), leaves and reaches its item. Non-shipping."),
+		TEXT("velox.bots.FtSegmentBlocked [quit]: FT_BotSegmentBlocked on L_ItemTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a bot put into a cross pocket with a stale path repaths within 1 s (no stuck strike), leaves and reaches its item; a bot hugging a mesh edge does not repath. Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
 }
 
