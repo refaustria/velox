@@ -29,7 +29,7 @@ FIRE_LAG_MS=50
 LAG_OVERRIDE=""
 PKT_ARGS=()
 # Scripts on L_CombatTest (task 08); everything else runs on L_MovementTest.
-COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun RocketJumpRunHold "
+COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun RocketJumpRunHold PlasmaRun "
 # Scripts on L_ItemTest (M3 task 04); the client runs velox.items.Watch.
 ITEM_SCRIPTS=" ItemRun "
 
@@ -43,7 +43,8 @@ velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run 
 L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest. FireRunHold (task 08g, not in the default list) is FireRun
 with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3). RocketJumpRunHold
 (task 08f, not in the default list) is RocketJumpRun with the server holding the rocket's fire RPC 300 ms
-(velox.combat.DebugHoldShotRpc 300 5 1, ADR 0003 B35).
+(velox.combat.DebugHoldShotRpc 300 5 1, ADR 0003 B35). PlasmaRun (task 08i, not in the default list) holds plasma fire
+for 5 s at 50 ms one way (ADR 0003 B38: one move-carried schedule per shot sequence).
 
 Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
@@ -87,7 +88,7 @@ trap 'exit 130' INT TERM
 script_lag() {
   if [[ -n "$LAG_OVERRIDE" ]]; then echo "$LAG_OVERRIDE"; return; fi
   case "$1" in
-    FireRun|FireRunControl|FireRunHold) echo "$FIRE_LAG_MS" ;;
+    FireRun|FireRunControl|FireRunHold|PlasmaRun) echo "$FIRE_LAG_MS" ;;
     *) echo "$LAG_MS" ;;
   esac
 }
@@ -132,6 +133,10 @@ run_one() {
       [[ "$script" == RocketJumpRunHold ]] && sexec="$sexec, velox.combat.DebugHoldShotRpc 300 5 1"
       cexec="$cexec, velox.move.LogCorrections 1, velox.combat.RocketJumpTest -90 quit"
       script_args=() ;;
+    PlasmaRun)
+      # Task 08i / ADR 0003 B38: PlasmaRun.json holds plasma fire for 5 s (the 0.1 s interval keeps several fire RPCs
+      # inside one pending timeout); every weapon from the server.
+      sexec="velox.combat.GiveAllWeapons" ;;
   esac
   # Debug knob: VELOX_NETTEST_EXEC="p.NetShowCorrections 1" runs extra console commands on both processes.
   if [[ -n "${VELOX_NETTEST_EXEC:-}" ]]; then cexec="$cexec, $VELOX_NETTEST_EXEC"; sexec="${sexec:+$sexec, }$VELOX_NETTEST_EXEC"; fi
@@ -788,6 +793,77 @@ elif script in ("RocketJumpRun", "RocketJumpRunHold"):
         fails.append("no VeloxProjectileExplode line for the rocket")
     elif not any(e.get("self") == "move_timed" for e in ex):
         fails.append("VeloxProjectileExplode self=%s (want move_timed)" % [e.get("self") for e in ex])
+
+elif script == "PlasmaRun":
+    # Task 08i / ADR 0003 B38: a projectile sequence is scheduled on the server exactly once. Per server
+    # VeloxProjectileShot sequence (plasma gun): exactly one shot line with source=move and exactly one VeloxMoveShot; at
+    # most one server VeloxSelfSplash. No late, orphan, pending-timeout, rpc_done or rejected shot.
+    def is_pg(d):
+        return "Plasma" in d.get("weapon", "")
+    def by_seq(lines, marker, pg_only=True):
+        out = {}
+        for l in lines:
+            if marker in l:
+                d = kv(l)
+                if pg_only and not is_pg(d):
+                    continue
+                out.setdefault(d.get("seq"), []).append(d)
+        return out
+    pshots = by_seq([l for l in S if "client_ts=" in l], "VeloxProjectileShot seq=")
+    mshots = by_seq(S, "VeloxMoveShot seq=")
+    ssplash = by_seq(S, "VeloxSelfSplash role=server ", pg_only=False)
+    csplash = by_seq(C, "VeloxSelfSplash role=client ", pg_only=False)
+    fired = [kv(l) for l in C if "VeloxProjectileFired seq=" in l and is_pg(kv(l))]
+    nshots = len(pshots)
+    if nshots < 30:
+        fails.append("only %d plasma VeloxProjectileShot sequences on the server (want >= 30 from a 5 s hold)" % nshots)
+    if len(fired) != nshots:
+        fails.append("client fired %d plasma shots, server launched %d sequences" % (len(fired), nshots))
+    bad_shot, bad_src, bad_move, multi_splash = [], [], [], []
+    for seq, ds in sorted(pshots.items(), key=lambda kvp: int(kvp[0] or 0)):
+        if len(ds) != 1:
+            bad_shot.append((seq, len(ds)))
+        if any(d.get("source") != "move" for d in ds):
+            bad_src.append((seq, [d.get("source") for d in ds]))
+        if len(mshots.get(seq, [])) != 1:
+            bad_move.append((seq, len(mshots.get(seq, []))))
+        if len(ssplash.get(seq, [])) > 1:
+            multi_splash.append((seq, len(ssplash[seq])))
+    if bad_shot:
+        fails.append("sequences with more than one VeloxProjectileShot: %s" % bad_shot[:8])
+    if bad_src:
+        fails.append("sequences not source=move: %s" % bad_src[:8])
+    if bad_move:
+        fails.append("sequences without exactly one VeloxMoveShot: %s" % bad_move[:8])
+    if multi_splash:
+        fails.append("sequences with more than one server VeloxSelfSplash (double schedule): %s" % multi_splash[:8])
+    one_splash = sum(1 for seq in pshots if len(ssplash.get(seq, [])) == 1)
+    splash_hit = sum(1 for seq in pshots if any(d.get("hit") == "1" for d in ssplash.get(seq, [])))
+    # Report-only: the predicted and the server self splash of a sequence that hit the owner ran at the same move time
+    # stamp (a hit=0 evaluation queues no knockback, so its move is no event move and may merge: its stamp may differ).
+    ts_mismatch = sum(1 for seq in pshots if len(ssplash.get(seq, [])) == 1 and len(csplash.get(seq, [])) == 1
+                      and "1" in (ssplash[seq][0].get("hit"), csplash[seq][0].get("hit"))
+                      and abs(num(ssplash[seq][0], "ts") - num(csplash[seq][0], "ts")) > 1e-6)
+    counts = {}
+    for tag, marker in (("late", "VeloxShotLate "), ("orphan", "VeloxMoveShotOrphan "), ("pending_timeout", "VeloxProjectileShotPendingTimeout "),
+                        ("rpc_done", "reason=rpc_done"), ("rejected", "VeloxShotRejected "), ("forced", "forced by the deadline")):
+        hits = [l for l in S if marker in l]
+        counts[tag] = len(hits)
+        if hits:
+            fails.append("%d %s line(s): %s" % (len(hits), marker.strip(), hits[0].strip()[-160:]))
+    ignored = [l for l in S if "VeloxMoveShotIgnored" in l and "reason=rpc_done" not in l]
+    if ignored:
+        notes.append("%d VeloxMoveShotIgnored: %s" % (len(ignored), ignored[0].split("VeloxMoveShotIgnored", 1)[1].strip()[:100]))
+    # The dual-move split (120 Hz client at 60 Hz send): the fire move is a single client frame (move_dt ~ 8.3 ms) and the
+    # RPC normally precedes it (rpc_first=1, the pending path).
+    ms_all = [d[0] for d in mshots.values() if d]
+    rpc_first = sum(1 for d in ms_all if d.get("rpc_first") == "1")
+    short_moves = sum(1 for d in ms_all if 0.0 < num(d, "move_dt") < 0.0125)
+    moves_per_rpc = (moves / len(rpc_lines)) if rpc_lines else 0.0
+    detail.append("pg_seqs=%d fired=%d moveshots=%d source_move=%d splash_1=%d splash_hit=%d splash_ts_mismatch=%d rpc_first=%d move_dt_8ms=%d moves_per_rpc=%.2f "
+                  "late=%d orphan=%d pending_timeout=%d rpc_done=%d rejected=%d" % (
+                      nshots, len(fired), len(ms_all), nshots - len(bad_src), one_splash, splash_hit, ts_mismatch, rpc_first, short_moves, moves_per_rpc,
+                      counts["late"], counts["orphan"], counts["pending_timeout"], counts["rpc_done"], counts["rejected"]))
 
 elif script == "HasteRun":
     # M3 task 03 / ADR 0004 sections 3 and 10: HasteRun.json on L_MovementTest. Client: VeloxNetSoak event=haste t= (the

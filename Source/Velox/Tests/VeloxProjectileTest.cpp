@@ -19,6 +19,11 @@
 //                                    adopted), RPC only after the stream passed the stamp (source=rpc, late), ignored
 //                                    move-shots (not owned, no ammo, empty bucket) with the later RPC on the rpc path,
 //                                    the pending timeout and the orphan expiry.
+//   Velox.Combat.MoveShotPendingGuard same world, ADR 0003 B38 (task 08i): a sequence is scheduled at most once on the
+//                                    server: the pending timeout belongs to the shot it was armed for (stale-timer row,
+//                                    PG), a fire move after an rpc-path launch is ignored (rpc_done), the ammo is paid
+//                                    when the RPC is accepted, a dropped pending shot is not refunded, a second target data
+//                                    while pending is logged, ServerBeginSelfKnockbackShot is idempotent.
 
 #include "Misc/AutomationTest.h"
 
@@ -29,6 +34,7 @@
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxAmmoSet.h"
+#include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxDamageMath.h"
 #include "Combat/VeloxGameplayEffects.h"
@@ -41,6 +47,7 @@
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Movement/VeloxMovementComponent.h"
+#include "Weapons/VeloxFireRateBucket.h"
 #include "Weapons/VeloxGameplayAbility_FireProjectile.h"
 #include "Weapons/VeloxProjectile.h"
 #include "Weapons/VeloxProjectileSim.h"
@@ -761,6 +768,251 @@ bool FVeloxCombatMoveShotServerPathTest::RunTest(const FString& Parameters)
 	FireMove(9, Stamp + 1.0f + Dt, RLIndex);
 	Inventory->ResetToLoadout();
 	TestNull(TEXT("reset: records dropped"), Inventory->FindMoveShotRecord(9));
+	return true;
+}
+
+namespace VeloxProjectileTest
+{
+	/** Counts log lines containing a marker while in scope (Log and above unless the category's verbosity is raised). */
+	struct FShotLogCapture : public FOutputDevice
+	{
+		FString Marker;
+		int32 Count = 0;
+		explicit FShotLogCapture(const TCHAR* InMarker) : Marker(InMarker) { GLog->AddOutputDevice(this); }
+		virtual ~FShotLogCapture() override { GLog->RemoveOutputDevice(this); }
+		/** The count after flushing GLog (a threaded log dispatches lines to output devices later). */
+		int32 Num() { GLog->Flush(); return Count; }
+		virtual void Serialize(const TCHAR* V, ELogVerbosity::Type, const FName&) override
+		{
+			if (FCString::Strstr(V, *Marker))
+			{
+				++Count;
+			}
+		}
+	};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatMoveShotPendingGuardTest, "Velox.Combat.MoveShotPendingGuard", VeloxProjectileTest::Flags)
+
+bool FVeloxCombatMoveShotPendingGuardTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxProjectileTest;
+
+	FProjectileWorld W;
+	AVeloxPlayerController* ShooterPC = nullptr;
+	AVeloxCharacter* Shooter = W.SpawnRemoteShooter(FVector(0, 0, 100), ShooterPC);
+	if (!TestNotNull(TEXT("shooter"), Shooter) || !PS(Shooter))
+	{
+		return false;
+	}
+	W.Advance(0.3f);
+	TestTrue(TEXT("give all"), VeloxWeaponCheats::GiveAllWeapons(*PS(Shooter)));
+	UVeloxAbilitySystemComponent* ASC = PS(Shooter)->GetVeloxAbilitySystemComponent();
+	UVeloxWeaponInventoryComponent* Inventory = PS(Shooter)->GetWeaponInventory();
+	UVeloxMovementComponent* Movement = Shooter->GetVeloxMovementComponent();
+	const UVeloxWeaponTable* Table = Inventory->GetWeaponTable();
+	const int32 RLIndex = Table->FindBySlot(5);
+	const int32 PGIndex = Table->FindBySlot(8);
+	const UVeloxWeaponDefinition* RL = Table->Get(RLIndex);
+	const UVeloxWeaponDefinition* PG = Table->Get(PGIndex);
+	FGameplayAbilitySpec* RLSpec = Inventory->FindFireSpec(RLIndex);
+	FGameplayAbilitySpec* PGSpec = Inventory->FindFireSpec(PGIndex);
+	UVeloxGameplayAbility_FireProjectile* RLFire = RLSpec ? Cast<UVeloxGameplayAbility_FireProjectile>(RLSpec->GetPrimaryInstance()) : nullptr;
+	UVeloxGameplayAbility_FireProjectile* PGFire = PGSpec ? Cast<UVeloxGameplayAbility_FireProjectile>(PGSpec->GetPrimaryInstance()) : nullptr;
+	if (!TestNotNull(TEXT("RL"), RL) || !TestNotNull(TEXT("PG"), PG) || !TestNotNull(TEXT("RL fire instance"), RLFire) || !TestNotNull(TEXT("PG fire instance"), PGFire)
+		|| !TestNotNull(TEXT("movement"), Movement) || !TestTrue(TEXT("remote shooter path"), UVeloxGameplayAbility_Fire::IsServerForRemoteShooter(ASC->AbilityActorInfo.Get())))
+	{
+		return false;
+	}
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(PS(Shooter)->GetCombatSettings());
+	const FGameplayAttribute RocketsAttr = UVeloxAmmoSet::GetAmmoAttribute(RL->AmmoTag, Settings);
+	auto Rockets = [ASC, &RocketsAttr]() { return ASC->GetNumericAttribute(RocketsAttr); };
+	const float Dt = 1.f / 120.f;
+	int16 NextKey = 500;
+
+	// Horizontal shots: the world-only flight ends far away, so no self splash ever runs inside the test.
+	const FVector Eye = Shooter->GetPawnViewLocation();
+	const FVector AimDir(1.0, 0.0, 0.0);
+	auto Processed = [Movement](float Stamp)
+	{
+		Movement->GetPredictionData_Server_Character()->CurrentClientTimeStamp = Stamp;
+		Movement->OnServerMoveProcessed.Broadcast(Stamp);
+	};
+	auto FireMove = [&](uint8 Seq, float FireStamp, int32 WeaponIndex)
+	{
+		FVeloxMoveShot Shot;
+		Shot.ShotSeq = Seq;
+		Shot.WeaponIndex = static_cast<uint8>(WeaponIndex);
+		Shot.FireMoveTimeStamp = FireStamp;
+		Shot.Origin = Eye;
+		Shot.Dir = AimDir;
+		Movement->OnServerMoveShot.Broadcast(Shot, FireStamp + Dt, Dt);
+		Processed(FireStamp + Dt);
+	};
+	auto SendTargetData = [&](FGameplayAbilitySpecHandle Handle, const FPredictionKey& Key, uint8 Seq, float FireStamp)
+	{
+		FGameplayAbilityTargetData_VeloxProjectileShot* Data = new FGameplayAbilityTargetData_VeloxProjectileShot();
+		Data->Origin = Eye;
+		Data->Dir = AimDir;
+		Data->ShotSeq = Seq;
+		Data->FireMoveTimeStamp = FireStamp;
+		ASC->CallServerSetReplicatedTargetData(Handle, Key, FGameplayAbilityTargetDataHandle(Data), FGameplayTag(), Key);
+	};
+	auto RemoteShot = [&](FGameplayAbilitySpecHandle Handle, uint8 Seq, float FireStamp)
+	{
+		FPredictionKey Key;
+		Key.Current = NextKey++;
+		ASC->CallServerTryActivateAbility(Handle, true, Key);
+		SendTargetData(Handle, Key, Seq, FireStamp);
+		return Key;
+	};
+
+	// 0. ServerBeginSelfKnockbackShot is idempotent per sequence (B38): begun twice, resolved once -> nothing unresolved
+	// (ServerNoteShot advances the confirmed sequence only while nothing is unresolved).
+	Movement->ServerBeginSelfKnockbackShot(7);
+	Movement->ServerBeginSelfKnockbackShot(7);
+	TestTrue(TEXT("idempotent: 7 unresolved"), Movement->IsServerSelfKnockbackShotUnresolved(7));
+	Movement->ServerResolveSelfKnockbackShot(7);
+	TestFalse(TEXT("idempotent: one resolve clears 7"), Movement->IsServerSelfKnockbackShotUnresolved(7));
+	Movement->ServerNoteShot(8);
+	TestEqual(TEXT("idempotent: the unresolved set is empty (confirmed advances to 8)"), static_cast<int32>(Movement->GetConfirmedSelfKnockbackSeq()), 8);
+
+	// 1. Stale timer (B38): PG seq 1 pending, its move launches it; PG seq 2 pending; seq 1's timeout passes without seq 2's
+	// move -> seq 2 still pending; then its move launches it. One event and one token per sequence.
+	Inventory->SetCurrentIndex(PGIndex);
+	W.Advance(1.0f);
+	const float PGInterval = PG->GetSafeFireInterval();
+	const float PGCapacity = FVeloxFireRateBucket::CapacityFor(PGInterval, Settings.GetFireRateJitterToleranceSeconds());
+	// The reference bucket: the server bucket fed exactly the two RPC consumptions at the same times (refill included).
+	FVeloxFireRateBucket Expected = PGFire->GetServerBucket();
+	float Stamp = 2.0f;
+	Processed(Stamp);
+	int32 Events = Movement->GetNumMoveTimedEvents();
+	const double T1 = W.World->GetTimeSeconds();
+	{
+		FShotLogCapture Timeouts(TEXT("VeloxProjectileShotPendingTimeout"));
+		RemoteShot(PGSpec->Handle, 1, Stamp);
+		Expected.Consume(T1, PGInterval, PGCapacity);
+		TestTrue(TEXT("stale timer: seq 1 pending"), PGFire->HasPendingServerShot() && Inventory->HasPendingRpcShot(1));
+		FireMove(1, Stamp, PGIndex);
+		TestFalse(TEXT("stale timer: seq 1 launched by its move"), PGFire->HasPendingServerShot());
+		TestEqual(TEXT("stale timer: seq 1 source=move"), FString(PGFire->GetLastServerShotSource()), FString(TEXT("move")));
+		TestTrue(TEXT("stale timer: seq 1 accepted"), !PGFire->GetLastServerShot().bRejected && PGFire->GetLastServerShot().ShotSeq == 1);
+		TestEqual(TEXT("stale timer: seq 1 one event"), Movement->GetNumMoveTimedEvents(), Events + 1);
+
+		W.Advance(PGInterval); // the honest plasma rhythm
+		Stamp += PGInterval;
+		const double T2 = W.World->GetTimeSeconds();
+		RemoteShot(PGSpec->Handle, 2, Stamp);
+		Expected.Consume(T2, PGInterval, PGCapacity);
+		TestTrue(TEXT("stale timer: seq 2 pending"), PGFire->HasPendingServerShot() && Inventory->HasPendingRpcShot(2));
+		const int32 EventsBefore2 = Movement->GetNumMoveTimedEvents();
+		// Past seq 1's timeout (armed at T1), before seq 2's (armed at T2).
+		W.Advance(static_cast<float>(T1 + Settings.MaxRewindSeconds - W.World->GetTimeSeconds()) + 0.03f);
+		TestTrue(TEXT("stale timer: world time past seq 1's timeout, before seq 2's"),
+			W.World->GetTimeSeconds() > T1 + Settings.MaxRewindSeconds && W.World->GetTimeSeconds() < T2 + Settings.MaxRewindSeconds);
+		TestTrue(TEXT("stale timer: seq 2 still pending"), PGFire->HasPendingServerShot() && Inventory->HasPendingRpcShot(2));
+		TestEqual(TEXT("stale timer: nothing scheduled for seq 2 yet"), Movement->GetNumMoveTimedEvents(), EventsBefore2);
+		TestEqual(TEXT("stale timer: no timeout line"), Timeouts.Num(), 0);
+		FireMove(2, Stamp, PGIndex);
+		TestFalse(TEXT("stale timer: seq 2 launched by its move"), PGFire->HasPendingServerShot());
+		TestEqual(TEXT("stale timer: seq 2 source=move"), FString(PGFire->GetLastServerShotSource()), FString(TEXT("move")));
+		TestTrue(TEXT("stale timer: seq 2 accepted"), !PGFire->GetLastServerShot().bRejected && PGFire->GetLastServerShot().ShotSeq == 2);
+		TestEqual(TEXT("stale timer: one event per sequence"), Movement->GetNumMoveTimedEvents(), Events + 2);
+		TestEqual(TEXT("stale timer: one token per sequence"), PGFire->GetServerBucket().Tokens, Expected.Tokens, 1e-6);
+		TestFalse(TEXT("stale timer: no rpc launch noted"), Inventory->WasShotLaunchedByRpc(1) || Inventory->WasShotLaunchedByRpc(2));
+		// Seq 2's own timer was cleared at its launch: nothing fires later.
+		W.Advance(Settings.MaxRewindSeconds + 0.05f);
+		TestEqual(TEXT("stale timer: no timeout at all"), Timeouts.Num(), 0);
+		TestEqual(TEXT("stale timer: still one event per sequence"), Movement->GetNumMoveTimedEvents(), Events + 2);
+	}
+
+	// 2. Late move-shot (B38): RL seq 3 pending, the stream stops past MaxRewindSeconds -> timeout -> source=rpc; then the
+	// fire move with seq 3 arrives -> ignored rpc_done, no second event, no token, the unresolved set holds 3 once.
+	Inventory->SetCurrentIndex(RLIndex);
+	W.Advance(1.0f);
+	Stamp += 1.0f;
+	Processed(Stamp);
+	Events = Movement->GetNumMoveTimedEvents();
+	{
+		FShotLogCapture Timeouts(TEXT("VeloxProjectileShotPendingTimeout seq=3"));
+		FShotLogCapture RpcDone(TEXT("reason=rpc_done"));
+		RemoteShot(RLSpec->Handle, 3, Stamp);
+		TestTrue(TEXT("late move-shot: pending"), RLFire->HasPendingServerShot());
+		W.Advance(Settings.MaxRewindSeconds + 0.05f);
+		TestFalse(TEXT("late move-shot: launched at the timeout"), RLFire->HasPendingServerShot());
+		TestEqual(TEXT("late move-shot: source=rpc"), FString(RLFire->GetLastServerShotSource()), FString(TEXT("rpc")));
+		TestEqual(TEXT("late move-shot: timeout logged once"), Timeouts.Num(), 1);
+		TestEqual(TEXT("late move-shot: one event"), Movement->GetNumMoveTimedEvents(), Events + 1);
+		TestTrue(TEXT("late move-shot: rpc launch noted"), Inventory->WasShotLaunchedByRpc(3));
+		const double TokensAfterRpc = RLFire->GetServerBucket().Tokens;
+		const double BucketTimeAfterRpc = RLFire->GetServerBucket().LastTime;
+		FireMove(3, Stamp, RLIndex);
+		TestEqual(TEXT("late move-shot: VeloxMoveShotIgnored reason=rpc_done"), RpcDone.Num(), 1);
+		TestNull(TEXT("late move-shot: no record"), Inventory->FindMoveShotRecord(3));
+		TestEqual(TEXT("late move-shot: still one event"), Movement->GetNumMoveTimedEvents(), Events + 1);
+		TestTrue(TEXT("late move-shot: no token taken"), RLFire->GetServerBucket().Tokens == TokensAfterRpc && RLFire->GetServerBucket().LastTime == BucketTimeAfterRpc);
+		TestTrue(TEXT("late move-shot: 3 unresolved"), Movement->IsServerSelfKnockbackShotUnresolved(3));
+		Movement->ServerResolveSelfKnockbackShot(3);
+		TestFalse(TEXT("late move-shot: 3 was unresolved exactly once"), Movement->IsServerSelfKnockbackShotUnresolved(3));
+	}
+
+	// 3. Ammo at acceptance (B38, ruling 1c): RL seq 4 pending -> paid already; its move launches it -> paid once. A second
+	// target data while pending is ignored (VeloxShotRpcIgnored reason=pending, Verbose).
+	W.Advance(1.0f);
+	Stamp += 1.0f;
+	Processed(Stamp);
+	float Ammo = Rockets();
+	Events = Movement->GetNumMoveTimedEvents();
+	{
+		const ELogVerbosity::Type OldVerbosity = LogVeloxCombat.GetVerbosity();
+		LogVeloxCombat.SetVerbosity(ELogVerbosity::Verbose);
+		FShotLogCapture Ignored(TEXT("VeloxShotRpcIgnored seq=9 pending_seq=4 reason=pending"));
+		const FPredictionKey Key4 = RemoteShot(RLSpec->Handle, 4, Stamp);
+		TestTrue(TEXT("ammo: seq 4 pending"), RLFire->HasPendingServerShot());
+		TestEqual(TEXT("ammo: paid when the RPC was accepted"), Rockets(), Ammo - RL->AmmoPerShot);
+		SendTargetData(RLSpec->Handle, Key4, 9, Stamp);
+		LogVeloxCombat.SetVerbosity(OldVerbosity);
+		TestEqual(TEXT("second target data while pending: logged"), Ignored.Num(), 1);
+		TestTrue(TEXT("second target data while pending: seq 4 still pending"), RLFire->HasPendingServerShot() && Inventory->HasPendingRpcShot(4) && !Inventory->HasPendingRpcShot(9));
+		TestEqual(TEXT("second target data while pending: no ammo"), Rockets(), Ammo - RL->AmmoPerShot);
+	}
+	FireMove(4, Stamp, RLIndex);
+	TestFalse(TEXT("ammo: launched by its move"), RLFire->HasPendingServerShot());
+	TestEqual(TEXT("ammo: source=move"), FString(RLFire->GetLastServerShotSource()), FString(TEXT("move")));
+	TestEqual(TEXT("ammo: one event"), Movement->GetNumMoveTimedEvents(), Events + 1);
+	TestEqual(TEXT("ammo: paid once"), Rockets(), Ammo - RL->AmmoPerShot);
+
+	// 4. Cancel (B38): RL seq 5 pending, ResetToLoadout -> dropped, never launched; its ammo is not refunded (a new life gets
+	// its loadout anyway). The rpc-launched ring is per life.
+	W.Advance(1.0f);
+	Stamp += 1.0f;
+	Processed(Stamp);
+	Ammo = Rockets();
+	Events = Movement->GetNumMoveTimedEvents();
+	RemoteShot(RLSpec->Handle, 5, Stamp);
+	TestTrue(TEXT("cancel: seq 5 pending"), RLFire->HasPendingServerShot());
+	TestEqual(TEXT("cancel: paid when accepted"), Rockets(), Ammo - RL->AmmoPerShot);
+	TestTrue(TEXT("cancel: seq 3 still remembered before the reset"), Inventory->WasShotLaunchedByRpc(3));
+	Inventory->ResetToLoadout();
+	TestFalse(TEXT("cancel: dropped"), RLFire->HasPendingServerShot() || Inventory->HasPendingRpcShot(5));
+	TestTrue(TEXT("cancel: never launched"), RLFire->GetLastServerShot().ShotSeq == 4);
+	TestEqual(TEXT("cancel: nothing scheduled"), Movement->GetNumMoveTimedEvents(), Events);
+	TestFalse(TEXT("cancel: the rpc-launched ring is cleared with the life"), Inventory->WasShotLaunchedByRpc(3));
+	{
+		// The cleared timer never fires against a later shot.
+		FShotLogCapture Timeouts(TEXT("VeloxProjectileShotPendingTimeout"));
+		W.Advance(Settings.MaxRewindSeconds + 0.05f);
+		TestEqual(TEXT("cancel: no timeout after the drop"), Timeouts.Num(), 0);
+	}
+
+	// 5. The rpc-launched ring keeps the newest MaxRpcLaunchedShotSeqs sequences.
+	for (int32 Seq = 20; Seq < 20 + UVeloxWeaponInventoryComponent::MaxRpcLaunchedShotSeqs + 1; ++Seq)
+	{
+		Inventory->NoteRpcLaunchedShot(static_cast<uint8>(Seq));
+	}
+	TestFalse(TEXT("ring: the oldest evicted"), Inventory->WasShotLaunchedByRpc(20));
+	TestTrue(TEXT("ring: the newest kept"), Inventory->WasShotLaunchedByRpc(static_cast<uint8>(20 + UVeloxWeaponInventoryComponent::MaxRpcLaunchedShotSeqs)));
 	return true;
 }
 
