@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged f800608)
 **Depends on:** 04b, ADR 0005 D14–D17, D19, review F3–F6
 
 ## Goal
@@ -20,3 +20,7 @@ Do not touch ItemRouting/Decision (04c-a) or the follower/stuck rule (04c-b).
 - [ ] FtCombatEvents: damage from a dummy instigator behind a frozen Hard bot → `VeloxBotHear` + turn; spawned rocket → `VeloxBotDodge` + lateral speed
 - [ ] fts.sh OK 6/6 three times in a row
 - [ ] build.sh green; -DisableAdaptiveUnity build succeeds
+
+## Notes / outcome
+dev, 2026-10-30. build.sh 95 tests green; fts.sh OK 6/6 ×3; -DisableAdaptiveUnity OK. FtCombatEvents ×5: hear 0.017 s (limit 0.234), turn 0.43 s (yaw error 18.7°), dodge 0.267 s (limit 0.35), lateral 200 cm/s. Budget line ends with `heard= dodges=`.
+Open for M4-07: giveup path and corrected `max_fire_us` not exercised live (grep `giveup`, `heard`, `dodges` in the soak); heard/dodge counters reset per life; lateral check stops at the first sample ≥ 200 cm/s.
