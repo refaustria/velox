@@ -51,32 +51,33 @@ _Last updated: 2026-10-30 afternoon (project lead). Branches: `main` = M0–M3; 
 
 ## Next
 - M4-07 acceptance on a quiet host (question 27) → merge `m4-bots` → `main`; M4 human playtest on the Apple Silicon Mac (`docs/playtests/m4-bots-checklist.md`).
+- After M4: `MaxRewindSeconds` 0.30 → 0.35 (q19, dev); free-spectate death camera (q16, plan as an M3 follow-up task with an architect note on replication/visibility).
 - Then M5 (first real map + characters): architect ADR first.
 - Disk hygiene: keep ≥ 15 GB free (standing OK for caches/build artefacts).
 
 ## Open questions for the human
-27. **Quiet host window for the M4 acceptance (≈ 45 min).** The VM runs other workloads (vitest, other Claude sessions, uvicorn, stockfish; load 4–25, 4 GB swap full). The bot-cost bands can only be judged on an idle host. Tell me when I can have the VM for ~45 min, or whether we accept the cost bands on the union of clean windows from the existing runs (D46 fallback). Also an option: let the test server run with `chrt -r 10` (needs root).
+27. ~~Quiet host window~~ — granted 2026-10-30 evening; acceptance run in progress.
 28. **Duel camping frequency (feel, decide at the Mac playtest):** Hard duellers camp a respawning Mega/RA in only ~1–8 % of goal changes (they mostly have a better item to fetch). More camping = raise `DuelCampOverScore` (now 7).
 26. **Playtest machine — decided 2026-10-30: Apple Silicon Mac.** The Intel MacBookPro16,2 cannot render UE 5.8 (Intel Metal support removed); it stays a headless compile/test host. Waiting for the Apple Silicon Mac. Setup there: macOS Sonoma 14.5+, Xcode 26.0 or 26.1.1 (not 26.4), UE 5.8 via the Epic Launcher, git-lfs, then `infra/ci/build-mac.sh` (Host arch → arm64, no flags needed) and the checklists in `docs/playtests/`. Tell me when it is ready.
-25. **Map convention for M5 (ADR 0005 D17):** bots need walkable widths ≥ 120 cm (nav agent radius 45). Confirm, or we lower the radius toward 40 for M5 maps with narrow ledges.
+25. ~~Map convention~~ — decided 2026-10-30: walkable widths ≥ 120 cm, AgentRadius stays 45.
 24. **Easy bots "spray"?** Default: no preset sprays (same direct-hit radius for all). Decide after the Mac playtest.
-23. **M4 bot defaults (ADR 0005, proceeding with these unless you object):** (1) Latin bot names (not the Q3 roster) — or give me a list; (2) no bots by default, preset Medium, auto-fill deferred to M6; (3) rocket jumps only for Hard/Expert bots at ≥ 70 health; (4) Expert ceiling: 0.7° aim spread, 0.10 s reaction; (5) `AddBot`/`KickBot` usable by every client in non-shipping builds until M6 admin rights; (6) ~~whole-world navigation~~ moot (engine setting removed in 5.8; each map has a nav bounds volume).
+23. ~~M4 bot defaults~~ — decided 2026-10-30: all confirmed (Latin names, no bots by default/Medium, RJ Hard+Expert at ≥ 70 HP, Expert 0.7°/0.10 s, AddBot for all until M6).
 22. ~~UE 5.8 not installed on the Mac~~ — resolved 2026-10-30: engine installed at `/Users/cappa/unreal/UE_5.8`, LFS content pulled, Editor/Game compile and the 53-test automation suite is green (headless, no RHI). Optional: `brew install coreutils` for a time-limited test run (slow on Intel, builds from source).
-21. **M3 defaults (ADR 0004, proceeding with these unless you object):** (a) Q3 vanilla armor (shard/yellow/red, all up to 200) rather than CPMA tiers; (b) M3 UI built in C++ (headless VM cannot author Widget Blueprints), Blueprint skins on the Mac later without code changes; (c) FFA 20 frags / 10 min, Duel 10 min with sudden death and ready-up, warmup 20 s, intermission 15 s; (d) item timers visible to spectators only; (e) Q3 weapon-pickup ammo top-up rule; (f) powerups lost on death without drop.
-19. **`MaxRewindSeconds` — architect recommends 0.35 (review `docs/reviews/m2-late-rpc-fixes-review.md` §4)**: 0.30 does not keep the promise at the 250 ms ping limit: with ±20 ms jitter the needed rewind is 0.33 s; in five test runs at 125 ms one-way the clamp hit 2–6 of 11 rails. Cost of 0.35: only 200–250 ms shooters hit up to 50 ms further into the past (victim hit ≤ 0.35 s after leaving the line; Valve ships 1.0 s, Q3 unlagged is unbounded). Not fixed by either value: a rail whose packet is lost at the ping limit needs 0.6 s — one rail in ~50 for such a player at 2 % loss, none at ≤ 120 ms ping; the real fix (hitscan in the move stream, like the rocket since 08f) is deferred to M6 unless the playtest reports rails not registering at high ping. Options: 0.30 (current) / **0.35 (recommended)**.
+21. ~~M3 defaults~~ — decided 2026-10-30: all confirmed as listed in ADR 0004.
+19. ~~`MaxRewindSeconds`~~ — decided 2026-10-30: **0.35 s** (task queued after the M4 acceptance).
 20. **Weapon key during your own switch (B33)**: today a second weapon key while the old weapon is being lowered is ignored; Q3 retargets the switch. Decide after the playtest (checklist item 20).
 - (answered 2026-10-29) Mac is **Intel**. UE 5.8's UBT still builds x86_64: `DefaultArchitecture=MacTargetArchitectureHost` in BaseEngine.ini picks x64 on an Intel host, so `build-mac.sh` needs no change. Requirements per Epic's 5.8 docs: macOS Sonoma 14.5+ and Xcode 26.0 or 26.1.1 (Xcode 26.4 is incompatible). Epic does not explicitly confirm Intel for 5.8; verify on the Mac that the Launcher installs and the editor starts.
-12. **M2 weapon numbers**: ADR 0003 defaults to Q3 vanilla (weapon switch waits for refire). CPMA numbers instead?
-13. **Spawn protection**: Q3 has none; ADR default 0 s (mechanism exists, test map uses 2 s). Keep 0?
-14. **Inventory model**: ADR rejects Lyra's equipment/weapon-instance pattern in favour of a bitmask inventory + granted fire abilities. OK?
-15. **Hit markers**: server-confirmed only (Q3 feel, ~RTT delay) vs predicted with revocation. ADR default: server-confirmed.
-16. **Death camera**: fixed on corpse (ADR default) vs free spectate.
-11. **Crouch out of M1** (architect, ADR 0002 A11): the engine's crouch resizes to class-default capsule geometry, not our pawn-data geometry; fixing it properly belongs to the M2 hitbox/lag-comp design (recommendation: Lyra-style class-default geometry). `bCanCrouch=false` for the M1 playtest. Veto if you want crouching in the movement playtest.
+12. ~~Weapon numbers~~ — decided 2026-10-30: Q3 vanilla.
+13. ~~Spawn protection~~ — decided 2026-10-30: 0 s.
+14. ~~Inventory model~~ — decided 2026-10-30: bitmask inventory + granted fire abilities.
+15. ~~Hit markers~~ — decided 2026-10-30: server-confirmed only.
+16. ~~Death camera~~ — decided 2026-10-30: **free spectate** (not the ADR default; feature task to be planned, see Next).
+11. ~~Crouch~~ — decided 2026-10-30: human answered "off for now until the hitbox work"; that hitbox work already landed in M2-02 (ADR 0003 §6 A11 (c), crouch live with class-default geometry, CrouchRun soak green), so crouch stays on unless the human objects.
 1. ~~Disk space~~ — resolved 2026-10-24: disk cannot be enlarged; freed instead: docker 19 GB, engine trim 17 GB + exclusions, caches/build artefacts 9.8 GB (approved). **35 GB free.** Budget rule from now on: keep ≥ 15 GB free; cooked builds go to `Saved/` and are pruned after upload.
 2. ~~UE 5.8 Linux download~~ — resolved 2026-10-24: human supplied the signed URL; UE 5.8.4 streamed into `/opt/UnrealEngine-5.8` via `bsdtar` (debug symbols, Templates, FeaturePacks, Samples, Documentation excluded to fit the disk).
-3. **Installed vs source engine.** Installed engines (Launcher, Linux zip) cannot build the `VeloxServer`/`VeloxClient` targets; the dedicated server is then `Velox -server`, which is fine until M6. A source build (needs EpicGames GitHub org linked to your Epic account, ~150 GB disk, hours of compile) is needed for M6 shipping. Recommendation: installed engine now, source build before M6. OK?
-5. **Renderer decision (veto window).** ADR 0001 picks forward renderer + MSAA + baked static lighting (Q3-style readability, max fps). This shapes all M5 art. Veto now if you prefer deferred + TAA.
-6. **Scale.** Netcode defaults assume ≤ 16 players per server until M6. Confirm.
+3. ~~Installed vs source engine~~ — decided 2026-10-30: installed engine now, source build before M6.
+5. ~~Renderer~~ — decided 2026-10-30: forward + MSAA + baked lighting (ADR 0001).
+6. ~~Scale~~ — decided 2026-10-30: ≤ 16 players per server until M6.
 7. ~~Delete `Engine/Platforms/{Android,IOS,VisionOS}`~~ — approved and done 2026-10-24.
 9. ~~Fresh download link~~ — provided and used 2026-10-24 (four targeted extractions).
 8. ~~ADR 0002 defaults~~ — approved 2026-10-24 as written (vanilla Q3, CPM air control off, ground accel 10, unit scale 2.5, auto-hop on).
