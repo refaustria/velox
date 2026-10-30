@@ -400,7 +400,8 @@ void UVeloxHUDViewModel::UpdateScoreboard(const AVeloxPlayerController& Controll
 			Row.Score = FMath::RoundToInt32(VeloxPlayer->GetScore());
 			Row.Kills = VeloxPlayer->GetKills();
 			Row.Deaths = VeloxPlayer->GetDeaths();
-			Row.PingMs = FMath::RoundToInt32(VeloxPlayer->GetPingInMilliseconds());
+			Row.bIsBot = VeloxPlayer->IsABot();
+			Row.PingMs = Row.bIsBot ? 0 : FMath::RoundToInt32(VeloxPlayer->GetPingInMilliseconds());
 			Row.bReady = VeloxPlayer->IsReady();
 			Row.bLocal = VeloxPlayer == LocalState;
 			Row.Color = VeloxPlayer->GetPlayerColor();

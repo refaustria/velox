@@ -172,6 +172,11 @@ namespace VeloxUiTest
 		};
 		Model->ScoreRows = { MakeRow(TEXT("Sarge"), 3, 4, 5, 40, false, true, TEXT("")), MakeRow(TEXT("Anarki"), 7, 7, 1, 23, true, false, TEXT("QH")),
 			MakeRow(TEXT("Bones"), 3, 5, 5, 0, false, false, TEXT("")), MakeRow(TEXT("Xaero"), 3, 4, 2, 80, true, false, TEXT("")) };
+		// Bones is an AI player: the ping column shows BOT (ADR 0005 section 12).
+		for (VeloxScoreboardFormat::FRow& BotRow : Model->ScoreRows)
+		{
+			BotRow.bIsBot = BotRow.Name == TEXT("Bones");
+		}
 		VeloxScoreboardFormat::SortRows(Model->ScoreRows);
 		Model->bScoreboardVisible = true;
 		Model->bScoreboardForced = true;
@@ -187,7 +192,7 @@ namespace VeloxUiTest
 		C.Check(Widget->IsPanelVisible(), TEXT("scoreboard_visible"));
 		C.Check(Widget->GetNumVisibleRows() == 4, TEXT("scoreboard_rows"), FString::Printf(TEXT("n=%d"), Widget->GetNumVisibleRows()));
 		C.CheckText(TEXT("scoreboard_row_0_leader"), Widget->GetRowText(0), TEXT("Anarki [QH]  7  7  1  23  READY"));
-		C.CheckText(TEXT("scoreboard_row_1_more_kills_wins_the_tie"), Widget->GetRowText(1), TEXT("Bones  3  5  5  0  -"));
+		C.CheckText(TEXT("scoreboard_row_1_more_kills_wins_the_tie"), Widget->GetRowText(1), TEXT("Bones  3  5  5  BOT  -"));
 		C.CheckText(TEXT("scoreboard_row_2_fewer_deaths_wins"), Widget->GetRowText(2), TEXT("Xaero  3  4  2  80  READY"));
 		C.CheckText(TEXT("scoreboard_row_3"), Widget->GetRowText(3), TEXT("Sarge  3  4  5  40  -"));
 		C.Check(!Widget->IsRowLocal(0) && !Widget->IsRowLocal(1) && !Widget->IsRowLocal(2) && Widget->IsRowLocal(3), TEXT("scoreboard_local_row_highlight"));
@@ -621,6 +626,11 @@ bool FVeloxUIScoreboardFormatTest::RunTest(const FString& Parameters)
 	Row.Powerups = TEXT("QR");
 	Row.bReady = false;
 	TestEqual(TEXT("row text with powerups"), RowText(Row), FString(TEXT("Anarki [QR]  7  8  2  23  -")));
+	Row.bIsBot = true;
+	TestEqual(TEXT("bot row shows BOT in the ping column"), RowText(Row), FString(TEXT("Anarki [QR]  7  8  2  BOT  -")));
+	TestEqual(TEXT("ping text of a bot"), PingText(Row), FString(TEXT("BOT")));
+	Row.bIsBot = false;
+	TestEqual(TEXT("ping text of a human"), PingText(Row), FString(TEXT("23")));
 
 	TestEqual(TEXT("limits both"), LimitsText(20, 600), FString(TEXT("Fraglimit 20   Timelimit 10:00")));
 	TestEqual(TEXT("limits time only"), LimitsText(0, 90), FString(TEXT("Timelimit 01:30")));

@@ -265,7 +265,7 @@ void UVeloxScoreboardWidget::RefreshFromViewModel()
 		VeloxScoreboardSetText(Row.Columns[1], FString::FromInt(Source.Score));
 		VeloxScoreboardSetText(Row.Columns[2], FString::FromInt(Source.Kills));
 		VeloxScoreboardSetText(Row.Columns[3], FString::FromInt(Source.Deaths));
-		VeloxScoreboardSetText(Row.Columns[4], FString::FromInt(Source.PingMs));
+		VeloxScoreboardSetText(Row.Columns[4], VeloxScoreboardFormat::PingText(Source));
 		VeloxScoreboardSetText(Row.Columns[5], Source.bReady ? TEXT("READY") : TEXT("-"));
 		VeloxScoreboardSetTextColor(Row.Columns[5], Source.bReady ? UI.ScoreboardReadyColor : UI.TextColor);
 	}
