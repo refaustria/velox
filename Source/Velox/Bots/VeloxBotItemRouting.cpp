@@ -218,6 +218,8 @@ namespace VeloxBotItemRouting
 		In.bAvailable = Item.bAvailable;
 		In.TimeUntilRespawn = Item.TimeUntilRespawn;
 		In.TravelSeconds = Travel;
+		In.OwnedWeaponStrength = Bot.WeaponStrength;
+		In.UnownedWeaponNeedFloor = Bot.UnownedWeaponNeedFloor;
 		// Duel denial: a major item the bot can use is worth at least MajorItemMinNeed of its base value (taking it also
 		// starts the opponent's wait). Need 0 (nothing to grant: the pickup would refuse) stays 0.
 		const float Need = VeloxItemValue::Need(In);
@@ -254,6 +256,17 @@ namespace VeloxBotItemRouting
 			}
 		}
 		return FMath::Clamp(Best / MaxWeight, 0.f, 1.f);
+	}
+
+	void FillDerivedBotFacts(FVeloxRoutingBotFacts& Bot, TConstArrayView<FVeloxBotWeaponPreference> Preferences, float UnownedWeaponNeedFloor)
+	{
+		Bot.WeaponStrength = WeaponStrength(Bot, Preferences);
+		Bot.UnownedWeaponNeedFloor = UnownedWeaponNeedFloor;
+	}
+
+	bool ShouldMarkUnreachable(const FVeloxRoutingPathResult& Path, bool bAirborneStart)
+	{
+		return Path.bFound && Path.bPartial && !bAirborneStart;
 	}
 
 	float TravelSeconds(double DistanceCm, float SpeedCmS)
@@ -645,8 +658,9 @@ bool UVeloxBotItemRouter::BeginEvaluation(AVeloxBotController& Bot, FBotRouteSta
 	// the point below the pawn (AirborneProjectDownCm). A start off the mesh would make every candidate look unreachable,
 	// so the evaluation waits instead (logged, rate-limited).
 	FVector BotLocation = Character->GetNavAgentLocation();
+	const FVector AgentLocation = BotLocation;
+	const bool bAirborne = !Movement->IsOnGround();
 	{
-		const bool bAirborne = !Movement->IsOnGround();
 		const FVector Extent(AirborneProjectRadiusCm, AirborneProjectRadiusCm, bAirborne ? AirborneProjectDownCm * 0.5f : GroundProjectHalfHeightCm);
 		const FVector Probe = bAirborne ? BotLocation - FVector(0.0, 0.0, AirborneProjectDownCm * 0.5f) : BotLocation;
 		FNavLocation Projected;
@@ -667,6 +681,7 @@ bool UVeloxBotItemRouter::BeginEvaluation(AVeloxBotController& Bot, FBotRouteSta
 	{
 		return false;
 	}
+	VeloxBotItemRouting::FillDerivedBotFacts(BotFacts, Params.WeaponPreferences, UVeloxBotSettings::Get().UnownedWeaponNeedFloor);
 	const AVeloxGameState* GameState = World->GetGameState<AVeloxGameState>();
 	const UVeloxGameModeDefinition* ModeDefinition = GameState ? GameState->GetGameModeDefinition() : nullptr;
 	const bool bDuel = ModeDefinition && ModeDefinition->ModeTag.MatchesTagExact(VeloxMatchTags::Mode_Duel);
@@ -721,6 +736,8 @@ bool UVeloxBotItemRouter::BeginEvaluation(AVeloxBotController& Bot, FBotRouteSta
 	S.Pending.bActive = true;
 	S.Pending.StartTime = Now;
 	S.Pending.Start = BotLocation;
+	S.Pending.bAirborneStart = bAirborne;
+	S.Pending.AgentLocation = AgentLocation;
 	S.Pending.Filter = FilterClass;
 	for (const int32 Id : QueryIds)
 	{
@@ -771,6 +788,7 @@ EVeloxRouteUpdate UVeloxBotItemRouter::StepEvaluation(AVeloxBotController& Bot, 
 			Path.bPartial = Path.bFound && Result.Path->IsPartial();
 			Path.Cost = Path.bFound ? Result.Path->GetCost() : 0.0;
 			Path.Length = Path.bFound ? Result.Path->GetLength() : 0.0;
+			Path.End = Path.bFound ? Result.Path->GetPathPoints().Last().Location : FVector::ZeroVector;
 		}
 	}
 	LastStepFrame = GFrameCounter;
@@ -815,6 +833,7 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 		OutUpdate = EVeloxRouteUpdate::Unchanged;
 		return;
 	}
+	VeloxBotItemRouting::FillDerivedBotFacts(BotFacts, Params.WeaponPreferences, UVeloxBotSettings::Get().UnownedWeaponNeedFloor);
 	const AVeloxGameState* GameState = World->GetGameState<AVeloxGameState>();
 	const UVeloxGameModeDefinition* ModeDefinition = GameState ? GameState->GetGameModeDefinition() : nullptr;
 	const bool bDuel = ModeDefinition && ModeDefinition->ModeTag.MatchesTagExact(VeloxMatchTags::Mode_Duel);
@@ -827,12 +846,14 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 	FVeloxBotRouteRecord Record;
 	Record.Time = Now;
 	Record.Filter = E.Filter;
+	Record.bAirborneStart = E.bAirborneStart;
+	Record.WeaponStrength = BotFacts.WeaponStrength;
 	FVeloxBotDecisionInput In;
 	In.bPostMatch = bPostMatch;
 	In.bDuel = bDuel;
 	In.Health = BotFacts.Health;
 	In.Armor = BotFacts.Armor;
-	In.WeaponStrength = VeloxBotItemRouting::WeaponStrength(BotFacts, Params.WeaponPreferences);
+	In.WeaponStrength = BotFacts.WeaponStrength;
 	VeloxBotItemRoutingPrivate::FillEnemyInput(Bot, Current, In);
 	{
 		// ADR 0005 D4 (task 04b): the fight score parameters are project settings.
@@ -853,9 +874,10 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 		// The committed goal keeps its timing window while the bot closes in faster than EstimatedTravelSpeed.
 		const float CommitTravel = Pickup == Current.Item.Get() && Pickup == S.CommitItem.Get() ? S.CommitTravelSeconds : 0.f;
 		const FVeloxGoalItemCandidate& Candidate = In.Items.Add_GetRef(VeloxBotItemRouting::MakeGoalCandidate(Item, BotFacts, E.Results[i], Speed, ScoringParams, CommitTravel));
-		if (E.Results[i].bPartial)
+		if (VeloxBotItemRouting::ShouldMarkUnreachable(E.Results[i], E.bAirborneStart))
 		{
-			// Only a partial path proves the item unreachable from here; a failed query (start / end projection) does not.
+			// Only a partial path from the bot's grounded position proves the item unreachable (D24); a failed query (start /
+			// end projection) or a start projected below an airborne pawn does not.
 			S.Unreachable.Add(Pickup, Now + UnreachableRetrySeconds);
 		}
 		Record.CandidatePickups.Add(Pickup);
@@ -872,6 +894,7 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 	In.Current.Point = Current.Point;
 	In.Current.Score = Current.Score;
 	const FVeloxBotGoalChoice Choice = VeloxBotDecision::ChooseGoal(In, Params, Stream);
+	Record.BiasedFightScore = Params.FightItemBias * VeloxBotDecision::FightScore(In);
 	Record.Candidates = In.Items;
 	Record.Choice = Choice;
 
@@ -948,15 +971,28 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 			C.bReachable ? C.TravelSeconds : -1.f, C.bReachable ? TEXT("") : TEXT("!unreachable"), C.bAvailable ? TEXT("") : *FString::Printf(TEXT("@%.1f"), C.TimeUntilRespawn));
 	}
 	const bool bCamp = Choice.Type == EVeloxBotGoal::Roam && ChosenPickup != nullptr;
+	// D24 diagnostics: an evaluation whose every query came back partial names its start (pawn and projected point) and
+	// where each partial path stopped. Rare (expected 0 from a grounded start), so at Log.
+	if (E.Results.Num() > 0 && !E.Results.ContainsByPredicate([](const FVeloxRoutingPathResult& R) { return !R.bFound || !R.bPartial; }))
+	{
+		FString Ends;
+		for (int32 i = 0; i < E.Results.Num(); ++i)
+		{
+			Ends += FString::Printf(TEXT("%s%s->%s"), i > 0 ? TEXT(",") : TEXT(""), *VeloxBotItemRoutingPrivate::PickupLabel(E.Queue[i].Get()), *E.Results[i].End.ToCompactString());
+		}
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRouteAllPartial bot=%s start=%s agent=%s projected=%s filter=%s t=%.2f ends=[%s]"), *Bot.GetBotName(),
+			E.bAirborneStart ? TEXT("air") : TEXT("ground"), *E.AgentLocation.ToCompactString(), *E.Start.ToCompactString(), VeloxBotItemRoutingPrivate::FilterName(E.Filter), Now, *Ends);
+	}
 	UE_LOG(LogVeloxBots, Verbose, TEXT("VeloxBotRouteEval bot=%s choice=%s item=%s update=%d paths=%d frames=%d filter=%s candidates=[%s]"), *Bot.GetBotName(),
 		VeloxBotItemRoutingPrivate::GoalName(Choice.Type), *VeloxBotItemRoutingPrivate::PickupLabel(ChosenPickup), static_cast<int32>(OutUpdate), E.PathQueries, E.Results.Num(),
 		VeloxBotItemRoutingPrivate::FilterName(E.Filter), *CandidateText);
 	if (OutUpdate != EVeloxRouteUpdate::Unchanged)
 	{
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRoute bot=%s goal=%s item=%s camp=%d score=%.2f travel=%.2f available=%d respawn_in=%.1f paths=%d filter=%s from=%s eval_s=%.3f t=%.2f candidates=[%s]"),
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRoute bot=%s goal=%s item=%s camp=%d score=%.2f travel=%.2f available=%d respawn_in=%.1f paths=%d filter=%s from=%s fight=%.2f start=%s eval_s=%.3f t=%.2f candidates=[%s]"),
 			*Bot.GetBotName(), OutUpdate == EVeloxRouteUpdate::Roam ? TEXT("Roam") : VeloxBotItemRoutingPrivate::GoalName(Choice.Type), *VeloxBotItemRoutingPrivate::PickupLabel(ChosenPickup),
 			bCamp ? 1 : 0, Choice.Score, Chosen ? Chosen->TravelSeconds : 0.f, Chosen ? (Chosen->bAvailable ? 1 : 0) : 1, Chosen ? Chosen->TimeUntilRespawn : 0.f, E.PathQueries,
-			VeloxBotItemRoutingPrivate::FilterName(E.Filter), VeloxBotItemRoutingPrivate::GoalName(Current.Type), Now - E.StartTime, Now, *CandidateText);
+			VeloxBotItemRoutingPrivate::FilterName(E.Filter), VeloxBotItemRoutingPrivate::GoalName(Current.Type), Record.BiasedFightScore, E.bAirborneStart ? TEXT("air") : TEXT("ground"),
+			Now - E.StartTime, Now, *CandidateText);
 	}
 	S.Last = MoveTemp(Record);
 }

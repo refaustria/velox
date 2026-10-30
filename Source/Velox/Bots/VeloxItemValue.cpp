@@ -10,9 +10,15 @@ namespace VeloxItemValuePrivate
 	constexpr float UnusableAmmoNeedScale = 0.1f;
 	constexpr float OwnedWeaponAmmoNeedScale = 0.3f;
 
+	/** (Cap - Have) / Scale clamped to 0..1; 0 without a scale. */
+	float Deficit(int32 Have, int32 Cap, int32 Scale)
+	{
+		return Scale > 0 ? FMath::Clamp(static_cast<float>(Cap - Have) / static_cast<float>(Scale), 0.f, 1.f) : 0.f;
+	}
+
 	float Deficit(int32 Have, int32 Cap)
 	{
-		return Cap > 0 ? FMath::Clamp(static_cast<float>(Cap - Have) / static_cast<float>(Cap), 0.f, 1.f) : 0.f;
+		return Deficit(Have, Cap, Cap);
 	}
 }
 
@@ -24,8 +30,10 @@ namespace VeloxItemValue
 		{
 		case EVeloxItemType::Health:
 		{
-			const int32 Cap = In.HealthCap == EVeloxHealthCap::HardCap ? In.HealthHardCap : In.MaxHealth;
-			return VeloxItemValuePrivate::Deficit(In.Health, Cap);
+			// ADR 0005 D21: a hard-cap item grants up to MaxHealth effective points to anyone at or below MaxHealth, so its
+			// need is the deficit to the hard cap over MaxHealth (125 -> 0.75, <= 100 -> 1), not over the hard cap.
+			return In.HealthCap == EVeloxHealthCap::HardCap ? VeloxItemValuePrivate::Deficit(In.Health, In.HealthHardCap, In.MaxHealth)
+				: VeloxItemValuePrivate::Deficit(In.Health, In.MaxHealth);
 		}
 		case EVeloxItemType::Armor:
 			return VeloxItemValuePrivate::Deficit(In.Armor, In.MaxArmor);
@@ -35,7 +43,9 @@ namespace VeloxItemValue
 			return In.bOwnsWeaponUsingAmmo ? AmmoNeed : AmmoNeed * VeloxItemValuePrivate::UnusableAmmoNeedScale;
 		}
 		case EVeloxItemType::Weapon:
-			return In.bOwnsWeapon ? VeloxItemValuePrivate::OwnedWeaponAmmoNeedScale * VeloxItemValuePrivate::Deficit(In.Ammo, In.AmmoMax) : 1.f;
+			// D22: an unowned weapon matters less the better the arsenal the bot already has.
+			return In.bOwnsWeapon ? VeloxItemValuePrivate::OwnedWeaponAmmoNeedScale * VeloxItemValuePrivate::Deficit(In.Ammo, In.AmmoMax)
+				: FMath::Lerp(1.f, FMath::Clamp(In.UnownedWeaponNeedFloor, 0.f, 1.f), FMath::Clamp(In.OwnedWeaponStrength, 0.f, 1.f));
 		case EVeloxItemType::Powerup:
 			return 1.f;
 		default:

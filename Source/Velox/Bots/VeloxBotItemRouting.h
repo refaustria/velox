@@ -66,6 +66,13 @@ struct FVeloxRoutingBotFacts
 	TMap<FGameplayTag, FVeloxRoutingWeaponAmmo> OwnedWeaponAmmo;
 	/** Duel denial floor of a major item's need (0 = off, the plain section 7 need). */
 	float MajorItemMinNeed = 0.f;
+	/**
+	 * ADR 0005 D22: WeaponStrength(this, preset WeaponPreferences), filled once per evaluation right after GatherBotFacts;
+	 * MakeScoringInput copies it to FVeloxItemScoringInput::OwnedWeaponStrength. Default 1: neutral.
+	 */
+	float WeaponStrength = 1.f;
+	/** D22: UVeloxBotSettings::UnownedWeaponNeedFloor (filled by the glue); default 1 = the pre-D22 rule. */
+	float UnownedWeaponNeedFloor = 1.f;
 };
 
 /** What the scoring needs from one pickup (definition + registry state). */
@@ -106,6 +113,8 @@ struct FVeloxRoutingPathResult
 	/** Path cost (length x area cost + link entering costs) and geometric length, cm. */
 	double Cost = 0.0;
 	double Length = 0.0;
+	/** Last path point (where a partial path stops; D24 diagnostics). */
+	FVector End = FVector::ZeroVector;
 };
 
 namespace VeloxBotItemRouting
@@ -124,6 +133,21 @@ namespace VeloxBotItemRouting
 	 * neutral, the pre-D13 behaviour).
 	 */
 	VELOX_API float WeaponStrength(const FVeloxRoutingBotFacts& Bot, TConstArrayView<FVeloxBotWeaponPreference> Preferences);
+
+	/**
+	 * ADR 0005 D22: the per-evaluation derived bot facts, right after GatherBotFacts (used by the straight-line pre-score and
+	 * the final score alike): Bot.WeaponStrength = WeaponStrength(Bot, Preferences), Bot.UnownedWeaponNeedFloor = Floor
+	 * (UVeloxBotSettings::UnownedWeaponNeedFloor in the glue).
+	 */
+	VELOX_API void FillDerivedBotFacts(FVeloxRoutingBotFacts& Bot, TConstArrayView<FVeloxBotWeaponPreference> Preferences, float UnownedWeaponNeedFloor);
+
+	/**
+	 * ADR 0005 D24: a partial path marks the item Unreachable (UnreachableRetrySeconds) only when the evaluation started
+	 * from the bot's own grounded position. From a start projected below an airborne pawn (pad flight, bunny hop) a partial
+	 * path proves nothing: the item scores 0 for this evaluation and is queried again at the next one. A failed query
+	 * (start / end projection) never marks it.
+	 */
+	VELOX_API bool ShouldMarkUnreachable(const FVeloxRoutingPathResult& Path, bool bAirborneStart);
 
 	/** Distance / Speed (0 speed: the distance in metres per second fallback is not used; returns a large value). */
 	VELOX_API float TravelSeconds(double DistanceCm, float SpeedCmS);
@@ -197,6 +221,11 @@ struct FVeloxBotRouteRecord
 	/** CandidateId -> pickup of the candidates above. */
 	TArray<TWeakObjectPtr<AVeloxPickup>> CandidatePickups;
 	FVeloxBotGoalChoice Choice;
+	/** D24: the start was projected below an airborne pawn (`start=air`). */
+	bool bAirborneStart = false;
+	/** D20 diagnostics: the evaluation's WeaponStrength (`wstr=` in the VeloxBot line) and FightItemBias x FightScore (`fight=`). */
+	float WeaponStrength = 1.f;
+	float BiasedFightScore = 0.f;
 	int32 PathQueries = 0;
 	/** Server frames the evaluation took (one path query per frame). */
 	int32 Frames = 0;
@@ -293,6 +322,10 @@ private:
 		bool bActive = false;
 		double StartTime = 0.0;
 		FVector Start = FVector::ZeroVector;
+		/** D24: Start was projected below an airborne pawn; partial paths then do not mark Unreachable. */
+		bool bAirborneStart = false;
+		/** D24 diagnostics: the pawn's nav agent location before the projection. */
+		FVector AgentLocation = FVector::ZeroVector;
 		TSubclassOf<UNavigationQueryFilter> Filter;
 		TArray<TWeakObjectPtr<AVeloxPickup>> Queue;
 		TArray<FVeloxRoutingPathResult> Results;

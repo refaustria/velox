@@ -32,6 +32,17 @@ struct FVeloxItemScoringInput
 	bool bOwnsWeapon = false;
 	/** Ammo items: the bot owns a weapon that uses this ammo. */
 	bool bOwnsWeaponUsingAmmo = false;
+	/**
+	 * ADR 0005 D22: the bot's D13 WeaponStrength (0..1, VeloxBotItemRouting::WeaponStrength), computed once per evaluation.
+	 * An unowned weapon's need falls from 1 (strength 0) to UnownedWeaponNeedFloor (strength 1).
+	 */
+	float OwnedWeaponStrength = 1.f;
+	/**
+	 * D22: need of an unowned weapon for a fully armed bot. The project value is UVeloxBotSettings::UnownedWeaponNeedFloor
+	 * (DefaultGame.ini, 0.3), carried here by the routing glue like the Duel MajorItemMinNeed; the default 1 is the
+	 * pre-D22 rule (an unowned weapon is always fully needed).
+	 */
+	float UnownedWeaponNeedFloor = 1.f;
 	bool bAvailable = true;
 	float TimeUntilRespawn = 0.f;
 	float TravelSeconds = 0.f;
@@ -56,9 +67,10 @@ struct FVeloxRankedItem
 namespace VeloxItemValue
 {
 	/**
-	 * 0..1. Health: (Cap - Health) / Cap, Cap = MaxHealth or HealthHardCap per HealthCap. Armor: (MaxArmor - Armor) /
-	 * MaxArmor. Ammo: (AmmoMax - Ammo) / AmmoMax, x 0.1 when no owned weapon uses it. Weapon: 1 when not owned, else 0.3 x
-	 * the ammo need. Powerup: 1.
+	 * 0..1. Health: (MaxHealth - Health) / MaxHealth for a MaxHealth-capped item; a HardCap item (Mega, D21) the deficit
+	 * over MaxHealth, clamp((HealthHardCap - Health) / MaxHealth, 0, 1). Armor: (MaxArmor - Armor) / MaxArmor. Ammo:
+	 * (AmmoMax - Ammo) / AmmoMax, x 0.1 when no owned weapon uses it. Weapon: not owned lerp(1, UnownedWeaponNeedFloor,
+	 * OwnedWeaponStrength) (D22), owned 0.3 x the ammo need. Powerup: 1.
 	 */
 	VELOX_API float Need(const FVeloxItemScoringInput& In);
 

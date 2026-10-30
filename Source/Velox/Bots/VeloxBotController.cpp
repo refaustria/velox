@@ -1153,10 +1153,13 @@ FString AVeloxBotController::DescribeForDebug() const
 		Link = FString::Printf(TEXT("%s:%s"), VeloxBotControllerPrivate::ManeuverLabel(Follow->GetManeuver().Type), *GetNameSafe(Follow->GetCurrentLink()));
 	}
 	const AVeloxPickup* Item = State.Goal.Item.Get();
-	return FString::Printf(TEXT("VeloxBot name=%s index=%d life=%d difficulty=%s goal=%s forced=%d arrived=%d item=%s %s weapon=%s speed=%.0f ground=%d link=%s filter=%s pos=%s path=%d stuck=%d links_ok=%d links_failed=%d tick_us_mean=%.1f tick_us_max=%.1f"),
+	// ADR 0005 D20: the last evaluation's WeaponStrength (the armed fight share of the soak reads it).
+	const UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(GetWorld());
+	const FVeloxBotRouteRecord* LastEval = Router ? Router->FindLastEvaluation(this) : nullptr;
+	return FString::Printf(TEXT("VeloxBot name=%s index=%d life=%d difficulty=%s goal=%s forced=%d arrived=%d item=%s %s weapon=%s wstr=%.2f speed=%.0f ground=%d link=%s filter=%s pos=%s path=%d stuck=%d links_ok=%d links_failed=%d tick_us_mean=%.1f tick_us_max=%.1f"),
 		*GetBotName(), BotIndex, LifeCount, *GetNameSafe(Difficulty), LexToString(State.Goal.Type), State.bForcedGoal ? 1 : 0, State.bGoalArrived ? 1 : 0,
 		Item && Item->GetDefinition() ? *Item->GetDefinition()->GetName() : TEXT("-"), *VeloxBotCombatGlue::Describe(Combat), Weapon ? *Weapon->GetName() : TEXT("-"),
-		Movement ? Movement->GetSpeed2D() : 0.f, Movement && Movement->IsOnGround() ? 1 : 0, *Link, VeloxBotControllerPrivate::FilterLabel(GetNavFilter()),
+		LastEval ? LastEval->WeaponStrength : -1.f, Movement ? Movement->GetSpeed2D() : 0.f, Movement && Movement->IsOnGround() ? 1 : 0, *Link, VeloxBotControllerPrivate::FilterLabel(GetNavFilter()),
 		Character ? *Character->GetActorLocation().ToCompactString() : TEXT("-"), State.bMoveActive ? 1 : 0, State.StuckStrikes, State.LinksOk, State.LinksFailed,
 		State.TickCount > 0 ? State.TickMicrosSum / State.TickCount : 0.0, State.TickMicrosMax);
 }
