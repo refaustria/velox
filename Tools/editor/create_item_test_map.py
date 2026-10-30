@@ -147,6 +147,9 @@ def count(kind):
     COUNTS[kind] = COUNTS.get(kind, 0) + 1
 
 
+FILL_NAV_KINDS = ("platform", "cross")   # solid boxes that must not carry nav inside them
+
+
 def box(kind, label, center, size, mat, rot=None, collide=True, folder=None, mesh_path=CUBE):
     """Static mesh box. size = full extents in cm (cube/cylinder is 100 cm, so scale = size / 100)."""
     a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*center), rot or unreal.Rotator(0, 0, 0))
@@ -156,6 +159,9 @@ def box(kind, label, center, size, mat, rot=None, collide=True, folder=None, mes
     c.set_editor_property("static_mesh", mesh(mesh_path))
     c.set_mobility(STATIC)
     c.set_material(0, MATS[mat])
+    if kind in FILL_NAV_KINDS:
+        # Solid box standing on the ground: without this Recast leaves a walkable island at floor level inside it (M4-04e).
+        c.set_editor_property("fill_collision_underneath_for_navmesh", True)
     if not collide:
         c.set_collision_profile_name("NoCollision")
         c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
