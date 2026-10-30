@@ -8,6 +8,7 @@ Spec: `docs/adr/0005-bots.md` (ADR 0005; implementation notes list the tasks). T
 | 02 | [bot-pure-cores](02-bot-pure-cores.md) | dev-hard | 3 h | none | Wave 1 | todo |
 | 03 | [bot-content-and-scoreboard](03-bot-content-and-scoreboard.md) | dev | 2 h | none | Wave 1 | todo |
 | 04 | [bot-controller-navigation](04-bot-controller-navigation.md) | dev-hard | 3 h | 01, 02, 03 | Wave 2 | todo |
+| 04b | [bot-tunables-and-ci-fts](04b-bot-tunables-and-ci-fts.md) | dev | 2 h | 04, 05, 06 merged | Wave 3.5 (after the 05/06 merge, before 07) | todo |
 | 05 | [bot-combat](05-bot-combat.md) | dev-hard | 3 h | 04 | Wave 3 (parallel with 06) | todo |
 | 06 | [bot-item-routing](06-bot-item-routing.md) | dev-hard | 2-3 h | 04 | Wave 3 (parallel with 05) | todo |
 | 07 | [bot-soak-and-playtest](07-bot-soak-and-playtest.md) | dev | 2 h | 05, 06 | Wave 4 | todo |
@@ -16,6 +17,7 @@ Spec: `docs/adr/0005-bots.md` (ADR 0005; implementation notes list the tasks). T
 - **Wave 1:** 01 || 02 || 03
 - **Wave 2:** 04 (needs 01, 02, 03) -> `architect` review
 - **Wave 3:** 05 || 06 (file ownership below) -> one `architect` review pass over 04/05/06
+- **Wave 3.5:** 04b (review follow-up of 04: tunables into data, `infra/ci/fts.sh`; `docs/reviews/m4-01-02-04-review.md`)
 - **Wave 4:** 07, ROADMAP M4 ticks, human playtest on the Mac
 
 File ownership in wave 3: 05 owns `Bots/VeloxBotCombat.*` and the controller's `UpdateCombat`/`Act` phases; 06 owns `Bots/VeloxBotItemRouting.*` and `UpdateGoal`; both append rows to `Tests/VeloxBotTests.cpp` in their own section. Neither edits the other's files; shared needs go to the lead.
