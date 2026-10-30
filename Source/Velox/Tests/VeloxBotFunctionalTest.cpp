@@ -1,7 +1,7 @@
 // Velox - bot controller and navigation tests (ADR 0005 section 14, task M4-04).
 //
 //   Velox.Bots.ControllerRules   automation, world-free: per-life seed (HashCombine, no collisions where XOR collides),
-//                                key presence from a world wish (CPM snap), turn-rate clamp, stuck rule, bot names,
+//                                key presence from a world wish (CPM snap), turn-rate clamp, stuck rules (speed, D18 progress), D18 hop headroom, bot names,
 //                                ?Bots= capping, link type -> maneuver type mapping, corner angle.
 //   Velox.Bots.FindNearestEnd    automation, world-free: UVeloxBotSubsystem::FindNearestEnd (radius, height, nearest).
 //   velox.bots.FtNavigation      FT_BotNavigation (console, `UnrealEditor-Cmd Velox.uproject L_ItemTest -game -nullrhi
@@ -128,6 +128,72 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		SlowSince = 5.0;
 		TestFalse(TEXT("not tracking (on a link / arrived) never counts"), VeloxBotRules::UpdateStuck(SlowSince, false, 0.f, 50.f, 100.0, 2.f));
 		TestEqual(TEXT("not tracking resets the clock"), SlowSince, -1.0);
+	}
+
+	// D18 progress rule: the 2-D distance to the segment target must shrink by 100 cm within 2 s while tracking.
+	{
+		const FVector2D Target(1000.0, 0.0);
+		auto Run = [&](TFunctionRef<float(int32)> DistAt, TFunctionRef<FVector2D(int32)> TargetAt, int32 Ticks, bool bTracking = true,
+			TFunctionRef<bool(int32)> PausedAt = [](int32) { return false; })
+		{
+			double Since = -1.0;
+			float StartDist = 0.f;
+			FVector2D WindowTarget = FVector2D::ZeroVector;
+			int32 Strikes = 0;
+			for (int32 Tick = 0; Tick <= Ticks; ++Tick)
+			{
+				Strikes += VeloxBotRules::UpdateStuckProgress(Since, StartDist, WindowTarget, bTracking, PausedAt(Tick), TargetAt(Tick), DistAt(Tick), 100.f,
+					Tick / 60.0, 1.f / 60.f, 2.f) ? 1 : 0;
+			}
+			return Strikes;
+		};
+		auto Fixed = [&](int32) { return Target; };
+		// Oscillation under the ramp slab: 300 +- 80 cm, never 100 cm closer than the window start.
+		TestEqual(TEXT("oscillation: one strike per 2 s window"),
+			Run([](int32 T) { return 300.f + 80.f * FMath::Sin(T * 0.3f); }, Fixed, 240), 2);
+		TestEqual(TEXT("walking 320 cm/s toward the target: no strike"), Run([](int32 T) { return 1000.f - T * (320.f / 60.f); }, Fixed, 180), 0);
+		TestEqual(TEXT("slow but steady 60 cm/s: no strike"), Run([](int32 T) { return 1000.f - T * 1.f; }, Fixed, 600), 0);
+		TestEqual(TEXT("40 cm/s: 80 cm per window, strikes"), Run([](int32 T) { return 1000.f - T * (40.f / 60.f); }, Fixed, 240), 2);
+		TestEqual(TEXT("not tracking never strikes"), Run([](int32) { return 300.f; }, Fixed, 600, false), 0);
+		// A new segment every 1.5 s (target moves, the distance jumps up): each restarts the window.
+		TestEqual(TEXT("new segment target restarts the window"),
+			Run([](int32 T) { return 300.f + 50.f * FMath::Sin(T * 0.3f); }, [](int32 T) { return FVector2D(1000.0 + 500.0 * (T / 90), 0.0); }, 600), 0);
+		// Combat overlay owns the wish (paused) every other second: the clock only runs on follower ticks.
+		auto HalfPaused = [](int32 T) { return (T / 60) % 2 == 1; };
+		TestEqual(TEXT("paused half the time: 4 s for the first strike"),
+			Run([](int32 T) { return 300.f + 80.f * FMath::Sin(T * 0.3f); }, Fixed, 239, true, HalfPaused), 0);
+		TestEqual(TEXT("paused half the time: strike after 2 s of follower time"),
+			Run([](int32 T) { return 300.f + 80.f * FMath::Sin(T * 0.3f); }, Fixed, 300, true, HalfPaused), 1);
+		// Paused for 10 s at a standstill: no strike (the clock does not run), and the window is not reset by the pause.
+		TestEqual(TEXT("long pause: no strike"), Run([](int32) { return 300.f; }, Fixed, 600, true, [](int32 T) { return T > 0; }), 0);
+		// The overlay pushes the bot 500 cm away while paused (0.5 s), the follower then closes at 300 cm/s: no strike
+		// (measured from the pause end, 100 cm take 0.33 s; held against the pre-pause 300 cm it would strike at T 150).
+		TestEqual(TEXT("distance the overlay added is not held against the follower"),
+			Run([](int32 T) { return T < 30 ? 300.f : T < 60 ? 300.f + (T - 30) * (500.f / 30.f) : FMath::Max(0.f, 800.f - (T - 60) * 5.f); }, Fixed, 300, true,
+				[](int32 T) { return T >= 30 && T < 60; }), 0);
+		// Strike at T ~ 720 when the clock only stopped, at T ~ 780 if the pause had reset it.
+		TestEqual(TEXT("pause does not reset the window"),
+			Run([](int32) { return 300.f; }, Fixed, 600 + 125, true, [](int32 T) { return T >= 60 && T < 660; }), 1);
+		double Since = 5.0;
+		float StartDist = 300.f;
+		FVector2D WindowTarget = Target;
+		TestFalse(TEXT("not tracking: false"), VeloxBotRules::UpdateStuckProgress(Since, StartDist, WindowTarget, false, false, Target, 300.f, 100.f, 10.0, 1.f / 60.f, 2.f));
+		TestEqual(TEXT("not tracking clears the window"), Since, -1.0);
+	}
+
+	// D18 hop headroom: JumpVelocity^2 / (2 |g|) + margin (675 cm/s, -2000 cm/s^2 -> 113.9 + 10).
+	{
+		TestTrue(TEXT("Velox defaults: 123.9 cm"), FMath::IsNearlyEqual(VeloxBotFollow::HopHeadroomCm(675.f, -2000.f, 10.f), 675.f * 675.f / 4000.f + 10.f, 1e-3f));
+		TestTrue(TEXT("gravity sign ignored"), FMath::IsNearlyEqual(VeloxBotFollow::HopHeadroomCm(675.f, 2000.f, 10.f), VeloxBotFollow::HopHeadroomCm(675.f, -2000.f, 10.f), 1e-4f));
+		TestTrue(TEXT("Q3: 270 ups at 800 ups^2 -> 45.6 + 0"), FMath::IsNearlyEqual(VeloxBotFollow::HopHeadroomCm(270.f, -800.f, 0.f), 45.5625f, 1e-3f));
+		TestEqual(TEXT("zero gravity: the margin alone"), VeloxBotFollow::HopHeadroomCm(675.f, 0.f, 10.f), 10.f);
+		TestEqual(TEXT("negative margin clamps to 0"), VeloxBotFollow::HopHeadroomCm(0.f, -2000.f, -5.f), 0.f);
+		// The L_ItemTest ramp strip (clearance 130-190 cm) must block a 140 cm capsule hop; open floor (no ceiling) not.
+		TestTrue(TEXT("140 cm capsule + headroom exceeds the 190 cm ramp clearance"), 140.f + VeloxBotFollow::HopHeadroomCm(675.f, -2000.f, 10.f) > 190.f);
+		// Loaded tunables (DefaultGame.ini) equal the D18 values.
+		TestEqual(TEXT("HopHeadroomMarginCm 10"), GetDefault<UVeloxBotPathFollowingComponent>()->HopHeadroomMarginCm, 10.f);
+		TestEqual(TEXT("HopHeadroomCheckSeconds 0.1"), GetDefault<UVeloxBotPathFollowingComponent>()->HopHeadroomCheckSeconds, 0.1f);
+		TestEqual(TEXT("StuckProgressCm 100"), GetDefault<AVeloxBotController>()->StuckProgressCm, 100.f);
 	}
 
 	// Task 04b (ADR 0005 D4) made these settings; task 04c-a (D13) changed the fight-score values. The loaded values
@@ -1019,7 +1085,7 @@ namespace VeloxBotRoutingFt
 //                         -ExecCmds="velox.bots.Seed 1, velox.bots.FtOffMesh quit"`): a Medium bot (peaceful) is put where
 //                         the nav mesh does not reach: the 100 cm strips between the corridor wall and the north sides of
 //                         the RA, Mega and ramp-top platforms (closed to the south and north, open to the east and west;
-//                         the ramp-top case touches the wall), and the top
+//                         the ramp-top case touches the wall; its exit runs under the ramp slab, D18), and the top
 //                         of the central cross cover (200 cm up, too narrow for the agent radius). Each case has a point
 //                         goal south of it. Checks per case: a `VeloxBotOffMesh ... recovered` (the controller's recovery
 //                         count rises) within 10 s and the goal reached within 25 s. The placement is the test harness;
@@ -1037,8 +1103,8 @@ namespace VeloxBotOffMeshFt
 		/** Point goal on the mesh. */
 		FVector Goal;
 		/**
-		 * The goal is asserted. Not for the ramp strip: its exit runs under the ramp slab, where a bunny-hopping bot hits
-		 * the slab and oscillates along the strip (a steering limitation outside the recovery; reported as a follow-up).
+		 * The goal is asserted. Since task 04c-b (ADR 0005 D18) also for the ramp strip: its exit runs under the ramp slab,
+		 * where a bunny-hopping bot used to hit the slab and oscillate; the hop headroom guard makes it walk there.
 		 */
 		bool bCheckGoal = true;
 	};
@@ -1047,7 +1113,7 @@ namespace VeloxBotOffMeshFt
 	const FCase Cases[] = {
 		{ TEXT("ra_strip"), FVector(2100.0, 1450.0, 0.0), FVector(2100.0, 500.0, 0.0), true },
 		{ TEXT("mega_strip"), FVector(-1500.0, 1450.0, 0.0), FVector(-1500.0, 500.0, 0.0), true },
-		{ TEXT("ramp_strip_wall"), FVector(364.0, 1462.0, 0.0), FVector(400.0, 600.0, 0.0), false },
+		{ TEXT("ramp_strip_wall"), FVector(364.0, 1462.0, 0.0), FVector(400.0, 600.0, 0.0), true },
 		{ TEXT("cross_top"), FVector(0.0, 200.0, 200.0), FVector(800.0, 600.0, 0.0), true },
 	};
 	constexpr double SettleSeconds = 0.5;

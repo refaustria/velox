@@ -59,6 +59,12 @@ namespace VeloxBotFollow
 
 	/** Turn at a path corner, degrees in [0, 180]: angle between the XY directions In and Out (0 if either is zero). */
 	VELOX_API float CornerAngleDeg(const FVector& In, const FVector& Out);
+
+	/**
+	 * Hop headroom (ADR 0005 D18): the height a jump lifts the capsule, JumpVelocity^2 / (2 |GravityZ|), plus MarginCm.
+	 * The follower sweeps the capsule up by this before it holds jump for a bunny hop. MarginCm alone when GravityZ is ~0.
+	 */
+	VELOX_API float HopHeadroomCm(float JumpVelocity, float GravityZ, float MarginCm);
 }
 
 UCLASS(ClassGroup = (Velox), Config = Game)
@@ -95,6 +101,17 @@ public:
 	/** A partial path is finished at its last point within the acceptance radius plus this (2-D), and this vertically (cm). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "cm"))
 	float PartialEndSlackCm = 40.f;
+
+	/** D18: the hop headroom sweep reaches this far above the jump apex (cm). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "cm"))
+	float HopHeadroomMarginCm = 10.f;
+
+	/** D18: the hop headroom sweep runs at most this often while a hop is wanted; the result is cached between (s). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float HopHeadroomCheckSeconds = 0.1f;
+
+	/** Bunny hops released because the headroom sweep was blocked (ticks; diagnostics, not yet in the debug line). */
+	int32 GetHopHeadroomBlockedTicks() const { return HopHeadroomBlockedTicks; }
 
 	//~UPathFollowingComponent interface
 	using Super::OnPathFinished;
@@ -147,4 +164,13 @@ private:
 
 	/** Knockback grace of the previous step (an impulse = the grace rising from 0). */
 	float LastKnockbackGrace = 0.f;
+
+	/**
+	 * D18 headroom guard: true when a capsule sweep straight up by HopHeadroomCm against static world is clear. Sweeps at
+	 * most every HopHeadroomCheckSeconds and returns the cached result between sweeps.
+	 */
+	bool HasHopHeadroom(double Now);
+	double NextHopHeadroomCheckTime = -1.0;
+	bool bHopHeadroomClear = true;
+	int32 HopHeadroomBlockedTicks = 0;
 };
