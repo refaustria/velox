@@ -40,3 +40,8 @@ Standard dev format; per round: kills by bots, pickups by bots (total and per ma
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+## Notes / outcome — tooling part (lead, 2026-10-30, merged 19c6992)
+dev: BotRun/BotDuel in nettest.sh default list (13 scripts), per-round D36 summary + `<script>.stats.json`, `bot_set_eval` after the last round (judged only with `--repeat 3`), `velox.bots.Watch`, BotWatch.json, `docs/playtests/m4-bots-checklist.md` (Apple Silicon). build 95 OK, fts 6/6, unity OK.
+Smoke (no 04g, machine contended by 04g): BotRun PASS (kills 10, pickups 47, stuck 2, 7/7 majors, 1 pocket strike). BotDuel FAIL ×2: no `camp=1` route line for Hard bots (0/71), budget mean 406–486 µs (> 300), max_deferred_frames 69, one round with a stuck burst at the yellow-armour ramp (135, 1200) and an 18 s roam dwell. Mega-take lag measured from the Countdown→Live reset (interpretation to confirm).
+Acceptance command (after 04g, idle machine): `infra/ci/nettest.sh --port <N> --scripts BotRun,BotDuel --repeat 3 --keep-going`, then the default list once.
