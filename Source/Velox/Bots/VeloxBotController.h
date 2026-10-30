@@ -54,6 +54,12 @@ struct FVeloxBotState
 	TSubclassOf<UNavigationQueryFilter> MoveFilter;
 	double NextMoveTime = 0.0;
 	int32 FailedMoves = 0;
+	/** D35: the follower asked for a new path from here (segment line-of-walk blocked); EnsureMove issues it. */
+	bool bRepathRequested = false;
+	/** Reason of the pending repath request (a string literal; VeloxBotRepath reason=). */
+	const TCHAR* RepathReason = nullptr;
+	/** D35: repath requests issued this life (debug line repaths=). */
+	int32 Repaths = 0;
 	/** Link fallbacks (section 4): a too-slow JumpFast forces _Walk, a rocket jump without impulse forces _Hop, until then. */
 	double WalkFilterUntil = -1.0;
 	double HopFilterUntil = -1.0;
@@ -215,6 +221,16 @@ public:
 
 	/** Called by the follower when a link traversal ends: VeloxBotLink log line, counters, re-query on failure. */
 	void NotifyLinkFinished(const FVeloxBotLinkReport& Report);
+
+	/**
+	 * D35: the follower's current segment is blocked; EnsureMove requests a new path under its usual guards (ground
+	 * only, RepathIntervalSeconds) and replaces the path in place. No StopMove, no stuck strike. Reason: a literal.
+	 */
+	void RequestRepath(const TCHAR* Reason);
+	/** D35: repath requests issued this life (functional tests). */
+	int32 GetRepathCount() const { return State.Repaths; }
+	/** A path move (or the off-mesh recovery move) is active. */
+	bool IsMoveActive() const { return State.bMoveActive; }
 
 	/** D30: a fight_stall strike hides the visible enemy from the goal decision until FightSuppressedUntil. */
 	bool IsFightSuppressed(double Time) const { return Time < State.FightSuppressedUntil; }

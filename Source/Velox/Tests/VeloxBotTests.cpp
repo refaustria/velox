@@ -8,6 +8,7 @@
 //   Velox.Bots.WeaponChoice    section 9 rows.
 //   Velox.Bots.Decision        section 2 rows (fight / item / roam, hysteresis, Duel camping).
 //   Velox.Bots.Maneuver        rocket-jump sequence, jump-fast refusal and retry, pad traversal.
+//   Velox.Bots.Follow          D35 segment line-of-walk rule (task 04g, at the end of this file).
 // Tasks 05 / 06 append their rows in their own sections at the end of this file.
 
 #include "Misc/AutomationTest.h"
@@ -2147,6 +2148,34 @@ bool FVeloxBotsRocketJumpAbortTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("after the launch the self damage does not abort"), O.bAbort);
 		TestTrue(TEXT("airborne after the impulse"), M.Phase == EVeloxManeuverPhase::Airborne);
 	}
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS
+
+// ------------------------------------------------------------------------------------------ task 04g: follower rules
+// Velox.Bots.Follow  ADR 0005 D35: VeloxBotFollow::IsSegmentBlocked (the segment line-of-walk rule, world-free).
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+#include "Bots/VeloxBotPathFollowingComponent.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxBotsFollowTest, "Velox.Bots.Follow", VeloxBotTestsShared::BotTestFlags)
+bool FVeloxBotsFollowTest::RunTest(const FString& Parameters)
+{
+	using VeloxBotFollow::IsSegmentBlocked;
+	constexpr float Clearance = 100.f;
+	// The pocket case (D35 evidence): the start lies outside its poly, Detour hits at t = 0, the RL is 2119 cm away.
+	TestTrue(TEXT("hit at 0 cm, 2119 cm remaining: blocked"), IsSegmentBlocked(true, 0.f, 2119.f, Clearance));
+	// A corner grazed near the target is not a block.
+	TestFalse(TEXT("hit at 1950 cm, 2000 cm remaining: grazed corner, not blocked"), IsSegmentBlocked(true, 1950.f, 2000.f, Clearance));
+	TestFalse(TEXT("no hit: not blocked"), IsSegmentBlocked(false, 0.f, 2000.f, Clearance));
+	// Inside the clearance of the target (the arrive case): never blocked.
+	TestFalse(TEXT("hit at 0 cm, 80 cm remaining: inside the clearance, not blocked"), IsSegmentBlocked(true, 0.f, 80.f, Clearance));
+	// The boundary: blocked iff the hit lies strictly more than the clearance short of the target.
+	TestTrue(TEXT("hit at 1899 cm, 2000 cm remaining: blocked"), IsSegmentBlocked(true, 1899.f, 2000.f, Clearance));
+	TestFalse(TEXT("hit at 1900 cm, 2000 cm remaining: not blocked"), IsSegmentBlocked(true, 1900.f, 2000.f, Clearance));
+	TestFalse(TEXT("negative clearance counts as 0: a hit at the target is not blocked"), IsSegmentBlocked(true, 500.f, 500.f, -50.f));
 	return true;
 }
 

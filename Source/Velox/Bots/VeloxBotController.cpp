@@ -659,8 +659,16 @@ bool AVeloxBotController::EvaluateRocketJump(const AVeloxNavLink& Link, bool& bO
 	return Params.bRocketJumps && bOwns && Ammo && Ammo->GetRockets() >= 1.f && Health && Health->GetHealth() >= Link.GetMinHealthForRocketJump();
 }
 
+void AVeloxBotController::RequestRepath(const TCHAR* Reason)
+{
+	State.bRepathRequested = true;
+	State.RepathReason = Reason;
+}
+
 void AVeloxBotController::StopMove()
 {
+	// A dropped path is re-queried anyway; a pending D35 request has nothing left to replace.
+	State.bRepathRequested = false;
 	if (UPathFollowingComponent* Follow = GetPathFollowingComponent(); Follow && Follow->GetStatus() != EPathFollowingStatus::Idle)
 	{
 		StopMovement();
@@ -685,6 +693,8 @@ void AVeloxBotController::EnsureMove(double T)
 	}
 	if (UpdateOffMeshRecovery(T))
 	{
+		// The recovery owns the move (a direct move); a D35 request against it is dropped.
+		State.bRepathRequested = false;
 		return;
 	}
 	FVector Target;
@@ -707,14 +717,23 @@ void AVeloxBotController::EnsureMove(double T)
 		State.bGoalArrived = false;
 	}
 	const TSubclassOf<UNavigationQueryFilter> Filter = GetNavFilter();
+	// D35: a repath request from the follower (segment line-of-walk blocked) is a need like the others.
 	const bool bNeedPath = !State.bMoveActive || Follow->GetStatus() == EPathFollowingStatus::Idle || FVector::Dist(Target, State.MoveTarget) > GoalMoveToleranceCm ||
-		Filter != State.MoveFilter;
+		Filter != State.MoveFilter || State.bRepathRequested;
 	if (!bNeedPath || T < State.NextMoveTime || !Movement->IsOnGround())
 	{
 		// Path queries start from the ground (an airborne start may be far above the mesh).
 		return;
 	}
 	State.NextMoveTime = T + RepathIntervalSeconds;
+	if (State.bRepathRequested)
+	{
+		State.bRepathRequested = false;
+		++State.Repaths;
+		const FVeloxSegmentBlockInfo& Block = Follow->GetLastSegmentBlock();
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRepath bot=%s reason=%s at=%s target=%s hit=%s remaining=%.0f"), *GetBotName(), State.RepathReason ? State.RepathReason : TEXT("-"),
+			*Character->GetActorLocation().ToCompactString(), *Block.Target.ToCompactString(), *Block.Hit.ToCompactString(), Block.RemainingCm);
+	}
 
 	FAIMoveRequest Request(Target);
 	Request.SetUsePathfinding(true);
@@ -1266,11 +1285,11 @@ FString AVeloxBotController::DescribeForDebug() const
 	// ADR 0005 D20: the last evaluation's WeaponStrength (the armed fight share of the soak reads it).
 	const UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(GetWorld());
 	const FVeloxBotRouteRecord* LastEval = Router ? Router->FindLastEvaluation(this) : nullptr;
-	return FString::Printf(TEXT("VeloxBot name=%s index=%d life=%d difficulty=%s goal=%s forced=%d arrived=%d item=%s %s weapon=%s wstr=%.2f speed=%.0f ground=%d link=%s filter=%s pos=%s path=%d stuck=%d supp=%d links_ok=%d links_failed=%d tick_us_mean=%.1f tick_us_max=%.1f"),
+	return FString::Printf(TEXT("VeloxBot name=%s index=%d life=%d difficulty=%s goal=%s forced=%d arrived=%d item=%s %s weapon=%s wstr=%.2f speed=%.0f ground=%d link=%s filter=%s pos=%s path=%d stuck=%d repaths=%d supp=%d links_ok=%d links_failed=%d tick_us_mean=%.1f tick_us_max=%.1f"),
 		*GetBotName(), BotIndex, LifeCount, *GetNameSafe(Difficulty), LexToString(State.Goal.Type), State.bForcedGoal ? 1 : 0, State.bGoalArrived ? 1 : 0,
 		Item && Item->GetDefinition() ? *Item->GetDefinition()->GetName() : TEXT("-"), *VeloxBotCombatGlue::Describe(Combat), Weapon ? *Weapon->GetName() : TEXT("-"),
 		LastEval ? LastEval->WeaponStrength : -1.f, Movement ? Movement->GetSpeed2D() : 0.f, Movement && Movement->IsOnGround() ? 1 : 0, *Link, VeloxBotControllerPrivate::FilterLabel(GetNavFilter()),
-		Character ? *Character->GetActorLocation().ToCompactString() : TEXT("-"), State.bMoveActive ? 1 : 0, State.StuckStrikes, IsFightSuppressed(Now()) ? 1 : 0, State.LinksOk, State.LinksFailed,
+		Character ? *Character->GetActorLocation().ToCompactString() : TEXT("-"), State.bMoveActive ? 1 : 0, State.StuckStrikes, State.Repaths, IsFightSuppressed(Now()) ? 1 : 0, State.LinksOk, State.LinksFailed,
 		State.TickCount > 0 ? State.TickMicrosSum / State.TickCount : 0.0, State.TickMicrosMax);
 }
 

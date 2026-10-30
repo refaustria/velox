@@ -23,6 +23,7 @@ FTS=(
   "FtStrafeCorridor|L_MovementTest|velox.bots.FtStrafeCorridor"
   "FtItemRouting|L_ItemTest|velox.bots.FtItemRouting"
   "FtOffMesh|L_ItemTest|velox.bots.FtOffMesh"
+  "FtSegmentBlocked|L_ItemTest|velox.bots.FtSegmentBlocked"
   "FtCombatEvents|L_CombatTest|velox.bots.FtCombatEvents"
 )
 
@@ -31,7 +32,8 @@ fts_usage() {
 Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b]
 
 Runs, in order: FtItemPickup (L_ItemTest), FtNavigation (L_ItemTest), FtStrafeCorridor (L_MovementTest),
-FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtCombatEvents (L_CombatTest), each as
+FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest),
+each as
   UnrealEditor-Cmd Velox.uproject <map> -game -nullrhi -unattended -nosound -UseFixedTimeStep -FPS=60 -log
       -port=N -ExecCmds="velox.bots.Seed ${SEED}, <command> quit"
 under a timeout. A test passes when the process exits 0 and its log has a 'Velox*Ft ... result=PASS' line and no

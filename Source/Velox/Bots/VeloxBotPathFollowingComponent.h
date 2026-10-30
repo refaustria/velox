@@ -65,7 +65,26 @@ namespace VeloxBotFollow
 	 * The follower sweeps the capsule up by this before it holds jump for a bunny hop. MarginCm alone when GravityZ is ~0.
 	 */
 	VELOX_API float HopHeadroomCm(float JumpVelocity, float GravityZ, float MarginCm);
+
+	/**
+	 * Segment line-of-walk rule (ADR 0005 D35): the straight line from the (projected) feet to the segment target is
+	 * blocked iff the nav-mesh raycast hit and the hit lies more than ClearanceCm short of the target
+	 * (HitDistCm < RemainingCm - ClearanceCm). A hit near the target is a grazed corner; no hit is a clear line.
+	 */
+	VELOX_API bool IsSegmentBlocked(bool bHit, float HitDistCm, float RemainingCm, float ClearanceCm);
 }
+
+/** The last segment line-of-walk check that found the segment blocked (D35; read by the controller's repath log line). */
+struct FVeloxSegmentBlockInfo
+{
+	/** Projected feet (raycast start). */
+	FVector From = FVector::ZeroVector;
+	/** Segment target (raycast end). */
+	FVector Target = FVector::ZeroVector;
+	FVector Hit = FVector::ZeroVector;
+	/** Distance from the raycast start to the segment target (cm). */
+	float RemainingCm = 0.f;
+};
 
 UCLASS(ClassGroup = (Velox), Config = Game)
 class VELOX_API UVeloxBotPathFollowingComponent : public UPathFollowingComponent
@@ -120,6 +139,11 @@ public:
 	 */
 	bool HasHopHeadroom(double Now);
 
+	/** D35: the last line-of-walk check of the current plain segment found it blocked (cleared on a new segment / path). */
+	bool IsSegmentBlockedNow() const { return bSegmentBlocked; }
+	/** D35: details of the last blocked check (valid once a check was blocked). */
+	const FVeloxSegmentBlockInfo& GetLastSegmentBlock() const { return LastSegmentBlock; }
+
 	//~UPathFollowingComponent interface
 	using Super::OnPathFinished;
 	/** Ends any traversal (aborted), then Super (Reset, observers -> AAIController::OnMoveCompleted). */
@@ -150,6 +174,11 @@ private:
 	FVeloxBotNavOutput SteerToward(const FVector& Target, float SegmentRemainingCm, float NextCornerDeg, bool bFinalSegment, bool bAllowHop, bool bAllowStrafe) const;
 	/** One maneuver tick (or the pending wait) -> NavOutput. Returns false when the traversal finished this tick. */
 	bool TickManeuver(float DeltaTime, double Now);
+	/**
+	 * D35: at most every SegmentBlockCheckSeconds on a plain segment, projects the feet onto the nav mesh and raycasts
+	 * to Target; updates bSegmentBlocked (no projection skips the check and keeps the cached state). Returns it.
+	 */
+	bool UpdateSegmentBlocked(const FVector& Feet, const FVector& Target, double Now);
 
 	FVeloxBotNavOutput NavOutput;
 
@@ -175,4 +204,8 @@ private:
 	double NextHopHeadroomCheckTime = -1.0;
 	bool bHopHeadroomClear = true;
 	int32 HopHeadroomBlockedTicks = 0;
+
+	double NextSegmentBlockCheckTime = -1.0;
+	bool bSegmentBlocked = false;
+	FVeloxSegmentBlockInfo LastSegmentBlock;
 };

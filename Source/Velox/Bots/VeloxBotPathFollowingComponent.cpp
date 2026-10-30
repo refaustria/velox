@@ -16,6 +16,7 @@
 #include "Engine/World.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "NavMesh/NavMeshPath.h"
+#include "NavMesh/RecastNavMesh.h"
 #include "NavigationData.h"
 #include "NavigationSystem.h"
 
@@ -57,6 +58,11 @@ namespace VeloxBotFollow
 		}
 		return FMath::Square(JumpVelocity) / (2.f * G) + Margin;
 	}
+
+	bool IsSegmentBlocked(bool bHit, float HitDistCm, float RemainingCm, float ClearanceCm)
+	{
+		return bHit && HitDistCm < RemainingCm - FMath::Max(0.f, ClearanceCm);
+	}
 }
 
 namespace VeloxBotFollowPrivate
@@ -72,6 +78,16 @@ namespace VeloxBotFollowPrivate
 
 	/** A start-penetrating headroom hit whose depenetration normal points down by more than this is a ceiling. */
 	constexpr float CeilingNormalZ = 0.5f;
+
+	/**
+	 * D35 segment check: the projected feet are moved this far toward the centre of their poly before the nav raycast
+	 * (cm; a geometric tolerance of the query, not a tunable). The projection of a bot in the eroded band lands on the
+	 * mesh boundary, often on a corner vertex, and a string-pulled segment from there runs along a boundary edge; Detour's
+	 * segment/poly clip rejects such a collinear ray at t = 0 (dtIntersectSegmentPoly2D, parallel edge with n < 0 from
+	 * rounding), which would read as a blocked segment on every corner the path hugs. From a start strictly inside the
+	 * poly the ray is no longer collinear; a ray into a wall still hits within a few cm.
+	 */
+	constexpr float SegmentRayInsetCm = 2.f;
 
 	const TCHAR* ManeuverName(EVeloxManeuverType Type)
 	{
@@ -146,6 +162,7 @@ void UVeloxBotPathFollowingComponent::Reset()
 	ClearLink();
 	NextHopHeadroomCheckTime = -1.0;
 	bHopHeadroomClear = true;
+	bSegmentBlocked = false;
 }
 
 bool UVeloxBotPathFollowingComponent::HasHopHeadroom(double Now)
@@ -187,8 +204,62 @@ bool UVeloxBotPathFollowingComponent::HasHopHeadroom(double Now)
 	return bClear;
 }
 
+bool UVeloxBotPathFollowingComponent::UpdateSegmentBlocked(const FVector& Feet, const FVector& Target, double Now)
+{
+	if (Now < NextSegmentBlockCheckTime)
+	{
+		return bSegmentBlocked;
+	}
+	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+	NextSegmentBlockCheckTime = Now + Settings.SegmentBlockCheckSeconds;
+	UWorld* World = GetWorld();
+	AVeloxBotController* Bot = GetBotController();
+	const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+	if (!Bot || !NavSys)
+	{
+		return bSegmentBlocked;
+	}
+	// D35: the feet onto the mesh with the agent's default query extent; no projection (a hop apex) skips the check.
+	const ANavigationData* NavData = NavSys->GetNavDataForProps(Bot->GetNavAgentPropertiesRef(), Feet);
+	FNavLocation Projected;
+	if (!NavData || !NavSys->ProjectPointToNavigation(Feet, Projected, INVALID_NAVEXTENT, NavData))
+	{
+		return bSegmentBlocked;
+	}
+	FVector Start = Projected.Location;
+	FVector PolyCenter;
+	const ARecastNavMesh* Recast = Cast<ARecastNavMesh>(NavData);
+	if (Recast && Recast->GetPolyCenter(Projected.NodeRef, PolyCenter))
+	{
+		const FVector Inset = (PolyCenter - Start).GetClampedToMaxSize(VeloxBotFollowPrivate::SegmentRayInsetCm);
+		Start += Inset;
+	}
+	// True when blocked (also without a start poly; Detour reports t = 0 for a start outside its poly).
+	FVector HitLocation;
+	const bool bHit = UNavigationSystemV1::NavigationRaycast(World, Start, Target, HitLocation, Bot->GetNavFilter(), Bot);
+	const float Remaining = static_cast<float>(FVector::Dist(Start, Target));
+	const float HitDist = bHit ? static_cast<float>(FVector::Dist(Start, HitLocation)) : Remaining;
+	const bool bBlocked = VeloxBotFollow::IsSegmentBlocked(bHit, HitDist, Remaining, Settings.SegmentBlockClearanceCm);
+	if (bBlocked)
+	{
+		LastSegmentBlock.From = Start;
+		LastSegmentBlock.Target = Target;
+		LastSegmentBlock.Hit = HitLocation;
+		LastSegmentBlock.RemainingCm = Remaining;
+	}
+	if (bBlocked != bSegmentBlocked)
+	{
+		UE_LOG(LogVeloxBots, Verbose, TEXT("VeloxBotSegment bot=%s blocked=%d at=%s target=%s hit=%s hit_dist=%.0f remaining=%.0f"), *Bot->GetBotName(), bBlocked ? 1 : 0,
+			*Feet.ToCompactString(), *Target.ToCompactString(), bHit ? *HitLocation.ToCompactString() : TEXT("-"), HitDist, Remaining);
+	}
+	bSegmentBlocked = bBlocked;
+	return bBlocked;
+}
+
 void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 {
+	// D35: a new segment (or a new path) starts unblocked; the next check decides.
+	bSegmentBlocked = false;
 	if (IsOnLink())
 	{
 		// A repath replaced the segment under a running traversal.
@@ -426,7 +497,7 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 	{
 		if (PendingParams.TimeoutSeconds > 0.f && Now - LinkSegmentStartTime >= PendingParams.TimeoutSeconds)
 		{
-			// D28: the same bound as the traversal itself (a flight that never lands, a bot that never reaches the ground).
+			// D28 / D37 (d): one budget for the link segment (a flight that never lands, a bot that never reaches the ground).
 			FinishManeuver(EVeloxManeuverResult::Timeout, Now);
 			return false;
 		}
@@ -446,6 +517,14 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 			return false;
 		}
 		BeginManeuver(Now);
+	}
+	else if (Maneuver.IsActive() && Maneuver.Phase != EVeloxManeuverPhase::Launched && Maneuver.Params.TimeoutSeconds > 0.f &&
+		Now - LinkSegmentStartTime >= Maneuver.Params.TimeoutSeconds)
+	{
+		// D37 (d): the pending wait and the traversal share one LinkTimeoutSeconds budget from the segment start
+		// (Launched keeps its own ImpulseTimeoutSeconds).
+		FinishManeuver(EVeloxManeuverResult::Timeout, Now);
+		return false;
 	}
 
 	FVeloxManeuverInput In;
@@ -591,6 +670,18 @@ void UVeloxBotPathFollowingComponent::FollowPathSegment(float DeltaTime)
 			Points[MoveSegmentEndIndex + 1].Location - Points[MoveSegmentEndIndex].Location);
 	}
 	const float Remaining = static_cast<float>(FVector::Dist2D(Feet, Target));
+	if (UpdateSegmentBlocked(Feet, Target, Now))
+	{
+		// D35: the straight line to the segment target leaves the nav mesh (the overlay pushed the bot off its
+		// corridor): no hop (land, so the ground-only re-query can run; the D18 branch's shape) and ask for a new path
+		// from here. Not a stuck strike, no StopMove: the current path is replaced in place.
+		NavOutput = SteerToward(Target, Remaining, Corner, bFinal, false, true);
+		if (AVeloxBotController* Bot = GetBotController())
+		{
+			Bot->RequestRepath(TEXT("segment_blocked"));
+		}
+		return;
+	}
 	NavOutput = SteerToward(Target, Remaining, Corner, bFinal, true, true);
 	if (NavOutput.bJumpHeld && !HasHopHeadroom(Now))
 	{
