@@ -520,16 +520,16 @@ TArray<AVeloxProjectile*> UVeloxBotSubsystem::GetProjectiles() const
 	return Result;
 }
 
-void UVeloxBotSubsystem::RecordBotTick(const AVeloxBotController& Bot, double Micros, bool bPathQuery, bool bFireTick)
+void UVeloxBotSubsystem::RecordBotTick(const AVeloxBotController& Bot, double Micros, int32 PathQueries, bool bFireTick)
 {
 	BudgetMicros += Micros;
 	++BudgetTicks;
 	TotalMicros += Micros;
 	++TotalTicks;
-	if (bPathQuery)
+	if (PathQueries > 0)
 	{
 		// D10: the peak target excludes path-query ticks; their cost is reported separately (max_path_us, paths=/s).
-		++BudgetPaths;
+		BudgetPaths += PathQueries;
 		BudgetMaxPathMicros = FMath::Max(BudgetMaxPathMicros, Micros);
 		return;
 	}

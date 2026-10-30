@@ -53,7 +53,7 @@ AIM_DEPENDENT = ("LightningGun", "Railgun")
 # Section 11 table, one dict per preset. Keys are the python names of the UVeloxBotDifficulty properties.
 PRESETS = {
     "Easy": dict(
-        reaction_seconds=0.50, aim_error_deg=8.0, error_correlation_seconds=0.4, tracking_smoothing_seconds=0.25,
+        reaction_seconds=0.50, reaction_jitter=0.3, aim_error_deg=8.0, error_correlation_seconds=0.4, tracking_smoothing_seconds=0.25,
         max_turn_rate_deg_per_sec=240.0, lead_projectiles=False, lead_scale=0.0, fire_cone_deg=12.0,
         perception_fov_deg=110.0, perception_range_cm=4000.0, perception_interval_seconds=0.15, enemy_memory_seconds=2.0,
         bunny_hop=False, strafe_jump=False, rocket_jumps=False, estimated_travel_speed=700.0,
@@ -63,7 +63,7 @@ PRESETS = {
         preferred_range=600.0, aim_weapon_scale=0.5,
     ),
     "Medium": dict(
-        reaction_seconds=0.30, aim_error_deg=4.0, error_correlation_seconds=0.3, tracking_smoothing_seconds=0.15,
+        reaction_seconds=0.30, reaction_jitter=0.3, aim_error_deg=4.0, error_correlation_seconds=0.3, tracking_smoothing_seconds=0.15,
         max_turn_rate_deg_per_sec=420.0, lead_projectiles=True, lead_scale=0.7, fire_cone_deg=7.0,
         perception_fov_deg=130.0, perception_range_cm=8000.0, perception_interval_seconds=0.1, enemy_memory_seconds=3.0,
         bunny_hop=True, strafe_jump=False, rocket_jumps=False, estimated_travel_speed=800.0,
@@ -73,7 +73,7 @@ PRESETS = {
         preferred_range=800.0, aim_weapon_scale=0.8,
     ),
     "Hard": dict(
-        reaction_seconds=0.18, aim_error_deg=1.8, error_correlation_seconds=0.25, tracking_smoothing_seconds=0.08,
+        reaction_seconds=0.18, reaction_jitter=0.3, aim_error_deg=1.8, error_correlation_seconds=0.25, tracking_smoothing_seconds=0.08,
         max_turn_rate_deg_per_sec=720.0, lead_projectiles=True, lead_scale=0.9, fire_cone_deg=4.0,
         perception_fov_deg=160.0, perception_range_cm=20480.0, perception_interval_seconds=0.1, enemy_memory_seconds=4.0,
         bunny_hop=True, strafe_jump=True, rocket_jumps=True, estimated_travel_speed=1000.0,
@@ -83,7 +83,7 @@ PRESETS = {
         preferred_range=1000.0, aim_weapon_scale=1.0,
     ),
     "Expert": dict(
-        reaction_seconds=0.10, aim_error_deg=0.7, error_correlation_seconds=0.2, tracking_smoothing_seconds=0.04,
+        reaction_seconds=0.10, reaction_jitter=0.3, aim_error_deg=0.7, error_correlation_seconds=0.2, tracking_smoothing_seconds=0.04,
         max_turn_rate_deg_per_sec=1080.0, lead_projectiles=True, lead_scale=1.0, fire_cone_deg=3.0,
         perception_fov_deg=180.0, perception_range_cm=20480.0, perception_interval_seconds=0.1, enemy_memory_seconds=5.0,
         bunny_hop=True, strafe_jump=True, rocket_jumps=True, estimated_travel_speed=1100.0,
@@ -183,6 +183,11 @@ def verify_presets():
                 fail(f"{path}.{k} = {got}, expected {want}")
         if not prefs_equal(list(da.get_editor_property("weapon_preferences")), make_preferences(table["aim_weapon_scale"])):
             fail(f"{path}.weapon_preferences differ from the section 9 defaults")
+        # ADR 0005 D4: ReactionJitter is a preset field (0.3 in every preset); a missing property fails here, not silently.
+        try:
+            log(f"{asset_name(preset)} reaction_jitter={da.get_editor_property('reaction_jitter'):.3f}")
+        except Exception as e:  # noqa: BLE001
+            fail(f"{path}.reaction_jitter: {e}")
     log(f"verified {len(PRESETS)} presets")
 
 

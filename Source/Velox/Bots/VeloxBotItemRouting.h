@@ -300,6 +300,8 @@ private:
 		int32 DeferredFrames = 0;
 		FPendingEvaluation Pending;
 		double NextOffMeshLogTime = 0.0;
+		/** Combat target id that was visible on the last tick (INDEX_NONE: none); a change re-evaluates (Fight vs Item). */
+		int32 LastVisibleTargetId = INDEX_NONE;
 		/** The item last chosen as a goal and the path travel time then (CommittedScore). */
 		TWeakObjectPtr<AVeloxPickup> CommitItem;
 		float CommitTravelSeconds = 0.f;

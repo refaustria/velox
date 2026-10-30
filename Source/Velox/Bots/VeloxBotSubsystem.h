@@ -117,7 +117,7 @@ public:
 	 * path, shared with players and logged per shot; max_fire_us reports them); a tick above UVeloxBotSettings::BudgetWarnMicroseconds is counted
 	 * (`over=`) and warned about at most once per interval.
 	 */
-	void RecordBotTick(const AVeloxBotController& Bot, double Micros, bool bPathQuery, bool bFireTick = false);
+	void RecordBotTick(const AVeloxBotController& Bot, double Micros, int32 PathQueries, bool bFireTick = false);
 	void NoteTraces(int32 Count) { BudgetTraces += Count; }
 	void NoteNavRaycast() { ++BudgetNavRaycasts; }
 

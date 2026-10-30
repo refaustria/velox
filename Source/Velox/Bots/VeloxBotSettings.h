@@ -47,6 +47,38 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Goals", Meta = (ClampMin = "0.0", Units = "cm"))
 	float RoamRadiusCm = 3000.f;
 
+	/** Fight score at full strength and the best weapon (item-score units, value per second; ADR 0005 D4). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Goals", Meta = (ClampMin = "0.0"))
+	float FightBaseScore = 20.f;
+
+	/** Health + armor at which the fight score saturates (D4). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Goals", Meta = (ClampMin = "1.0"))
+	float FightFullStrength = 100.f;
+
+	/** Fight score factor with the weakest weapon (WeaponStrength 0; D4). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Goals", Meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float FightWeakWeaponScale = 0.5f;
+
+	/** Pad / rocket jump: arrival radius at the link start (cm; ADR 0005 section 4, D4). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float LinkStartAcceptanceCm = 30.f;
+
+	/** JumpFast: jump only at >= the link's RequiredSpeed x this (D4). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float JumpFastSpeedFraction = 0.9f;
+
+	/** JumpFast: back-up distance from the link start before a retry (cm; D4). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float JumpFastRunUpCm = 600.f;
+
+	/** JumpFast: retries after a too-slow approach (D4). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0"))
+	int32 JumpFastRetries = 1;
+
+	/** RocketJump: abort when the explosion did not launch the pawn within this (s; D4). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.01", Units = "s"))
+	float RocketJumpImpulseTimeoutSeconds = 0.3f;
+
 	/** Distance to a nav link end at which the traversal counts as done (cm). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
 	float LinkEndAcceptanceCm = 150.f;

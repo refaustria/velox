@@ -74,15 +74,42 @@ namespace VeloxBotItemRoutingPrivate
 		return Pickup ? static_cast<int32>(Pickup->GetUniqueID()) : INDEX_NONE;
 	}
 
-	/**
-	 * Enemy fields of the decision input (ADR 0005 section 2: Fight vs Item with FightItemBias).
-	 * 05 merge: fill from AVeloxBotController::GetCombatState() - current target (EnemyId = its PlayerState id), visible
-	 * flag, last known location. The base of task 06 has no perception, so the router routes items only until then.
-	 */
-	void FillEnemyInput(const AVeloxBotController& /*Bot*/, FVeloxBotDecisionInput& In)
+	/** The enemy a Fight goal is about, from the bot's combat memory (null when forgotten, dead or gone). */
+	const FVeloxBotEnemyInfo* FindGoalEnemy(const AVeloxBotController& Bot, const FVeloxBotGoal& Goal)
 	{
-		In.bEnemyVisible = false; // 05 merge
+		const APawn* Enemy = Goal.Type == EVeloxBotGoal::Fight ? Goal.Enemy.Get() : nullptr;
+		const AVeloxCharacter* Character = Cast<AVeloxCharacter>(Enemy);
+		const APlayerState* EnemyPS = Enemy ? Enemy->GetPlayerState() : nullptr;
+		if (!Character || Character->IsCorpse() || !EnemyPS)
+		{
+			return nullptr;
+		}
+		return Bot.GetCombatState().FindEnemy(EnemyPS->GetPlayerId());
+	}
+
+	/**
+	 * Enemy fields of the decision input (ADR 0005 section 2: Fight vs Item with FightItemBias) from the combat state of
+	 * task 05: the current target (EnemyId = its PlayerState id) when it is visible. A Fight goal's enemy that is out of
+	 * sight but still remembered counts as present (D12 chase: the controller paths to its last seen location until the
+	 * memory expires), so a cadence evaluation does not drop the chase it just started.
+	 */
+	void FillEnemyInput(const AVeloxBotController& Bot, const FVeloxBotGoal& Current, FVeloxBotDecisionInput& In)
+	{
+		In.bEnemyVisible = false;
 		In.EnemyId = INDEX_NONE;
+		const FVeloxBotCombatState& Combat = Bot.GetCombatState();
+		const FVeloxBotEnemyInfo* Target = Combat.GetTarget();
+		const AVeloxCharacter* TargetPawn = Target ? Target->Pawn.Get() : nullptr;
+		if (!(Target && Target->bVisible && TargetPawn && !TargetPawn->IsCorpse()))
+		{
+			Target = FindGoalEnemy(Bot, Current);
+		}
+		if (Target)
+		{
+			In.bEnemyVisible = true;
+			In.EnemyId = Target->Id;
+			In.EnemyLocation = Target->LastSeenLocation;
+		}
 	}
 
 	/** Bot facts from the live PlayerState attributes and inventory. */
@@ -470,6 +497,26 @@ EVeloxRouteUpdate UVeloxBotItemRouter::UpdateBot(AVeloxBotController& Bot, const
 		S.bEventPending = true;
 	}
 
+	// Section 2 (05/06 integration): a newly visible target is a Fight-vs-Item decision now, not at the next cadence
+	// tick; a Fight goal whose enemy died or was forgotten is a lost goal.
+	{
+		const FVeloxBotCombatState& Combat = Bot.GetCombatState();
+		const int32 VisibleTargetId = Combat.HasVisibleTarget() ? Combat.TargetId : INDEX_NONE;
+		if (VisibleTargetId != S.LastVisibleTargetId)
+		{
+			const FVeloxBotEnemyInfo* GoalEnemy = VeloxBotItemRoutingPrivate::FindGoalEnemy(Bot, Current);
+			if (VisibleTargetId != INDEX_NONE && (!GoalEnemy || GoalEnemy->Id != VisibleTargetId))
+			{
+				S.bEventPending = true;
+			}
+			S.LastVisibleTargetId = VisibleTargetId;
+		}
+		if (Current.Type == EVeloxBotGoal::Fight && !VeloxBotItemRoutingPrivate::FindGoalEnemy(Bot, Current))
+		{
+			S.bEventPending = true;
+		}
+	}
+
 	const bool bHasGoal = Current.Type != EVeloxBotGoal::None;
 	const bool bGoalLost = !bHasGoal && S.bHadGoal;
 	if (bHasGoal)
@@ -684,7 +731,8 @@ EVeloxRouteUpdate UVeloxBotItemRouter::StepEvaluation(AVeloxBotController& Bot, 
 					Result.IsPartial() ? TEXT("partial") : TEXT("full"));
 			}
 			++E.PathQueries;
-			// 05 merge: also flag this query on UVeloxBotSubsystem::RecordBotTick (VeloxBotBudget paths=/s).
+			// D10: counted in this bot tick's VeloxBotBudget paths=/s (UVeloxBotSubsystem::RecordBotTick).
+			Bot.NotePathQuery();
 			++TotalPathQueries;
 			++WindowPathQueries;
 			// A bot standing on its item gets a one- or two-point path; any point counts as found.
@@ -753,8 +801,14 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 	In.bDuel = bDuel;
 	In.Health = BotFacts.Health;
 	In.Armor = BotFacts.Armor;
-	VeloxBotItemRoutingPrivate::FillEnemyInput(Bot, In);
-	In.Fight = FVeloxFightScoreParams(); // 04b: FightBaseScore / FightFullStrength / FightWeakWeaponScale from UVeloxBotSettings
+	VeloxBotItemRoutingPrivate::FillEnemyInput(Bot, Current, In);
+	{
+		// ADR 0005 D4 (task 04b): the fight score parameters are project settings.
+		const UVeloxBotSettings& BotSettings = UVeloxBotSettings::Get();
+		In.Fight.BaseScore = BotSettings.FightBaseScore;
+		In.Fight.FullStrength = BotSettings.FightFullStrength;
+		In.Fight.WeakWeaponScale = BotSettings.FightWeakWeaponScale;
+	}
 	// Item state is read now (it may have changed during the queries); the paths are the evaluation's.
 	for (int32 i = 0; i < E.Queue.Num(); ++i)
 	{
@@ -802,6 +856,29 @@ void UVeloxBotItemRouter::FinishEvaluation(AVeloxBotController& Bot, FBotRouteSt
 	if (Choice.Type == EVeloxBotGoal::None)
 	{
 		OutUpdate = bPostMatch ? (Current.Type == EVeloxBotGoal::None ? EVeloxRouteUpdate::Unchanged : EVeloxRouteUpdate::NewGoal) : EVeloxRouteUpdate::Roam;
+	}
+	else if (Choice.Type == EVeloxBotGoal::Fight)
+	{
+		// Section 2 / D12: fight the enemy; the controller requests no path while it is visible and chases its last seen
+		// location otherwise. The same enemy keeps the goal (and its chase path).
+		const FVeloxBotEnemyInfo* Enemy = Bot.GetCombatState().FindEnemy(Choice.EnemyId);
+		APawn* EnemyPawn = Enemy ? Enemy->Pawn.Get() : nullptr;
+		if (!EnemyPawn)
+		{
+			OutUpdate = EVeloxRouteUpdate::Roam;
+		}
+		else if (Current.Type == EVeloxBotGoal::Fight && Current.Enemy.Get() == EnemyPawn)
+		{
+			OutUpdate = EVeloxRouteUpdate::Unchanged;
+		}
+		else
+		{
+			OutGoal.Type = EVeloxBotGoal::Fight;
+			OutGoal.Enemy = EnemyPawn;
+			OutGoal.Point = Choice.Point;
+			OutGoal.Score = Choice.Score;
+			OutUpdate = EVeloxRouteUpdate::NewGoal;
+		}
 	}
 	else if ((Choice.Type == EVeloxBotGoal::Roam && Choice.ItemId == INDEX_NONE) || bSameItem)
 	{

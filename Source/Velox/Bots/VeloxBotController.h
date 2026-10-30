@@ -62,6 +62,18 @@ struct FVeloxBotState
 	double SlowSince = -1.0;
 	int32 StuckStrikes = 0;
 
+	// --- Off-mesh recovery (task 04b): feet on the ground but off the nav mesh, so no path can start here ---
+	/** First check that found the feet off the mesh (-1 = on the mesh). */
+	double OffMeshSince = -1.0;
+	double NextOffMeshCheckTime = 0.0;
+	/** A direct (non-pathfinding) move to the nearest nav point is the active move. */
+	bool bOffMeshRecovery = false;
+	double OffMeshMoveUntil = 0.0;
+	int32 OffMeshAttempts = 0;
+	int32 OffMeshRecoveries = 0;
+	/** Target of the last recovery attempt (the next attempt avoids it). */
+	FVector OffMeshLastTarget = FVector::ZeroVector;
+
 	// --- Input ---
 	FVeloxBotNavOutput Nav;
 	FVeloxBotInput Pending;
@@ -105,6 +117,13 @@ namespace VeloxBotRules
 	 * once that lasted StuckSeconds (SlowSince then restarts at Now); not tracking or fast enough resets it.
 	 */
 	VELOX_API bool UpdateStuck(double& SlowSince, bool bTracking, float Speed2D, float SpeedThreshold, double Now, float StuckSeconds);
+
+	/**
+	 * Off-mesh recovery rule (task 04b), evaluated at the check cadence while on the ground: on the mesh resets OffMeshSince
+	 * (-1) and returns false; off the mesh starts the clock and returns true once it ran GraceSeconds, unless a recovery
+	 * move is running (bRecoveryMoveActive and Now < RecoveryMoveUntil).
+	 */
+	VELOX_API bool UpdateOffMesh(double& OffMeshSince, bool bOnMesh, bool bRecoveryMoveActive, double RecoveryMoveUntil, double Now, float GraceSeconds);
 
 	/**
 	 * Name for a new bot: Requested if given and free, else the first free entry of Names; a taken name gets the lowest
@@ -160,6 +179,9 @@ public:
 	 * weapon and its switch has ended. Asked by the follower inside the maneuver begin / tick (no one-tick-stale state).
 	 */
 	bool EvaluateRocketJump(const AVeloxNavLink& Link, bool& bOutSwitchDone) const;
+
+	/** A FindPathSync was run for this bot in its current tick (item router, own MoveTo; VeloxBotBudget paths=/s, D10). */
+	void NotePathQuery() { ++TickPathQueries; }
 
 	/** Called by the follower when a link traversal ends: VeloxBotLink log line, counters, re-query on failure. */
 	void NotifyLinkFinished(const FVeloxBotLinkReport& Report);
@@ -231,6 +253,38 @@ public:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1", Units = "cm"))
 	float RoamProjectHalfHeightCm = 500.f;
 
+	/** Off-mesh recovery (task 04b): how often an on-ground bot checks that its feet project onto the nav mesh (s). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0.05", Units = "s"))
+	float OffMeshCheckSeconds = 0.5f;
+
+	/** Off the mesh this long on the ground starts a recovery (s); short excursions (a ledge edge, a box top) are ignored. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float OffMeshGraceSeconds = 1.f;
+
+	/** Candidate rings of the recovery search, nearest first (cm); the last one is also the radius of the nearest-point fallback. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot")
+	TArray<float> OffMeshRecoverRingsCm = { 150.f, 300.f, 600.f, 1000.f };
+
+	/** Candidate directions per ring. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1"))
+	int32 OffMeshRecoverDirections = 12;
+
+	/** Radius of the wall test toward a candidate (cm): thinner than the capsule, the walk slides along walls. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1", Units = "cm"))
+	float OffMeshSweepRadiusCm = 15.f;
+
+	/** Horizontal half extent of one candidate's projection onto the mesh (cm). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1", Units = "cm"))
+	float OffMeshCandidateExtentCm = 100.f;
+
+	/** Vertical half extent of the candidate projections (cm). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1", Units = "cm"))
+	float OffMeshRecoverHalfHeightCm = 800.f;
+
+	/** A direct recovery move that has not brought the feet back onto the mesh within this is replaced by a new attempt (s). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0.5", Units = "s"))
+	float OffMeshRecoverTimeoutSeconds = 4.f;
+
 	/** velox.bots.Debug line interval (s). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0.1", Units = "s"))
 	float DebugIntervalSeconds = 1.f;
@@ -274,6 +328,8 @@ private:
 	void Navigate(float DeltaSeconds);
 	/** Requests a path to the goal when needed (no path, target moved, filter changed). */
 	void EnsureMove(double Now);
+	/** Off-mesh check and recovery move (task 04b); true while recovery owns the move (EnsureMove then requests no path). */
+	bool UpdateOffMeshRecovery(double Now);
 	void StopMove();
 	/** Where the current goal wants the bot, false when it wants no path. */
 	bool GetGoalTarget(FVector& OutTarget, float& OutAcceptance) const;
@@ -294,5 +350,7 @@ private:
 	int32 BotIndex = INDEX_NONE;
 	int32 LifeCount = 0;
 	bool bFrozen = false;
+	/** Path queries run for this bot in the current tick (reset at the start of Tick). */
+	int32 TickPathQueries = 0;
 	FDelegateHandle PickupTakenHandle;
 };

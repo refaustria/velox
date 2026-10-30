@@ -47,6 +47,7 @@ struct FVeloxBotDifficultyParams
 {
 	// --- Aim (section 8) ---
 	float ReactionSeconds = 0.30f;
+	float ReactionJitter = 0.3f;
 	float AimErrorDeg = 4.f;
 	float ErrorCorrelationSeconds = 0.3f;
 	float TrackingSmoothingSeconds = 0.15f;
