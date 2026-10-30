@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done except strike and ramp-dwell bands (merged b5902df), see notes
 **Depends on:** 04c-b and 04d merged on `m4-bots`; ADR 0005 D27–D34 (the 2026-10-30 ruling pass). Runs in parallel with 04e (disjoint files; the two FFA soaks must not overlap on the machine).
 
 ## Goal
@@ -47,3 +47,8 @@ Standard dev-hard format: result, what changed (files, the six new settings and 
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+## Notes / outcome (lead, from the dev-hard report, 2026-10-30)
+D27–D31 implemented; build 95 green, fts 6/6 ×2, unity build OK. FFA 3 Medium 120 s seeds 1–10 (without 04e): stuck 5/1/1/6/3/2/2/3/4/1, D34 dwell 3–4 s (no ≥ 5 s stall), link dt ≤ 2.64 s, pickups 43–61, Mega 3–4, kills 8–13, refused/giveup/errors 0, fight 23–38 %, budget 59–66 µs. No value moved.
+Missed: strike band (7/10 ≤ 3; run 4 = 6) — run-4 strikes all `rule=speed` hopping in place at (±87.5, ±87.5) against the centre pillar corners (pre-existing; likely path corner cut); ramp.py dwell ≤ 5 missed in runs 2/6 but these are fights near the region, not stalls (metric measures presence).
+For architect: D29 vs the D3 air-turn row (run with MaxHopHeadingDeg 180 + new gated row); ControllerRules pause rows shortened to the D27 cap; D30: SetGoal resets StuckStrikes so fight_stall never reaches roam-on-third; D28 pending wait + traversal each 6 s (theoretical 12 s). Reports a fixed bug: link-ended-while-pending logged default type.
