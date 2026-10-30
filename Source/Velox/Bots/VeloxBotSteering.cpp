@@ -2,6 +2,7 @@
 
 #include "Bots/VeloxBotSteering.h"
 
+#include "Bots/VeloxBotSettings.h"
 #include "Bots/VeloxBotTypes.h"
 
 namespace VeloxBotSteeringPrivate
@@ -55,6 +56,14 @@ namespace VeloxBotSteering
 
 		const bool bCornerOk = In.bFinalSegment || In.NextCornerDeg < Params.MaxHopCornerDeg;
 		Out.bJumpHeld = Params.bBunnyHop && In.SegmentRemainingCm > Params.MinHopDistanceCm && bCornerOk;
+		if (Out.bJumpHeld && In.bOnGround)
+		{
+			// D29: the corner rule for the present heading. A bot that landed with its velocity away from the target (wall
+			// bounce, knockback, a new path behind it) walks for the few ticks the ground needs to re-align it; air is not
+			// gated (strafe-jumping keeps the heading error within the ~37 degree optimum).
+			const double Speed = In.Velocity.Size();
+			Out.bJumpHeld = Speed < Params.HopHeadingMinSpeedCmS || FMath::Abs(SignedAngleDeg(In.Velocity, Dir)) <= Params.MaxHopHeadingDeg;
+		}
 
 		Out.WishDir = Dir;
 		const bool bAirMoveThisTick = !In.bOnGround || Out.bJumpHeld;
@@ -84,6 +93,9 @@ namespace VeloxBotSteering
 		FVeloxSteerParams P;
 		P.bBunnyHop = Difficulty.bBunnyHop;
 		P.bStrafeJump = Difficulty.bStrafeJump;
+		const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+		P.MaxHopHeadingDeg = Settings.MaxHopHeadingDeg;
+		P.HopHeadingMinSpeedCmS = Settings.HopHeadingMinSpeedCmS;
 		return P;
 	}
 }

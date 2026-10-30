@@ -65,6 +65,10 @@ struct FVeloxBotState
 	double ProgressSince = -1.0;
 	float ProgressDist = 0.f;
 	FVector2D ProgressTarget = FVector2D::ZeroVector;
+	/** D27: pause the current progress window has used (s; reset with the window). */
+	float ProgressPausedSeconds = 0.f;
+	/** D30: after a fight_stall strike the decision does not see the enemy until then (world time; -1 = never). */
+	double FightSuppressedUntil = -1.0;
 
 	// --- Off-mesh recovery (task 04b): feet on the ground but off the nav mesh, so no path can start here ---
 	/** First check that found the feet off the mesh (-1 = on the mesh). */
@@ -131,11 +135,18 @@ namespace VeloxBotRules
 	 * re-query; 2-D, more than 1 cm), when the progress is made (returns false), or when the window ran StuckSeconds
 	 * without it (returns true: a strike). bPaused (the combat overlay owns the wish): the window's clock stops (Since
 	 * moves forward by Dt) and the start distance follows the current one, so only follower time counts and the
-	 * follower is measured from where the overlay left the bot; a pause does not reset the clock. Not tracking clears the
-	 * window (Since = -1) and returns false.
+	 * follower is measured from where the overlay left the bot; a pause does not reset the clock. D27: a window may be
+	 * paused for at most MaxPauseSeconds in total (PausedSeconds, reset with the window); after that it runs with the
+	 * overlay active. Not tracking clears the window (Since = -1) and returns false.
 	 */
-	VELOX_API bool UpdateStuckProgress(double& Since, float& StartDist, FVector2D& WindowTarget, bool bTracking, bool bPaused, const FVector2D& Target,
-		float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds);
+	VELOX_API bool UpdateStuckProgress(double& Since, float& StartDist, FVector2D& WindowTarget, float& PausedSeconds, bool bTracking, bool bPaused,
+		const FVector2D& Target, float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds, float MaxPauseSeconds);
+
+	/**
+	 * D30 fight-stall predicate: the speed rule also watches a pathless fight (Goal == Fight, no active move, the goal's
+	 * enemy visible), on the ground and not on a link. A Fight goal without sight has a chase path (D12) and is tracked.
+	 */
+	VELOX_API bool IsFightWatched(EVeloxBotGoal Goal, bool bMoveActive, bool bEnemyVisible, bool bOnGround, bool bOnLink);
 
 	/**
 	 * Off-mesh recovery rule (task 04b), evaluated at the check cadence while on the ground: on the mesh resets OffMeshSince
@@ -205,6 +216,9 @@ public:
 	/** Called by the follower when a link traversal ends: VeloxBotLink log line, counters, re-query on failure. */
 	void NotifyLinkFinished(const FVeloxBotLinkReport& Report);
 
+	/** D30: a fight_stall strike hides the visible enemy from the goal decision until FightSuppressedUntil. */
+	bool IsFightSuppressed(double Time) const { return Time < State.FightSuppressedUntil; }
+
 	/** One `VeloxBot name= goal= ...` line (velox.bots.Debug, velox.bots.List). */
 	FString DescribeForDebug() const;
 
@@ -239,6 +253,14 @@ public:
 	/** D18: while tracking a segment, the 2-D distance to its target must shrink by this much within StuckSeconds (cm). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "cm"))
 	float StuckProgressCm = 100.f;
+
+	/** D27: a progress window may be paused under the combat overlay for at most this long in total (s). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float StuckProgressMaxPauseSeconds = 4.f;
+
+	/** D30: after a fight_stall strike the goal decision ignores the visible enemy for this long (s). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float FightStallCooldownSeconds = 4.f;
 
 	/** Stuck strikes before a non-forced goal is dropped for a roam point. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1"))
@@ -358,6 +380,14 @@ private:
 	/** Off-mesh check and recovery move (task 04b); true while recovery owns the move (EnsureMove then requests no path). */
 	bool UpdateOffMeshRecovery(double Now);
 	void StopMove();
+	/**
+	 * One stuck strike (section 5, D18, D28, D30): the VeloxBotStuck line with rule=, both clocks restart, the path is
+	 * dropped and re-queried, StuckStrikesToRoam strikes roam (non-forced goals). Target / Dist describe what the bot was
+	 * heading for (segment target, link end, enemy); WindowDist is the progress window's start distance or -1.
+	 */
+	void AddStuckStrike(const TCHAR* Rule, const FVector2D& Target, float Dist, float WindowDist);
+	/** D30: the Fight goal's enemy is visible now (false for any other goal). */
+	bool IsGoalEnemyVisible() const;
 	/** Where the current goal wants the bot, false when it wants no path. */
 	bool GetGoalTarget(FVector& OutTarget, float& OutAcceptance) const;
 	void ResetLifeState();

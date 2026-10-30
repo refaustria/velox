@@ -241,6 +241,8 @@ void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 	PendingParams.RunUpCm = Settings.JumpFastRunUpCm;
 	PendingParams.MaxRetries = Settings.JumpFastRetries;
 	PendingParams.ImpulseTimeoutSeconds = Settings.RocketJumpImpulseTimeoutSeconds;
+	PendingParams.TimeoutSeconds = Settings.LinkTimeoutSeconds;
+	PendingParams.BelowStartAbortCm = Settings.LinkBelowStartCm;
 	PendingParams.RequiredSpeedCmS = Match.Link->GetRequiredSpeed();
 	PendingParams.RunUpSeconds = Match.Link->GetRunUpSeconds();
 	PendingParams.RocketJumpPitchDeg = Match.Link->GetRocketJumpPitch();
@@ -277,7 +279,8 @@ void UVeloxBotPathFollowingComponent::BeginManeuver(double Now)
 void UVeloxBotPathFollowingComponent::FinishManeuver(EVeloxManeuverResult Result, double Now)
 {
 	FVeloxBotLinkReport Report;
-	Report.Type = Maneuver.Type;
+	// A traversal that ends while still pending (landed on the end surface, D28 timeout) never began the machine.
+	Report.Type = Maneuver.Phase == EVeloxManeuverPhase::Idle ? PendingParams.Type : Maneuver.Type;
 	Report.Result = Result;
 	Report.From = LinkStart;
 	Report.To = LinkEnd;
@@ -421,6 +424,12 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 
 	if (bLinkPending)
 	{
+		if (PendingParams.TimeoutSeconds > 0.f && Now - LinkSegmentStartTime >= PendingParams.TimeoutSeconds)
+		{
+			// D28: the same bound as the traversal itself (a flight that never lands, a bot that never reaches the ground).
+			FinishManeuver(EVeloxManeuverResult::Timeout, Now);
+			return false;
+		}
 		if (!bOnGround && !bImpulse)
 		{
 			// Mid-hop (or mid-flight) at the link start: release jump, drift toward the end, decide on landing.
@@ -444,6 +453,7 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 	In.Speed2D = Movement->GetSpeed2D();
 	In.DistToStart = static_cast<float>(FVector::Dist2D(Feet, LinkStart));
 	In.DistToEnd = static_cast<float>(FVector::Dist(Feet, LinkEnd));
+	In.HeightBelowStartCm = static_cast<float>(LinkStart.Z - Feet.Z);
 	if (Maneuver.Phase == EVeloxManeuverPhase::Airborne && Maneuver.bSeenAirborne && bOnGround && In.DistToEnd > Maneuver.Params.EndAcceptanceCm && IsOnEndSurface(Feet))
 	{
 		// Landed on the end's nav surface (the platform), only farther than the acceptance radius from the authored end

@@ -647,7 +647,12 @@ namespace VeloxBotCombatGlue
 			Pending.WishDirWorld = Wish;
 			Pending.WishScale = 1.f;
 		}
-		Pending.bJumpHeld |= Now < Combat.DodgeJumpUntil;
+		// D31: the dodge jump obeys the D18 headroom guard (no hop into the ramp underside); the sweep is cached 0.1 s.
+		if (Now < Combat.DodgeJumpUntil)
+		{
+			UVeloxBotPathFollowingComponent* Follow = Bot.GetBotPathFollowing();
+			Pending.bJumpHeld |= !Follow || Follow->HasHopHeadroom(Now);
+		}
 	}
 
 	void Act(AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, const FVeloxBotNavOutput& Nav, const FRotator& CurrentView, FVeloxBotInput& Pending, float Dt)

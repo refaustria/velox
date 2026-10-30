@@ -163,12 +163,13 @@ namespace VeloxBotRules
 		return false;
 	}
 
-	bool UpdateStuckProgress(double& Since, float& StartDist, FVector2D& WindowTarget, bool bTracking, bool bPaused, const FVector2D& Target,
-		float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds)
+	bool UpdateStuckProgress(double& Since, float& StartDist, FVector2D& WindowTarget, float& PausedSeconds, bool bTracking, bool bPaused,
+		const FVector2D& Target, float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds, float MaxPauseSeconds)
 	{
 		if (!bTracking)
 		{
 			Since = -1.0;
+			PausedSeconds = 0.f;
 			return false;
 		}
 		// A target that moved by more than this (cm, 2-D) is a new one (numeric equality of path points, not a tunable).
@@ -178,12 +179,16 @@ namespace VeloxBotRules
 			Since = Now;
 			StartDist = Dist2D;
 			WindowTarget = Target;
+			PausedSeconds = 0.f;
 			return false;
 		}
-		if (bPaused)
+		// D27: the pause is bounded per window; past the cap the window runs with the overlay active.
+		if (bPaused && PausedSeconds < MaxPauseSeconds)
 		{
-			Since = FMath::Min(Since + FMath::Max(0.0, static_cast<double>(Dt)), Now);
+			const float Step = FMath::Max(0.f, Dt);
+			Since = FMath::Min(Since + static_cast<double>(Step), Now);
 			StartDist = Dist2D;
+			PausedSeconds += Step;
 			return false;
 		}
 		const bool bProgress = Dist2D <= StartDist - ProgressCm;
@@ -192,8 +197,14 @@ namespace VeloxBotRules
 		{
 			Since = Now;
 			StartDist = Dist2D;
+			PausedSeconds = 0.f;
 		}
 		return bExpired;
+	}
+
+	bool IsFightWatched(EVeloxBotGoal Goal, bool bMoveActive, bool bEnemyVisible, bool bOnGround, bool bOnLink)
+	{
+		return Goal == EVeloxBotGoal::Fight && !bMoveActive && bEnemyVisible && bOnGround && !bOnLink;
 	}
 
 	bool UpdateOffMesh(double& OffMeshSince, bool bOnMesh, bool bRecoveryMoveActive, double RecoveryMoveUntil, double Now, float GraceSeconds)
@@ -973,9 +984,17 @@ void AVeloxBotController::NotifyLinkFinished(const FVeloxBotLinkReport& Report)
 	OnLinkFinished.Broadcast(this, Report);
 	if (!bOk && Report.Result != EVeloxManeuverResult::None)
 	{
-		// Missed or aborted on a live path: drop it and re-query from where the bot ends up (on the ground).
+		// Missed or aborted on a live path: drop it and re-query from where the bot ends up (on the ground). With the
+		// follower off the link, UpdateOffMeshRecovery runs again (the D28 strip case recovers through D17).
 		StopMove();
 		State.NextMoveTime = T;
+	}
+	if (Report.Result == EVeloxManeuverResult::Timeout)
+	{
+		// D28: a timed-out traversal is a stuck strike (three on the same link roam); a below_start is not (the bot fell).
+		const AVeloxCharacter* Character = GetBotCharacter();
+		const FVector2D To(Report.To);
+		AddStuckStrike(TEXT("link_timeout"), To, Character ? static_cast<float>(FVector2D::Distance(To, FVector2D(Character->GetActorLocation()))) : -1.f, -1.f);
 	}
 }
 
@@ -1008,33 +1027,70 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 	const double T = Now();
 	const float StuckSeconds = UVeloxBotSettings::Get().StuckSeconds;
 	const bool bTracking = State.bMoveActive && !State.bGoalArrived && !Follow->IsOnLink() && Follow->GetStatus() == EPathFollowingStatus::Moving;
-	const bool bSlow = VeloxBotRules::UpdateStuck(State.SlowSince, bTracking, Movement->GetSpeed2D(), StuckSpeedCmS, T, StuckSeconds);
+	// D30: a pathless fight (enemy visible, D12: no path) pressed against a wall is watched by the speed rule too.
+	const bool bFightWatched = !bTracking && VeloxBotRules::IsFightWatched(State.Goal.Type, State.bMoveActive, IsGoalEnemyVisible(), Movement->IsOnGround(), Follow->IsOnLink());
+	const bool bSlow = VeloxBotRules::UpdateStuck(State.SlowSince, bTracking || bFightWatched, Movement->GetSpeed2D(), StuckSpeedCmS, T, StuckSeconds);
 	const FVector2D SegmentTarget(Follow->GetCurrentTargetLocation());
 	const float SegmentDist = static_cast<float>(FVector2D::Distance(SegmentTarget, FVector2D(Movement->GetActorFeetLocation())));
 	const float WindowDist = State.ProgressDist;
-	const bool bNoProgress = VeloxBotRules::UpdateStuckProgress(State.ProgressSince, State.ProgressDist, State.ProgressTarget, bTracking, !bFollowerOwnedWish,
-		SegmentTarget, SegmentDist, StuckProgressCm, T, DeltaSeconds, StuckSeconds);
-	if (bSlow || bNoProgress)
+	const bool bNoProgress = VeloxBotRules::UpdateStuckProgress(State.ProgressSince, State.ProgressDist, State.ProgressTarget, State.ProgressPausedSeconds, bTracking,
+		!bFollowerOwnedWish, SegmentTarget, SegmentDist, StuckProgressCm, T, DeltaSeconds, StuckSeconds,
+		StuckProgressMaxPauseSeconds);
+	if (bSlow && bFightWatched)
 	{
-		++State.StuckStrikes;
-		// toward: cosine between the horizontal velocity and the direction to the segment target (-1 = moving away).
-		const FVector2D ToTarget = (SegmentTarget - FVector2D(Movement->GetActorFeetLocation())).GetSafeNormal();
+		// D30: route away for FightStallCooldownSeconds (the decision does not see the enemy; aim and fire are untouched).
+		FVector2D EnemyAt = SegmentTarget;
+		if (const APawn* Enemy = State.Goal.Enemy.Get())
+		{
+			EnemyAt = FVector2D(Enemy->GetActorLocation());
+		}
+		AddStuckStrike(TEXT("fight_stall"), EnemyAt, static_cast<float>(FVector2D::Distance(EnemyAt, FVector2D(Movement->GetActorFeetLocation()))), -1.f);
+		State.FightSuppressedUntil = T + FightStallCooldownSeconds;
+		if (UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(GetWorld()))
+		{
+			Router->RequestEvaluation(this);
+		}
+	}
+	else if (bSlow || bNoProgress)
+	{
+		AddStuckStrike(bSlow ? TEXT("speed") : TEXT("progress"), SegmentTarget, SegmentDist, bNoProgress ? WindowDist : -1.f);
+	}
+}
+
+bool AVeloxBotController::IsGoalEnemyVisible() const
+{
+	const APawn* Enemy = State.Goal.Type == EVeloxBotGoal::Fight ? State.Goal.Enemy.Get() : nullptr;
+	const APlayerState* EnemyPS = Enemy ? Enemy->GetPlayerState() : nullptr;
+	const FVeloxBotEnemyInfo* Info = EnemyPS ? Combat.FindEnemy(EnemyPS->GetPlayerId()) : nullptr;
+	return Info && Info->bVisible;
+}
+
+void AVeloxBotController::AddStuckStrike(const TCHAR* Rule, const FVector2D& Target, float Dist, float WindowDist)
+{
+	const AVeloxCharacter* Character = GetBotCharacter();
+	const UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
+	++State.StuckStrikes;
+	if (Character && Movement)
+	{
+		// toward: cosine between the horizontal velocity and the direction to the target (-1 = moving away).
+		const FVector2D ToTarget = (Target - FVector2D(Movement->GetActorFeetLocation())).GetSafeNormal();
 		const float Toward = static_cast<float>(FVector2D::DotProduct(FVector2D(Movement->Velocity).GetSafeNormal(), ToTarget));
 		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotStuck bot=%s at=%s goal=%s strikes=%d rule=%s speed=%.0f toward=%.2f dist=%.0f window_dist=%.0f ground=%d"),
-			*GetBotName(), *Character->GetActorLocation().ToCompactString(), LexToString(State.Goal.Type), State.StuckStrikes, bSlow ? TEXT("speed") : TEXT("progress"),
-			Movement->GetSpeed2D(), Toward, SegmentDist, bNoProgress ? WindowDist : -1.f, Movement->IsOnGround() ? 1 : 0);
-		// One strike per window: both clocks restart.
-		State.SlowSince = -1.0;
-		State.ProgressSince = -1.0;
-		StopMove();
-		State.NextMoveTime = T;
-		if (State.StuckStrikes >= StuckStrikesToRoam)
+			*GetBotName(), *Character->GetActorLocation().ToCompactString(), LexToString(State.Goal.Type), State.StuckStrikes, Rule, Movement->GetSpeed2D(), Toward, Dist,
+			WindowDist, Movement->IsOnGround() ? 1 : 0);
+	}
+	// One strike per window: both clocks restart.
+	const double T = Now();
+	State.SlowSince = -1.0;
+	State.ProgressSince = -1.0;
+	StopMove();
+	State.NextMoveTime = T;
+	if (State.StuckStrikes >= StuckStrikesToRoam)
+	{
+		State.StuckStrikes = 0;
+		if (!State.bForcedGoal)
 		{
-			State.StuckStrikes = 0;
-			if (!State.bForcedGoal)
-			{
-				StartRoam();
-			}
+			StartRoam();
 		}
 	}
 }
@@ -1210,11 +1266,11 @@ FString AVeloxBotController::DescribeForDebug() const
 	// ADR 0005 D20: the last evaluation's WeaponStrength (the armed fight share of the soak reads it).
 	const UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(GetWorld());
 	const FVeloxBotRouteRecord* LastEval = Router ? Router->FindLastEvaluation(this) : nullptr;
-	return FString::Printf(TEXT("VeloxBot name=%s index=%d life=%d difficulty=%s goal=%s forced=%d arrived=%d item=%s %s weapon=%s wstr=%.2f speed=%.0f ground=%d link=%s filter=%s pos=%s path=%d stuck=%d links_ok=%d links_failed=%d tick_us_mean=%.1f tick_us_max=%.1f"),
+	return FString::Printf(TEXT("VeloxBot name=%s index=%d life=%d difficulty=%s goal=%s forced=%d arrived=%d item=%s %s weapon=%s wstr=%.2f speed=%.0f ground=%d link=%s filter=%s pos=%s path=%d stuck=%d supp=%d links_ok=%d links_failed=%d tick_us_mean=%.1f tick_us_max=%.1f"),
 		*GetBotName(), BotIndex, LifeCount, *GetNameSafe(Difficulty), LexToString(State.Goal.Type), State.bForcedGoal ? 1 : 0, State.bGoalArrived ? 1 : 0,
 		Item && Item->GetDefinition() ? *Item->GetDefinition()->GetName() : TEXT("-"), *VeloxBotCombatGlue::Describe(Combat), Weapon ? *Weapon->GetName() : TEXT("-"),
 		LastEval ? LastEval->WeaponStrength : -1.f, Movement ? Movement->GetSpeed2D() : 0.f, Movement && Movement->IsOnGround() ? 1 : 0, *Link, VeloxBotControllerPrivate::FilterLabel(GetNavFilter()),
-		Character ? *Character->GetActorLocation().ToCompactString() : TEXT("-"), State.bMoveActive ? 1 : 0, State.StuckStrikes, State.LinksOk, State.LinksFailed,
+		Character ? *Character->GetActorLocation().ToCompactString() : TEXT("-"), State.bMoveActive ? 1 : 0, State.StuckStrikes, IsFightSuppressed(Now()) ? 1 : 0, State.LinksOk, State.LinksFailed,
 		State.TickCount > 0 ? State.TickMicrosSum / State.TickCount : 0.0, State.TickMicrosMax);
 }
 
