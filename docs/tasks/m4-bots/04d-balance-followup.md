@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done except D24 band (nav islands in platform boxes, see notes)
 **Depends on:** 04c-a (merged), ADR 0005 D20–D26 (the 2026-10-30 follow-up ruling on D13); may run in parallel with 04c-b (disjoint files), but the two FFA soaks must not overlap on the machine
 
 ## Goal
@@ -46,3 +46,8 @@ Standard dev-hard format: result, what changed (files, the two new settings, the
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+## Notes / outcome (lead, from the dev-hard report, 2026-10-30)
+build.sh 95 green, fts 6/6, unity build OK. FFA 3 Medium 120 s seeds 1–3: pickups 51/47/47 (sum 145, weapons 89), Mega 4/4/3, kills 10/9/9, stuck 0/0/1, refused/giveup 0, Fight share 34–37 %, armed fight share 52–64 %, budget mean 57–66 µs. All D20 bands pass except `start=air` all-unreachable 5/6/2 (band 0).
+D24 cause: Recast leaves isolated nav islands at floor level inside the solid Mega/RA (300 cm) and ramp-top (207 cm) platform boxes; the airborne probe (feet − 300) projects onto the island (z ≈ 10), whose paths are always partial. The ShouldMarkUnreachable rule stops the blacklist; the band only reaches 0 once the islands are gone. Proposed fix (a): `bFillCollisionUnderneathForNavmesh` on the platform boxes in `Tools/editor/create_item_test_map.py` + regenerate L_ItemTest. Check StartRoam projection on the same islands.
+Implementation choice: D22 floor is an input field (`FVeloxItemScoringInput`), carried via `FillDerivedBotFacts`. Extra diagnostic `VeloxBotRouteAllPartial`.
