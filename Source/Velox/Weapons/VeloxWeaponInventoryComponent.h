@@ -246,6 +246,14 @@ public:
 	void RemovePendingRpcShot(uint8 Seq, const UVeloxGameplayAbility_FireProjectile* Ability);
 	bool HasPendingRpcShot(uint8 Seq) const;
 
+	/**
+	 * ADR 0003 B38: the rpc path (source=rpc) launched Seq and scheduled its self splash from the RPC's data; a fire move
+	 * carrying Seq that arrives afterwards is ignored (reason=rpc_done) before the ammo/token step. Ring of
+	 * MaxRpcLaunchedShotSeqs per life, cleared with the records.
+	 */
+	void NoteRpcLaunchedShot(uint8 Seq);
+	bool WasShotLaunchedByRpc(uint8 Seq) const;
+
 	/** Records whose RPC never came, this binding (an M6 anti-cheat signal). */
 	int32 GetNumMoveShotOrphans() const { return NumMoveShotOrphans; }
 	int32 GetNumMoveShotRecords() const { return ServerMoveShots.Num(); }
@@ -257,6 +265,8 @@ public:
 
 	/** Records kept per life (ring). */
 	static constexpr int32 MaxMoveShotRecords = 8;
+	/** Sequences launched on the rpc path remembered per life (ring). */
+	static constexpr int32 MaxRpcLaunchedShotSeqs = 8;
 
 	// --- Owning client ---
 	/** Local prediction of a switch result; replaced by the replicated value when it arrives or after PredictionTimeout. */
@@ -355,6 +365,8 @@ private:
 	/** Oldest first; at most MaxMoveShotRecords. */
 	TArray<FVeloxMoveShotRecord, TInlineAllocator<MaxMoveShotRecords>> ServerMoveShots;
 	TArray<FPendingRpcShot, TInlineAllocator<2>> PendingRpcShots;
+	/** B38: oldest first; at most MaxRpcLaunchedShotSeqs. */
+	TArray<uint8, TInlineAllocator<MaxRpcLaunchedShotSeqs>> RpcLaunchedShotSeqs;
 	TWeakObjectPtr<UVeloxMovementComponent> BoundServerMovement;
 	FDelegateHandle MoveShotHandle;
 	FDelegateHandle MoveProcessedHandle;

@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat (follow-up)
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged; PlasmaRun 3/3, 80 tests)
 **Depends on:** ADR 0003 B38 (spec), B35, B25; review `docs/reviews/m2-late-rpc-fixes-review.md` (ruling 1c/1d, defects 1, 4, 5); 08f/08g/08h merged (`affac1c`).
 
 ## Goal
