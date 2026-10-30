@@ -283,9 +283,13 @@ bool FVeloxBotsStrafeSteeringTest::RunTest(const FString& Parameters)
 		float ErrAt60 = 90.f;
 		bool bMonotone = true;
 		int32 TicksTo15 = INDEX_NONE;
+		// D29 gates the hop on the ground at > 45 deg (this row starts on the ground at 90 deg); the row measures the air
+		// turn rate, which D29 does not gate, so it runs with the gate open. The gated start is the D29 row below.
+		FVeloxSteerParams AirTurn = Hard;
+		AirTurn.MaxHopHeadingDeg = 180.f;
 		for (int32 i = 0; i < 500 && TicksTo15 == INDEX_NONE; ++i)
 		{
-			Pawn.Step(Target, Hard, P, Dt);
+			Pawn.Step(Target, AirTurn, P, Dt);
 			MinSpeed = FMath::Min(MinSpeed, Pawn.Speed2D());
 			const float Err = Pawn.HeadingErrorDeg(Target);
 			bMonotone &= Err <= PrevErr + 1e-3f;
@@ -344,6 +348,62 @@ bool FVeloxBotsStrafeSteeringTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Short segment -> bJumpHeld false"), VeloxBotSteering::Steer(In, Hard).bJumpHeld);
 		In.SegmentRemainingCm = 2000.f;
 		TestFalse(TEXT("No bunny hop preset -> bJumpHeld false"), VeloxBotSteering::Steer(In, Easy).bJumpHeld);
+	}
+
+	// ADR 0005 D29: ground hop heading gate (45 deg, below 100 cm/s not applied).
+	{
+		TestEqual(TEXT("D29: MakeParams MaxHopHeadingDeg 45 (ini)"), Hard.MaxHopHeadingDeg, 45.f);
+		TestEqual(TEXT("D29: MakeParams HopHeadingMinSpeedCmS 100 (ini)"), Hard.HopHeadingMinSpeedCmS, 100.f);
+		auto Dir = [](float Deg) { return FVector2D(FMath::Cos(FMath::DegreesToRadians(Deg)), FMath::Sin(FMath::DegreesToRadians(Deg))); };
+		FVeloxSteerInput In;
+		In.Velocity = FVector2D(800.0, 0.0);
+		In.bOnGround = true;
+		In.SegmentRemainingCm = 2000.f;
+		In.WishSpeed = P.AirMaxWishSpeed;
+		In.AirAccel = P.AirAcceleration;
+		In.FixedStep = P.FixedStep;
+		In.ToTarget = Dir(120.f);
+		const FVeloxSteerOutput Away = VeloxBotSteering::Steer(In, Hard);
+		TestFalse(TEXT("D29: ground, V (800, 0), target at 120 deg -> bJumpHeld false"), Away.bJumpHeld);
+		TestTrue(TEXT("D29: gated tick wishes straight at the target (ground wish)"), Away.WishDir.Equals(Dir(120.f), 1e-4));
+		In.ToTarget = Dir(30.f);
+		TestTrue(TEXT("D29: ground, V (800, 0), target at 30 deg -> bJumpHeld"), VeloxBotSteering::Steer(In, Hard).bJumpHeld);
+		In.Velocity = FVector2D(50.0, 0.0);
+		In.ToTarget = Dir(180.f);
+		TestTrue(TEXT("D29: ground, V (50, 0), target at 180 deg -> bJumpHeld (below HopHeadingMinSpeedCmS)"), VeloxBotSteering::Steer(In, Hard).bJumpHeld);
+		In.Velocity = FVector2D(800.0, 0.0);
+		In.ToTarget = Dir(120.f);
+		In.bOnGround = false;
+		TestTrue(TEXT("D29: air is not gated"), VeloxBotSteering::Steer(In, Hard).bJumpHeld);
+	}
+
+	// D29 closed loop: the air-turn start (ground, 1000 cm/s, goal at 90 deg) with the gate: the bot walks until the ground
+	// re-aligned the velocity within 45 deg, then hops again; it reaches the goal heading faster than the air turn.
+	{
+		FSteerPawn Pawn;
+		Pawn.Move.Velocity = FVector(1000.0, 0.0, 0.0);
+		Pawn.Move.bOnGround = true;
+		const FVector2D Target(0.0, 1.0);
+		int32 FirstHop = INDEX_NONE;
+		int32 TicksTo15 = INDEX_NONE;
+		for (int32 i = 0; i < 500 && TicksTo15 == INDEX_NONE; ++i)
+		{
+			const bool bGround = Pawn.Move.bOnGround;
+			const FVeloxSteerOutput Out = Pawn.Step(Target, Hard, P, Dt);
+			if (FirstHop == INDEX_NONE && bGround && Out.bJumpHeld)
+			{
+				FirstHop = i;
+				TestTrue(TEXT("D29 loop: first ground hop within 45 deg of the target"), Pawn.HeadingErrorDeg(Target) <= 60.f);
+			}
+			if (Pawn.HeadingErrorDeg(Target) <= 15.f)
+			{
+				TicksTo15 = i + 1;
+			}
+		}
+		AddInfo(FString::Printf(TEXT("D29 loop: ground 1000 cm/s, goal 90 deg: first hop after %d ticks, within 15 deg after %d ticks"), FirstHop, TicksTo15));
+		TestTrue(TEXT("D29 loop: walks first (no hop on tick 0)"), FirstHop > 0);
+		TestTrue(TEXT("D29 loop: hops again within 0.5 s"), FirstHop != INDEX_NONE && FirstHop <= 62);
+		TestTrue(TEXT("D29 loop: within 15 deg of the goal within 375 ticks"), TicksTo15 != INDEX_NONE && TicksTo15 <= 375);
 	}
 
 	// Arrive slowdown on the final segment.
@@ -894,6 +954,17 @@ bool FVeloxBotsDecisionTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Fight goal carries the enemy"), G.EnemyId, 42);
 	}
 	{
+		// ADR 0005 D30: a fight_stall strike suppresses the enemy (bEnemyVisible false) -> the item, even from a Fight goal.
+		FVeloxBotDecisionInput In = Base;
+		In.bEnemyVisible = false;
+		In.Health = 150;
+		In.Items = {MegaCandidate(150, 2.f)};
+		In.Current.Type = EVeloxBotGoal::Fight;
+		In.Current.EnemyId = 42;
+		const FVeloxBotGoalChoice G = VeloxBotDecision::ChooseGoal(In, Hard, Stream);
+		TestTrue(TEXT("D30: enemy suppressed + item available -> Item"), G.Type == EVeloxBotGoal::Item && G.ItemId == 1);
+	}
+	{
 		FVeloxBotDecisionInput In = Base;
 		In.bEnemyVisible = true;
 		In.Health = 20;
@@ -1312,6 +1383,72 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 		M.Tick(ManeuverIn(Dt, 60.f, 300.f, false));
 		O = M.Tick(ManeuverIn(2.0 * Dt, 160.f, 20.f, true));
 		TestTrue(TEXT("Drop: landing near End -> ok"), O.bDone);
+	}
+
+	// ADR 0005 D28: traversal timeout (every phase but Launched) and the below-start guard (Approach / BackUp, ground).
+	{
+		FVeloxManeuverParams Drop;
+		Drop.Type = EVeloxManeuverType::Drop;
+		Drop.TimeoutSeconds = 6.f;
+		Drop.BelowStartAbortCm = 100.f;
+		// The p-s3 hang: on the ground in Approach, pressed against the platform face, End never comes closer.
+		FVeloxBotManeuver M;
+		M.Begin(Drop, FVector::ZeroVector, FVector(0.0, -214.0, -190.0), 0.0);
+		FVeloxManeuverOutput O;
+		double AbortAt = -1.0;
+		for (int32 i = 1; i <= 366 && AbortAt < 0.0; ++i)
+		{
+			O = M.Tick(ManeuverIn(i * Dt, 50.f, 280.f));
+			if (O.bAbort)
+			{
+				AbortAt = i * Dt;
+			}
+		}
+		AddInfo(FString::Printf(TEXT("D28 Drop timeout at %.3f s, reason %s"), AbortAt, LexToString(O.Reason)));
+		TestTrue(TEXT("D28: Drop on the ground in Approach for 6.1 s -> bAbort"), O.bAbort && AbortAt > 0.0 && AbortAt <= 6.1 + 1e-6);
+		TestTrue(TEXT("D28: Drop timeout not before 6 s"), AbortAt >= 6.0 - Dt);
+		TestTrue(TEXT("D28: Drop timeout reason Timeout"), O.Reason == EVeloxManeuverResult::Timeout);
+		TestEqual(TEXT("D28: Timeout log reason"), FString(LexToString(EVeloxManeuverResult::Timeout)), FString(TEXT("timeout")));
+		TestEqual(TEXT("D28: BelowStart log reason"), FString(LexToString(EVeloxManeuverResult::BelowStart)), FString(TEXT("below_start")));
+	}
+	{
+		FVeloxManeuverParams Drop;
+		Drop.Type = EVeloxManeuverType::Drop;
+		Drop.BelowStartAbortCm = 100.f;
+		FVeloxBotManeuver M;
+		M.Begin(Drop, FVector::ZeroVector, FVector(0.0, -214.0, -190.0), 0.0);
+		FVeloxManeuverInput In = ManeuverIn(Dt, 50.f, 280.f);
+		In.HeightBelowStartCm = 50.f;
+		FVeloxManeuverOutput O = M.Tick(In);
+		TestFalse(TEXT("D28: Drop in Approach 50 cm below the start -> no abort"), O.bAbort || O.bDone);
+		In = ManeuverIn(2.0 * Dt, 50.f, 280.f);
+		In.HeightBelowStartCm = 150.f;
+		O = M.Tick(In);
+		TestTrue(TEXT("D28: Drop in Approach 150 cm below the start -> BelowStart that tick"), O.bAbort && O.Reason == EVeloxManeuverResult::BelowStart);
+	}
+	{
+		FVeloxManeuverParams Pad;
+		Pad.Type = EVeloxManeuverType::JumpPad;
+		Pad.TimeoutSeconds = 6.f;
+		FVeloxBotManeuver M;
+		M.Begin(Pad, FVector::ZeroVector, FVector(1200.0, 0.0, 400.0), 0.0);
+		M.Tick(ManeuverIn(Dt, 10.f, 1250.f, false));
+		TestTrue(TEXT("D28: pad airborne"), M.Phase == EVeloxManeuverPhase::Airborne);
+		FVeloxManeuverOutput O = M.Tick(ManeuverIn(5.9, 600.f, 700.f, false));
+		TestFalse(TEXT("D28: pad airborne at 5.9 s -> running"), O.bAbort);
+		O = M.Tick(ManeuverIn(6.1, 600.f, 700.f, false));
+		TestTrue(TEXT("D28: JumpPad airborne for 6.1 s -> Timeout"), O.bAbort && O.Reason == EVeloxManeuverResult::Timeout);
+	}
+	{
+		// Launched keeps ImpulseTimeoutSeconds (0.3 s), the shorter bound.
+		FVeloxBotManeuver M;
+		M.Begin(RJ, FVector::ZeroVector, FVector(0.0, 0.0, 350.0), 0.0);
+		M.Phase = EVeloxManeuverPhase::Launched;
+		M.PhaseStartTime = 0.0;
+		FVeloxManeuverOutput O = M.Tick(ManeuverIn(0.29, 10.f, 400.f));
+		TestFalse(TEXT("D28: RJ Launched at 0.29 s -> running"), O.bAbort);
+		O = M.Tick(ManeuverIn(0.31, 10.f, 400.f));
+		TestTrue(TEXT("D28: RJ Launched at 0.31 s without impulse -> NoImpulse"), O.bAbort && O.Reason == EVeloxManeuverResult::NoImpulse);
 	}
 	return true;
 }

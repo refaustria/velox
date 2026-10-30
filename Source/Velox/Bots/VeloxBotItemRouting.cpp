@@ -97,6 +97,13 @@ namespace VeloxBotItemRoutingPrivate
 	{
 		In.bEnemyVisible = false;
 		In.EnemyId = INDEX_NONE;
+		const UWorld* World = Bot.GetWorld();
+		if (World && Bot.IsFightSuppressed(World->GetTimeSeconds()))
+		{
+			// ADR 0005 D30: after a fight_stall strike the decision routes as if no enemy were in sight (the bot keeps
+			// aiming and firing; only the goal changes) until the controller's cooldown ends.
+			return;
+		}
 		const FVeloxBotCombatState& Combat = Bot.GetCombatState();
 		const FVeloxBotEnemyInfo* Target = Combat.GetTarget();
 		const AVeloxCharacter* TargetPawn = Target ? Target->Pawn.Get() : nullptr;

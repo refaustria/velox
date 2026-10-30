@@ -113,6 +113,13 @@ public:
 	/** Bunny hops released because the headroom sweep was blocked (ticks; diagnostics, not yet in the debug line). */
 	int32 GetHopHeadroomBlockedTicks() const { return HopHeadroomBlockedTicks; }
 
+	/**
+	 * D18 headroom guard: true when a capsule sweep straight up by HopHeadroomCm against static world is clear. Sweeps at
+	 * most every HopHeadroomCheckSeconds and returns the cached result between sweeps. Public for the combat overlay's
+	 * dodge jump (ADR 0005 D31).
+	 */
+	bool HasHopHeadroom(double Now);
+
 	//~UPathFollowingComponent interface
 	using Super::OnPathFinished;
 	/** Ends any traversal (aborted), then Super (Reset, observers -> AAIController::OnMoveCompleted). */
@@ -165,11 +172,6 @@ private:
 	/** Knockback grace of the previous step (an impulse = the grace rising from 0). */
 	float LastKnockbackGrace = 0.f;
 
-	/**
-	 * D18 headroom guard: true when a capsule sweep straight up by HopHeadroomCm against static world is clear. Sweeps at
-	 * most every HopHeadroomCheckSeconds and returns the cached result between sweeps.
-	 */
-	bool HasHopHeadroom(double Now);
 	double NextHopHeadroomCheckTime = -1.0;
 	bool bHopHeadroomClear = true;
 	int32 HopHeadroomBlockedTicks = 0;

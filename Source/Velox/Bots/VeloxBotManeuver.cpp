@@ -61,6 +61,19 @@ FVeloxManeuverOutput FVeloxBotManeuver::Tick(const FVeloxManeuverInput& In)
 	FVeloxManeuverOutput Out;
 	Out.WishToward = EVeloxManeuverWish::End;
 
+	// D28 (a): a traversal that cannot complete (a Drop whose End lies through a wall, a pad flight that never lands) is
+	// abandoned; Launched keeps its own, shorter ImpulseTimeoutSeconds.
+	if (IsActive() && Phase != EVeloxManeuverPhase::Launched && Params.TimeoutSeconds > 0.f &&
+		In.Time - StartTime + VeloxBotManeuverPrivate::TimeEpsilon >= Params.TimeoutSeconds)
+	{
+		return Finish(EVeloxManeuverResult::Timeout, In.Time);
+	}
+	// D28 (b): on the ground well below the link start the pawn is on another surface (it fell off the approach).
+	if ((Phase == EVeloxManeuverPhase::Approach || Phase == EVeloxManeuverPhase::BackUp) && In.bOnGround && In.HeightBelowStartCm > Params.BelowStartAbortCm)
+	{
+		return Finish(EVeloxManeuverResult::BelowStart, In.Time);
+	}
+
 	switch (Phase)
 	{
 	case EVeloxManeuverPhase::Idle:

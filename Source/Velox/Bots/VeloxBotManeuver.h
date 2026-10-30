@@ -50,6 +50,10 @@ enum class EVeloxManeuverResult : uint8
 	TooSlow,
 	/** RocketJump: eligibility (health, rockets) lost before the launch. */
 	Ineligible,
+	/** ADR 0005 D28: the traversal ran TimeoutSeconds (every phase but Launched, which has ImpulseTimeoutSeconds). */
+	Timeout,
+	/** ADR 0005 D28: on the ground in Approach / BackUp more than BelowStartAbortCm below the link start (another surface). */
+	BelowStart,
 };
 
 /** `result=` value of the VeloxBotLink log line (ok | missed | aborted, ADR section 4) and a detail reason. */
@@ -62,6 +66,8 @@ inline const TCHAR* LexToString(EVeloxManeuverResult Result)
 	case EVeloxManeuverResult::NoImpulse: return TEXT("noimpulse");
 	case EVeloxManeuverResult::TooSlow: return TEXT("tooslow");
 	case EVeloxManeuverResult::Ineligible: return TEXT("ineligible");
+	case EVeloxManeuverResult::Timeout: return TEXT("timeout");
+	case EVeloxManeuverResult::BelowStart: return TEXT("below_start");
 	default: return TEXT("none");
 	}
 }
@@ -98,6 +104,10 @@ struct FVeloxManeuverParams
 	float RocketJumpPitchDeg = 80.f;
 	/** RocketJump: abort when the explosion did not launch the pawn within this. */
 	float ImpulseTimeoutSeconds = 0.3f;
+	/** D28: abort a traversal running this long (s; UVeloxBotSettings::LinkTimeoutSeconds). <= 0 disables. */
+	float TimeoutSeconds = 6.f;
+	/** D28: abort Approach / BackUp on the ground this far below the link start (cm; UVeloxBotSettings::LinkBelowStartCm). */
+	float BelowStartAbortCm = 100.f;
 };
 
 /** One tick of observations (all world-free). */
@@ -113,6 +123,8 @@ struct FVeloxManeuverInput
 	bool bSwitchDone = false;
 	/** RocketJump: health / rockets still allow the jump (section 4 eligibility). */
 	bool bEligible = true;
+	/** D28: link start z - feet z (cm; positive = the pawn is below the start). */
+	float HeightBelowStartCm = 0.f;
 	/** Seconds (world time). */
 	double Time = 0.0;
 };

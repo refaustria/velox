@@ -139,11 +139,13 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 			double Since = -1.0;
 			float StartDist = 0.f;
 			FVector2D WindowTarget = FVector2D::ZeroVector;
+			float PausedSeconds = 0.f;
 			int32 Strikes = 0;
 			for (int32 Tick = 0; Tick <= Ticks; ++Tick)
 			{
-				Strikes += VeloxBotRules::UpdateStuckProgress(Since, StartDist, WindowTarget, bTracking, PausedAt(Tick), TargetAt(Tick), DistAt(Tick), 100.f,
-					Tick / 60.0, 1.f / 60.f, 2.f) ? 1 : 0;
+				// D27: the pause cap is the ini value, 4 s.
+				Strikes += VeloxBotRules::UpdateStuckProgress(Since, StartDist, WindowTarget, PausedSeconds, bTracking, PausedAt(Tick), TargetAt(Tick), DistAt(Tick),
+					100.f, Tick / 60.0, 1.f / 60.f, 2.f, 4.f) ? 1 : 0;
 			}
 			return Strikes;
 		};
@@ -164,21 +166,88 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 			Run([](int32 T) { return 300.f + 80.f * FMath::Sin(T * 0.3f); }, Fixed, 239, true, HalfPaused), 0);
 		TestEqual(TEXT("paused half the time: strike after 2 s of follower time"),
 			Run([](int32 T) { return 300.f + 80.f * FMath::Sin(T * 0.3f); }, Fixed, 300, true, HalfPaused), 1);
-		// Paused for 10 s at a standstill: no strike (the clock does not run), and the window is not reset by the pause.
-		TestEqual(TEXT("long pause: no strike"), Run([](int32) { return 300.f; }, Fixed, 600, true, [](int32 T) { return T > 0; }), 0);
+		// Paused for 3.5 s at a standstill (under the D27 cap): no strike, the clock does not run.
+		TestEqual(TEXT("pause under the cap: no strike"), Run([](int32) { return 300.f; }, Fixed, 210, true, [](int32 T) { return T > 0; }), 0);
 		// The overlay pushes the bot 500 cm away while paused (0.5 s), the follower then closes at 300 cm/s: no strike
 		// (measured from the pause end, 100 cm take 0.33 s; held against the pre-pause 300 cm it would strike at T 150).
 		TestEqual(TEXT("distance the overlay added is not held against the follower"),
 			Run([](int32 T) { return T < 30 ? 300.f : T < 60 ? 300.f + (T - 30) * (500.f / 30.f) : FMath::Max(0.f, 800.f - (T - 60) * 5.f); }, Fixed, 300, true,
 				[](int32 T) { return T >= 30 && T < 60; }), 0);
-		// Strike at T ~ 720 when the clock only stopped, at T ~ 780 if the pause had reset it.
+		// Pause T 60..240 (3 s, under the cap): strike at T ~ 300 when the clock only stopped, at T ~ 360 if the pause had reset it.
 		TestEqual(TEXT("pause does not reset the window"),
-			Run([](int32) { return 300.f; }, Fixed, 600 + 125, true, [](int32 T) { return T >= 60 && T < 660; }), 1);
+			Run([](int32) { return 300.f; }, Fixed, 330, true, [](int32 T) { return T >= 60 && T < 240; }), 1);
 		double Since = 5.0;
 		float StartDist = 300.f;
 		FVector2D WindowTarget = Target;
-		TestFalse(TEXT("not tracking: false"), VeloxBotRules::UpdateStuckProgress(Since, StartDist, WindowTarget, false, false, Target, 300.f, 100.f, 10.0, 1.f / 60.f, 2.f));
+		float PausedSeconds = 1.f;
+		TestFalse(TEXT("not tracking: false"),
+			VeloxBotRules::UpdateStuckProgress(Since, StartDist, WindowTarget, PausedSeconds, false, false, Target, 300.f, 100.f, 10.0, 1.f / 60.f, 2.f, 4.f));
 		TestEqual(TEXT("not tracking clears the window"), Since, -1.0);
+		TestEqual(TEXT("not tracking clears the pause"), PausedSeconds, 0.f);
+	}
+
+	// ADR 0005 D27: the pause is bounded (4 s per window), so a bot held in place under the overlay strikes at 4 + 2 s.
+	{
+		const FVector2D Target(1000.0, 0.0);
+		double Since = -1.0;
+		float StartDist = 0.f;
+		FVector2D WindowTarget = FVector2D::ZeroVector;
+		float PausedSeconds = 0.f;
+		int32 Strikes = 0;
+		double FirstStrike = -1.0;
+		for (int32 Tick = 0; Tick <= 6 * 60 + 30; ++Tick)
+		{
+			const double T = Tick / 60.0;
+			if (VeloxBotRules::UpdateStuckProgress(Since, StartDist, WindowTarget, PausedSeconds, true, true, Target, 300.f, 100.f, T, 1.f / 60.f, 2.f, 4.f))
+			{
+				++Strikes;
+				FirstStrike = FirstStrike < 0.0 ? T : FirstStrike;
+			}
+		}
+		AddInfo(FString::Printf(TEXT("D27: paused from t = 0 without progress: %d strike(s), first at %.3f s"), Strikes, FirstStrike));
+		TestEqual(TEXT("D27: paused from t = 0, no progress -> exactly one strike"), Strikes, 1);
+		TestTrue(TEXT("D27: the strike at 6.0 +- 0.1 s"), FMath::Abs(FirstStrike - 6.0) <= 0.1);
+
+		// Paused 1 s, then unpaused and closing 100 cm (at 120 cm/s) -> no strike.
+		Since = -1.0;
+		PausedSeconds = 0.f;
+		Strikes = 0;
+		for (int32 Tick = 0; Tick <= 4 * 60; ++Tick)
+		{
+			const double T = Tick / 60.0;
+			const bool bPaused = Tick < 60;
+			const float Dist = bPaused ? 300.f : FMath::Max(0.f, 300.f - static_cast<float>(T - 1.0) * 120.f);
+			Strikes += VeloxBotRules::UpdateStuckProgress(Since, StartDist, WindowTarget, PausedSeconds, true, bPaused, Target, Dist, 100.f, T, 1.f / 60.f, 2.f, 4.f) ? 1 : 0;
+		}
+		TestEqual(TEXT("D27: paused 1 s then unpaused with 100 cm progress -> no strike"), Strikes, 0);
+		TestEqual(TEXT("D27: StuckProgressMaxPauseSeconds 4 (ini)"), GetDefault<AVeloxBotController>()->StuckProgressMaxPauseSeconds, 4.f);
+		TestEqual(TEXT("D30: FightStallCooldownSeconds 4 (ini)"), GetDefault<AVeloxBotController>()->FightStallCooldownSeconds, 4.f);
+	}
+
+	// ADR 0005 D30: the speed rule watches a pathless fight (Goal Fight, no move, enemy visible, on the ground, no link).
+	{
+		auto RunFight = [](bool bEnemyVisible, bool bMoveActive)
+		{
+			double SlowSince = -1.0;
+			double StrikeAt = -1.0;
+			for (int32 Tick = 0; Tick <= 150 && StrikeAt < 0.0; ++Tick)
+			{
+				const bool bTracking = false; // no path: the plain rule does not track
+				const bool bWatched = VeloxBotRules::IsFightWatched(EVeloxBotGoal::Fight, bMoveActive, bEnemyVisible, true, false);
+				if (VeloxBotRules::UpdateStuck(SlowSince, bTracking || bWatched, 10.f, 50.f, Tick / 60.0, 2.f))
+				{
+					StrikeAt = Tick / 60.0;
+				}
+			}
+			return StrikeAt;
+		};
+		const double At = RunFight(true, false);
+		TestTrue(TEXT("D30: pathless fight, enemy visible, speed 10 -> strike at 2 s"), FMath::Abs(At - 2.0) <= 1.0 / 60.0 + 1e-6);
+		TestTrue(TEXT("D30: enemy not visible -> no fight_stall strike (a chase has a path and the plain rule)"), RunFight(false, false) < 0.0);
+		TestFalse(TEXT("D30: Item goal is not fight-watched"), VeloxBotRules::IsFightWatched(EVeloxBotGoal::Item, false, true, true, false));
+		TestFalse(TEXT("D30: airborne is not fight-watched"), VeloxBotRules::IsFightWatched(EVeloxBotGoal::Fight, false, true, false, false));
+		TestFalse(TEXT("D30: on a link is not fight-watched"), VeloxBotRules::IsFightWatched(EVeloxBotGoal::Fight, false, true, true, true));
+		TestFalse(TEXT("D30: an active move is the plain rule's"), VeloxBotRules::IsFightWatched(EVeloxBotGoal::Fight, true, true, true, false));
 	}
 
 	// D18 hop headroom: JumpVelocity^2 / (2 |g|) + margin (675 cm/s, -2000 cm/s^2 -> 113.9 + 10).

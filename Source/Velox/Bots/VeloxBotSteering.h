@@ -42,6 +42,13 @@ struct FVeloxSteerParams
 	float StrafeMaxAngleDeg = 60.f;
 	/** Final-target arrive radius: WishScale ramps linearly to 0 at the target, cm. */
 	float ArriveSlowdownCm = 150.f;
+	/**
+	 * ADR 0005 D29: on the ground, no hop while the velocity points more than this away from the target (degrees), so a
+	 * bot that landed moving away walks until the ground re-aligned it (UVeloxBotSettings::MaxHopHeadingDeg).
+	 */
+	float MaxHopHeadingDeg = 45.f;
+	/** D29: the heading gate applies only at or above this horizontal speed (cm/s; UVeloxBotSettings::HopHeadingMinSpeedCmS). */
+	float HopHeadingMinSpeedCmS = 100.f;
 };
 
 struct FVeloxSteerOutput
@@ -61,7 +68,8 @@ namespace VeloxBotSteering
 	VELOX_API float OptimalStrafeAngleDeg(float Speed, float WishSpeed, float AirAccel, float Dt);
 
 	/**
-	 * One tick. Ground: wish toward the target; jump held while bunny hopping on a long straight segment. A ground tick
+	 * One tick. Ground: wish toward the target; jump held while bunny hopping on a long straight segment and (D29) while
+	 * the velocity is below HopHeadingMinSpeedCmS or within MaxHopHeadingDeg of the target direction. A ground tick
 	 * with jump held counts as air (the movement component jumps first in that frame, then air-accelerates). Air with
 	 * strafe jumping and |V| > W - a: wish = velocity rotated by the optimum toward the target side; when the heading
 	 * error exceeds the optimum the wish is rotated by max(optimum, min(StrafeMaxAngleDeg, error)) instead. Air without
@@ -69,7 +77,7 @@ namespace VeloxBotSteering
 	 */
 	VELOX_API FVeloxSteerOutput Steer(const FVeloxSteerInput& In, const FVeloxSteerParams& Params);
 
-	/** Steering params of a difficulty preset (bBunnyHop, bStrafeJump; the rest keeps the ADR defaults). */
+	/** Steering params of a difficulty preset (bBunnyHop, bStrafeJump), the D29 gate from UVeloxBotSettings; the rest keeps the ADR defaults. */
 	VELOX_API FVeloxSteerParams MakeParams(const FVeloxBotDifficultyParams& Difficulty);
 
 	/** Signed angle from A to B in degrees, (-180, 180], positive counter-clockwise (toward +Y from +X). 0 if either is zero. */

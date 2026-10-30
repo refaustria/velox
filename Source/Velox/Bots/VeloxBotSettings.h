@@ -94,6 +94,25 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
 	float TakeoffLeadCm = 100.f;
 
+	/**
+	 * ADR 0005 D28: a link traversal (or the wait for the ground before it) running this long is aborted with
+	 * reason=timeout and counts as a stuck strike (s; the longest legitimate traversal is ~3 s).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.5", Units = "s"))
+	float LinkTimeoutSeconds = 6.f;
+
+	/** D28: on the ground in a link's Approach / BackUp more than this below the link start aborts it (reason=below_start; cm). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float LinkBelowStartCm = 100.f;
+
+	/** D29: on the ground no bunny hop while the velocity points more than this away from the target (degrees). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", ClampMax = "180.0", Units = "deg"))
+	float MaxHopHeadingDeg = 45.f;
+
+	/** D29: below this horizontal speed the hop heading gate does not apply (cm/s). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm/s"))
+	float HopHeadingMinSpeedCmS = 100.f;
+
 	/** No progress for this long counts as stuck (s). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.1", Units = "s"))
 	float StuckSeconds = 2.f;
