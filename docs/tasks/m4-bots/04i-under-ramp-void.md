@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev (part A, content) + dev-hard (part B, rule) — two dispatches, part A first
-**Status:** todo
+**Status:** part A done (dev), part B todo
 **Depends on:** 04g merged on `m4-bots` and its acceptance soak done on the unchanged map (part A changes the map, part B touches 04g's files); ADR 0005 D41 (evidence, content rule, the three rule changes), D17 (off-mesh recovery), D35 (the segment check's projection), 04e (`FILL_NAV_KINDS`)
 
 ## Goal
@@ -45,4 +45,7 @@ Part B: `infra/ci/ci.sh`; `infra/ci/fts.sh --port <N>` three times; the ten-run 
 Standard dev / dev-hard format. Part A: the three box transforms as placed, actor counts, DumpNav output. Part B: the extent value in effect at the three call sites, the FtOffMesh case-3 log tail (`to=` Z vs feet Z), the ten-run set numbers. Flag for the lead: any `giveup` (the terminal escape firing on a test map), any recovery target above the feet in any log, any strike inside a platform footprint.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+
+**Part A (dev, 2026-10-30, on 37fceea).** `build_ramp()` gets `Ramp_Fill_1..3` (kind `platform`, folder `YellowArmor`, Y 1200, 400 wide): centres/sizes as placed (X, Z, size X x Z): (-300, 16.5, 200 x 33), (-100, 43, 200 x 86), (86.35, 70, 172.7 x 140). Actor counts: platform 4 -> 7 (script check passes: `platform=7 ... ramp=1 navlink=15 pickup=23`). `L_ItemTest.umap` regenerated headless (`UnrealEditor-Cmd Velox.uproject -run=pythonscript -script=.../create_item_test_map.py -nullrhi ...`, rc 0, 0 errors; LFS).
+DumpNav (default query extent (100,100,200), so it reaches the ramp surface from Z 10): (10,1190,10) -> projects to Z 170.8, (135,1198,10) -> 180.5, (-300,1200,10) -> 91.1: all three land on the ramp surface (a floor-level poly would project to Z ~0-10), none at floor level; (-450,1200,10) -> 52.9 (ramp, unfilled zone); control (-1500,1200,10) `start_off_mesh` (Mega fill, 04e). Note: the literal criterion "no poly within (100,100,100)" cannot hold at (-300,1200,10) because the ramp surface itself is 81 cm above that point; the intent (no floor-level poly under the ramp) holds. Part B's shared 100 cm extent will make the first two probes `start_off_mesh`.
+fts: `[fts] OK 7/7` (incl. FtSegmentBlocked). nettest BotRun + BotDuel (one round each, run concurrently by nettest.sh so both CONTENDED by D40): BotRun stuck=0, YA taken 4, no strikes; BotDuel stuck=1 `progress` at Celer (1509,-325) (not under the ramp), YA taken 5. The script exit was "NET SOAK FAILED" only for BotDuel's existing Duel checks (Mega take lags 3.6/11.1/5.7 s, no camp=1 line; D38/D39 territory, unrelated to the ramp). Also `infra/ci/README.md` now lists `FtSegmentBlocked`.
