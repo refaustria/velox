@@ -17,6 +17,8 @@ namespace VeloxScoreboardFormat
 		int32 Kills = 0;
 		int32 Deaths = 0;
 		int32 PingMs = 0;
+		/** AI-controlled player: the ping column shows BOT (ADR 0005 section 12). */
+		bool bIsBot = false;
 		bool bReady = false;
 		bool bLocal = false;
 		FColor Color = FColor::White;
@@ -47,11 +49,17 @@ namespace VeloxScoreboardFormat
 		Rows.StableSort(&RowBefore);
 	}
 
-	/** The row as plain text: "Name  Score  Kills  Deaths  Ping  READY|-" (the powerup letters follow the name when held). */
+	/** Ping column text: the ping in ms, "BOT" for bots (they have no network ping). */
+	inline FString PingText(const FRow& Row)
+	{
+		return Row.bIsBot ? FString(TEXT("BOT")) : FString::FromInt(Row.PingMs);
+	}
+
+	/** The row as plain text: "Name  Score  Kills  Deaths  Ping|BOT  READY|-" (the powerup letters follow the name when held). */
 	inline FString RowText(const FRow& Row)
 	{
 		const FString Name = Row.Powerups.IsEmpty() ? Row.Name : FString::Printf(TEXT("%s [%s]"), *Row.Name, *Row.Powerups);
-		return FString::Printf(TEXT("%s  %d  %d  %d  %d  %s"), *Name, Row.Score, Row.Kills, Row.Deaths, Row.PingMs, Row.bReady ? TEXT("READY") : TEXT("-"));
+		return FString::Printf(TEXT("%s  %d  %d  %d  %s  %s"), *Name, Row.Score, Row.Kills, Row.Deaths, *PingText(Row), Row.bReady ? TEXT("READY") : TEXT("-"));
 	}
 
 	/** "Fraglimit 20   Timelimit 10:00" with the parts that are 0 left out. */

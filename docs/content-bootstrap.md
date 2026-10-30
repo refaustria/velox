@@ -63,3 +63,12 @@ Same arguments, with the Launcher install's binary and your project path:
 ## Re-running after settings changes
 
 The script is idempotent: existing data assets (e.g. `DA_MovementSettings_Default`) are loaded and every property value in the script is re-applied and saved, so after adding/renaming fields on `UVeloxMovementSettings` just update the value table in `build_data()` and re-run the script. Only the map (`L_Empty`) is skipped if it exists. Note: re-running also re-saves `IMC_Default.uasset`, which may show up as a modified binary in git.
+
+## Bot content (M4-03)
+
+`Tools/editor/create_bot_content.py` writes the four difficulty presets `DA_Bot_Easy`, `DA_Bot_Medium`, `DA_Bot_Hard`, `DA_Bot_Expert` (`UVeloxBotDifficulty`) to `/Game/Bots` with the ADR 0005 section 11 table and the section 9 weapon preferences (RG/LG weights x 0.5 for Easy, x 0.8 for Medium). Run it after the Velox editor module is built (`UVeloxBotDifficulty` and the Velox weapon tags must exist):
+```
+"$UE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$VELOX_PROJECT" -run=pythonscript \
+  -script="$PWD/Tools/editor/create_bot_content.py" -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput
+```
+Idempotent: values are compared and an asset is only re-saved when something changed; the script then re-reads every asset and raises when a value differs from the table. Project-wide bot settings (`UVeloxBotSettings`: `DefaultDifficulty`, 16 Latin `BotNames`, `DefaultBotCount`, nav/goal tunables) are in `Config/DefaultGame.ini` `[/Script/Velox.VeloxBotSettings]`. Check that the registry sees the presets headless: `UnrealEditor-Cmd "$VELOX_PROJECT" L_Empty -game -nullrhi -ExecCmds="velox.bots.ListPresets" -stdout` logs `VeloxBotPreset asset=...` lines and `VeloxBotPreset count=4 names=16 default=...`. Non-shipping per-field overrides: `velox.bots.<Field> <value>` (`-1e30` = use the asset), applied by `UVeloxBotDifficulty::BuildParams()`.
