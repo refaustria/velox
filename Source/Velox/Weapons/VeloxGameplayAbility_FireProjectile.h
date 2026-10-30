@@ -20,6 +20,7 @@
 
 #include "Weapons/VeloxGameplayAbility_Fire.h"
 #include "Weapons/VeloxShotTargetData.h"
+#include "Engine/TimerHandle.h"
 
 #include "VeloxGameplayAbility_FireProjectile.generated.h"
 
@@ -78,12 +79,6 @@ public:
 	/** "move" or "rpc": where the self splash of the last server-side remote shot came from (tests, logs); "" otherwise. */
 	const TCHAR* GetLastServerShotSource() const { return LastServerShotSource; }
 
-	/**
-	 * ADR 0003 B35: how far (ms) the owner's processed move stream (LastMoveStamp) is past a shot's fire stamp, wrap-aware
-	 * over ResetPeriod (MinTimeBetweenTimeStampResets). The late_ms of the VeloxProjectileShot line.
-	 */
-	static double ComputeShotLateMs(float LastMoveStamp, float FireMoveTimeStamp, float ResetPeriod);
-
 	/** A source=rpc shot later than one 60 Hz move + 40 ms jitter is reported as VeloxShotLate (B35). */
 	static bool IsShotLate(double LateMs) { return LateMs > 1000.0 / 60.0 + 40.0; }
 
@@ -121,8 +116,24 @@ protected:
 	TWeakObjectPtr<AVeloxProjectile> LastServerProjectile;
 	const TCHAR* LastServerShotSource = TEXT("");
 
+	/** Clears the pending timeout timer (ADR 0003 B38: owned by the instance, cleared on launch, cancel and EndAbility). */
+	void ClearPendingServerShotTimer();
+
 	/** ADR 0003 B35: the validated fire RPC waiting for its fire move. */
 	bool bHasPendingServerShot = false;
 	FVeloxValidatedShot PendingServerShot;
 	TWeakObjectPtr<const UVeloxWeaponDefinition> PendingServerShotDefinition;
+
+	/**
+	 * ADR 0003 B38: the pending shot's timeout (MaxRewindSeconds) and the sequence it was armed for; the callback launches
+	 * only that shot (08f armed a local handle that could fire against a later pending plasma shot).
+	 */
+	FTimerHandle PendingServerShotTimer;
+	uint8 PendingServerShotTimerSeq = 0;
+
+	/**
+	 * ADR 0003 B38: the pending shot's GE_AmmoCost was paid when its RPC was accepted (before it went pending), so its
+	 * launch does not pay again. Reset with the pending state; a dropped pending shot is not refunded.
+	 */
+	bool bPendingAmmoPaid = false;
 };

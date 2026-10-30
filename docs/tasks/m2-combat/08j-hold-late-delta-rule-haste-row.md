@@ -2,7 +2,7 @@
 
 **Milestone:** M2 Combat (follow-up)
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged; FireRunHold 5/5, RocketJumpRunHold 5/5; 79 tests)
 **Depends on:** ADR 0003 B39, B41; review `docs/reviews/m2-late-rpc-fixes-review.md` (ruling 3, 5a; defects 2, 3); 08f/08g/08h merged. Independent of 08i.
 
 ## Goal

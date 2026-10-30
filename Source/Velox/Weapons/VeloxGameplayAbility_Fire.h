@@ -105,6 +105,12 @@ public:
 	virtual bool CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
 	//~End of UGameplayAbility interface
 
+	/**
+	 * ADR 0003 B35: how far (ms) the owner's processed move stream (LastMoveStamp) is past a shot's fire stamp, wrap-aware
+	 * over ResetPeriod (MinTimeBetweenTimeStampResets). The late_ms of the VeloxProjectileShot line.
+	 */
+	static double ComputeShotLateMs(float LastMoveStamp, float FireMoveTimeStamp, float ResetPeriod);
+
 protected:
 	/**
 	 * B19, Q3 weapon time: a shot within one frame (this frame's delta) of its schedule carries, a later one restarts.

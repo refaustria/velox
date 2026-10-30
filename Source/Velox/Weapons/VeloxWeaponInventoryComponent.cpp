@@ -291,6 +291,9 @@ void UVeloxWeaponInventoryComponent::ResetToLoadout()
 		Desired |= static_cast<uint16>(1u << Index);
 		First = First == INDEX_NONE ? Index : First;
 	}
+	// ADR 0003 B35/B38: move-shot records and waiting fire RPCs belong to the shot sequence of the old life. Dropped before
+	// the specs change: removing the spec of a fire ability with a waiting shot ends it not-cancelled, which would launch it.
+	ClearMoveShots();
 	// Keep the specs of weapons that stay (no re-grant churn on respawn), take the others away.
 	for (int32 Index = 0; Index < UVeloxWeaponTable::MaxWeapons; ++Index)
 	{
@@ -309,8 +312,6 @@ void UVeloxWeaponInventoryComponent::ResetToLoadout()
 	// B37: a switch running at death must not land on a weapon of the old life (SetCurrentIndex clears it too).
 	ClearPendingDropTimer();
 	ResetShotSeq();
-	// ADR 0003 B35: move-shot records and waiting fire RPCs belong to the shot sequence of the old life.
-	ClearMoveShots();
 	SetCurrentIndex(First);
 	UE_LOG(LogVeloxCombat, Log, TEXT("%s: ResetToLoadout owned=0x%04x current=%s (%d entries)"), *GetNameSafe(GetOwner()), OwnedMask, *GetNameSafe(GetDefinition(First)),
 		Settings.SpawnLoadout.Num());
@@ -712,6 +713,24 @@ bool UVeloxWeaponInventoryComponent::HasPendingRpcShot(uint8 Seq) const
 	return PendingRpcShots.ContainsByPredicate([Seq](const FPendingRpcShot& P) { return P.ShotSeq == Seq && P.Ability.IsValid(); });
 }
 
+void UVeloxWeaponInventoryComponent::NoteRpcLaunchedShot(uint8 Seq)
+{
+	if (RpcLaunchedShotSeqs.Contains(Seq))
+	{
+		return;
+	}
+	if (RpcLaunchedShotSeqs.Num() >= MaxRpcLaunchedShotSeqs)
+	{
+		RpcLaunchedShotSeqs.RemoveAt(0);
+	}
+	RpcLaunchedShotSeqs.Add(Seq);
+}
+
+bool UVeloxWeaponInventoryComponent::WasShotLaunchedByRpc(uint8 Seq) const
+{
+	return RpcLaunchedShotSeqs.Contains(Seq);
+}
+
 double UVeloxWeaponInventoryComponent::GetMoveShotOrphanSeconds() const
 {
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(GetCombatSettings());
@@ -739,6 +758,7 @@ void UVeloxWeaponInventoryComponent::NoteMoveShotOrphan(const FVeloxMoveShotReco
 void UVeloxWeaponInventoryComponent::ClearMoveShots()
 {
 	ServerMoveShots.Reset();
+	RpcLaunchedShotSeqs.Reset();
 	const TArray<FPendingRpcShot, TInlineAllocator<2>> Pending = PendingRpcShots;
 	PendingRpcShots.Reset();
 	for (const FPendingRpcShot& P : Pending)
@@ -785,10 +805,15 @@ void UVeloxWeaponInventoryComponent::HandleServerMoveShot(const FVeloxMoveShot& 
 	{
 		Ignore = TEXT("blocked");
 	}
-	// (2) Not yet recorded.
+	// (2) Not yet recorded, and not already launched on the rpc path (B38: a sequence is scheduled at most once; checked
+	// before the ammo/token step so a late fire move neither pays a second token nor schedules a second self splash).
 	else if (FindMoveShotRecordIndex(Shot.ShotSeq) != INDEX_NONE)
 	{
 		Ignore = TEXT("duplicate");
+	}
+	else if (WasShotLaunchedByRpc(Shot.ShotSeq))
+	{
+		Ignore = TEXT("rpc_done");
 	}
 	else if (Shot.Origin.ContainsNaN() || ShotDir.ContainsNaN() || ShotDir.IsNearlyZero() || !FMath::IsFinite(Shot.FireMoveTimeStamp))
 	{
