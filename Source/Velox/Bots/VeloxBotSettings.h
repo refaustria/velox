@@ -49,15 +49,15 @@ public:
 
 	/** Fight score at full strength and the best weapon (item-score units, value per second; ADR 0005 D4). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Goals", Meta = (ClampMin = "0.0"))
-	float FightBaseScore = 20.f;
+	float FightBaseScore = 12.f;
 
 	/** Health + armor at which the fight score saturates (D4). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Goals", Meta = (ClampMin = "1.0"))
-	float FightFullStrength = 100.f;
+	float FightFullStrength = 200.f;
 
 	/** Fight score factor with the weakest weapon (WeaponStrength 0; D4). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Goals", Meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float FightWeakWeaponScale = 0.5f;
+	float FightWeakWeaponScale = 0.25f;
 
 	/** Pad / rocket jump: arrival radius at the link start (cm; ADR 0005 section 4, D4). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))

@@ -39,6 +39,15 @@ struct FVeloxBotGoal;
 
 // ------------------------------------------------------------------------------------------------ world-free rules
 
+/** Ammo use of one owned weapon (ADR 0005 D13: WeaponStrength counts weapons with at least one shot). */
+struct FVeloxRoutingWeaponAmmo
+{
+	/** Invalid: the weapon uses no ammo (always usable). */
+	FGameplayTag AmmoTag;
+	/** 0: the weapon uses no ammo (always usable). */
+	int32 AmmoPerShot = 0;
+};
+
 /** What the scoring needs from the bot (filled from the live PlayerState attributes and inventory). */
 struct FVeloxRoutingBotFacts
 {
@@ -53,6 +62,8 @@ struct FVeloxRoutingBotFacts
 	TArray<FGameplayTag> OwnedWeaponTags;
 	/** AmmoTag of every owned weapon. */
 	TArray<FGameplayTag> OwnedAmmoTags;
+	/** WeaponTag of every owned weapon -> its ammo tag and cost per shot (D13 WeaponStrength). */
+	TMap<FGameplayTag, FVeloxRoutingWeaponAmmo> OwnedWeaponAmmo;
 	/** Duel denial floor of a major item's need (0 = off, the plain section 7 need). */
 	float MajorItemMinNeed = 0.f;
 };
@@ -104,6 +115,15 @@ namespace VeloxBotItemRouting
 	 * (Duel) a major item's BotBaseValue is scaled so that Value = BotBaseValue x max(Need, MajorItemMinNeed) while Need > 0.
 	 */
 	VELOX_API FVeloxItemScoringInput MakeScoringInput(const FVeloxRoutingItemFacts& Item, const FVeloxRoutingBotFacts& Bot, float TravelSeconds);
+
+	/**
+	 * ADR 0005 D13: how good the bot's best usable weapon is, 0..1. Usable = owned (Bot.OwnedWeaponAmmo) and either no
+	 * ammo (invalid tag, AmmoPerShot 0, ammo tag not tracked in Bot.Ammo) or Bot.Ammo[tag].X >= AmmoPerShot. Result: the
+	 * largest preference Weight among usable weapons / the largest Weight in Preferences (Medium: MG-only 20/90, SG 60/90,
+	 * RL 1). Nothing usable (or no usable weapon in the table) -> 0; an empty table or all weights 0 -> 1 (no data:
+	 * neutral, the pre-D13 behaviour).
+	 */
+	VELOX_API float WeaponStrength(const FVeloxRoutingBotFacts& Bot, TConstArrayView<FVeloxBotWeaponPreference> Preferences);
 
 	/** Distance / Speed (0 speed: the distance in metres per second fallback is not used; returns a large value). */
 	VELOX_API float TravelSeconds(double DistanceCm, float SpeedCmS);
