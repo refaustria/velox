@@ -4,6 +4,7 @@
 
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "Bots/VeloxBotSubsystem.h"
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
@@ -280,6 +281,14 @@ void AVeloxProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (!bFake && HasAuthority())
+	{
+		// ADR 0005 section 10: the bots' projectile registry (dodging); the subsystem unregisters it on EndPlay.
+		if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(GetWorld()))
+		{
+			Bots->RegisterProjectile(this);
+		}
+	}
 	if (bFake || HasAuthority())
 	{
 		return;

@@ -81,9 +81,6 @@ public:
 	/** Link of the current traversal (null when none). */
 	const AVeloxNavLink* GetCurrentLink() const { return CurrentLink.Get(); }
 
-	/** Rocket-jump eligibility the controller computes each tick (section 4: health, rockets, launcher). */
-	void SetRocketJumpState(bool bInEligible, bool bInSwitchDone) { bRocketJumpEligible = bInEligible; bRocketJumpSwitchDone = bInSwitchDone; }
-
 	/**
 	 * The segment into a link start ends this close to it (cm, 2-D): the traversal begins before the pawn reaches the
 	 * point (a pad trigger launches the pawn before it can pass the pad centre, which is the engine's reach test).
@@ -150,6 +147,4 @@ private:
 
 	/** Knockback grace of the previous step (an impulse = the grace rising from 0). */
 	float LastKnockbackGrace = 0.f;
-	bool bRocketJumpEligible = false;
-	bool bRocketJumpSwitchDone = false;
 };

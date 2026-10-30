@@ -1101,3 +1101,338 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+// ======================================================================================================== task 05
+// Velox.Bots.ShouldFire       the section 8 fire rule rows: ammo, visibility, cone, range band, ground rockets,
+//                             self-splash safety (wall in the face, target inside the blast), switch in progress.
+// Velox.Bots.CombatRules      FOV, sticky target choice, the section 10 overlay (strafe side, range keeping, leash,
+//                             path blend, dodge), projectile threat geometry, chance rolls.
+// Velox.Bots.RocketJumpAbort  Maneuver rocket-jump rows: eligibility lost on the approach, during the switch and in the
+//                             run-up -> Ineligible (the controller logs result=aborted reason=ineligible), no fire.
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+#include "Bots/VeloxBotCombat.h"
+
+namespace VeloxBotTests05
+{
+	/** A visible target 1000 cm ahead on +X, aimed dead on, ammo, ready. */
+	FVeloxFireInput DeadOn()
+	{
+		FVeloxFireInput In;
+		In.bHasWeapon = true;
+		In.bWeaponReady = true;
+		In.bHasAmmo = true;
+		In.bTargetVisible = true;
+		In.Eye = FVector(0.0, 0.0, 60.0);
+		In.TargetCentre = FVector(1000.0, 0.0, 60.0);
+		In.DesiredPoint = In.TargetCentre;
+		In.AimDir = FVector(1.0, 0.0, 0.0);
+		return In;
+	}
+
+	FVector DirFromYawDeg(double YawDeg)
+	{
+		const double R = FMath::DegreesToRadians(YawDeg);
+		return FVector(FMath::Cos(R), FMath::Sin(R), 0.0);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxBotsShouldFireTest, "Velox.Bots.ShouldFire", VeloxBotTestsShared::BotTestFlags)
+bool FVeloxBotsShouldFireTest::RunTest(const FString& Parameters)
+{
+	using VeloxBotTests05::DeadOn;
+	using VeloxBotTests05::DirFromYawDeg;
+	FVeloxBotDifficultyParams Hard = VeloxBotTestsShared::HardParams();
+	Hard.FireConeDeg = 4.f;
+
+	TestTrue(TEXT("dead on, ammo, visible -> fire"), VeloxBotCombat::ShouldFire(DeadOn(), Hard));
+	{
+		FVeloxFireInput In = DeadOn();
+		In.bHasAmmo = false;
+		TestTrue(TEXT("no ammo -> NoAmmo"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::NoAmmo);
+		In = DeadOn();
+		In.bTargetVisible = false;
+		TestTrue(TEXT("target not visible -> NoTarget"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::NoTarget);
+		In = DeadOn();
+		In.bWeaponReady = false;
+		TestTrue(TEXT("switch in progress -> NotReady"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::NotReady);
+		In = DeadOn();
+		In.bHasWeapon = false;
+		TestTrue(TEXT("no weapon -> NoWeapon"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::NoWeapon);
+	}
+	// Cone: 3.5 degrees off fires at Hard (4), not at Expert (3); 6 degrees never at Hard.
+	{
+		FVeloxFireInput In = DeadOn();
+		In.AimDir = DirFromYawDeg(3.5);
+		TestTrue(TEXT("3.5 deg off: Hard cone 4 fires"), VeloxBotCombat::ShouldFire(In, Hard));
+		FVeloxBotDifficultyParams Expert = Hard;
+		Expert.FireConeDeg = 3.f;
+		TestTrue(TEXT("3.5 deg off: Expert cone 3 -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Expert) == EVeloxFireVerdict::OffTarget);
+		In.AimDir = DirFromYawDeg(-6.0);
+		TestTrue(TEXT("6 deg off -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::OffTarget);
+	}
+	// The cone is measured against the desired (lead) point, not the target centre.
+	{
+		FVeloxFireInput In = DeadOn();
+		In.DesiredPoint = FVector(1000.0, 270.0, 60.0); // lead ~15 degrees to the left
+		In.AimDir = (In.DesiredPoint - In.Eye).GetSafeNormal();
+		TestTrue(TEXT("aimed at the lead point (15 deg off the centre) -> fire"), VeloxBotCombat::ShouldFire(In, Hard));
+		In.AimDir = FVector(1.0, 0.0, 0.0);
+		TestTrue(TEXT("aimed at the centre while the lead point is 15 deg off -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::OffTarget);
+	}
+	// Direct-hit radius (Q3 BotCheckAttack): 3.5 deg at 1000 cm is 61 cm off -> no shot with a 60 cm radius; 3 deg (52 cm) fires.
+	{
+		FVeloxFireInput In = DeadOn();
+		In.DirectHitRadiusCm = 60.f;
+		In.AimDir = DirFromYawDeg(3.5);
+		TestTrue(TEXT("hit radius 60: 3.5 deg at 1000 cm (61 cm) -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::OffTarget);
+		In.AimDir = DirFromYawDeg(3.0);
+		TestTrue(TEXT("hit radius 60: 3 deg at 1000 cm (52 cm) -> fire"), VeloxBotCombat::ShouldFire(In, Hard));
+		In.TargetCentre = FVector(300.0, 0.0, 60.0);
+		In.DesiredPoint = In.TargetCentre;
+		In.AimDir = DirFromYawDeg(3.9);
+		TestTrue(TEXT("hit radius at 300 cm: the preset cone (4 deg) is the tighter rule"), VeloxBotCombat::ShouldFire(In, Hard));
+		In = DeadOn();
+		In.DirectHitRadiusCm = 60.f;
+		In.SplashRadiusCm = 120.f;
+		In.AimDir = DirFromYawDeg(3.5);
+		TestTrue(TEXT("splash weapons ignore the direct-hit radius"), VeloxBotCombat::ShouldFire(In, Hard));
+	}
+	// Range band.
+	{
+		FVeloxFireInput In = DeadOn();
+		In.MinRangeCm = 0.f;
+		In.MaxRangeCm = 1900.f; // LG
+		TestTrue(TEXT("inside the band -> fire"), VeloxBotCombat::ShouldFire(In, Hard));
+		In.TargetCentre = FVector(2500.0, 0.0, 60.0);
+		In.DesiredPoint = In.TargetCentre;
+		TestTrue(TEXT("LG at 2500 cm -> OutOfRange"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::OutOfRange);
+		In = DeadOn();
+		In.MinRangeCm = 400.f; // RG
+		In.MaxRangeCm = 20480.f;
+		In.TargetCentre = FVector(300.0, 0.0, 60.0);
+		In.DesiredPoint = In.TargetCentre;
+		TestTrue(TEXT("RG at 300 cm (MinRange 400) -> OutOfRange"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::OutOfRange);
+	}
+	// Splash weapons (RL 120 cm): self-splash safety and ground rockets.
+	{
+		FVeloxFireInput In = DeadOn();
+		In.SplashRadiusCm = 120.f;
+		In.SelfSplashMarginCm = 50.f;
+		In.bAimHit = true;
+		In.AimHitPoint = FVector(1000.0, 0.0, 0.0);
+		TestTrue(TEXT("RL: target 1000 cm, hit at its feet -> fire"), VeloxBotCombat::ShouldFire(In, Hard));
+		In.AimHitPoint = FVector(150.0, 0.0, 60.0);
+		TestTrue(TEXT("RL: wall 150 cm in the face (<= 170) -> SelfSplash"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::SelfSplash);
+		In.AimHitPoint = FVector(171.0, 0.0, 60.0);
+		TestTrue(TEXT("RL: wall at 171 cm (> 170) is not a self-splash danger"), VeloxBotCombat::EvaluateFire(In, Hard) != EVeloxFireVerdict::SelfSplash);
+		In = DeadOn();
+		In.SplashRadiusCm = 120.f;
+		In.TargetCentre = FVector(160.0, 0.0, 60.0);
+		In.DesiredPoint = In.TargetCentre;
+		TestTrue(TEXT("RL: target 160 cm away (inside 170) -> SelfSplash"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::SelfSplash);
+		// Ground rockets: aim 10 degrees off, but the ray's world hit lands within 0.8 x splash of the target.
+		In = DeadOn();
+		In.SplashRadiusCm = 120.f;
+		In.AimDir = DirFromYawDeg(10.0);
+		In.bAimHit = true;
+		In.AimHitPoint = FVector(960.0, 60.0, 30.0); // 75 cm from the centre (<= 96)
+		TestTrue(TEXT("RL: off the cone but the floor hit is inside 0.8 x splash -> fire"), VeloxBotCombat::ShouldFire(In, Hard));
+		In.AimHitPoint = FVector(900.0, 150.0, 0.0);
+		TestTrue(TEXT("RL: off the cone and the hit outside 0.8 x splash -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::OffTarget);
+		In.bAimHit = false;
+		In.AimHitPoint = FVector(960.0, 60.0, 30.0);
+		TestTrue(TEXT("no world hit and off the cone -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::OffTarget);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxBotsCombatRulesTest, "Velox.Bots.CombatRules", VeloxBotTestsShared::BotTestFlags)
+bool FVeloxBotsCombatRulesTest::RunTest(const FString& Parameters)
+{
+	using VeloxBotTests05::DirFromYawDeg;
+	// FOV (section 6): Hard 160 -> +-80 degrees.
+	{
+		const FVector Eye = FVector::ZeroVector;
+		TestTrue(TEXT("79 deg off inside 160 FOV"), VeloxBotCombat::InFov(FVector::ForwardVector, Eye, DirFromYawDeg(79.0) * 1000.0, 160.f));
+		TestFalse(TEXT("81 deg off outside 160 FOV"), VeloxBotCombat::InFov(FVector::ForwardVector, Eye, DirFromYawDeg(81.0) * 1000.0, 160.f));
+		TestFalse(TEXT("behind outside 180 FOV"), VeloxBotCombat::InFov(FVector::ForwardVector, Eye, FVector(-1000.0, 1.0, 0.0), 180.f));
+		TestTrue(TEXT("pitch counts: 60 deg up inside 130"), VeloxBotCombat::InFov(FVector::ForwardVector, Eye, FVector(500.0, 0.0, 866.0), 130.f));
+		TestFalse(TEXT("pitch counts: 70 deg up outside 130"), VeloxBotCombat::InFov(FVector::ForwardVector, Eye, FVector(342.0, 0.0, 940.0), 130.f));
+	}
+	// Target choice: nearest visible, sticky by 1.5.
+	{
+		TArray<FVeloxTargetCandidate> C = {{1, true, 1000.f}, {2, true, 800.f}, {3, false, 100.f}};
+		TestEqual(TEXT("no current target -> the nearest visible (2)"), VeloxBotCombat::SelectTarget(C, INDEX_NONE, 1.5f), 1);
+		TestEqual(TEXT("current 1 at 1000 kept against 800 (> 1000/1.5)"), VeloxBotCombat::SelectTarget(C, 1, 1.5f), 0);
+		C[1].DistanceCm = 600.f;
+		TestEqual(TEXT("current 1 at 1000 replaced by 600 (< 666)"), VeloxBotCombat::SelectTarget(C, 1, 1.5f), 1);
+		C[0].bVisible = false;
+		C[1].bVisible = false;
+		TestEqual(TEXT("nothing visible -> none (the invisible near one is not chosen)"), VeloxBotCombat::SelectTarget(C, 1, 1.5f), static_cast<int32>(INDEX_NONE));
+	}
+	// Overlay (section 10).
+	{
+		FVeloxCombatWishInput In;
+		In.ToEnemy = FVector2D(1000.0, 0.0);
+		In.BestMinCm = 300.f;
+		In.BestMaxCm = 1500.f;
+		In.StrafeSign = 1.f;
+		In.StrafeAmplitude = 0.9f;
+		FVector2D W = VeloxBotCombat::CombatWish(In);
+		TestTrue(TEXT("in the band: pure strafe to the left (+Y)"), W.Equals(FVector2D(0.0, 1.0), 1e-4));
+		In.StrafeSign = -1.f;
+		TestTrue(TEXT("sign flips the side"), VeloxBotCombat::CombatWish(In).Equals(FVector2D(0.0, -1.0), 1e-4));
+		In.ToEnemy = FVector2D(2000.0, 0.0);
+		W = VeloxBotCombat::CombatWish(In);
+		TestTrue(TEXT("beyond BestMax: strafe plus closing in"), W.X > 0.3 && W.Y < -0.5);
+		In.ToEnemy = FVector2D(200.0, 0.0);
+		W = VeloxBotCombat::CombatWish(In);
+		TestTrue(TEXT("inside BestMin: strafe plus backing off"), W.X < -0.3 && W.Y < -0.5);
+		In.ToEnemy = FVector2D(3000.0, 0.0);
+		In.LeashCm = 2500.f;
+		const FVector2D Leash = VeloxBotCombat::CombatWish(In);
+		TestTrue(TEXT("beyond the leash closes in harder than beyond BestMax"), Leash.X > 0.6);
+		In.ToEnemy = FVector2D(1000.0, 0.0);
+		In.bBlendPath = true;
+		In.PathWeight = 0.5f;
+		In.PathWish = FVector2D(-1.0, 0.0);
+		W = VeloxBotCombat::CombatWish(In);
+		TestTrue(TEXT("item path blended in (away from the enemy)"), W.X < -0.3 && W.Y < -0.5 && FMath::IsNearlyEqual(W.Size(), 1.0, 1e-4));
+		In.bDodge = true;
+		In.DodgeDir = FVector2D(0.0, 1.0);
+		In.bBlendPath = false;
+		W = VeloxBotCombat::CombatWish(In);
+		TestTrue(TEXT("dodge overrides the strafe side"), W.Equals(FVector2D(0.0, 1.0), 1e-4));
+		FVeloxCombatWishInput Empty;
+		TestTrue(TEXT("no enemy, no dodge, no path -> zero wish"), VeloxBotCombat::CombatWish(Empty).IsZero());
+	}
+	// Projectile threat: rocket at 2250 cm/s.
+	{
+		const FVector Bot(1000.0, 0.0, 0.0);
+		FVeloxProjectileThreat T = VeloxBotCombat::ProjectileThreat(FVector::ZeroVector, FVector(2250.0, 0.0, 0.0), Bot, 220.f, 1.f);
+		TestTrue(TEXT("rocket straight at the bot -> threat"), T.bThreat);
+		TestTrue(TEXT("closest approach in 0.444 s"), FMath::IsNearlyEqual(T.TimeToClosest, 1000.f / 2250.f, 1e-3f));
+		TestTrue(TEXT("away direction is perpendicular to the flight"), FMath::IsNearlyZero(T.AwayDir.X, 1e-4) && FMath::IsNearlyEqual(FMath::Abs(T.AwayDir.Y), 1.0, 1e-4));
+		T = VeloxBotCombat::ProjectileThreat(FVector::ZeroVector, FVector(2250.0, 0.0, 0.0), FVector(1000.0, 150.0, 0.0), 220.f, 1.f);
+		TestTrue(TEXT("150 cm to the left: threat, dodge further left"), T.bThreat && T.AwayDir.Y > 0.99);
+		T = VeloxBotCombat::ProjectileThreat(FVector::ZeroVector, FVector(2250.0, 0.0, 0.0), FVector(1000.0, 400.0, 0.0), 220.f, 1.f);
+		TestFalse(TEXT("400 cm to the side: no threat"), T.bThreat);
+		T = VeloxBotCombat::ProjectileThreat(FVector::ZeroVector, FVector(2250.0, 0.0, 0.0), FVector(4000.0, 0.0, 0.0), 220.f, 1.f);
+		TestFalse(TEXT("beyond the 1 s horizon (4000 cm): no threat"), T.bThreat);
+		T = VeloxBotCombat::ProjectileThreat(FVector(2000.0, 0.0, 0.0), FVector(2250.0, 0.0, 0.0), Bot, 220.f, 1.f);
+		TestFalse(TEXT("already past the bot: no threat"), T.bThreat);
+		T = VeloxBotCombat::ProjectileThreat(FVector::ZeroVector, FVector::ZeroVector, Bot, 220.f, 1.f);
+		TestFalse(TEXT("resting projectile: no threat"), T.bThreat);
+	}
+	// Chance rolls: 0.6 per second at 60 Hz over 1000 simulated seconds ~ 600 events.
+	{
+		FRandomStream Stream(1234);
+		int32 Events = 0;
+		for (int32 i = 0; i < 60000; ++i)
+		{
+			Events += VeloxBotCombat::RollChance(0.6f, 1.f / 60.f, Stream) ? 1 : 0;
+		}
+		TestTrue(FString::Printf(TEXT("0.6/s over 1000 s: %d events in [540, 660]"), Events), Events >= 540 && Events <= 660);
+		TestFalse(TEXT("chance 0 never fires"), VeloxBotCombat::RollChance(0.f, 1.f / 60.f, Stream));
+		TestTrue(TEXT("chance x dt >= 1 always fires"), VeloxBotCombat::RollChance(120.f, 1.f / 60.f, Stream));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxBotsRocketJumpAbortTest, "Velox.Bots.RocketJumpAbort", VeloxBotTestsShared::BotTestFlags)
+bool FVeloxBotsRocketJumpAbortTest::RunTest(const FString& Parameters)
+{
+	using VeloxBotTestsShared::ManeuverIn;
+	const double Dt = 1.0 / 60.0;
+	FVeloxManeuverParams RJ;
+	RJ.Type = EVeloxManeuverType::RocketJump;
+	RJ.RunUpSeconds = 0.3f;
+	RJ.RocketJumpPitchDeg = 80.f;
+
+	// Review F1 / D11 regression row: a traversal begun on the ground at the start with bEligible true on its first tick
+	// enters Switch (it used to read a one-tick-stale false and finish Ineligible).
+	{
+		FVeloxBotManeuver M;
+		M.Begin(RJ, FVector::ZeroVector, FVector(0.0, 0.0, 350.0), 0.0);
+		FVeloxManeuverInput In = ManeuverIn(0.0, 5.f, 650.f);
+		In.bEligible = true;
+		const FVeloxManeuverOutput O = M.Tick(In);
+		TestTrue(TEXT("F1: tick 1 eligible at the start -> Switch, not Finished"), M.Phase == EVeloxManeuverPhase::Switch && !O.bAbort && !O.bDone);
+	}
+	// Launcher lost (or health below the link's minimum) while walking to the start.
+	{
+		FVeloxBotManeuver M;
+		M.Begin(RJ, FVector::ZeroVector, FVector(0.0, 0.0, 350.0), 0.0);
+		FVeloxManeuverOutput O = M.Tick(ManeuverIn(0.0, 300.f, 700.f));
+		TestTrue(TEXT("approach while eligible"), !O.bAbort && O.bWantRocketLauncher);
+		FVeloxManeuverInput In = ManeuverIn(Dt, 280.f, 690.f);
+		In.bEligible = false;
+		O = M.Tick(In);
+		TestTrue(TEXT("approach: ineligible -> abort"), O.bAbort && O.Reason == EVeloxManeuverResult::Ineligible);
+		TestFalse(TEXT("approach abort: no fire, no jump"), O.bFire || O.bJumpHeld);
+		TestFalse(TEXT("approach abort: finished"), M.IsActive());
+	}
+	// Lost during the switch wait.
+	{
+		FVeloxBotManeuver M;
+		M.Begin(RJ, FVector::ZeroVector, FVector(0.0, 0.0, 350.0), 0.0);
+		M.Tick(ManeuverIn(0.0, 10.f, 600.f));
+		TestTrue(TEXT("at the start without the switch: Switch phase"), M.Phase == EVeloxManeuverPhase::Switch);
+		FVeloxManeuverInput In = ManeuverIn(Dt, 10.f, 600.f);
+		In.bEligible = false;
+		const FVeloxManeuverOutput O = M.Tick(In);
+		TestTrue(TEXT("switch: ineligible -> abort"), O.bAbort && O.Reason == EVeloxManeuverResult::Ineligible && !O.bFire);
+	}
+	// Lost in the run-up, one tick before the launch: never fires.
+	{
+		FVeloxBotManeuver M;
+		M.Begin(RJ, FVector::ZeroVector, FVector(0.0, 0.0, 350.0), 0.0);
+		FVeloxManeuverInput In = ManeuverIn(0.0, 10.f, 600.f);
+		In.bSwitchDone = true;
+		M.Tick(In);
+		TestTrue(TEXT("switch done: RunUp"), M.Phase == EVeloxManeuverPhase::RunUp);
+		double T = 0.0;
+		bool bFired = false;
+		for (int32 i = 0; i < 16; ++i) // 0.267 s < RunUpSeconds
+		{
+			T += Dt;
+			In.Time = T;
+			bFired |= M.Tick(In).bFire;
+		}
+		TestFalse(TEXT("no launch before RunUpSeconds"), bFired);
+		T += Dt;
+		In.Time = T;
+		In.bEligible = false;
+		const FVeloxManeuverOutput O = M.Tick(In);
+		TestTrue(TEXT("run-up: ineligible -> abort without firing"), O.bAbort && O.Reason == EVeloxManeuverResult::Ineligible && !O.bFire && !O.bForcePitch);
+		TestEqual(TEXT("result reason text (VeloxBotLink reason=)"), FString(LexToString(O.Reason)), FString(TEXT("ineligible")));
+	}
+	// Once launched, losing eligibility no longer matters (the own splash took the health).
+	{
+		FVeloxBotManeuver M;
+		M.Begin(RJ, FVector::ZeroVector, FVector(0.0, 0.0, 350.0), 0.0);
+		FVeloxManeuverInput In = ManeuverIn(0.0, 10.f, 600.f);
+		In.bSwitchDone = true;
+		double T = 0.0;
+		FVeloxManeuverOutput O = M.Tick(In);
+		for (int32 i = 0; i < 30 && !O.bFire; ++i)
+		{
+			T += Dt;
+			In.Time = T;
+			O = M.Tick(In);
+		}
+		TestTrue(TEXT("launched"), O.bFire && M.Phase == EVeloxManeuverPhase::Launched);
+		T += Dt;
+		FVeloxManeuverInput After = ManeuverIn(T, 50.f, 500.f, false);
+		After.bEligible = false;
+		After.bImpulseReceived = true;
+		O = M.Tick(After);
+		TestFalse(TEXT("after the launch the self damage does not abort"), O.bAbort);
+		TestTrue(TEXT("airborne after the impulse"), M.Phase == EVeloxManeuverPhase::Airborne);
+	}
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS
