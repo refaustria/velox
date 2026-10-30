@@ -1358,6 +1358,329 @@ namespace VeloxBotOffMeshFt
 
 #endif // !UE_BUILD_SHIPPING
 
+// --------------------------------------------------------------------------------------- task 04g: FT_BotSegmentBlocked
+//   velox.bots.FtSegmentBlocked  (console, `UnrealEditor-Cmd Velox.uproject L_ItemTest -game -nullrhi -UseFixedTimeStep
+//                                -FPS=60 -ExecCmds="velox.bots.Seed 1, velox.bots.FtSegmentBlocked quit"`; ADR 0005 D35): a
+//                                Medium bot (peaceful) stands on the floor, gets a forced item goal and, once its move is
+//                                active, is put into an inner corner ("pocket") of the central cross, from where the
+//                                straight line to its stale segment target crosses a cross face. Checks per case: a
+//                                `VeloxBotRepath ... reason=segment_blocked` (the controller's repath count rises) within
+//                                1 s of the placement, no stuck strike for the whole case, 300 cm (2-D) away from the
+//                                pocket within 3 s and the item reached within 25 s. The placement is the test harness;
+//                                the bot only gets input.
+
+#if !UE_BUILD_SHIPPING
+
+namespace VeloxBotSegmentBlockedFt
+{
+	struct FCase
+	{
+		const TCHAR* Label;
+		/** Floor point (feet) the bot starts on. */
+		FVector Start;
+		/** Index into GoalTag(): the forced item goal. */
+		int32 GoalIndex;
+		/** The item nearest to this point among those with the goal tag. */
+		FVector GoalNear;
+		/** Floor point (feet) in a cross pocket: the capsule touches both faces of the inner corner (cross arms 100 wide). */
+		FVector Pocket;
+	};
+
+	/** L_ItemTest (Tools/editor/create_item_test_map.py): cross arms 600 x 100, 200 high, at the origin. */
+	const FCase Cases[] = {
+		{ TEXT("nw_pocket_rl"), FVector(-1000.0, 500.0, 0.0), 0, FVector(1050.0, -1700.0, 0.0), FVector(-87.5, 87.5, 0.0) },
+		{ TEXT("se_pocket_ya"), FVector(1000.0, -500.0, 0.0), 1, FVector(-214.0, 1200.0, 0.0), FVector(87.5, -87.5, 0.0) },
+	};
+
+	FGameplayTag GoalTag(int32 Index)
+	{
+		return Index == 0 ? FGameplayTag(VeloxGameplayTags::Item_Weapon_RocketLauncher) : FGameplayTag(VeloxGameplayTags::Item_Armor_Yellow);
+	}
+
+	constexpr double SettleSeconds = 0.5;
+	/** The move must become active this soon after the goal is set (setup check). */
+	constexpr double PathLimitSeconds = 5.0;
+	constexpr double RepathLimitSeconds = 1.0;
+	constexpr double LeaveDistanceCm = 300.0;
+	constexpr double LeaveLimitSeconds = 3.0;
+	/** FtOffMesh's limits. */
+	constexpr double ArriveLimitSeconds = 25.0;
+	constexpr double ArriveRadiusCm = 120.0;
+
+	struct FSegmentBlockedFt : VeloxBotFt::FFtBase
+	{
+		enum class EStep : uint8 { Settle, WaitPath, Placed };
+		int32 CaseIndex = 0;
+		EStep Step = EStep::Settle;
+		double SettleUntil = 0.0;
+		double GoalSetAt = 0.0;
+		double PlacedAt = 0.0;
+		double RepathAt = -1.0;
+		double LeaveAt = -1.0;
+		int32 RepathsAtPlace = 0;
+		int32 OffMeshAtPlace = 0;
+		int32 LastStrikes = 0;
+		int32 Strikes = 0;
+		bool bTaken = false;
+		TWeakObjectPtr<AVeloxPickup> Goal;
+		TWeakObjectPtr<APawn> CasePawn;
+		FDelegateHandle TakenHandle;
+
+		void OnFinish() override
+		{
+			if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(World.Get()))
+			{
+				Registry->OnPickupTaken.Remove(TakenHandle);
+			}
+		}
+	};
+
+	AVeloxPickup* NearestPickup(UWorld* World, const FGameplayTag& Tag, const FVector& Near)
+	{
+		const UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(World);
+		AVeloxPickup* Best = nullptr;
+		double BestDist = TNumericLimits<double>::Max();
+		for (AVeloxPickup* Pickup : Registry ? Registry->FindByTag(Tag) : TArray<AVeloxPickup*>())
+		{
+			const double Dist = Pickup ? FVector::Dist2D(Pickup->GetActorLocation(), Near) : BestDist;
+			if (Dist < BestDist)
+			{
+				Best = Pickup;
+				BestDist = Dist;
+			}
+		}
+		return Best;
+	}
+
+	bool StartCase(const TSharedRef<FSegmentBlockedFt>& Ft)
+	{
+		UWorld* World = Ft->World.Get();
+		UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+		if (!Bots)
+		{
+			return false;
+		}
+		if (AVeloxBotController* Old = Ft->Bot.Get())
+		{
+			Ft->LogBotCost();
+			Bots->KickBot(Old->GetBotName());
+		}
+		const FCase& Case = Cases[Ft->CaseIndex];
+		AVeloxPickup* Goal = NearestPickup(World, GoalTag(Case.GoalIndex), Case.GoalNear);
+		AVeloxBotController* Bot = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Medium")), TEXT("FtSegmentBlocked"));
+		AVeloxCharacter* Pawn = Bot ? Cast<AVeloxCharacter>(Bot->GetPawn()) : nullptr;
+		if (!Pawn || !Goal)
+		{
+			Ft->Check(false, TEXT("setup"), FString::Printf(TEXT("case=%s bot=%s goal=%s"), Case.Label, *GetNameSafe(Bot), *GetNameSafe(Goal)));
+			return false;
+		}
+		Ft->Bot = Bot;
+		Ft->CasePawn = Pawn;
+		Ft->Goal = Goal;
+		Bot->SetFrozen(true);
+		VeloxBotFt::PlaceAtStart(*Pawn, Case.Start);
+		Ft->Step = FSegmentBlockedFt::EStep::Settle;
+		Ft->SettleUntil = Ft->Now() + SettleSeconds;
+		Ft->RepathAt = -1.0;
+		Ft->LeaveAt = -1.0;
+		Ft->LastStrikes = 0;
+		Ft->Strikes = 0;
+		Ft->bTaken = false;
+		return true;
+	}
+
+	/** Ends the current case with its checks; false when the test is over. */
+	bool EndCase(const TSharedRef<FSegmentBlockedFt>& Ft, const FString& Why)
+	{
+		const FCase& Case = Cases[Ft->CaseIndex];
+		const AVeloxBotController* Bot = Ft->Bot.Get();
+		const APawn* Pawn = Bot ? Bot->GetPawn() : nullptr;
+		const double Elapsed = Ft->Now() - Ft->PlacedAt;
+		const int32 OffMesh = Bot ? Bot->GetBotState().OffMeshRecoveries - Ft->OffMeshAtPlace : -1;
+		const FString Detail = FString::Printf(TEXT("case=%s why=%s repath_s=%.2f leave_s=%.2f strikes=%d repaths=%d offmesh_recoveries=%d taken=%d seconds=%.2f end=%s"), Case.Label, *Why,
+			Ft->RepathAt, Ft->LeaveAt, Ft->Strikes, Bot ? Bot->GetRepathCount() - Ft->RepathsAtPlace : -1, OffMesh, Ft->bTaken ? 1 : 0, Elapsed,
+			Pawn ? *Pawn->GetActorLocation().ToCompactString() : TEXT("-"));
+		Ft->Check(Ft->RepathAt >= 0.0 && Ft->RepathAt <= RepathLimitSeconds, *FString::Printf(TEXT("%s_repath"), Case.Label), Detail);
+		Ft->Check(Ft->Strikes == 0, *FString::Printf(TEXT("%s_no_stuck"), Case.Label), Detail);
+		Ft->Check(Ft->LeaveAt >= 0.0 && Ft->LeaveAt <= LeaveLimitSeconds, *FString::Printf(TEXT("%s_leave"), Case.Label), Detail);
+		Ft->Check(Why == TEXT("arrived") && Elapsed <= ArriveLimitSeconds, *FString::Printf(TEXT("%s_goal"), Case.Label), Detail);
+		++Ft->CaseIndex;
+		return Ft->CaseIndex < UE_ARRAY_COUNT(Cases) && StartCase(Ft);
+	}
+
+	bool Tick(const TSharedRef<FSegmentBlockedFt>& Ft)
+	{
+		AVeloxBotController* Bot = Ft->Bot.Get();
+		AVeloxCharacter* Pawn = Bot ? Cast<AVeloxCharacter>(Bot->GetPawn()) : nullptr;
+		const UVeloxMovementComponent* Movement = Pawn ? Pawn->GetVeloxMovementComponent() : nullptr;
+		const UVeloxBotPathFollowingComponent* Follow = Bot ? Bot->GetBotPathFollowing() : nullptr;
+		if (!Movement || !Follow || !Ft->World.IsValid())
+		{
+			Ft->Check(false, TEXT("alive"), TEXT("bot pawn gone"));
+			return false;
+		}
+		const FCase& Case = Cases[Ft->CaseIndex];
+		const double T = Ft->Now();
+		// No stuck strike for the whole case (the counter only rises on a strike; it resets on arrival / the third strike).
+		const int32 StrikesNow = Bot->GetBotState().StuckStrikes;
+		if (StrikesNow > Ft->LastStrikes)
+		{
+			Ft->Strikes += StrikesNow - Ft->LastStrikes;
+		}
+		Ft->LastStrikes = StrikesNow;
+
+		switch (Ft->Step)
+		{
+		case FSegmentBlockedFt::EStep::Settle:
+			if (T < Ft->SettleUntil || !Movement->IsOnGround())
+			{
+				return true;
+			}
+			Bot->SetFrozen(false);
+			Bot->SetForcedItemGoal(Ft->Goal.Get());
+			Ft->LastStrikes = Bot->GetBotState().StuckStrikes;
+			Ft->Strikes = 0;
+			Ft->GoalSetAt = T;
+			Ft->Step = FSegmentBlockedFt::EStep::WaitPath;
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s start at=%s goal=%s goal_at=%s"), Ft->Name, Case.Label, *Pawn->GetActorLocation().ToCompactString(),
+				*GetNameSafe(Ft->Goal.Get()), Ft->Goal.IsValid() ? *Ft->Goal->GetActorLocation().ToCompactString() : TEXT("-"));
+			return true;
+		case FSegmentBlockedFt::EStep::WaitPath:
+		{
+			const FNavigationPath* Path = Follow->GetPath().Get();
+			if (!Bot->IsMoveActive() || Follow->GetStatus() != EPathFollowingStatus::Moving || !Path || !Path->IsValid())
+			{
+				if (T - Ft->GoalSetAt > PathLimitSeconds)
+				{
+					Ft->Check(false, *FString::Printf(TEXT("%s_path"), Case.Label), FString::Printf(TEXT("no active move after %.1f s"), PathLimitSeconds));
+					++Ft->CaseIndex;
+					return Ft->CaseIndex < UE_ARRAY_COUNT(Cases) && StartCase(Ft);
+				}
+				return true;
+			}
+			// Test harness: the pawn is put into the pocket at rest and the stale path stays (no PlaceAtStart: its
+			// StopMovementImmediately would abort the move through the nav movement interface).
+			const FVector From = Pawn->GetActorLocation();
+			Pawn->SetActorLocation(Case.Pocket + FVector(0.0, 0.0, Pawn->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 1.0), false, nullptr, ETeleportType::TeleportPhysics);
+			if (UVeloxMovementComponent* PawnMovement = Pawn->GetVeloxMovementComponent())
+			{
+				PawnMovement->Velocity = FVector::ZeroVector;
+			}
+			Ft->PlacedAt = T;
+			Ft->RepathsAtPlace = Bot->GetRepathCount();
+			Ft->OffMeshAtPlace = Bot->GetBotState().OffMeshRecoveries;
+			Ft->Step = FSegmentBlockedFt::EStep::Placed;
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s placed from=%s at=%s path_points=%d segment_target=%s"), Ft->Name, Case.Label, *From.ToCompactString(),
+				*Pawn->GetActorLocation().ToCompactString(), Path->GetPathPoints().Num(), *Follow->GetCurrentTargetLocation().ToCompactString());
+			return true;
+		}
+		case FSegmentBlockedFt::EStep::Placed:
+			break;
+		}
+
+		const double Elapsed = T - Ft->PlacedAt;
+		const FVector Location = Pawn->GetActorLocation();
+		if (Ft->RepathAt < 0.0 && Bot->GetRepathCount() > Ft->RepathsAtPlace)
+		{
+			Ft->RepathAt = Elapsed;
+			const FVeloxSegmentBlockInfo& Block = Follow->GetLastSegmentBlock();
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s repath_s=%.2f from=%s target=%s hit=%s remaining=%.0f"), Ft->Name, Case.Label, Elapsed,
+				*Block.From.ToCompactString(), *Block.Target.ToCompactString(), *Block.Hit.ToCompactString(), Block.RemainingCm);
+		}
+		if (Ft->LeaveAt < 0.0 && FVector::Dist2D(Location, Case.Pocket) >= LeaveDistanceCm)
+		{
+			Ft->LeaveAt = Elapsed;
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s leave_s=%.2f at=%s"), Ft->Name, Case.Label, Elapsed, *Location.ToCompactString());
+		}
+		if (Pawn != Ft->CasePawn.Get())
+		{
+			return EndCase(Ft, TEXT("respawned"));
+		}
+		const AVeloxPickup* Goal = Ft->Goal.Get();
+		const bool bArrived = Ft->bTaken || (Goal && FVector::Dist2D(Location, Goal->GetActorLocation()) <= ArriveRadiusCm) || Bot->GetBotState().bGoalArrived;
+		if (bArrived)
+		{
+			return EndCase(Ft, TEXT("arrived"));
+		}
+		if (Elapsed > ArriveLimitSeconds)
+		{
+			return EndCase(Ft, TEXT("timeout"));
+		}
+		return true;
+	}
+
+	TSharedPtr<FSegmentBlockedFt> GSegmentBlockedFt;
+
+	void Command(const TArray<FString>& Args, UWorld* World)
+	{
+		UVeloxBotSubsystem* Bots = World && World->GetNetMode() != NM_Client ? UVeloxBotSubsystem::Get(World) : nullptr;
+		UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(World);
+		if (!Bots || !Registry)
+		{
+			UE_LOG(LogVeloxBots, Warning, TEXT("velox.bots.FtSegmentBlocked: needs the authority world of L_ItemTest (-game)."));
+			return;
+		}
+		// A navigation test: the bot must not fight the local player.
+		if (IConsoleVariable* Peaceful = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.bots.Peaceful")))
+		{
+			Peaceful->Set(1, ECVF_SetByCode);
+		}
+		// The warmup's end resets the level (every pawn respawns); enter Live first so no reset lands inside a case.
+		if (GEngine)
+		{
+			GEngine->Exec(World, TEXT("velox.match.Phase Live"));
+		}
+		TSharedRef<FSegmentBlockedFt> Ft = MakeShared<FSegmentBlockedFt>();
+		Ft->Name = TEXT("FT_BotSegmentBlocked");
+		Ft->World = World;
+		Ft->bQuit = VeloxBotFt::ParseQuit(Args);
+		GSegmentBlockedFt = Ft;
+		TWeakPtr<FSegmentBlockedFt> Weak = Ft;
+		Ft->TakenHandle = Registry->OnPickupTaken.AddLambda([Weak](AVeloxPickup* Pickup, APlayerState* TakenBy)
+		{
+			const TSharedPtr<FSegmentBlockedFt> F = Weak.Pin();
+			const AVeloxBotController* B = F ? F->Bot.Get() : nullptr;
+			if (F && B && !F->bFinished && F->Step == FSegmentBlockedFt::EStep::Placed && TakenBy == B->PlayerState && Pickup == F->Goal.Get())
+			{
+				F->bTaken = true;
+			}
+		});
+		Bots->CallWhenNavReady([Weak]()
+		{
+			const TSharedPtr<FSegmentBlockedFt> F = Weak.Pin();
+			if (!F)
+			{
+				return;
+			}
+			if (!StartCase(F.ToSharedRef()))
+			{
+				F->Finish();
+				return;
+			}
+			F->TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+			{
+				const TSharedPtr<FSegmentBlockedFt> Inner = Weak.Pin();
+				if (!Inner || Inner->bFinished)
+				{
+					return false;
+				}
+				if (!Tick(Inner.ToSharedRef()))
+				{
+					Inner->Finish();
+					return false;
+				}
+				return true;
+			}));
+		});
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtSegmentBlocked"),
+		TEXT("velox.bots.FtSegmentBlocked [quit]: FT_BotSegmentBlocked on L_ItemTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a bot put into a cross pocket with a stale path repaths within 1 s (no stuck strike), leaves and reaches its item. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
+}
+
+#endif // !UE_BUILD_SHIPPING
+
 // ------------------------------------------------------------------------------------------- task 04c-c: FT_BotCombatEvents
 //   velox.bots.FtCombatEvents  (console, `UnrealEditor-Cmd Velox.uproject L_CombatTest -game -nullrhi -UseFixedTimeStep
 //                              -FPS=60 -ExecCmds="velox.bots.Seed 1, velox.bots.FtCombatEvents quit"`; ADR 0005 D15): the

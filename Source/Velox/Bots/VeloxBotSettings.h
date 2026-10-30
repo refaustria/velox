@@ -117,6 +117,18 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.1", Units = "s"))
 	float StuckSeconds = 2.f;
 
+	/**
+	 * ADR 0005 D35: while following a plain path segment the follower checks the straight line from the feet (projected
+	 * onto the nav mesh) to the segment target with a nav-mesh raycast at most this often; a blocked line lands the bot
+	 * and requests a repath (s).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.05", Units = "s"))
+	float SegmentBlockCheckSeconds = 0.25f;
+
+	/** D35: a nav raycast hit within this of the segment target is a grazed corner, not a blocked segment (cm). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float SegmentBlockClearanceCm = 100.f;
+
 	/** A bot tick above this controller time is logged once (microseconds). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Debug", Meta = (ClampMin = "0.0"))
 	float BudgetWarnMicroseconds = 600.f;
