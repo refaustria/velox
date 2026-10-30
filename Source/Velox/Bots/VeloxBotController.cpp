@@ -13,6 +13,8 @@
 #include "Components/CapsuleComponent.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxAmmoSet.h"
+#include "Combat/VeloxCombatSettings.h"
+#include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
@@ -27,6 +29,7 @@
 #include "NavigationData.h"
 #include "NavigationSystem.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "Weapons/VeloxGameplayAbility_Fire.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
 
@@ -756,6 +759,33 @@ bool AVeloxBotController::UpdateOffMeshRecovery(double T)
 	// is clear (a drop on the way is fine, a wall is not; thin because the walk slides along walls, so a narrow strip
 	// whose exit is not exactly on a candidate direction still counts). The nearest nav point regardless of walls is the
 	// last resort; the previous attempt's target is skipped.
+	if (State.OffMeshAttempts >= OffMeshMaxAttempts)
+	{
+		// D17: terminal escape. No teleport (ADR 0005 section 1): environment damage kills the bot, B28 respawns it.
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotOffMesh bot=%s at=%s attempt=%d result=giveup goal=%s"), *GetBotName(), *Feet.ToCompactString(), State.OffMeshAttempts,
+			LexToString(State.Goal.Type));
+		State.bOffMeshRecovery = false;
+		State.OffMeshAttempts = 0;
+		State.OffMeshSince = -1.0;
+		StopMove();
+		UVeloxAbilitySystemComponent* SelfASC = Character->GetVeloxAbilitySystemComponent();
+		const AVeloxPlayerState* SelfPS = GetPlayerState<AVeloxPlayerState>();
+		if (SelfASC && GetWorld() && GetWorld()->GetNetMode() != NM_Client)
+		{
+			FVeloxDamageSpecParams KillParams;
+			KillParams.Damage = UVeloxCombatSettings::GetOrDefault(SelfPS ? SelfPS->GetCombatSettings() : nullptr).EnvironmentKillDamage;
+			KillParams.DamageTag = VeloxGameplayTags::Damage_Environment;
+			KillParams.HitLocation = Character->GetActorLocation();
+			KillParams.bNoKnockback = true;
+			KillParams.Causer = const_cast<AVeloxCharacter*>(Character);
+			const FGameplayEffectSpecHandle Spec = VeloxEffects::MakeDamageSpec(SelfASC, KillParams);
+			if (Spec.IsValid())
+			{
+				SelfASC->ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), SelfASC);
+			}
+		}
+		return false;
+	}
 	++State.OffMeshAttempts;
 	State.OffMeshMoveUntil = T + OffMeshRecoverTimeoutSeconds;
 	State.bOffMeshRecovery = true;
@@ -964,6 +994,7 @@ void AVeloxBotController::Act(float DeltaSeconds)
 
 void AVeloxBotController::ApplyInput(const FVeloxBotInput& Input, float DeltaSeconds)
 {
+	State.bShotFiredThisTick = false;
 	AVeloxCharacter* Character = GetBotCharacter();
 	UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
 	if (!Character || !Movement)
@@ -1018,7 +1049,22 @@ void AVeloxBotController::ApplyInput(const FVeloxBotInput& Input, float DeltaSec
 		Input.bFireHeld ? ASC->AbilityInputTagPressed(VeloxGameplayTags::InputTag_Fire) : ASC->AbilityInputTagReleased(VeloxGameplayTags::InputTag_Fire);
 		State.bFireApplied = Input.bFireHeld;
 	}
+	// D14: a fire tick is one on which the fire ability's NextFireTime advanced (a shot was taken), not one with fire held.
+	const auto SumNextFireTime = [ASC]()
+	{
+		double Sum = 0.0;
+		for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+		{
+			if (const UVeloxGameplayAbility_Fire* Fire = Cast<UVeloxGameplayAbility_Fire>(Spec.GetPrimaryInstance()))
+			{
+				Sum += Fire->GetNextFireTime();
+			}
+		}
+		return Sum;
+	};
+	const double NextFireBefore = SumNextFireTime();
 	ASC->ProcessAbilityInput(DeltaSeconds, false);
+	State.bShotFiredThisTick = SumNextFireTime() != NextFireBefore;
 }
 
 void AVeloxBotController::UpdateControlRotation(float DeltaTime, bool bUpdatePawn)
@@ -1083,7 +1129,7 @@ void AVeloxBotController::Tick(float DeltaSeconds)
 	if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(GetWorld()))
 	{
 		// Section 13 / D10: VeloxBotBudget; every FindPathSync of this tick (own MoveTo, router query) is counted.
-		Bots->RecordBotTick(*this, Micros, TickPathQueries, State.Pending.bFireHeld);
+		Bots->RecordBotTick(*this, Micros, TickPathQueries, State.bShotFiredThisTick);
 	}
 	State.TickMicrosSum += Micros;
 	State.TickMicrosMax = FMath::Max(State.TickMicrosMax, Micros);

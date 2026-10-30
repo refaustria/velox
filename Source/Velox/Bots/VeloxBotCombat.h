@@ -340,6 +340,13 @@ struct FVeloxBotCombatState
 	double ProjectileDodgeAt = -1.0;
 	double ProjectileDodgeUntil = -1.0;
 	FVector2D ProjectileDodgeDir = FVector2D::ZeroVector;
+	/** The threat that armed the pending dodge (VeloxBotDodge log line, D15). */
+	FName ProjectileDodgeName;
+	float ProjectileDodgeTClosest = 0.f;
+	float ProjectileDodgeDist = 0.f;
+	/** D15 counters (debug line): reactions armed by damage, dodges started. */
+	int32 HeardCount = 0;
+	int32 DodgeCount = 0;
 
 	double NextWeaponChoiceTime = -1.0;
 	EVeloxFireVerdict LastVerdict = EVeloxFireVerdict::NoTarget;

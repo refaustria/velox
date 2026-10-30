@@ -561,9 +561,17 @@ void UVeloxBotSubsystem::LogBudget()
 	const int32 NumLive = NumBots();
 	if (NumLive > 0 && BudgetTicks > 0)
 	{
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotBudget bots=%d mean_us=%.1f max_us=%.1f max_path_us=%.1f max_fire_us=%.1f paths=%.1f/s traces=%.1f/s navrays=%.1f/s ticks=%lld over=%d window=%.1f s run_mean_us=%.1f run_max_us=%.1f"), NumLive,
+		// D15: hearing reactions and projectile dodges of the living bots' current lives (report-only in the soak).
+		int32 Heard = 0;
+		int32 Dodges = 0;
+		for (const AVeloxBotController* Bot : GetBots())
+		{
+			Heard += Bot->GetCombatState().HeardCount;
+			Dodges += Bot->GetCombatState().DodgeCount;
+		}
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotBudget bots=%d mean_us=%.1f max_us=%.1f max_path_us=%.1f max_fire_us=%.1f paths=%.1f/s traces=%.1f/s navrays=%.1f/s ticks=%lld over=%d window=%.1f s run_mean_us=%.1f run_max_us=%.1f heard=%d dodges=%d"), NumLive,
 			BudgetMicros / BudgetTicks, BudgetMaxMicros, BudgetMaxPathMicros, BudgetMaxFireMicros, BudgetPaths / Window, BudgetTraces / Window, BudgetNavRaycasts / Window, BudgetTicks, BudgetOver, Window, GetBudgetMeanMicros(),
-			TotalMaxMicros);
+			TotalMaxMicros, Heard, Dodges);
 	}
 	BudgetWindowStart = Now;
 	BudgetMicros = 0.0;
