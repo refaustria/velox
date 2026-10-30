@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 04g merged on `m4-bots` (it owns `Source/Velox/Tests/*` until then); ADR 0005 D39 (the rule and the values), D16 (`DuelMinItemScore` stays the trip floor), §7 (camp point, timing path), D13 (hysteresis), D36 (the `BotDuel` bands)
 
 ## Goal
@@ -35,4 +35,6 @@ A Hard dueller with the Mega or RA down and coming up within 20 s stands at it i
 Standard dev format. State the unit rows added, the `BotDuel` camp count / share / longest stretch, and whether the round was `CONTENDED` (D40) or clean. Flag for the lead: a camp stretch > 28 s (a camper that never converted to the timing path), any camp on a powerup with lead > 20 (the horizon not applied), `refused` > 0.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+- Implemented as specified (`CampOverScore` / `CampMaxLeadSeconds` in `FVeloxBotDecisionInput`, router config 7 / 20, `lead=` on the route line, `DuelCampItem` horizon). Unit rows D39 (1)-(7) plus the "both knobs 0" row in `Velox.Bots.Decision`; ci `build.sh` 96/96 green (Linux; Server/Client targets SKIPPED on the installed engine); `fts.sh` OK 7/7.
+- Row (4) deviation: Hard `GoalSwitchHysteresis` is 1.3, not 1.25, so the camping bar is 7 x 1.3 = 9.1. The row uses 8.0 (stays) and 9.2 (-> Item); a 9.0 item still stays camped. ADR D39's "8 < 7 x 1.25" text is off (the lead may fix it).
+- `BotDuel` round (port 7951, `CONTENDED` per D40: 21/26 windows over, other agents were running): 78 route lines, 3 `camp=1` (3.8 %, below the expected 5-20 %), all Celer, leads 12.4 / 8.1 / 3.4 (all <= 20), camp stretches ~2 s, ~1.1 s (-> Item Armor.Red), ~0.7 s (-> Fight); longest <= 28 s. refused 0, stuck 0, max_dwell_s 7, Mega takes 4 (within_3s=1). Strike/dwell bands pass this round. A clean idle-machine rerun is still needed for the set judgement.
