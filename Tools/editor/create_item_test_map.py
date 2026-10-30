@@ -17,7 +17,10 @@ Layout:
   edge (same geometry as pad A of L_MovementTest: apex 30 cm above the platform for the capsule),
   Yellow Armor on a 15 degree ramp (y 1200) with a platform at its top and three fill boxes (Ramp_Fill_1..3, X -400..172.7,
   Z 0 up to the ramp underside at their low-X end) sealing the void under the thin ramp (ADR 0005 D41: no walkable floor
-  under a walkable surface closer than the agent height),
+  under a walkable surface closer than the agent height); the 100 cm slot north of the ramp (Y 1400..1500) is filled flush
+  with the ramp/platform surface from X -432 to 572.7 (ADR 0005 D46: no mesh pocket the bots can be projected into),
+  a sealed D17 test room off the playable area (x 3800..5600, y 600..1700, own floor, walls and nav bounds; no door, no link;
+  two 100 x 1200 cm slots between 207 cm blocks and the walls, one with a 48 cm step along its first 200 cm) for velox.bots.FtOffMesh slot_* cases,
   50 m corridor along the north wall (x -2500..2500, 250 high wall at y 1500, markers every 500 cm), Haste at its start,
   Quad near the centre (500, 0), 8 PlayerStarts,
   M4 (ADR 0005 sections 4 and 14): a third platform in the south-east quadrant (350 cm high, 400 x 400, no pad,
@@ -85,6 +88,28 @@ RAMP_X0 = -600.0
 RAMP_Y = 1200.0
 RAMP_W = 400.0
 
+# ADR 0005 D46 item 2: the 100 cm slot north of the ramp (ramp north face Y 1400, corridor wall Y 1500) is filled flush with
+# the ramp/platform surface from X NSLOT_X0 (the ramp face is the 45 cm step height there) to the platform's east end.
+NSLOT_X0 = -432.0
+NSLOT_Y0 = RAMP_Y + RAMP_W / 2          # 1400
+NSLOT_W = 100.0
+NSLOT_FILL_TOPS = ((-432.0, -400.0, 24.0), (-400.0, -200.0, 33.0), (-200.0, 0.0, 86.0))   # (x0, x1, top); the last box ends at the ramp top
+
+# D46 item 2: sealed D17 test room off the playable area (arena x -3000..3000; nothing leads here). Inner floor
+# x 3800..5600, y 600..1700, 250 high walls. Two 100 x 1200 cm slots along X: slot A (y 1600..1700, wall on its north side,
+# a 207 cm block on its south side with a 48 cm step along its west 200 cm) is the D45 slot_centre / slot_tangent bed; slot B (y 600..700, wall on its south
+# side, a 207 cm block on its north side) is the old ramp_strip_wall bed. A 300 cm lane (y 1000..1300) joins the two meshed
+# end zones (x 3800..4100 and 5300..5600). Keep VeloxBotFunctionalTest.cpp (VeloxBotOffMeshFt::Room*) in step.
+ROOM_X0, ROOM_X1 = 3800.0, 5600.0
+ROOM_Y0, ROOM_Y1 = 600.0, 1700.0
+ROOM_WALL_H = 250.0
+ROOM_SLOT_X0, ROOM_SLOT_X1 = 4100.0, 5300.0
+ROOM_SLOT_W = 100.0
+ROOM_STEP_H = 48.0
+ROOM_STEP_LEN = 200.0
+ROOM_BLOCK_D = 300.0
+ROOM_TALL_H = 207.0
+
 CORRIDOR_X0 = -2500.0
 CORRIDOR_X1 = 2500.0
 CORRIDOR_WALL_Y = 1500.0
@@ -108,9 +133,9 @@ STARTS = [  # (label, x, y, yaw)
 ERRORS = []
 COUNTS = {}
 EXPECTED = {
-    "ground": 1, "wall": 4, "cross": 2, "platform": 7, "ramp": 1, "corridorwall": 1, "marker": 11,
+    "ground": 1, "wall": 4, "cross": 2, "platform": 7 + 4 + 1 + 3, "ramp": 2, "roomfloor": 1, "roomwall": 4, "corridorwall": 2, "marker": 11,
     "pickup": 23, "jumppad": 2, "targetpoint": 2, "playerstart": 8, "camera": 1, "light": 2,
-    "navbounds": 1,
+    "navbounds": 2,
     "navlink": 2 + 12 + 1,   # 2 JumpPad, 12 Drop (Mega 3, RA 3, rockets 4, ramp top 2), 1 RocketJump
 }
 MATS = {}
@@ -349,6 +374,19 @@ def build_ramp():
     # of each box = (X + 600) * tan(15 deg) - thick / cos(15 deg); residual clearance < 60 cm).
     for i, (x0, x1, top) in enumerate(((-400.0, -200.0, 33.0), (-200.0, 0.0, 86.0), (0.0, run + RAMP_X0, 140.0)), start=1):
         box("platform", f"Ramp_Fill_{i}", ((x0 + x1) / 2, RAMP_Y, top / 2), (x1 - x0, RAMP_W, top), "Platform", folder="YellowArmor")
+    # D46 item 2: the slot north of the ramp (Y 1400..1500) flush with the ramp and platform surface from NSLOT_X0 to the
+    # platform's east end: a second thin slab in the ramp's plane (same construction, Y 100 wide), fill boxes under it, and a
+    # solid block north of the platform. The surface then runs to the corridor wall and gets mesh with the ramp.
+    ny = NSLOT_Y0 + NSLOT_W / 2
+    zs = (NSLOT_X0 - RAMP_X0) * math.tan(rad)
+    nlen = (RAMP_X0 + run - NSLOT_X0) / math.cos(rad)
+    ncx = NSLOT_X0 + nlen / 2 * math.cos(rad) + thick / 2 * math.sin(rad)
+    ncz = zs + nlen / 2 * math.sin(rad) - thick / 2 * math.cos(rad)
+    box("ramp", "Ramp_NorthSlotSlab", (ncx, ny, ncz), (nlen, NSLOT_W, thick), "RampWalkable",
+        rot=unreal.Rotator(0, RAMP_DEG, 0), folder="YellowArmor")
+    for i, (x0, x1, top) in enumerate(NSLOT_FILL_TOPS + ((0.0, run + RAMP_X0, 140.0),), start=1):
+        box("platform", f"Ramp_NorthFill_{i}", ((x0 + x1) / 2, ny, top / 2), (x1 - x0, NSLOT_W, top), "Platform", folder="YellowArmor")
+    box("platform", "Ramp_NorthTopPlatform", (RAMP_X0 + run + 200, ny, rise / 2), (400, NSLOT_W, rise), "Platform", folder="YellowArmor")
     # Bots: east and south edges of the ramp top (north faces the corridor wall, west is the ramp).
     drop_links("RampTop", RAMP_X0 + run + 200, RAMP_Y, 400.0, rise, "SE")
     mid = RAMP_LEN / 2
@@ -356,10 +394,40 @@ def build_ramp():
     text("Label_YellowArmor", (RAMP_X0 - 100, RAMP_Y, 140), respawn_text("Armor.Yellow", da) + "\n15 deg ramp", 0, folder="YellowArmor")
 
 
+def build_d17_room():
+    """D46 item 2: sealed room with two 100 x 1200 cm slots for FtOffMesh slot_centre / slot_tangent / ramp_strip_wall."""
+    t = WALL_T
+    cx, cy = (ROOM_X0 + ROOM_X1) / 2, (ROOM_Y0 + ROOM_Y1) / 2
+    lx, ly = ROOM_X1 - ROOM_X0, ROOM_Y1 - ROOM_Y0
+    box("roomfloor", "Room_Floor", (cx, cy, -50), (lx + 2 * t + 200, ly + 2 * t + 200, 100), "Floor", folder="D17Room")
+    box("roomwall", "Room_Wall_N", (cx, ROOM_Y1 + t / 2, ROOM_WALL_H / 2), (lx + 2 * t, t, ROOM_WALL_H), "Wall", folder="D17Room")
+    box("roomwall", "Room_Wall_S", (cx, ROOM_Y0 - t / 2, ROOM_WALL_H / 2), (lx + 2 * t, t, ROOM_WALL_H), "Wall", folder="D17Room")
+    box("roomwall", "Room_Wall_E", (ROOM_X1 + t / 2, cy, ROOM_WALL_H / 2), (t, ly, ROOM_WALL_H), "Wall", folder="D17Room")
+    box("roomwall", "Room_Wall_W", (ROOM_X0 - t / 2, cy, ROOM_WALL_H / 2), (t, ly, ROOM_WALL_H), "Wall", folder="D17Room")
+    sx, sl = (ROOM_SLOT_X0 + ROOM_SLOT_X1) / 2, ROOM_SLOT_X1 - ROOM_SLOT_X0
+    # Slot A: the room's north wall on its north side; south of it a 207 cm block (like the ramp top) with a 48 cm step block
+    # (walkable top, just above MaxStepHeight 45) along its west ROOM_STEP_LEN cm, the reproduction of the old slot's face.
+    a_y1 = ROOM_Y1 - ROOM_SLOT_W
+    ay = a_y1 - ROOM_BLOCK_D / 2
+    box("platform", "Room_StepBlock", (ROOM_SLOT_X0 + ROOM_STEP_LEN / 2, ay, ROOM_STEP_H / 2), (ROOM_STEP_LEN, ROOM_BLOCK_D, ROOM_STEP_H), "Platform", folder="D17Room")
+    box("platform", "Room_TallBlockA", ((ROOM_SLOT_X0 + ROOM_STEP_LEN + ROOM_SLOT_X1) / 2, ay, ROOM_TALL_H / 2),
+        (sl - ROOM_STEP_LEN, ROOM_BLOCK_D, ROOM_TALL_H), "Platform", folder="D17Room")
+    # Slot B: 207 cm block (the ramp top's height) north of the slot, the room's south wall on the other side.
+    b_y0 = ROOM_Y0 + ROOM_SLOT_W
+    box("platform", "Room_TallBlockB", (sx, b_y0 + ROOM_BLOCK_D / 2, ROOM_TALL_H / 2), (sl, ROOM_BLOCK_D, ROOM_TALL_H), "Platform", folder="D17Room")
+    nav_bounds("NavMeshBounds_D17Room", (cx, cy, 300.0), (lx + 2 * t + 200, ly + 2 * t + 200, 1000.0))
+    text("Label_D17Room", (ROOM_X0 + 5, cy, 150), "D17 test room (FtOffMesh slots)\nnot reachable in play", 0, folder="D17Room")
+
+
 def build_corridor():
     length = CORRIDOR_X1 - CORRIDOR_X0
     box("corridorwall", "Corridor_Wall", ((CORRIDOR_X0 + CORRIDOR_X1) / 2, CORRIDOR_WALL_Y + WALL_T / 2, CORRIDOR_WALL_H / 2),
         (length, WALL_T, CORRIDOR_WALL_H), "Wall", folder="Corridor")
+    # D46 item 2: the filled slot puts the ramp-top surface (207 cm) 43 cm under the 250 cm wall top, a climbable step: Recast
+    # would mesh a sliver on the wall and a player could step onto it. A 15 cm cap over the filled stretch makes it 58 cm.
+    cap_x0, cap_x1 = NSLOT_X0, RAMP_X0 + RAMP_LEN * math.cos(math.radians(RAMP_DEG)) + 400.0
+    box("corridorwall", "Corridor_WallCap_RampTop", ((cap_x0 + cap_x1) / 2, CORRIDOR_WALL_Y + WALL_T / 2, CORRIDOR_WALL_H + 7.5),
+        (cap_x1 - cap_x0, WALL_T, 15.0), "Wall", folder="Corridor")
     inner_y = (CORRIDOR_WALL_Y + WALL_T + HALF_Y) / 2
     n = int(length / MARKER_STEP) + 1
     for i in range(n):
@@ -444,6 +512,7 @@ def build_map():
     build_grid()
     build_platforms()
     build_ramp()
+    build_d17_room()
     build_corridor()
     build_quad()
     build_starts_camera_lights()

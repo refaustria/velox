@@ -1215,14 +1215,27 @@ namespace VeloxBotOffMeshFt
 		bool bSlotChecks = false;
 	};
 
+	/**
+	 * D46 item 2: the sealed D17 room of L_ItemTest (create_item_test_map.py ROOM_*): slots X 4100..5300, slot A Y 1600..1700
+	 * (north wall; 207 cm block south with a 48 cm step along X 4100..4300), slot B Y 600..700 (south wall, 207 cm block north), lane Y 1000..1300 between.
+	 */
+	constexpr double RoomSlotCentreX = 4700.0;
+	constexpr double RoomSlotAY1 = 1700.0;
+	constexpr double RoomSlotBY0 = 600.0;
+	/** Lane centre: both slot ends are meshed end zones joined by the lane. */
+	const FVector RoomGoal(4700.0, 1150.0, 0.0);
+
 	/** L_ItemTest (Tools/editor/create_item_test_map.py): corridor wall y 1500..1600, platforms y 1000..1400, cross 200 high. */
 	const FCase Cases[] = {
 		{ TEXT("ra_strip"), FVector(2100.0, 1450.0, 0.0), FVector(2100.0, 500.0, 0.0), true },
 		{ TEXT("mega_strip"), FVector(-1500.0, 1450.0, 0.0), FVector(-1500.0, 500.0, 0.0), true },
-		{ TEXT("ramp_strip_wall"), FVector(364.0, 1462.0, 0.0), FVector(400.0, 600.0, 0.0), true },
-		// D45: the slot's worst point (east exit ~530 cm, west ~525 cm), with the ring search and without it.
-		{ TEXT("slot_centre"), FVector(100.0, 1462.5, 0.0), FVector(400.0, 600.0, 0.0), true, false, false, true },
-		{ TEXT("slot_tangent"), FVector(100.0, 1462.5, 0.0), FVector(400.0, 600.0, 0.0), true, false, true, true },
+		// D46 item 2: sealed D17 room (create_item_test_map.py build_d17_room). ramp_strip_wall moved with the slots: slot B
+		// (207 cm block on its north side, the room wall on its south side), start 37.5 cm from the wall as before.
+		{ TEXT("ramp_strip_wall"), FVector(RoomSlotCentreX, RoomSlotBY0 + 37.5, 0.0), RoomGoal, true },
+		// D45: the slot's worst point (exits ~600 cm away along X), with the ring search and without it. Slot A: 207 cm
+		// block on its south side (48 cm step along its west 200 cm), the room wall on its north side.
+		{ TEXT("slot_centre"), FVector(RoomSlotCentreX, RoomSlotAY1 - 37.5, 0.0), RoomGoal, true, false, false, true },
+		{ TEXT("slot_tangent"), FVector(RoomSlotCentreX, RoomSlotAY1 - 37.5, 0.0), RoomGoal, true, false, true, true },
 		{ TEXT("cross_top"), FVector(0.0, 200.0, 200.0), FVector(800.0, 600.0, 0.0), true },
 		// Open floor west of the cross, clear of the grid (y -1700), the Mega pad and PlayerStart_5 (-1200, -900); the
 		// goal is the Armor Shard on the grid (-2250, -1700).
@@ -1242,8 +1255,8 @@ namespace VeloxBotOffMeshFt
 	constexpr double SlabNavLimitSeconds = 15.0;
 	/** Part A's ramp probes (D41), logged with both extents for the record. */
 	const FVector RampProbes[] = { FVector(10.0, 1190.0, 10.0), FVector(135.0, 1198.0, 10.0), FVector(-300.0, 1200.0, 10.0) };
-	/** D45 slot exit: the recovery target lies south of this Y (no mesh north of it but the corridor behind the wall)... */
-	constexpr double SlotExitMaxY = 1450.0;
+	/** D45 slot exit (room-relative since D46): the recovery target lies on or south of slot A's centre line (the open room)... */
+	constexpr double SlotExitMaxY = 1650.0;
 	/** ...and at least this far along X from the start (every slot exit is ring-600 along the wall). */
 	constexpr double SlotExitMinAlongCm = 500.0;
 	constexpr double SettleSeconds = 0.5;
