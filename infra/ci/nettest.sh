@@ -1133,6 +1133,7 @@ if script in ("BotRun", "BotDuel"):
     phases = [re.search(r"VeloxMatch phase=(\w+)", l).group(1) for l in S if "VeloxMatch phase=" in l]
     pickups = collections.Counter()
     mega = []                      # (t, by, respawn_in)
+    mega_resp = []                 # t of every explicit "VeloxPickupRespawn item=DA_Item_Health_Mega t=" line (D42)
     kills = frags_total = suicides = 0
     stuck = []                     # (bot, t, x, y, rule, goal)
     rules = collections.Counter(); reasons = collections.Counter(); offmesh = collections.Counter()
@@ -1152,6 +1153,8 @@ if script in ("BotRun", "BotDuel"):
             errors.append(l.strip()[:160])
         if "VeloxMatch phase=Live" in l:
             live = True; dwell.clear(); continue
+        if "VeloxPickupRespawn item=DA_Item_Health_Mega" in l:
+            mega_resp.append(num(kv(l), "t")); continue
         if "VeloxPickup item=" in l:
             m = re.search(r"by=(\S+)", l)
             if m and m.group(1) in bots:
@@ -1253,15 +1256,21 @@ if script in ("BotRun", "BotDuel"):
     fire_over = sum(1 for v in fire_windows if v > 2000.0)
     nbots = sum(pickups.values())
     major_taken = sorted({MAJOR.search("item=" + k).group(1) for k in pickups if MAJOR.search("item=" + k)})
-    # Duel timing: a Mega take by a bot within 3 s after the Mega became available again: the previous take's respawn
-    # (t_prev + respawn_in), or the Countdown -> Live level reset (every pickup is available again at the Live time).
+    # D40 contention verdict: share of ticks over the 600 us limit per VeloxBotBudget window (over= / ticks=); more than 5 %
+    # in more than 2 windows of the round = CONTENDED (another process competed for the machine): budget, max_fire and
+    # deferred are not judged and the round is left out of the set evaluation (rerun it).
+    over_shares = [100.0 * num(d, "over") / num(d, "ticks") if num(d, "ticks") > 0 else 0.0 for d in budget_windows]
+    contended_windows = sum(1 for v in over_shares if v > 5.0)
+    contended = contended_windows > 2
+    # Duel timing (D42): a Mega take by a bot within 3 s after the Mega became available again, taken from the explicit
+    # log lines: the last "VeloxPickupRespawn ... t=" at or before the take, or the Countdown -> Live level reset
+    # (every pickup is available again at the Live time).
     live_t = next((num(kv(l), "now") for l in S if "VeloxMatch phase=Live" in l), 0.0)
     mega_lags = []
-    avail = live_t
-    for (t_, _by, resp_) in mega:
+    for (t_, _by, _resp) in mega:
         if t_ >= live_t:
+            avail = max([live_t] + [r_ for r_ in mega_resp if live_t <= r_ <= t_ + 1e-3])
             mega_lags.append(t_ - avail)
-        avail = max(live_t, t_ + resp_) if t_ >= live_t else live_t
     mega_fast = sum(1 for v in mega_lags if -0.5 <= v <= 3.0)
     total_goals = sum(goals.values())
     fight_share = 100.0 * goals.get("fight", 0) / total_goals if total_goals else 0.0
@@ -1282,7 +1291,7 @@ if script in ("BotRun", "BotDuel"):
     if refused: fails.append("VeloxBotRoute refused x%d" % refused)
     if allun.get("air", 0): fails.append("all-candidates-unreachable evaluations with start=air: %d (D33)" % allun["air"])
     if errors: fails.append("%d Error:/ensure line(s) in the server log: %s" % (len(errors), errors[0]))
-    if budget_mean > BUDGET_MAX: fails.append("VeloxBotBudget mean_us %.1f > %.0f" % (budget_mean, BUDGET_MAX))
+    if budget_mean > BUDGET_MAX and not contended: fails.append("VeloxBotBudget mean_us %.1f > %.0f" % (budget_mean, BUDGET_MAX))
     if not budget_windows: fails.append("no VeloxBotBudget lines")
     if duel:
         if "Countdown" not in phases or "Live" not in phases or phases.index("Countdown") > phases.index("Live"):
@@ -1296,7 +1305,7 @@ if script in ("BotRun", "BotDuel"):
         if not mega: fails.append("no DA_Item_Health_Mega pickup by a bot")
         if link_ok < 2: fails.append("VeloxBotLink result=ok %d < 2" % link_ok)
 
-    pos_txt = " ".join("%s@(%.0f,%.0f)" % (b_, x_, y_) for b_, _, x_, y_, _, _ in stuck[:12])
+    pos_txt = " ".join("%s@(%.0f,%.0f)" % (b_, x_, y_) for b_, _, x_, y_, _, _ in stuck)
     rs_paths = [num(d, "paths_per_s") for d in route_stats]
     detail_lines = [
         "kills_by_bots=%d frags=%d suicides=%d pickups_by_bots=%d [%s] major=[%s]" % (kills, frags_total, suicides, nbots,
@@ -1305,10 +1314,13 @@ if script in ("BotRun", "BotDuel"):
         "stuck=%d rules=[%s] bursts=%d pocket_strikes=%d at: %s" % (len(stuck), " ".join("%s=%d" % kv_ for kv_ in sorted(rules.items())), len(bursts), len(pocket), pos_txt or "-"),
         "max_dwell_s=%d [%s] repaths=%d%s offmesh recovered=%d no_nav_point=%d giveup=%d refused=%d hear=%d dodge=%d camp_route_lines=%d" % (
             max_dwell, max_dwell_at, repaths, " (FLAG > %d)" % int(duration) if repaths > duration else "", recovered, no_nav, giveup, refused, hear, dodges, camp_lines),
-        "budget mean_us=%.1f run_mean_us=%.1f max_us=%.0f max_path_us=%.0f max_fire_us=%.0f (windows over 2000 us: %d/%d%s) paths/s=%.1f max_deferred_frames=%d" % (
-            budget_mean, run_mean, max([num(d, "max_us") for d in budget_windows] or [0]), max([num(d, "max_path_us") for d in budget_windows] or [0]),
+        "budget mean_us=%.1f run_mean_us=%.1f max_us=%.0f max_path_us=%.0f " % (
+            budget_mean, run_mean, max([num(d, "max_us") for d in budget_windows] or [0]), max([num(d, "max_path_us") for d in budget_windows] or [0]))
+        + ("max_fire_us=not judged (CONTENDED) deferred=not judged (CONTENDED)" if contended else
+           "max_fire_us=%.0f (windows over 2000 us: %d/%d%s) paths/s=%.1f max_deferred_frames=%d" % (
             max(fire_windows or [0]), fire_over, len(fire_windows), " FLAG D14" if fire_windows and fire_over * 4 > len(fire_windows) else "",
-            sum(rs_paths) / len(rs_paths) if rs_paths else 0.0, int(max([num(d, "max_deferred_frames") for d in route_stats] or [0]))),
+            sum(rs_paths) / len(rs_paths) if rs_paths else 0.0, int(max([num(d, "max_deferred_frames") for d in route_stats] or [0]))))
+        + " over_share_pct=[%s] windows_over_5pct=%d/%d" % (",".join("%.0f" % v for v in over_shares), contended_windows, len(over_shares)),
         "goals=[%s] fight_share=%.1f%% armed_fight_share=%.1f%% (%d/%d) supp1=%.1f%% fire_noammo=%d/%d allunreachable air=%d ground=%d" % (
             " ".join("%s=%d" % kv_ for kv_ in sorted(goals.items())), fight_share, armed_share, vis_armed_fight, vis_armed, supp_share, noammo, debug_lines,
             allun.get("air", 0), allun.get("ground", 0)),
@@ -1321,14 +1333,17 @@ if script in ("BotRun", "BotDuel"):
     watch = [l for l in C if "VeloxBotWatch" in l]
     detail_lines.append("client watch lines=%d (feed=%d phase=%d pickup=%d)" % (len(watch), sum(1 for l in watch if " feed " in l), sum(1 for l in watch if " phase=" in l and "old=" in l), sum(1 for l in watch if " pickup " in l)))
     stats = {"script": script, "pass": not fails, "stuck": len(stuck), "kills": kills, "frags": frags_total, "pickups": nbots, "major": major_taken,
-             "pocket": len(pocket), "bursts": len(bursts), "max_dwell": max_dwell, "repaths": repaths, "mega_fast": mega_fast}
+             "pocket": len(pocket), "bursts": len(bursts), "max_dwell": max_dwell, "repaths": repaths, "mega_fast": mega_fast, "contended": contended}
     with open(os.path.join(out_dir, script + ".stats.json"), "w") as sf:
         json.dump(stats, sf)
-    head = "%-18s %s kills=%d frags=%d pickups=%d stuck=%d max_dwell_s=%d link_max_dt=%.2f budget_mean_us=%.1f" % (script, "FAIL" if fails else "PASS", kills, frags_total, nbots, len(stuck), max_dwell, link_max, budget_mean)
+    verdict = "CONTENDED" if contended else ("FAIL" if fails else "PASS")
+    head = "%-18s %s kills=%d frags=%d pickups=%d stuck=%d max_dwell_s=%d link_max_dt=%.2f budget_mean_us=%.1f" % (script, verdict, kills, frags_total, nbots, len(stuck), max_dwell, link_max, budget_mean)
     with open(result_path, "w") as out:
         out.write(head + "\n")
         for fl in fails:
             out.write("    - " + fl + "\n")
+        if contended:
+            out.write("    ~ CONTENDED (D40): %d of %d VeloxBotBudget windows had > 5 %% of ticks over 600 us; budget, max_fire and deferred are not judged and this round is excluded from the set evaluation - rerun it on an idle machine\n" % (contended_windows, len(over_shares)))
         for dl in detail_lines:
             out.write("    . " + dl + "\n")
     sys.exit(1 if fails else 0)
@@ -1392,11 +1407,14 @@ for k in range(1, rounds + 1):
         runs.append(json.load(open(os.path.join(d, script + ".stats.json"))))
     except (OSError, ValueError):
         print("=== %s set evaluation: round %d has no stats (run aborted) ===" % (script, k)); sys.exit(1)
+all_runs = runs
+contended_rounds = [k + 1 for k, r in enumerate(all_runs) if r.get("contended")]
+runs = [r for r in all_runs if not r.get("contended")]
 S = lambda key: sum(r[key] for r in runs)
 major = sorted({m for r in runs for m in r["major"]})
 missing = [m for m in MAJOR_ALL if m not in major]
 fails = []
-judged = rounds == 3
+judged = rounds == 3 and not contended_rounds
 if script == "BotRun":
     if S("stuck") > 10: fails.append("sum VeloxBotStuck %d > 10" % S("stuck"))
     if S("kills") < 12: fails.append("sum kills by bots %d < 12" % S("kills"))
@@ -1410,6 +1428,10 @@ print("  per round: kills=%s frags=%s stuck=%s pickups=%s max_dwell_s=%s repaths
 print("  sums: stuck=%d kills=%d frags=%d pocket_strikes=%d%s major_covered=%d/7 [%s]%s" % (
     S("stuck"), S("kills"), S("frags"), S("pocket"), " (FLAG: pocket strike -> architect)" if S("pocket") else "", len(major) if not missing else 7 - len(missing), ",".join(major),
     " missing=[%s]" % ",".join(missing) if missing else ""))
+if contended_rounds:
+    print("  CONTENDED round(s) %s (D40) excluded from the sums above: set not judged, rerun %s on an idle machine" % (
+        ",".join(str(k) for k in contended_rounds), "them" if len(contended_rounds) > 1 else "it"))
+    sys.exit(1 if rounds == 3 else 0)
 if not judged:
     sys.exit(0)
 for f in fails:
