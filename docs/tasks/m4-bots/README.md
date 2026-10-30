@@ -19,6 +19,7 @@ Spec: `docs/adr/0005-bots.md` (ADR 0005; implementation notes list the tasks). T
 | 04f | [link-timeout-hop-gate-fight-stall](04f-link-timeout-hop-gate-fight-stall.md) | dev-hard | 2-3 h | 04c-b, 04d merged; ADR 0005 D27-D34 | Wave 3.7 (parallel with 04e, before 07) | done (its bands superseded by D36; open points ruled in D37) |
 | 04g | [segment-blocked-repath](04g-segment-blocked-repath.md) | dev-hard | 2 h | 04e, 04f merged; ADR 0005 D35-D37 | Wave 3.8 (parallel with 07's tooling; before 07's acceptance rounds) | todo |
 | 07 | [bot-soak-and-playtest](07-bot-soak-and-playtest.md) | dev | 2 h | 04c-b, 04c-c, 04d, 04e, 04f; acceptance rounds on a head with 04g (D38) | Wave 4 | todo (may start now, D38) |
+| 07b | [runner-host-classifier](07b-runner-host-classifier.md) | dev | 2 h | 07 tooling, ADR 0005 D46 | Wave 4 (before the acceptance rerun) | done |
 
 ## Wave plan (from ADR 0005)
 - **Wave 1:** 01 || 02 || 03

@@ -115,7 +115,7 @@ public:
 	 * paths=/s traces=/s` line every UVeloxBotCombatSettings::BudgetLogIntervalSeconds. max_us and the warning exclude
 	 * path-query ticks (D10; max_path_us reports them) and ticks that held the fire input (the fire ability's server
 	 * path, shared with players and logged per shot; max_fire_us reports them); a tick above UVeloxBotSettings::BudgetWarnMicroseconds is counted
-	 * (`over=`) and warned about at most once per interval.
+	 * (`over=`) and warned about at most once per interval. `stalls=` counts ticks of any kind above 10 ms and `frames=` the server frames of the window (D46).
 	 */
 	void RecordBotTick(const AVeloxBotController& Bot, double Micros, int32 PathQueries, bool bFireTick = false);
 	void NoteTraces(int32 Count) { BudgetTraces += Count; }
@@ -172,6 +172,10 @@ private:
 	int32 BudgetTraces = 0;
 	int32 BudgetNavRaycasts = 0;
 	int32 BudgetOver = 0;
+	/** Ticks of any kind above 10 ms in this window (D46(a)). */
+	int32 BudgetStalls = 0;
+	/** GFrameCounter at the window start; the `frames=` field is the delta (D46(a)). */
+	uint64 BudgetFrameStart = 0;
 	bool bBudgetWarned = false;
 	double TotalMicros = 0.0;
 	double TotalMaxMicros = 0.0;
