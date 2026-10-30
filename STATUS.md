@@ -1,6 +1,6 @@
 # Velox Status
 
-_Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main` (M0 + M1 code merged); M1 closes with the human playtest._
+_Last updated: 2026-10-30 afternoon (project lead). Branches: `main` = M0–M3; `m4-bots` = M4 code complete, waiting for the acceptance run (question 27)._
 
 ## Done
 - **First Mac compile (2026-10-30)**: `infra/ci/build-mac.sh` on the Intel Mac, UE 5.8.4 at `/Users/cappa/unreal/UE_5.8`. `VeloxEditor` Mac Development: Succeeded (116 s). `Velox` Mac Development: Succeeded (124 s). Automation run did NOT complete on the first try: `UnrealEditor-Cmd` crashed (SIGSEGV) in `UVeloxWeaponTable::FindBySlot` from `Velox.Combat.HitscanDummy` after 7 tests (5 pass, 2 fail), cause was environment (git-lfs missing, see below), not code. Logs: `Saved/CI/20261030-001732-61933/`. **Update (same day)**: git-lfs 3.8.1 installed from the official prebuilt darwin-amd64 release into `~/.local/bin` (sha256 verified; `brew install` would have compiled llvm/rust from source on Intel, so it was aborted; coreutils still NOT installed, so the test run is unguarded by `timeout`). `git lfs install` + `git lfs pull` fetched all 44 LFS files (596 KB total); no stubs remain. Rerun of `infra/ci/build-mac.sh`: `VeloxEditor` and `Velox` Mac Development both Succeeded, automation suite ran to completion: **53 tests, 0 not successful**, exit 0. Logs: `Saved/CI/20261030-005010-92618/`. This confirms headless compile + automation tests work on the Mac, but see the Blocked entry below — actual rendering does not.
@@ -40,7 +40,7 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M4 Bots on `m4-bots` (2026-10-30).** 01–06 and 04b merged (95 tests, `fts.sh` OK 5/5 ×3). FFA corner stuck fixed (AgentRadius 45 + off-mesh recovery); Duel without stranding. Final architect review (`docs/reviews/m4-05-06-04b-review.md`, ADR 0005 D13–D19): merge-ready after F1 (fight vs item balance: bots fight too much, pickups dropped to 14–21 per run). Running in parallel: **04c-a** fight balance (dev-hard, must-fix), **04c-b** hop headroom + progress stuck rule (dev-hard), **04c-c** hear/dodge FT, fire-tick signal, off-mesh giveup (dev). Then M4-07 soak + playtest checklist → merge `m4-bots` → `main`.
+- **M4 Bots on `m4-bots` (2026-10-30, head 190280b): code complete, acceptance pending.** Merged since the 04b review: 04c-a/b/c, 04d, 04e, 04f, 04g (segment-blocked repath), 04h (Duel camp gate), 04i A+B (ramp void, shared on-mesh extent, swept off-mesh fallback), 04j (north slot sealed, D17 test room), 07 + 07b tooling (host-load sidecar, clean/contended/cost window classifier, `--reeval`). ADR 0005 now D13–D46. Build 96 tests green, `fts.sh` OK 7/7. Ten-run FFA set (D36) after 04i: Σ strikes 3, bursts 0, pocket 0, max dwell 5 s, Σ kills 126, no_nav_point 0. First acceptance attempt (6cda1fd) had no verdict because the host was loaded; re-evaluated with 07b: BotRun set PASS (cost 101 µs mean on clean windows), BotDuel behaviour PASS but cost not judgeable (≈ 82 µs on its clean windows); the one Duel correctness failure (north slot) is fixed by 04j. **Remaining: the acceptance run on a quiet host (BotRun ×3, BotDuel ×3, default list once), then ROADMAP tick and merge `m4-bots` → `main`.** Deferred (D44/D46): follower pre-segment rule for far path starts (dev-hard), nav-coverage lint before M5.
 - **M3 merged to `main` (2026-10-30).** Idle soak 55/55, HasteRun 10/10. Deferred: M3-11 Gauntlet.
 - **Human playtests M1/M2/M3 BLOCKED (2026-10-30)**: UE 5.8 compiles and the automation suite is green on the Intel Mac, but UE 5.8 cannot render on Intel Macs (question 26). Checklists in `docs/playtests/`.
 
@@ -50,11 +50,13 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - (watch item) one 5.14 cm StrafeRun correction in a post-M1-merge soak round (`Saved/CI/20261025-022110-2542422/nettest/StrafeRun-*`); 10 follow-up rounds clean.
 
 ## Next
-- 04c-a/b/c → M4-07 bot soak (`fts.sh` 6/6 ×3, BotRun/BotDuel acceptance in the task file) and Mac checklist → merge M4 to `main`.
+- M4-07 acceptance on a quiet host (question 27) → merge `m4-bots` → `main`; M4 human playtest on the Apple Silicon Mac (`docs/playtests/m4-bots-checklist.md`).
 - Then M5 (first real map + characters): architect ADR first.
 - Disk hygiene: keep ≥ 15 GB free (standing OK for caches/build artefacts).
 
 ## Open questions for the human
+27. **Quiet host window for the M4 acceptance (≈ 45 min).** The VM runs other workloads (vitest, other Claude sessions, uvicorn, stockfish; load 4–25, 4 GB swap full). The bot-cost bands can only be judged on an idle host. Tell me when I can have the VM for ~45 min, or whether we accept the cost bands on the union of clean windows from the existing runs (D46 fallback). Also an option: let the test server run with `chrt -r 10` (needs root).
+28. **Duel camping frequency (feel, decide at the Mac playtest):** Hard duellers camp a respawning Mega/RA in only ~1–8 % of goal changes (they mostly have a better item to fetch). More camping = raise `DuelCampOverScore` (now 7).
 26. **Playtest machine — decided 2026-10-30: Apple Silicon Mac.** The Intel MacBookPro16,2 cannot render UE 5.8 (Intel Metal support removed); it stays a headless compile/test host. Waiting for the Apple Silicon Mac. Setup there: macOS Sonoma 14.5+, Xcode 26.0 or 26.1.1 (not 26.4), UE 5.8 via the Epic Launcher, git-lfs, then `infra/ci/build-mac.sh` (Host arch → arm64, no flags needed) and the checklists in `docs/playtests/`. Tell me when it is ready.
 25. **Map convention for M5 (ADR 0005 D17):** bots need walkable widths ≥ 120 cm (nav agent radius 45). Confirm, or we lower the radius toward 40 for M5 maps with narrow ledges.
 24. **Easy bots "spray"?** Default: no preset sprays (same direct-hit radius for all). Decide after the Mac playtest.
