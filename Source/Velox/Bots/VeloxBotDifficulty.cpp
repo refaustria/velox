@@ -9,7 +9,7 @@
 #if !UE_BUILD_SHIPPING
 // Field table: every overridable POD field once; cvars velox.bots.<Field> are generated from it (pattern of velox.move.*).
 #define VELOX_BOT_FLOAT_FIELDS(X) \
-	X(ReactionSeconds) X(AimErrorDeg) X(ErrorCorrelationSeconds) X(TrackingSmoothingSeconds) X(MaxTurnRateDegPerSec) \
+	X(ReactionSeconds) X(ReactionJitter) X(AimErrorDeg) X(ErrorCorrelationSeconds) X(TrackingSmoothingSeconds) X(MaxTurnRateDegPerSec) \
 	X(LeadScale) X(FireConeDeg) X(PerceptionFovDeg) X(PerceptionRangeCm) X(PerceptionIntervalSeconds) X(EnemyMemorySeconds) \
 	X(EstimatedTravelSpeed) X(ItemTimingSkill) X(MaxWaitSeconds) X(GoalReevaluateSeconds) X(GoalSwitchHysteresis) \
 	X(FightItemBias) X(StrafeAmplitude) X(StrafeFlipSecondsMin) X(StrafeFlipSecondsMax) X(DodgeJumpChancePerSec) \
@@ -55,6 +55,7 @@ FVeloxBotDifficultyParams UVeloxBotDifficulty::BuildBaseParams() const
 {
 	FVeloxBotDifficultyParams P;
 	P.ReactionSeconds = ReactionSeconds;
+	P.ReactionJitter = ReactionJitter;
 	P.AimErrorDeg = AimErrorDeg;
 	P.ErrorCorrelationSeconds = ErrorCorrelationSeconds;
 	P.TrackingSmoothingSeconds = TrackingSmoothingSeconds;

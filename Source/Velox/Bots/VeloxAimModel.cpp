@@ -138,6 +138,7 @@ FVeloxAimParams FVeloxAimModel::MakeParams(const FVeloxBotDifficultyParams& Diff
 {
 	FVeloxAimParams P;
 	P.ReactionSeconds = Difficulty.ReactionSeconds;
+	P.ReactionJitter = Difficulty.ReactionJitter;
 	P.AimErrorDeg = Difficulty.AimErrorDeg;
 	P.ErrorCorrelationSeconds = Difficulty.ErrorCorrelationSeconds;
 	P.TrackingSmoothingSeconds = Difficulty.TrackingSmoothingSeconds;

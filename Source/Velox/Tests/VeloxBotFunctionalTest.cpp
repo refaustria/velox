@@ -28,6 +28,7 @@
 #include "Bots/VeloxBotDifficulty.h"
 #include "Bots/VeloxBotLog.h"
 #include "Bots/VeloxBotPathFollowingComponent.h"
+#include "Bots/VeloxBotSettings.h"
 #include "Bots/VeloxBotSubsystem.h"
 #include "Bots/VeloxNavLink.h"
 #include "Character/VeloxCharacter.h"
@@ -126,6 +127,34 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		SlowSince = 5.0;
 		TestFalse(TEXT("not tracking (on a link / arrived) never counts"), VeloxBotRules::UpdateStuck(SlowSince, false, 0.f, 50.f, 100.0, 2.f));
 		TestEqual(TEXT("not tracking resets the clock"), SlowSince, -1.0);
+	}
+
+	// Task 04b (ADR 0005 D4): fight score and maneuver constants are settings; the loaded values (DefaultGame.ini) equal
+	// the ADR defaults, i.e. behaviour did not change.
+	{
+		const UVeloxBotSettings& S = UVeloxBotSettings::Get();
+		TestEqual(TEXT("FightBaseScore 20"), S.FightBaseScore, 20.f);
+		TestEqual(TEXT("FightFullStrength 100"), S.FightFullStrength, 100.f);
+		TestEqual(TEXT("FightWeakWeaponScale 0.5"), S.FightWeakWeaponScale, 0.5f);
+		TestEqual(TEXT("LinkStartAcceptanceCm 30"), S.LinkStartAcceptanceCm, 30.f);
+		TestEqual(TEXT("JumpFastSpeedFraction 0.9"), S.JumpFastSpeedFraction, 0.9f);
+		TestEqual(TEXT("JumpFastRunUpCm 600"), S.JumpFastRunUpCm, 600.f);
+		TestEqual(TEXT("JumpFastRetries 1"), S.JumpFastRetries, 1);
+		TestEqual(TEXT("RocketJumpImpulseTimeoutSeconds 0.3"), S.RocketJumpImpulseTimeoutSeconds, 0.3f);
+	}
+
+	// Off-mesh recovery (task 04b): grace 1 s off the mesh, a running recovery move is not replaced before its timeout.
+	{
+		double OffSince = -1.0;
+		TestFalse(TEXT("off mesh: first check starts the clock"), VeloxBotRules::UpdateOffMesh(OffSince, false, false, 0.0, 10.0, 1.f));
+		TestEqual(TEXT("off mesh: clock started"), OffSince, 10.0);
+		TestFalse(TEXT("off mesh 0.5 s: inside the grace"), VeloxBotRules::UpdateOffMesh(OffSince, false, false, 0.0, 10.5, 1.f));
+		TestTrue(TEXT("off mesh 1 s: recovery starts"), VeloxBotRules::UpdateOffMesh(OffSince, false, false, 0.0, 11.0, 1.f));
+		TestFalse(TEXT("recovery move running: not replaced"), VeloxBotRules::UpdateOffMesh(OffSince, false, true, 15.0, 12.0, 1.f));
+		TestTrue(TEXT("recovery move timed out: new attempt"), VeloxBotRules::UpdateOffMesh(OffSince, false, true, 15.0, 15.0, 1.f));
+		TestTrue(TEXT("recovery move ended off the mesh: new attempt"), VeloxBotRules::UpdateOffMesh(OffSince, false, false, 15.0, 12.0, 1.f));
+		TestFalse(TEXT("back on the mesh: no recovery"), VeloxBotRules::UpdateOffMesh(OffSince, true, true, 15.0, 12.5, 1.f));
+		TestEqual(TEXT("back on the mesh: clock reset"), OffSince, -1.0);
 	}
 
 	// Names.
@@ -961,6 +990,215 @@ namespace VeloxBotRoutingFt
 	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtItemRouting"),
 		TEXT("velox.bots.FtItemRouting [quit]: FT_BotItemRouting on L_ItemTest (-game -nullrhi -UseFixedTimeStep -FPS=60): rocket-jump route chosen with _Full, "
 			 "dropped with _Hop under MinHealthForRocketJump, one routing path query per frame. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
+}
+
+#endif // !UE_BUILD_SHIPPING
+
+// ------------------------------------------------------------------------------------------------ task 04b: FT_BotOffMesh
+//   velox.bots.FtOffMesh  (console, `UnrealEditor-Cmd Velox.uproject L_ItemTest -game -nullrhi -UseFixedTimeStep -FPS=60
+//                         -ExecCmds="velox.bots.Seed 1, velox.bots.FtOffMesh quit"`): a Medium bot (peaceful) is put where
+//                         the nav mesh does not reach: the 100 cm strips between the corridor wall and the north sides of
+//                         the RA, Mega and ramp-top platforms (closed to the south and north, open to the east and west;
+//                         the ramp-top case touches the wall), and the top
+//                         of the central cross cover (200 cm up, too narrow for the agent radius). Each case has a point
+//                         goal south of it. Checks per case: a `VeloxBotOffMesh ... recovered` (the controller's recovery
+//                         count rises) within 10 s and the goal reached within 25 s. The placement is the test harness;
+//                         the bot only gets input.
+
+#if !UE_BUILD_SHIPPING
+
+namespace VeloxBotOffMeshFt
+{
+	struct FCase
+	{
+		const TCHAR* Label;
+		/** Floor point (feet) the pawn is put on. */
+		FVector Start;
+		/** Point goal on the mesh. */
+		FVector Goal;
+		/**
+		 * The goal is asserted. Not for the ramp strip: its exit runs under the ramp slab, where a bunny-hopping bot hits
+		 * the slab and oscillates along the strip (a steering limitation outside the recovery; reported as a follow-up).
+		 */
+		bool bCheckGoal = true;
+	};
+
+	/** L_ItemTest (Tools/editor/create_item_test_map.py): corridor wall y 1500..1600, platforms y 1000..1400, cross 200 high. */
+	const FCase Cases[] = {
+		{ TEXT("ra_strip"), FVector(2100.0, 1450.0, 0.0), FVector(2100.0, 500.0, 0.0), true },
+		{ TEXT("mega_strip"), FVector(-1500.0, 1450.0, 0.0), FVector(-1500.0, 500.0, 0.0), true },
+		{ TEXT("ramp_strip_wall"), FVector(364.0, 1462.0, 0.0), FVector(400.0, 600.0, 0.0), false },
+		{ TEXT("cross_top"), FVector(0.0, 200.0, 200.0), FVector(800.0, 600.0, 0.0), true },
+	};
+	constexpr double SettleSeconds = 0.5;
+	constexpr double RecoverLimitSeconds = 10.0;
+	constexpr double ArriveLimitSeconds = 25.0;
+	constexpr double ArriveRadiusCm = 120.0;
+
+	struct FOffMeshFt : VeloxBotFt::FFtBase
+	{
+		int32 CaseIndex = 0;
+		bool bRunning = false;
+		bool bRecovered = false;
+		double SettleUntil = 0.0;
+		double RunStart = 0.0;
+		double RecoveredAt = -1.0;
+		int32 RecoveriesAtStart = 0;
+		/** The pawn the case started with (a respawn mid-case fails it). */
+		TWeakObjectPtr<APawn> CasePawn;
+	};
+
+	bool StartCase(const TSharedRef<FOffMeshFt>& Ft)
+	{
+		UWorld* World = Ft->World.Get();
+		UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+		if (!Bots)
+		{
+			return false;
+		}
+		if (AVeloxBotController* Old = Ft->Bot.Get())
+		{
+			Ft->LogBotCost();
+			Bots->KickBot(Old->GetBotName());
+		}
+		AVeloxBotController* Bot = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Medium")), TEXT("FtOffMesh"));
+		AVeloxCharacter* Pawn = Bot ? Cast<AVeloxCharacter>(Bot->GetPawn()) : nullptr;
+		if (!Pawn)
+		{
+			Ft->Check(false, TEXT("setup"), FString::Printf(TEXT("bot=%s"), *GetNameSafe(Bot)));
+			return false;
+		}
+		Ft->Bot = Bot;
+		Ft->CasePawn = Pawn;
+		Bot->SetFrozen(true);
+		VeloxBotFt::PlaceAtStart(*Pawn, Cases[Ft->CaseIndex].Start);
+		Ft->SettleUntil = Ft->Now() + SettleSeconds;
+		Ft->bRunning = false;
+		Ft->bRecovered = false;
+		Ft->RecoveredAt = -1.0;
+		return true;
+	}
+
+	bool Tick(const TSharedRef<FOffMeshFt>& Ft)
+	{
+		AVeloxBotController* Bot = Ft->Bot.Get();
+		const AVeloxCharacter* Pawn = Bot ? Cast<AVeloxCharacter>(Bot->GetPawn()) : nullptr;
+		const UVeloxMovementComponent* Movement = Pawn ? Pawn->GetVeloxMovementComponent() : nullptr;
+		if (!Movement || !Ft->World.IsValid())
+		{
+			Ft->Check(false, TEXT("alive"), TEXT("bot pawn gone"));
+			return false;
+		}
+		const FCase& Case = Cases[Ft->CaseIndex];
+		const double T = Ft->Now();
+		if (!Ft->bRunning)
+		{
+			if (T < Ft->SettleUntil || !Movement->IsOnGround())
+			{
+				return true;
+			}
+			Ft->bRunning = true;
+			Ft->RunStart = T;
+			Ft->RecoveriesAtStart = Bot->GetBotState().OffMeshRecoveries;
+			Bot->SetFrozen(false);
+			Bot->SetForcedPointGoal(Case.Goal);
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s case=%s start at=%s goal=%s"), Ft->Name, Case.Label, *Pawn->GetActorLocation().ToCompactString(), *Case.Goal.ToCompactString());
+			return true;
+		}
+		const double Elapsed = T - Ft->RunStart;
+		if (!Ft->bRecovered && Bot->GetBotState().OffMeshRecoveries > Ft->RecoveriesAtStart)
+		{
+			Ft->bRecovered = true;
+			Ft->RecoveredAt = Elapsed;
+		}
+		if (!Case.bCheckGoal && Ft->bRecovered && Elapsed >= Ft->RecoveredAt + SettleSeconds)
+		{
+			// Recovery only: back on the mesh and still there half a second later.
+			Ft->Check(Ft->RecoveredAt <= RecoverLimitSeconds, *FString::Printf(TEXT("%s_recovered"), Case.Label),
+				FString::Printf(TEXT("case=%s recovered_s=%.2f at=%s"), Case.Label, Ft->RecoveredAt, *Pawn->GetActorLocation().ToCompactString()));
+			++Ft->CaseIndex;
+			return Ft->CaseIndex < UE_ARRAY_COUNT(Cases) && StartCase(Ft);
+		}
+		const FVector Location = Pawn->GetActorLocation();
+		const bool bSamePawn = Pawn == Ft->CasePawn.Get();
+		const bool bArrived = bSamePawn && (FVector::Dist2D(Location, Case.Goal) <= ArriveRadiusCm || Bot->GetBotState().bGoalArrived);
+		if (bSamePawn && !bArrived && Elapsed <= ArriveLimitSeconds)
+		{
+			return true;
+		}
+		const FString Detail = FString::Printf(TEXT("case=%s recovered_s=%.2f arrived=%d same_pawn=%d seconds=%.2f end=%s"), Case.Label, Ft->RecoveredAt, bArrived ? 1 : 0,
+			bSamePawn ? 1 : 0, Elapsed, *Location.ToCompactString());
+		Ft->Check(Ft->bRecovered && Ft->RecoveredAt <= RecoverLimitSeconds, *FString::Printf(TEXT("%s_recovered"), Case.Label), Detail);
+		if (Case.bCheckGoal)
+		{
+			Ft->Check(bArrived && Elapsed <= ArriveLimitSeconds, *FString::Printf(TEXT("%s_goal"), Case.Label), Detail);
+		}
+		++Ft->CaseIndex;
+		if (Ft->CaseIndex >= UE_ARRAY_COUNT(Cases))
+		{
+			return false;
+		}
+		return StartCase(Ft);
+	}
+
+	TSharedPtr<FOffMeshFt> GOffMeshFt;
+
+	void Command(const TArray<FString>& Args, UWorld* World)
+	{
+		UVeloxBotSubsystem* Bots = World && World->GetNetMode() != NM_Client ? UVeloxBotSubsystem::Get(World) : nullptr;
+		if (!Bots)
+		{
+			UE_LOG(LogVeloxBots, Warning, TEXT("velox.bots.FtOffMesh: needs the authority world of L_ItemTest (-game)."));
+			return;
+		}
+		// A navigation test: the bot must not fight the local player.
+		if (IConsoleVariable* Peaceful = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.bots.Peaceful")))
+		{
+			Peaceful->Set(1, ECVF_SetByCode);
+		}
+		// The warmup's end resets the level (every pawn respawns); enter Live first so no reset lands inside a case.
+		if (GEngine)
+		{
+			GEngine->Exec(World, TEXT("velox.match.Phase Live"));
+		}
+		TSharedRef<FOffMeshFt> Ft = MakeShared<FOffMeshFt>();
+		Ft->Name = TEXT("FT_BotOffMesh");
+		Ft->World = World;
+		Ft->bQuit = VeloxBotFt::ParseQuit(Args);
+		GOffMeshFt = Ft;
+		TWeakPtr<FOffMeshFt> Weak = Ft;
+		Bots->CallWhenNavReady([Weak]()
+		{
+			const TSharedPtr<FOffMeshFt> F = Weak.Pin();
+			if (!F)
+			{
+				return;
+			}
+			if (!StartCase(F.ToSharedRef()))
+			{
+				F->Finish();
+				return;
+			}
+			F->TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+			{
+				const TSharedPtr<FOffMeshFt> Inner = Weak.Pin();
+				if (!Inner || Inner->bFinished)
+				{
+					return false;
+				}
+				if (!Tick(Inner.ToSharedRef()))
+				{
+					Inner->Finish();
+					return false;
+				}
+				return true;
+			}));
+		});
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtOffMesh"),
+		TEXT("velox.bots.FtOffMesh [quit]: FT_BotOffMesh on L_ItemTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a bot put off the nav mesh (wall strips, cover top) recovers and reaches its goal. Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
 }
 

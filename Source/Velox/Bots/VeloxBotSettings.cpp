@@ -33,7 +33,11 @@ int32 UVeloxBotSettings::ListPresets()
 	{
 		if (Asset.AssetClassPath == UVeloxBotDifficulty::StaticClass()->GetClassPathName())
 		{
-			UE_LOG(LogVelox, Log, TEXT("VeloxBotPreset asset=%s"), *Asset.GetObjectPathString());
+			// The effective aim reaction (asset + velox.bots.<Field> overrides) shows that a preset field and its cvar are wired.
+			const UVeloxBotDifficulty* Preset = Cast<UVeloxBotDifficulty>(Asset.GetAsset());
+			const FVeloxBotDifficultyParams Params = Preset ? Preset->BuildParams() : FVeloxBotDifficultyParams();
+			UE_LOG(LogVelox, Log, TEXT("VeloxBotPreset asset=%s reaction_s=%.2f reaction_jitter=%.2f"), *Asset.GetObjectPathString(), Params.ReactionSeconds,
+				Params.ReactionJitter);
 			++Count;
 		}
 	}

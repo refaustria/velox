@@ -29,6 +29,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bot|Aim", Meta = (ClampMin = "0.0", Units = "s"))
 	float ReactionSeconds = 0.30f;
 
+	/** Reaction drawn uniformly in ReactionSeconds x [1 - J, 1 + J] (ADR 0005 D4). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bot|Aim", Meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float ReactionJitter = 0.3f;
+
 	/** Aim error standard deviation per axis (degrees). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bot|Aim", Meta = (ClampMin = "0.0", Units = "deg"))
 	float AimErrorDeg = 4.f;

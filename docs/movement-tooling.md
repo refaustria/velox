@@ -100,10 +100,16 @@ input entry points only. Commands (authority world: dedicated server console, `-
 - `velox.bots.DumpNav`, `velox.bots.DumpPadLandings`, `velox.bots.Seed`: task 01 (nav paths, pad landings, master seed).
 
 Log lines: `VeloxBotLink bot= type=JumpPad|Drop|Jump|JumpFast|RocketJump from= to= result=ok|missed|aborted reason= dt=`
-(every traversal), `VeloxBotStuck bot= at= goal= strikes=`, `VeloxBotGoal`, `VeloxBotPath` (Verbose), `VeloxBot possess`.
+(every traversal), `VeloxBotStuck bot= at= goal= strikes=`, `VeloxBotGoal`, `VeloxBotPath` (Verbose), `VeloxBot possess`,
+`VeloxBotOffMesh bot= at= to= target=walkable|nearest tested= attempt= result=` / `VeloxBotOffMesh bot= recovered after=`
+(task 04b: feet on the ground but off the nav mesh for `OffMeshGraceSeconds`, the bot walks straight to the nearest nav
+point with no wall in between). `velox.bots.ListPresets` logs each preset with its effective `reaction_s` /
+`reaction_jitter` (cvar overrides such as `velox.bots.ReactionJitter 0` applied).
 Tunables: `[/Script/Velox.VeloxBotController]` (acceptance radii, stuck speed/strikes, repath interval, CPM key snap,
 roam attempts) and `[/Script/Velox.VeloxBotPathFollowingComponent]` (`LinkEntryRadiusCm`, `LinkEntryImpulseRadiusCm`,
-`PartialEndSlackCm`) in `DefaultGame.ini`; presets in `Content/Bots/DA_Bot_*`.
+`PartialEndSlackCm`) in `DefaultGame.ini`; presets in `Content/Bots/DA_Bot_*`. Project-wide: `[/Script/Velox.VeloxBotSettings]`
+(fight score `FightBaseScore` / `FightFullStrength` / `FightWeakWeaponScale`, maneuver constants `LinkStartAcceptanceCm`,
+`JumpFastSpeedFraction`, `JumpFastRunUpCm`, `JumpFastRetries`, `RocketJumpImpulseTimeoutSeconds`; ADR 0005 D4).
 
 Functional tests (console, like `FT_ItemPickup`; `quit` exits 0/1, `VeloxBotFt result=PASS|FAIL`):
 
@@ -113,6 +119,9 @@ UnrealEditor-Cmd Velox.uproject L_ItemTest -game -nullrhi -UseFixedTimeStep -FPS
 UnrealEditor-Cmd Velox.uproject L_MovementTest -game -nullrhi -UseFixedTimeStep -FPS=60 \
     -ExecCmds="velox.bots.Seed 1, velox.bots.FtStrafeCorridor quit"     # FT_BotStrafeCorridor: Hard strafe-jumps, Easy walks
 ```
+
+All bot FTs in one go: `infra/ci/fts.sh [--port N]` (FtItemPickup, FtNavigation, FtStrafeCorridor, FtItemRouting,
+FtOffMesh; `[fts] OK 5/5`), run for every bot task and before a merge to `main` (see `infra/ci/README.md`).
 
 Unit rows: `Velox.Bots.ControllerRules` (seed, key presence, turn rate, stuck, names, `?Bots=` cap, link mapping) and
 `Velox.Bots.FindNearestEnd` run in `build.sh`.

@@ -452,6 +452,47 @@ bool FVeloxBotsAimErrorTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("First aim change inside [0.7, 1.3] x ReactionSeconds"), Bad, 0);
 		TestTrue(TEXT("Reaction jitter is used (spread > 0.3 x reaction)"), MaxT - MinT > 0.3 * Reaction);
 
+		// Task 04b (ADR 0005 D4): ReactionJitter is a preset field copied by MakeParams; 0 makes the reaction exact, so
+		// the first aim change lands at ReactionSeconds +- 1 tick in every trial.
+		FVeloxBotDifficultyParams NoJitterDifficulty = VeloxBotTestsShared::HardParams();
+		NoJitterDifficulty.ReactionJitter = 0.f;
+		const FVeloxAimParams NoJitter = FVeloxAimModel::MakeParams(NoJitterDifficulty);
+		TestEqual(TEXT("MakeParams copies ReactionJitter"), NoJitter.ReactionJitter, 0.f);
+		TestEqual(TEXT("Preset default ReactionJitter is 0.3"), FVeloxBotDifficultyParams().ReactionJitter, 0.3f);
+		int32 NoJitterBad = 0;
+		double NoJitterMin = TNumericLimits<double>::Max(), NoJitterMax = 0.0;
+		for (int32 Trial = 0; Trial < 50; ++Trial)
+		{
+			FVeloxAimState State;
+			FVeloxAimModel::Reset(State, FRotator::ZeroRotator);
+			FVeloxAimInput In;
+			In.IdleAim = FRotator::ZeroRotator;
+			In.bHasTarget = true;
+			In.TargetId = Trial;
+			In.TargetCentre = FRotator(0.f, 30.f, 0.f).Vector() * 1000.0;
+			int32 FirstChange = INDEX_NONE;
+			for (int32 i = 0; i < 120 && FirstChange == INDEX_NONE; ++i)
+			{
+				const FRotator Before = State.Aim;
+				FVeloxAimModel::Update(State, In, NoJitter, Dt, Stream);
+				if (!State.Aim.Equals(Before, 1e-4f))
+				{
+					FirstChange = i;
+				}
+			}
+			const double TStart = FirstChange * static_cast<double>(Dt);
+			NoJitterMin = FMath::Min(NoJitterMin, TStart);
+			NoJitterMax = FMath::Max(NoJitterMax, TStart);
+			if (FirstChange == INDEX_NONE || FMath::Abs(TStart - NoJitter.ReactionSeconds) > Dt + 1e-6)
+			{
+				++NoJitterBad;
+			}
+		}
+		AddInfo(FString::Printf(TEXT("ReactionJitter 0: first aim change at tick start %.4f .. %.4f s (reaction %.3f s, tick %.4f s)"), NoJitterMin, NoJitterMax,
+			NoJitter.ReactionSeconds, Dt));
+		TestEqual(TEXT("ReactionJitter 0: first aim change at ReactionSeconds +- 1 tick"), NoJitterBad, 0);
+		TestTrue(TEXT("ReactionJitter 0: no spread"), NoJitterMax - NoJitterMin <= 1e-6);
+
 		// A target switch re-arms the reaction; the same target does not.
 		FVeloxAimState State;
 		FVeloxAimModel::Reset(State, FRotator::ZeroRotator);

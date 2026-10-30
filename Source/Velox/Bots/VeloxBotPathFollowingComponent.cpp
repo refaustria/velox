@@ -173,6 +173,11 @@ void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 	PendingParams.Type = VeloxBotFollow::ManeuverTypeFor(Match.Link->GetLinkType());
 	PendingParams.EndAcceptanceCm = Settings.LinkEndAcceptanceCm;
 	PendingParams.TakeoffLeadCm = Settings.TakeoffLeadCm;
+	PendingParams.StartAcceptanceCm = Settings.LinkStartAcceptanceCm;
+	PendingParams.RequiredSpeedFraction = Settings.JumpFastSpeedFraction;
+	PendingParams.RunUpCm = Settings.JumpFastRunUpCm;
+	PendingParams.MaxRetries = Settings.JumpFastRetries;
+	PendingParams.ImpulseTimeoutSeconds = Settings.RocketJumpImpulseTimeoutSeconds;
 	PendingParams.RequiredSpeedCmS = Match.Link->GetRequiredSpeed();
 	PendingParams.RunUpSeconds = Match.Link->GetRunUpSeconds();
 	PendingParams.RocketJumpPitchDeg = Match.Link->GetRocketJumpPitch();
