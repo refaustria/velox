@@ -39,9 +39,9 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Engine trim applied: 17 GB freed (25 GB free now), restore list at `/home/bojan/ue-trim-restore-20261024-1432.txt`.
 
 ## In progress
-- **M3 merged to `main` (2026-10-30).** Idle-machine soak 55/55 (11 scripts × 5), HasteRun 10/10, build 79 tests, settings restart OK (`Saved/CI/20261029-235118-4136377`). Late-RPC fixes reviewed (B38–B41). Next: 08i plasma pending-shot timer guard (must-fix, before plasma-heavy playtests), 08j hold-test rule + Haste refire row; human playtests M1/M2/M3 on the Mac; then M4 bots (ADR 0005 first). Deferred: M3-11 Gauntlet.
-- **M2 merged to `main` (2026-10-29).** 08b fixed FireRun D1–D5 (rendered-pose hint stamp |dt| 0.2 ms, server-time staleness, time-sized fire-rate bucket, switch completion, per-script lag): FireRun 5/5 with 11/11 rails at 100 ms RTT; build 50 tests green. Open: M2 human playtest on the Mac (`docs/playtests/m2-combat-checklist.md`); architect review of 08b (6 rulings in `docs/tasks/m2-combat/notes/08b-report.md`) when the Fable limit allows; LatchRun stray fixed by M1-07 (second old-move slot, take-off as event move; LatchRun 20/20, full list 3/3, 53 tests) — architect to ratify as ADR 0002 A35.
-- **M1-06 human playtest** is the only open M1 item (needs UE 5.8 on the human's Mac). Checklist: `docs/playtests/m1-movement-checklist.md`.
+- **M4 Bots on `m4-bots` (2026-10-30).** 01–06 and 04b merged (95 tests, `fts.sh` OK 5/5 ×3). FFA corner stuck fixed (AgentRadius 45 + off-mesh recovery); Duel without stranding. Final architect review (`docs/reviews/m4-05-06-04b-review.md`, ADR 0005 D13–D19): merge-ready after F1 (fight vs item balance: bots fight too much, pickups dropped to 14–21 per run). Running in parallel: **04c-a** fight balance (dev-hard, must-fix), **04c-b** hop headroom + progress stuck rule (dev-hard), **04c-c** hear/dodge FT, fire-tick signal, off-mesh giveup (dev). Then M4-07 soak + playtest checklist → merge `m4-bots` → `main`.
+- **M3 merged to `main` (2026-10-30).** Idle soak 55/55, HasteRun 10/10. Deferred: M3-11 Gauntlet.
+- **Human playtests M1/M2/M3** on the Intel Mac (checklists in `docs/playtests/`), needs UE 5.8 via the Epic Launcher.
 
 ## Blocked
 - ~~KnockbackRun grace loss~~ closed 2026-10-29: on an idle machine KnockbackRun 10/10 + full list 3/3 (13/13 KnockbackRun, `Saved/CI/20261029-113137-3134000`); the pause-day failures were load artefacts from parallel agent builds. Lesson: soak measurements only on an otherwise idle machine. (minor) PadRun one 1.74 cm stray (A31 class) in round 2, passed.
@@ -49,13 +49,13 @@ _Last updated: 2026-10-25 early morning (session 1, project lead). Branch: `main
 - Mac client build: human has Xcode but no UE 5.8 yet (Epic Games Launcher install needed, ~40 GB).
 
 ## Next
-- M1-06 human playtest on the Mac → tuning pass from feedback → M1 sign-off.
-- **M2 Combat** on `m2-combat`: 01/01b, 02, 03/03b, 04/04b, 05, 06, 07 done and merged (47 tests). Next in order (see `docs/RESUME.md`): KnockbackRun soak decision → 04c server pattern seed (dev-hard) → architect review of 05+06 in one pass (move-timed self-splash, next-tick UnPossess vs B8, `SpawnAvoidRadiusCm`, AI auto-respawn, cancel-all for move-timed events on death, `VeloxKill` name resolution) → 08 fire soak → 09 playtest checklist → merge to `main`.
-- Open for architect (minor): A31 test tolerances were widened to the A1 substep residual by the implementer; confirm or tighten via FixedStep.
-- M0-04 → full CI run → merge `m0-infrastructure` into `main` → M1 Movement: `architect` ADR 0002 (movement component design), then tasks.
-- Disk hygiene: the VM disk cannot be enlarged (human, 2026-10-24). Candidates still awaiting the human's OK: `~/.cache/ms-playwright` 3.5 GB, `~/.cache/pnpm` 0.5 GB, `gitref-v2` build artefacts 4.1 GB, `rusuite` build artefacts 1.8 GB.
+- 04c-a/b/c → M4-07 bot soak (`fts.sh` 6/6 ×3, BotRun/BotDuel acceptance in the task file) and Mac checklist → merge M4 to `main`.
+- Then M5 (first real map + characters): architect ADR first.
+- Disk hygiene: keep ≥ 15 GB free (standing OK for caches/build artefacts).
 
 ## Open questions for the human
+25. **Map convention for M5 (ADR 0005 D17):** bots need walkable widths ≥ 120 cm (nav agent radius 45). Confirm, or we lower the radius toward 40 for M5 maps with narrow ledges.
+24. **Easy bots "spray"?** Default: no preset sprays (same direct-hit radius for all). Decide after the Mac playtest.
 23. **M4 bot defaults (ADR 0005, proceeding with these unless you object):** (1) Latin bot names (not the Q3 roster) — or give me a list; (2) no bots by default, preset Medium, auto-fill deferred to M6; (3) rocket jumps only for Hard/Expert bots at ≥ 70 health; (4) Expert ceiling: 0.7° aim spread, 0.10 s reaction; (5) `AddBot`/`KickBot` usable by every client in non-shipping builds until M6 admin rights; (6) ~~whole-world navigation~~ moot (engine setting removed in 5.8; each map has a nav bounds volume).
 21. **M3 defaults (ADR 0004, proceeding with these unless you object):** (a) Q3 vanilla armor (shard/yellow/red, all up to 200) rather than CPMA tiers; (b) M3 UI built in C++ (headless VM cannot author Widget Blueprints), Blueprint skins on the Mac later without code changes; (c) FFA 20 frags / 10 min, Duel 10 min with sudden death and ready-up, warmup 20 s, intermission 15 s; (d) item timers visible to spectators only; (e) Q3 weapon-pickup ammo top-up rule; (f) powerups lost on death without drop.
 19. **`MaxRewindSeconds` — architect recommends 0.35 (review `docs/reviews/m2-late-rpc-fixes-review.md` §4)**: 0.30 does not keep the promise at the 250 ms ping limit: with ±20 ms jitter the needed rewind is 0.33 s; in five test runs at 125 ms one-way the clamp hit 2–6 of 11 rails. Cost of 0.35: only 200–250 ms shooters hit up to 50 ms further into the past (victim hit ≤ 0.35 s after leaving the line; Valve ships 1.0 s, Q3 unlagged is unbounded). Not fixed by either value: a rail whose packet is lost at the ping limit needs 0.6 s — one rail in ~50 for such a player at 2 % loss, none at ≤ 120 ms ping; the real fix (hitscan in the move stream, like the rocket since 08f) is deferred to M6 unless the playtest reports rails not registering at high ping. Options: 0.30 (current) / **0.35 (recommended)**.
