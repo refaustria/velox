@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged; architect review pending; notes/04-report.md)
 **Depends on:** 01, 02, 03; ADR 0005 §1, §2 (tick phases), §4 (traversal), §5, §12
 
 ## Goal
