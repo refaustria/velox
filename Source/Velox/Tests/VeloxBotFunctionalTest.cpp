@@ -615,3 +615,212 @@ namespace VeloxBotFt
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&CorridorFtCommand));
 }
 #endif // !UE_BUILD_SHIPPING
+
+// ------------------------------------------------------------------------------------------------ task 06: FT_BotItemRouting
+//   velox.bots.FtItemRouting  (console, `UnrealEditor-Cmd Velox.uproject L_ItemTest -game -nullrhi -UseFixedTimeStep
+//                             -FPS=60 -ExecCmds="velox.bots.Seed 1, velox.bots.FtItemRouting quit"`): a Hard bot with every
+//                             weapon, full ammo except one rocket, 200 health and 200 armor, so the only item worth going
+//                             for is Ammo.Rockets on the rocket-jump platform (the launcher pickup is removed). Checks: the router chooses it with the Full
+//                             filter and a full path (rocket-jump link) within 10 s; at most one routing FindPathSync per
+//                             server frame throughout; the health is then set to 60 (< MinHealthForRocketJump 70): within
+//                             3 s a `VeloxBotFilter from=Full to=Hop` change, an evaluation with the Hop filter, the rockets
+//                             no longer reachable (partial path, score 0) and the goal off the rockets. The attribute writes
+//                             are the test harness; the bot only gets input.
+
+#if !UE_BUILD_SHIPPING
+
+#include "Bots/VeloxBotItemRouting.h"
+#include "Bots/VeloxNavFilters.h"
+#include "Combat/VeloxAbilitySystemComponent.h"
+#include "Combat/VeloxAmmoSet.h"
+#include "Combat/VeloxHealthSet.h"
+#include "GameModes/VeloxPlayerState.h"
+#include "Weapons/VeloxWeaponCheats.h"
+
+namespace VeloxBotRoutingFt
+{
+	constexpr double ChooseLimitSeconds = 10.0;
+	constexpr double SwitchLimitSeconds = 3.0;
+	constexpr float HurtHealth = 60.f;
+
+	struct FRoutingFt : VeloxBotFt::FFtBase
+	{
+		enum class EStep : uint8 { Choose, Switch, Done };
+		EStep Step = EStep::Choose;
+		double StepStart = 0.0;
+		double HurtTime = -1.0;
+		TWeakObjectPtr<AVeloxPickup> Rockets;
+		int64 LastPathCount = 0;
+		int32 MaxPathsPerFrame = 0;
+		int32 Frames = 0;
+	};
+
+	TSharedPtr<FRoutingFt> GRoutingFt;
+
+	UVeloxAbilitySystemComponent* BotAsc(const AVeloxBotController* Bot)
+	{
+		const AVeloxPlayerState* PS = Bot ? Bot->GetPlayerState<AVeloxPlayerState>() : nullptr;
+		return PS ? PS->GetVeloxAbilitySystemComponent() : nullptr;
+	}
+
+	/** The rockets candidate of the last evaluation, or null. */
+	const FVeloxGoalItemCandidate* RocketsCandidate(const FVeloxBotRouteRecord& Record, const AVeloxPickup* Rockets)
+	{
+		for (int32 i = 0; i < Record.Candidates.Num(); ++i)
+		{
+			if (Record.CandidatePickups.IsValidIndex(i) && Record.CandidatePickups[i].Get() == Rockets)
+			{
+				return &Record.Candidates[i];
+			}
+		}
+		return nullptr;
+	}
+
+	bool Tick(const TSharedRef<FRoutingFt>& F)
+	{
+		AVeloxBotController* Bot = F->Bot.Get();
+		UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(F->World.Get());
+		if (!Bot || !Router || !F->Rockets.IsValid())
+		{
+			F->Check(false, TEXT("alive"), TEXT("world, bot or router gone"));
+			return false;
+		}
+		// D10: one routing path query per server frame (the ticker runs once per frame).
+		const int64 Count = Router->GetPathQueryCount();
+		F->MaxPathsPerFrame = FMath::Max(F->MaxPathsPerFrame, static_cast<int32>(Count - F->LastPathCount));
+		F->LastPathCount = Count;
+		++F->Frames;
+
+		const FVeloxBotRouteRecord* Last = Router->FindLastEvaluation(Bot);
+		const double Elapsed = F->Now() - F->StepStart;
+		if (F->Step == FRoutingFt::EStep::Choose)
+		{
+			const bool bChosen = Last && Last->Time >= F->StepStart && Bot->GetBotState().Goal.Item.Get() == F->Rockets.Get();
+			if (bChosen)
+			{
+				const FVeloxGoalItemCandidate* C = RocketsCandidate(*Last, F->Rockets.Get());
+				F->Check(Last->Filter == UVeloxNavFilter_Full::StaticClass(), TEXT("full_filter"), FString::Printf(TEXT("seconds=%.2f"), Elapsed));
+				F->Check(C && C->bReachable && C->Score > 0.f, TEXT("rockets_reachable_full"),
+					FString::Printf(TEXT("score=%.2f travel=%.2f"), C ? C->Score : -1.f, C ? C->TravelSeconds : -1.f));
+				// Hurt the bot below MinHealthForRocketJump before it reaches the link.
+				if (UVeloxAbilitySystemComponent* ASC = BotAsc(Bot))
+				{
+					ASC->SetNumericAttributeBase(UVeloxHealthSet::GetHealthAttribute(), HurtHealth);
+				}
+				F->Step = FRoutingFt::EStep::Switch;
+				F->StepStart = F->Now();
+				return true;
+			}
+			if (Elapsed > ChooseLimitSeconds)
+			{
+				F->Check(false, TEXT("rockets_chosen"), FString::Printf(TEXT("timeout %.1f s: %s"), Elapsed, *Bot->DescribeForDebug()));
+				return false;
+			}
+			return true;
+		}
+		if (F->Step == FRoutingFt::EStep::Switch)
+		{
+			const bool bHop = Bot->GetNavFilter() == UVeloxNavFilter_Hop::StaticClass();
+			const bool bEvaluatedHop = Last && Last->Time >= F->StepStart && Last->Filter == UVeloxNavFilter_Hop::StaticClass();
+			const bool bOffRockets = Bot->GetBotState().Goal.Item.Get() != F->Rockets.Get();
+			if (bHop && bEvaluatedHop && bOffRockets)
+			{
+				const FVeloxGoalItemCandidate* C = RocketsCandidate(*Last, F->Rockets.Get());
+				F->Check(true, TEXT("hop_filter"), FString::Printf(TEXT("seconds=%.2f"), Elapsed));
+				// Either queried again and found partial (score 0), or skipped as known-unreachable (not a candidate).
+				F->Check(!C || (!C->bReachable && C->Score == 0.f), TEXT("rockets_unreachable_hop"),
+					FString::Printf(TEXT("candidate=%d reachable=%d score=%.2f"), C ? 1 : 0, C && C->bReachable ? 1 : 0, C ? C->Score : 0.f));
+				F->Check(true, TEXT("goal_switched"), FString::Printf(TEXT("goal=%s item=%s"), LexToString(Bot->GetBotState().Goal.Type),
+					*GetNameSafe(Bot->GetBotState().Goal.Item.Get())));
+				F->Check(F->MaxPathsPerFrame <= 1, TEXT("paths_per_frame"), FString::Printf(TEXT("max=%d frames=%d total=%lld"), F->MaxPathsPerFrame, F->Frames, Router->GetPathQueryCount()));
+				F->Step = FRoutingFt::EStep::Done;
+				return false;
+			}
+			if (Elapsed > SwitchLimitSeconds)
+			{
+				F->Check(false, TEXT("hop_switch"), FString::Printf(TEXT("timeout %.1f s hop=%d evaluated_hop=%d off_rockets=%d: %s"), Elapsed, bHop ? 1 : 0, bEvaluatedHop ? 1 : 0,
+					bOffRockets ? 1 : 0, *Bot->DescribeForDebug()));
+				return false;
+			}
+		}
+		return true;
+	}
+
+	void Start(const TSharedRef<FRoutingFt>& Ft)
+	{
+		UWorld* World = Ft->World.Get();
+		UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+		UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(World);
+		Ft->Rockets = VeloxBotFt::FirstPickup(World, VeloxGameplayTags::Item_Ammo_Rockets);
+		AVeloxBotController* Bot = Bots ? Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Hard")), TEXT("FtRoute")) : nullptr;
+		Ft->Bot = Bot;
+		AVeloxPlayerState* PS = Bot ? Bot->GetPlayerState<AVeloxPlayerState>() : nullptr;
+		UVeloxAbilitySystemComponent* ASC = BotAsc(Bot);
+		if (!Bot || !Bot->GetPawn() || !PS || !ASC || !Router || !Ft->Rockets.IsValid() || !VeloxWeaponCheats::GiveAllWeapons(*PS))
+		{
+			Ft->Check(false, TEXT("setup"), FString::Printf(TEXT("bot=%s router=%d rockets=%s"), *GetNameSafe(Bot), Router ? 1 : 0, *GetNameSafe(Ft->Rockets.Get())));
+			Ft->Finish();
+			return;
+		}
+		// Nothing worth going for but the rockets (harness writes, before the bot's first evaluation lands). The rocket
+		// launcher pickup also grants rockets (weapon need 0.3 x ammo need at base value 60 beats the ammo's 10): the
+		// fixture removes it.
+		if (AVeloxPickup* Launcher = VeloxBotFt::FirstPickup(World, VeloxGameplayTags::Item_Weapon_RocketLauncher))
+		{
+			Launcher->Destroy();
+		}
+		ASC->SetNumericAttributeBase(UVeloxAmmoSet::GetRocketsAttribute(), 1.f);
+		ASC->SetNumericAttributeBase(UVeloxHealthSet::GetHealthAttribute(), 200.f);
+		ASC->SetNumericAttributeBase(UVeloxHealthSet::GetArmorAttribute(), 200.f);
+		Router->RequestEvaluation(Bot);
+		Ft->StepStart = Ft->Now();
+		Ft->LastPathCount = Router->GetPathQueryCount();
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s start bot=%s at=%s rockets=%s"), Ft->Name, *Bot->GetBotName(), *Bot->GetPawn()->GetActorLocation().ToCompactString(),
+			*Ft->Rockets->GetActorLocation().ToCompactString());
+		TWeakPtr<FRoutingFt> Weak = Ft;
+		Ft->TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+		{
+			const TSharedPtr<FRoutingFt> F = Weak.Pin();
+			if (!F || F->bFinished)
+			{
+				return false;
+			}
+			if (!Tick(F.ToSharedRef()))
+			{
+				F->Finish();
+				return false;
+			}
+			return true;
+		}));
+	}
+
+	void Command(const TArray<FString>& Args, UWorld* World)
+	{
+		UVeloxBotSubsystem* Bots = World && World->GetNetMode() != NM_Client ? UVeloxBotSubsystem::Get(World) : nullptr;
+		if (!Bots)
+		{
+			UE_LOG(LogVeloxBots, Warning, TEXT("velox.bots.FtItemRouting: needs the authority world of L_ItemTest (-game)."));
+			return;
+		}
+		TSharedRef<FRoutingFt> Ft = MakeShared<FRoutingFt>();
+		Ft->Name = TEXT("FT_BotItemRouting");
+		Ft->World = World;
+		Ft->bQuit = VeloxBotFt::ParseQuit(Args);
+		GRoutingFt = Ft;
+		TWeakPtr<FRoutingFt> Weak = Ft;
+		Bots->CallWhenNavReady([Weak]()
+		{
+			if (const TSharedPtr<FRoutingFt> F = Weak.Pin())
+			{
+				Start(F.ToSharedRef());
+			}
+		});
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtItemRouting"),
+		TEXT("velox.bots.FtItemRouting [quit]: FT_BotItemRouting on L_ItemTest (-game -nullrhi -UseFixedTimeStep -FPS=60): rocket-jump route chosen with _Full, "
+			 "dropped with _Hop under MinHealthForRocketJump, one routing path query per frame. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
+}
+
+#endif // !UE_BUILD_SHIPPING
