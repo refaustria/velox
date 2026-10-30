@@ -28,3 +28,5 @@ For architect (one pass before 07):
 3. Remaining progress strikes: bunny-hop reversal / wall scraping; proposal "no hop when velocity points away from the target".
 4. Combat-overlay stalls (7 s against a platform face) caught by neither rule; dodge jump bypasses the headroom guard.
 5. AgentHeight 140 = capsule height lets nav lead under the slab (D18 alternative AgentHeight 255).
+
+Architect ruling (2026-10-30, ADR 0005 D27–D34): 1 → ratified with a 4 s pause cap (D27); 2 → `LinkTimeoutSeconds 6` + `LinkBelowStartCm 100`, timeout counts as a strike (D28); 3 → now, `MaxHopHeadingDeg 45` (D29); 4 → now, fight-stall rule with a 4 s Fight suppression (D30) and the dodge jump gated by the headroom sweep (D31); 5 → 140 stays, 255 rejected for good (D32). Implementation: task 04f.
