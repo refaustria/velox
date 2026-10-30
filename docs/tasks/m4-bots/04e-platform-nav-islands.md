@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged 9711b37)
 **Depends on:** 04d (ADR 0005 D24; cause in 04d-balance-followup.md notes)
 
 ## Goal
@@ -19,3 +19,7 @@ Recast no longer generates walkable islands at floor level inside the solid Mega
 - [ ] Check `StartRoam` projection does not land inside platforms
 - [ ] build.sh green, fts.sh OK 6/6 ×2, FtNavigation numbers not worse than in the 04b report
 - [ ] FFA 3 Medium 120 s ×3 (runner `scratchpad/a04d/ffa.sh` + `summary.py`): `start=air` all-unreachable = 0, other D20 bands still pass
+
+## Notes / outcome
+dev, 2026-10-30. `FILL_NAV_KINDS = ("platform", "cross")` → `fill_collision_underneath_for_navmesh`; only L_ItemTest regenerated (L_MovementTest has the same box kind, bots do not roam it). Baseline on 5b3c2cc (04c-b+04d merged): build 95 OK, fts 6/6. After: build 95 OK, fts 6/6 ×2; DumpNav inside Mega/RA/rockets/ramp-top footprints → `start_off_mesh`.
+FFA seeds 1–3: pickups 58/49/43, Mega 4/4/4, kills 11/6/12, stuck 2/9/1, `start=air` all-unreachable 0/0/0, fight share 19–26 %. Seed 2 rerun ×2: stuck 2/2. The 9 strikes were all airborne `rule=progress` → expected to be addressed by 04f's hop heading gate (D29); 07 measures it.
