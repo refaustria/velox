@@ -16,6 +16,7 @@
 #include "GameModes/VeloxGameModeDefinition.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "HAL/IConsoleManager.h"
+#include "CoreGlobals.h"
 #include "HAL/PlatformTime.h"
 #include "Items/VeloxPickup.h"
 #include "Movement/VeloxJumpPad.h"
@@ -113,6 +114,7 @@ void UVeloxBotSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 	// Section 13: the budget line (only logged while bots exist).
 	BudgetWindowStart = InWorld.GetTimeSeconds();
+	BudgetFrameStart = GFrameCounter;
 	InWorld.GetTimerManager().SetTimer(BudgetHandle, this, &ThisClass::LogBudget, UVeloxBotCombatSettings::Get().BudgetLogIntervalSeconds, true);
 
 	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(&InWorld);
@@ -526,6 +528,11 @@ void UVeloxBotSubsystem::RecordBotTick(const AVeloxBotController& Bot, double Mi
 	++BudgetTicks;
 	TotalMicros += Micros;
 	++TotalTicks;
+	// ADR 0005 D46(a): ticks of any kind above 10 ms are stalls of the thread, not work (reported as stalls=).
+	if (Micros > 10000.0)
+	{
+		++BudgetStalls;
+	}
 	if (PathQueries > 0)
 	{
 		// D10: the peak target excludes path-query ticks; their cost is reported separately (max_path_us, paths=/s).
@@ -569,8 +576,8 @@ void UVeloxBotSubsystem::LogBudget()
 			Heard += Bot->GetCombatState().HeardCount;
 			Dodges += Bot->GetCombatState().DodgeCount;
 		}
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotBudget bots=%d mean_us=%.1f max_us=%.1f max_path_us=%.1f max_fire_us=%.1f paths=%.1f/s traces=%.1f/s navrays=%.1f/s ticks=%lld over=%d window=%.1f s run_mean_us=%.1f run_max_us=%.1f heard=%d dodges=%d"), NumLive,
-			BudgetMicros / BudgetTicks, BudgetMaxMicros, BudgetMaxPathMicros, BudgetMaxFireMicros, BudgetPaths / Window, BudgetTraces / Window, BudgetNavRaycasts / Window, BudgetTicks, BudgetOver, Window, GetBudgetMeanMicros(),
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotBudget bots=%d mean_us=%.1f max_us=%.1f max_path_us=%.1f max_fire_us=%.1f paths=%.1f/s traces=%.1f/s navrays=%.1f/s ticks=%lld over=%d stalls=%d frames=%llu window=%.1f s run_mean_us=%.1f run_max_us=%.1f heard=%d dodges=%d"), NumLive,
+			BudgetMicros / BudgetTicks, BudgetMaxMicros, BudgetMaxPathMicros, BudgetMaxFireMicros, BudgetPaths / Window, BudgetTraces / Window, BudgetNavRaycasts / Window, BudgetTicks, BudgetOver, BudgetStalls, static_cast<uint64>(GFrameCounter - BudgetFrameStart), Window, GetBudgetMeanMicros(),
 			TotalMaxMicros, Heard, Dodges);
 	}
 	BudgetWindowStart = Now;
@@ -583,5 +590,7 @@ void UVeloxBotSubsystem::LogBudget()
 	BudgetTraces = 0;
 	BudgetNavRaycasts = 0;
 	BudgetOver = 0;
+	BudgetStalls = 0;
+	BudgetFrameStart = GFrameCounter;
 	bBudgetWarned = false;
 }

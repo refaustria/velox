@@ -36,6 +36,12 @@ ITEM_SCRIPTS=" ItemRun "
 BOT_SCRIPTS=" BotRun BotDuel "
 BOT_RUN_SECONDS=90      # BotWatch.json
 BOT_DUEL_SECONDS=120    # velox.bots.Watch 120 (wall time after the spectator connected)
+# ADR 0005 D46: host sidecar every HOST_SAMPLE_S seconds, and a load gate before every round (1-min load average below
+# VELOX_LOAD_GATE, at most VELOX_LOAD_GATE_WAIT seconds, then the round starts anyway and says so).
+HOST_SAMPLE_S=5
+LOAD_GATE="${VELOX_LOAD_GATE:-2.0}"
+LOAD_GATE_WAIT="${VELOX_LOAD_GATE_WAIT:-120}"
+REEVAL_DIR=""
 
 nettest_usage() {
   cat <<USAGE
@@ -63,15 +69,21 @@ Options:
                    incoming MS +- 20); loss stays 2 % each way
   --repeat N       Run the script list N times (default 1); stops after the first failing round unless --keep-going
   --keep-going     With --repeat: run all N rounds and report the pass count
+  --reeval DIR     Re-run the per-round summary and the set evaluation of the bot soaks on saved logs (a nettest
+                   directory, with or without round-<k>/ subdirectories; needs no engine). Host columns are n/a where
+                   no <script>-host.log sidecar exists; budget lines without frames=/stalls= degrade the same way.
   -h, --help       Show this help
 
-Environment: UE_ROOT, VELOX_PROJECT, VELOX_OUT (as for build.sh), VELOX_NETTEST_TIMEOUT.
+Environment: UE_ROOT, VELOX_PROJECT, VELOX_OUT (as for build.sh), VELOX_NETTEST_TIMEOUT, VELOX_LOAD_GATE (1-min load
+average that must be undercut before a round starts, default 2.0), VELOX_LOAD_GATE_WAIT (max seconds to wait, default 120).
 Logs: \$VELOX_OUT/<timestamp>-<pid>/nettest/[round-<k>/]<script>-{server,client}.log
 USAGE
 }
 
 SERVER_PID=""
 CLIENT_PID=""
+SAMPLER_PID=""
+LAST_PIDS=""
 
 kill_proc() {
   local pid="$1"
@@ -86,8 +98,88 @@ kill_proc() {
 }
 
 cleanup() {
+  stop_host_sampler
+  LAST_PIDS="$CLIENT_PID $SERVER_PID"
   kill_proc "$CLIENT_PID"; CLIENT_PID=""
   kill_proc "$SERVER_PID"; SERVER_PID=""
+}
+
+# ---- host sidecar and load gate (ADR 0005 D46 items 1b and 1e)
+# host_sample <server pid> <file> : appends one key=value line of cumulative host counters (the summary takes deltas).
+# Fields: t (epoch s), load1, cpu_total/cpu_busy/cpu_steal (/proc/stat jiffies), psi_{cpu,mem,io}_us (`some total`),
+# srv_run_ns/srv_wait_ns (/proc/<pid>/schedstat), srv_majflt, srv_cpu (utime+stime jiffies), main_run_ns/main_wait_ns
+# (/proc/<pid>/task/<pid>/schedstat, the game thread). -1 = not available.
+host_sample() {
+  local pid="$1" file="$2" now l1 u n sy idle iow irq sirq st rest ptot busy psi_c=-1 psi_m=-1 psi_i=-1
+  local srun=-1 swait=-1 mrun=-1 mwait=-1 majflt=-1 scpu=-1 stat f v
+  now="$(date +%s.%N)"
+  read -r l1 _ < /proc/loadavg || l1=-1
+  read -r _ u n sy idle iow irq sirq st rest < /proc/stat || true
+  ptot=$(( ${u:-0} + ${n:-0} + ${sy:-0} + ${idle:-0} + ${iow:-0} + ${irq:-0} + ${sirq:-0} + ${st:-0} ))
+  busy=$(( ${u:-0} + ${n:-0} + ${sy:-0} + ${irq:-0} + ${sirq:-0} ))
+  for f in cpu memory io; do
+    v=-1
+    if [[ -r /proc/pressure/$f ]]; then v="$(sed -n 's/^some .*total=\([0-9]*\).*/\1/p' "/proc/pressure/$f" 2>/dev/null)"; fi
+    [[ -n "$v" ]] || v=-1
+    case "$f" in cpu) psi_c="$v" ;; memory) psi_m="$v" ;; io) psi_i="$v" ;; esac
+  done
+  # whole server: sum over all threads (/proc/<pid>/schedstat alone is the leader thread)
+  if [[ -d /proc/$pid/task ]]; then
+    read -r srun swait < <(cat /proc/"$pid"/task/*/schedstat 2>/dev/null | awk '{r += $1; w += $2} END {print r + 0, w + 0}') || true
+  fi
+  if [[ -r /proc/$pid/task/$pid/schedstat ]]; then read -r mrun mwait _ < "/proc/$pid/task/$pid/schedstat" 2>/dev/null || true; fi
+  if [[ -r /proc/$pid/stat ]]; then
+    # fields after the ")" closing comm: state ppid pgrp session tty tpgid flags minflt cminflt majflt cmajflt utime stime
+    stat="$(sed 's/^.*) //' "/proc/$pid/stat" 2>/dev/null)"
+    # shellcheck disable=SC2086
+    set -- $stat
+    majflt="${10:--1}"; scpu=$(( ${12:-0} + ${13:-0} ))
+  fi
+  echo "t=$now load1=$l1 cpu_total=$ptot cpu_busy=$busy cpu_steal=${st:-0} psi_cpu_us=$psi_c psi_mem_us=$psi_m psi_io_us=$psi_i srv_run_ns=${srun:--1} srv_wait_ns=${swait:--1} srv_majflt=$majflt srv_cpu=$scpu main_run_ns=${mrun:--1} main_wait_ns=${mwait:--1}" >> "$file"
+}
+
+start_host_sampler() {
+  local pid="$1" file="$2"
+  : > "$file"
+  (
+    while kill -0 "$pid" 2>/dev/null; do
+      host_sample "$pid" "$file"
+      sleep "$HOST_SAMPLE_S"
+    done
+  ) &
+  SAMPLER_PID=$!
+}
+
+stop_host_sampler() {
+  [[ -n "$SAMPLER_PID" ]] || return 0
+  pkill -P "$SAMPLER_PID" 2>/dev/null || true
+  kill "$SAMPLER_PID" 2>/dev/null || true
+  wait "$SAMPLER_PID" 2>/dev/null || true
+  SAMPLER_PID=""
+}
+
+# load_gate <script> <gate file> : D46 (1e). Waits until the previous round's PIDs have exited, then until the 1-min load
+# average is below $LOAD_GATE (poll 1 s, at most $LOAD_GATE_WAIT s, then proceeds). The callers hold the machine lock;
+# this function never takes it.
+load_gate() {
+  local script="$1" gfile="$2" waited=0 load pid alive timeout=0
+  while true; do
+    alive=0
+    for pid in $LAST_PIDS; do
+      if kill -0 "$pid" 2>/dev/null; then alive=1; fi
+    done
+    read -r load _ < /proc/loadavg || load=0
+    if (( alive == 0 )) && awk -v l="$load" -v g="$LOAD_GATE" 'BEGIN { exit !(l < g) }'; then break; fi
+    if (( waited >= LOAD_GATE_WAIT )); then
+      timeout=1
+      info "[$script] load gate: gave up after ${waited}s (load1=$load, gate $LOAD_GATE, previous processes alive=$alive); starting anyway"
+      break
+    fi
+    sleep 1; waited=$((waited + 1))
+  done
+  LAST_PIDS=""
+  info "[$script] load gate: load1=$load at round start (gate $LOAD_GATE, waited ${waited}s)"
+  echo "load_start=$load gate=$LOAD_GATE gate_waited_s=$waited gate_timeout=$timeout" > "$gfile"
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
@@ -164,6 +256,7 @@ run_one() {
   # Debug knob: VELOX_NETTEST_EXEC="p.NetShowCorrections 1" runs extra console commands on both processes.
   if [[ -n "${VELOX_NETTEST_EXEC:-}" ]]; then cexec="$cexec, $VELOX_NETTEST_EXEC"; sexec="${sexec:+$sexec, }$VELOX_NETTEST_EXEC"; fi
   if [[ -n "$sexec" ]]; then extra=(-ExecCmds="$sexec"); fi
+  load_gate "$script" "$OUT_DIR/$script-gate.txt"
   if port_busy; then echo "FAILED: UDP port $PORT is in use (ss -ulnp)" >&2; return 1; fi
 
   info "[$script] starting dedicated server (${SERVER_FPS} Hz), log $slog"
@@ -175,6 +268,7 @@ run_one() {
     if (( waited >= SERVER_START_TIMEOUT )); then echo "FAILED: server not ready after ${SERVER_START_TIMEOUT}s (log: $slog)" >&2; cleanup; return 1; fi
     sleep 1; waited=$((waited + 1))
   done
+  start_host_sampler "$SERVER_PID" "$OUT_DIR/$script-host.log"
   sleep 2
 
   info "[$script] starting client (${CLIENT_FPS} Hz, packet simulation ${lag} ms one way), log $clog"
@@ -196,13 +290,25 @@ run_one() {
   CLIENT_PID=""
   local server_alive=1
   kill -0 "$SERVER_PID" 2>/dev/null || server_alive=0
+  if (( server_alive )); then host_sample "$SERVER_PID" "$OUT_DIR/$script-host.log"; fi
   sleep 1
   cleanup
+  local load_end
+  read -r load_end _ < /proc/loadavg || load_end=0
+  echo "load_end=$load_end" >> "$OUT_DIR/$script-gate.txt"
 
-  python3 -I - "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$lag" "$OUT_DIR" <<'PY'
+  analyze_round "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$lag" "$OUT_DIR"
+}
+
+# analyze_round <script> <server log> <client log> <client rc> <server alive 0|1> <result file> <lag ms> <dir> [<stats dir>]
+# Judges one round from its logs. <dir> holds the host sidecar and gate files (D46); <stats dir> (default <dir>) receives
+# <script>.stats.json (--reeval writes to a scratch directory so the saved logs stay untouched).
+analyze_round() {
+  python3 -I - "$@" <<'PY'
 import math, os, re, statistics, sys
 
 script, slog, clog, crc, server_alive, result_path, lag_ms, out_dir = sys.argv[1:9]
+stats_dir = sys.argv[9] if len(sys.argv) > 9 else out_dir
 crc = int(crc); server_alive = server_alive == "1"
 # Round trip of the packet simulation (one-way lag each direction plus the incoming jitter bound).
 rtt = 2.0 * float(lag_ms) / 1000.0 + 0.04
@@ -1117,6 +1223,14 @@ if script in ("BotRun", "BotDuel"):
     DWELL_RADIUS, DWELL_MAX, LINK_DT_MAX, BUDGET_MAX = 150.0, 8, 8.0, 300.0
     STUCK_MAX, PICKUPS_MIN = 6, 15
 
+    def utc(line):
+        """UTC epoch seconds of the log line's [yyyy.mm.dd-hh.mm.ss:mmm] stamp (UE logs UTC); the host sidecar uses epoch."""
+        m = TSR.match(line)
+        if not m:
+            return None
+        y_, mo, d_, h, mi, s_, ms = (int(v) for v in m.groups())
+        return datetime.datetime(y_, mo, d_, h, mi, s_, ms * 1000, tzinfo=datetime.timezone.utc).timestamp()
+
     def stamp(line):
         m = TSR.match(line)
         if not m:
@@ -1146,25 +1260,35 @@ if script in ("BotRun", "BotDuel"):
     goals = collections.Counter(); vis_armed = vis_armed_fight = supp1 = debug_lines = noammo = 0
     live = False; camp = {}; dwell = {}
     max_dwell, max_dwell_at = 0, "-"
-    budget_windows = []
-    route_stats = []
+    budget_windows = []; budget_stamps = []
+    route_stats = []; route_stamps = []
+    mega_stamp = {}                # take t -> wall stamp (UTC) of the VeloxPickup line
+    mega_resp_stamp = []           # (t, wall stamp) of the VeloxPickupRespawn lines
+    kill_at = collections.defaultdict(list)       # victim -> [wall stamps]
+    samples_of = collections.defaultdict(list)    # bot -> [(stamp, goal, item, camp)]
+    mega_lead = collections.defaultdict(list)     # bot -> [(stamp, lead)] of its Health.Mega route lines
+    goal_changes = camp_episodes = 0              # D46 (4): VeloxBotRoute bot= goal= lines / episodes of camp=1
+    camp_open = {}; camp_max_lead = 0.0
     for l in S:
         if "Error:" in l or "Ensure condition" in l:
             errors.append(l.strip()[:160])
         if "VeloxMatch phase=Live" in l:
             live = True; dwell.clear(); continue
         if "VeloxPickupRespawn item=DA_Item_Health_Mega" in l:
-            mega_resp.append(num(kv(l), "t")); continue
+            mega_resp.append(num(kv(l), "t")); mega_resp_stamp.append((num(kv(l), "t"), utc(l))); continue
         if "VeloxPickup item=" in l:
             m = re.search(r"by=(\S+)", l)
             if m and m.group(1) in bots:
                 im = re.search(r"item=(\S+)", l)
                 pickups[im.group(1)] += 1
                 if "item=DA_Item_Health_Mega" in l:
-                    d = kv(l); mega.append((num(d, "t"), m.group(1), num(d, "respawn_in")))
+                    d = kv(l); mega.append((num(d, "t"), m.group(1), num(d, "respawn_in"))); mega_stamp[num(d, "t")] = utc(l)
             continue
         if "VeloxKill victim=" in l and "ignored" not in l:
             m = re.search(r"killer=(\S+) suicide=(\d)", l)
+            vm = re.search(r"victim=(\S+)", l)
+            if vm:
+                kill_at[vm.group(1)].append(utc(l))
             if m and m.group(2) == "1":
                 suicides += 1
             elif m:
@@ -1204,6 +1328,8 @@ if script in ("BotRun", "BotDuel"):
             x_, y_ = float(m.group(3)), float(m.group(4))
             gm = re.search(r"goal=(\S+)", body); g = gm.group(1).lower() if gm else "?"
             goals[g] += 1; debug_lines += 1
+            im_ = re.search(r"item=(\S+)", body)
+            samples_of[name].append((utc(l), g, im_.group(1).replace("DA_Item_", "") if im_ else "-", camp.get(name, 0)))
             if " supp=1" in l: supp1 += 1
             if "fire=noammo" in body: noammo += 1
             w = re.search(r"wstr=(-?[\d.]+)", body)
@@ -1226,10 +1352,22 @@ if script in ("BotRun", "BotDuel"):
         m = re.search(r"VeloxBotRoute bot=(\S+) (.*)", l)
         if m:
             if " refused " in l: refused += 1
+            elif re.search(r"VeloxBotRoute bot=\S+ goal=", l): goal_changes += 1
             cm = re.search(r" camp=(\d)", l)
             if cm:
                 camp[m.group(1)] = int(cm.group(1))
                 camp_lines += int(cm.group(1))
+                imr = re.search(r" item=(\S+)", l); itr = imr.group(1) if imr else "?"
+                if int(cm.group(1)):
+                    # D46 (4): the episode is the run of consecutive camp=1 lines of one bot for one item (a camp=0 line in
+                    # between, e.g. a fight, does not end it; another camp item does).
+                    if camp_open.get(m.group(1)) != itr:
+                        camp_episodes += 1; camp_open[m.group(1)] = itr
+                    lm = re.search(r" lead=(-?[\d.]+)", l)
+                    if lm: camp_max_lead = max(camp_max_lead, float(lm.group(1)))
+            if " item=Health.Mega " in l:
+                lm = re.search(r" lead=(-?[\d.]+)", l)
+                if lm: mega_lead[m.group(1)].append((utc(l), float(lm.group(1))))
             c = re.search(r"candidates=\[(.*)\]", l)
             if c:
                 st = re.search(r"start=(\w+)", l); start = st.group(1) if st else "-"
@@ -1238,9 +1376,9 @@ if script in ("BotRun", "BotDuel"):
                     allun[start] += 1
             continue
         if "VeloxBotBudget bots=" in l:
-            d = kv(l); budget_windows.append(d); continue
+            d = kv(l); budget_windows.append(d); budget_stamps.append(utc(l)); continue
         if "VeloxBotRouteStats " in l:
-            route_stats.append(kv(l))
+            route_stats.append(kv(l)); route_stamps.append(utc(l))
 
     bursts = []
     per_bot = collections.defaultdict(list)
@@ -1250,29 +1388,122 @@ if script in ("BotRun", "BotDuel"):
         ts_.sort()
         if any(ts_[i + 2] - ts_[i] <= 10.0 for i in range(len(ts_) - 2)): bursts.append(b_)
     pocket = [s_ for s_ in stuck if abs(s_[2]) < 150.0 and abs(s_[3]) < 150.0]
-    means = [num(d, "mean_us") for d in budget_windows]
-    budget_mean = sum(means) / len(means) if means else 0.0
     run_mean = num(budget_windows[-1], "run_mean_us") if budget_windows else 0.0
-    fire_windows = [num(d, "max_fire_us") for d in budget_windows]
-    fire_over = sum(1 for v in fire_windows if v > 2000.0)
     nbots = sum(pickups.values())
     major_taken = sorted({MAJOR.search("item=" + k).group(1) for k in pickups if MAJOR.search("item=" + k)})
-    # D40 contention verdict: share of ticks over the 600 us limit per VeloxBotBudget window (over= / ticks=); more than 5 %
-    # in more than 2 windows of the round = CONTENDED (another process competed for the machine): budget, max_fire and
-    # deferred are not judged and the round is left out of the set evaluation (rerun it).
-    over_shares = [100.0 * num(d, "over") / num(d, "ticks") if num(d, "ticks") > 0 else 0.0 for d in budget_windows]
-    contended_windows = sum(1 for v in over_shares if v > 5.0)
-    contended = contended_windows > 2
-    # Duel timing (D42): a Mega take by a bot within 3 s after the Mega became available again, taken from the explicit
-    # log lines: the last "VeloxPickupRespawn ... t=" at or before the take, or the Countdown -> Live level reset
-    # (every pickup is available again at the Live time).
+
+    # ---- ADR 0005 D46 (1b/1c): host sidecar and per-window classification.
+    host = []
+    host_path = os.path.join(out_dir, script + "-host.log")
+    if os.path.exists(host_path):
+        host = sorted((kv(l) for l in read(host_path) if l.startswith("t=")), key=lambda d_: num(d_, "t"))
+    gate = {}
+    gate_path = os.path.join(out_dir, script + "-gate.txt")
+    if os.path.exists(gate_path):
+        for l in read(gate_path):
+            gate.update(kv(l))
+
+    def host_window(a, b):
+        """Host figures over [a, b] from the cumulative sidecar samples (each sample interval prorated by its overlap)."""
+        acc = collections.defaultdict(float); bad = set(); cov = 0.0
+        keys = ("cpu_total", "cpu_steal", "psi_cpu_us", "psi_mem_us", "psi_io_us", "srv_majflt", "main_wait_ns")
+        for h0, h1 in zip(host, host[1:]):
+            t0, t1 = num(h0, "t"), num(h1, "t")
+            o = min(b, t1) - max(a, t0)
+            if t1 <= t0 or o <= 0:
+                continue
+            f_ = o / (t1 - t0); cov += o
+            for k_ in keys:
+                v0, v1 = num(h0, k_, -1.0), num(h1, k_, -1.0)
+                if v0 < 0 or v1 < 0:
+                    bad.add(k_)
+                else:
+                    acc[k_] += f_ * (v1 - v0)
+        if cov < 0.5 * (b - a):
+            return None
+        out = {"rq": None if "main_wait_ns" in bad else 100.0 * acc["main_wait_ns"] / 1e9 / cov,
+               "steal": None if ("cpu_steal" in bad or "cpu_total" in bad or acc["cpu_total"] <= 0) else 100.0 * acc["cpu_steal"] / acc["cpu_total"],
+               "majflt": None if "srv_majflt" in bad else acc["srv_majflt"]}
+        psis = [100.0 * acc[k_] / 1e6 / cov for k_ in ("psi_cpu_us", "psi_mem_us", "psi_io_us") if k_ not in bad]
+        out["psi"] = max(psis) if psis else None
+        return out
+
+    FPS_SERVER = 60.0
+    windows = []
+    for i_, (d, ts_) in enumerate(zip(budget_windows, budget_stamps)):
+        win = num(d, "window", 5.0); tk = num(d, "ticks"); ov = num(d, "over")
+        osh = 100.0 * ov / tk if tk > 0 else 0.0
+        fdef = max(0.0, 100.0 * (1.0 - num(d, "frames") / (FPS_SERVER * win))) if ("frames" in d and win > 0) else None
+        h = host_window(ts_ - win, ts_) if (ts_ is not None and host) else None
+        if h is not None and all(v is None for v in h.values()):
+            h = None
+        agree = bool(h) and ((h["rq"] or 0) > 2.0 or (h["steal"] or 0) > 2.0 or (h["majflt"] or 0) > 20 or (h["psi"] or 0) > 5.0)
+        if osh <= 5.0 and (fdef or 0.0) <= 5.0:
+            cls = "clean"
+        elif osh > 5.0:
+            # over_share > 5 %: contended iff the host agrees, a cost window iff the host was observed and does not; without
+            # host data (no sidecar) the cause cannot be told: unverified, neither clean nor a cost FAIL.
+            cls = "contended" if agree else ("cost" if h is not None else "unverified")
+        else:
+            cls = "contended" if agree else "frames"      # only the frame deficit is off: the server was not at 60 Hz
+        windows.append({"i": i_ + 1, "end": ts_, "start": (ts_ - win) if ts_ is not None else None, "d": d, "mean": num(d, "mean_us"),
+                        "fire": num(d, "max_fire_us"), "max": num(d, "max_us"), "path": num(d, "max_path_us"), "over_share": osh,
+                        "fdef": fdef, "stalls": int(num(d, "stalls")) if "stalls" in d else None, "host": h, "cls": cls})
+    n_win = len(windows)
+    CLS_CHAR = {"clean": ".", "contended": "C", "cost": "X", "unverified": "?", "frames": "F"}
+    clean_w = [w for w in windows if w["cls"] == "clean"]
+    cost_w = [w for w in windows if w["cls"] == "cost"]
+    cont_w = [w for w in windows if w["cls"] == "contended"]
+    cost_judged = n_win > 0 and 2 * len(clean_w) >= n_win
+    deficit_bad = sum(1 for w in windows if w["fdef"] is not None and w["fdef"] > 10.0)
+    invalid = deficit_bad > 2
+    basis = clean_w if cost_judged else []
+    means = [w["mean"] for w in (basis or windows)]
+    budget_mean = sum(means) / len(means) if means else 0.0
+    fire_windows = [w["fire"] for w in basis]
+    fire_over = sum(1 for v in fire_windows if v > 2000.0)
+    # Route stats (paths/s, deferred frames) belong to the budget window their stamp falls into.
+    rs_basis = []
+    for rs_, rts in zip(route_stats, route_stamps):
+        if rts is None:
+            continue
+        if any(w["start"] is not None and w["start"] - 0.5 <= rts <= w["end"] + 0.5 for w in basis):
+            rs_basis.append(rs_)
+
+    # ---- Duel timing (D46 3): timed returns are the Mega takes after a VeloxPickupRespawn; the Live reset take is reported only.
     live_t = next((num(kv(l), "now") for l in S if "VeloxMatch phase=Live" in l), 0.0)
-    mega_lags = []
-    for (t_, _by, _resp) in mega:
-        if t_ >= live_t:
-            avail = max([live_t] + [r_ for r_ in mega_resp if live_t <= r_ <= t_ + 1e-3])
-            mega_lags.append(t_ - avail)
-    mega_fast = sum(1 for v in mega_lags if -0.5 <= v <= 3.0)
+    timed = []     # (lag, taker, lead, state)
+    takes_after_live = sorted(m_ for m_ in mega if m_[0] >= live_t)
+    first_after_live = (takes_after_live[0][0] - live_t) if takes_after_live else None
+
+    def bot_state(bot, at):
+        if at is None:
+            return "?"
+        sm = [x_ for x_ in samples_of.get(bot, []) if x_[0] is not None and x_[0] <= at]
+        last = sm[-1] if sm else None
+        kl = [k_ for k_ in kill_at.get(bot, []) if k_ is not None and k_ <= at]
+        if kl and (last is None or kl[-1] >= last[0]):
+            return "dead"
+        if last is None:
+            return "?"
+        if last[3]: return "camp"
+        if last[1] == "fight": return "fight"
+        if last[1] == "item": return "item:" + last[2]
+        return last[1]
+
+    for (t_, by_, _resp, _st) in [m_ + (mega_stamp.get(m_[0]),) for m_ in takes_after_live]:
+        rs_ = [r_ for r_ in mega_resp_stamp if live_t <= r_[0] <= t_ + 1e-3]
+        if not rs_:
+            continue
+        r_t, r_stamp = rs_[-1]
+        lead_l = [ld for (st_, ld) in mega_lead.get(by_, []) if _st is not None and st_ <= _st]
+        timed.append((t_ - r_t, by_, lead_l[-1] if lead_l else None, bot_state(by_, r_stamp)))
+    timed_lags = [x_[0] for x_ in timed]
+    mega_fast = sum(1 for v in timed_lags if v <= 3.0)
+    mega_4 = sum(1 for v in timed_lags if v <= 4.0)
+    # D46 (5): the possession snap (first correction after possession) is reported and excluded from the correction max.
+    snap_cm = max([c[1] for c in nonecho if c[0] < 2.0] or [0.0])
+    cmax_late = max([c[1] for c in nonecho if c[0] >= 2.0] or [0.0])
     total_goals = sum(goals.values())
     fight_share = 100.0 * goals.get("fight", 0) / total_goals if total_goals else 0.0
     armed_share = 100.0 * vis_armed_fight / vis_armed if vis_armed else 0.0
@@ -1292,13 +1523,17 @@ if script in ("BotRun", "BotDuel"):
     if refused: fails.append("VeloxBotRoute refused x%d" % refused)
     if allun.get("air", 0): fails.append("all-candidates-unreachable evaluations with start=air: %d (D33)" % allun["air"])
     if errors: fails.append("%d Error:/ensure line(s) in the server log: %s" % (len(errors), errors[0]))
-    if budget_mean > BUDGET_MAX and not contended: fails.append("VeloxBotBudget mean_us %.1f > %.0f" % (budget_mean, BUDGET_MAX))
+    # D46 (1c): cost bands on the clean windows; a cost window (bots' wall clock up, host quiet) is a FAIL of its own.
+    if cost_judged and budget_mean > BUDGET_MAX: fails.append("VeloxBotBudget mean_us %.1f > %.0f (clean windows)" % (budget_mean, BUDGET_MAX))
+    if cost_w: fails.append("cost window(s) %s: over_share > 5 %% with no host cause (D46 1c; dev-hard profiling per D14)" % ",".join(str(w["i"]) for w in cost_w))
+    if invalid: fails.append("round invalid: frame_deficit > 10 %% in %d windows (server not running the game at 60 Hz, D46 1d)" % deficit_bad)
     if not budget_windows: fails.append("no VeloxBotBudget lines")
     if duel:
         if "Countdown" not in phases or "Live" not in phases or phases.index("Countdown") > phases.index("Live"):
             fails.append("phase did not go Countdown -> Live without a human: %s" % ">".join(phases))
         if frags_total < 1: fails.append("no frag in %.0f s" % duration)
-        if mega_fast < 1: fails.append("no Mega take by a bot within 3 s of its respawn (takes=%d lags=%s)" % (len(mega), ["%.1f" % v for v in mega_lags]))
+        # D46 (3): per round at least one timed return <= 6 s; the 3 s / 4 s bands are set bands; first_after_live_s is reported.
+        if not any(v <= 6.0 for v in timed_lags): fails.append("no timed Mega return within 6 s of its respawn (takes=%d timed=%s)" % (len(mega), ["%.1f" % v for v in timed_lags]))
         if camp_lines < 1: fails.append("no VeloxBotRoute camp=1 line")
     else:
         if kills < 1: fails.append("no kill by a bot")
@@ -1315,36 +1550,65 @@ if script in ("BotRun", "BotDuel"):
         "stuck=%d rules=[%s] bursts=%d pocket_strikes=%d at: %s" % (len(stuck), " ".join("%s=%d" % kv_ for kv_ in sorted(rules.items())), len(bursts), len(pocket), pos_txt or "-"),
         "max_dwell_s=%d [%s] repaths=%d%s offmesh recovered=%d no_nav_point=%d no_clear_point=%d giveup=%d refused=%d hear=%d dodge=%d camp_route_lines=%d" % (
             max_dwell, max_dwell_at, repaths, " (FLAG > %d)" % int(duration) if repaths > duration else "", recovered, no_nav, no_clear, giveup, refused, hear, dodges, camp_lines),
-        "budget mean_us=%.1f run_mean_us=%.1f max_us=%.0f max_path_us=%.0f " % (
-            budget_mean, run_mean, max([num(d, "max_us") for d in budget_windows] or [0]), max([num(d, "max_path_us") for d in budget_windows] or [0]))
-        + ("max_fire_us=not judged (CONTENDED) deferred=not judged (CONTENDED)" if contended else
-           "max_fire_us=%.0f (windows over 2000 us: %d/%d%s) paths/s=%.1f max_deferred_frames=%d" % (
+        "budget %s mean_us=%.1f run_mean_us=%.1f max_us=%.0f max_path_us=%.0f " % (
+            "cost=%s (clean windows %d/%d)" % ("FAIL" if cost_w or (cost_judged and budget_mean > BUDGET_MAX) else "PASS", len(clean_w), n_win) if cost_judged
+            else "cost not judged (contended; clean windows %d/%d)" % (len(clean_w), n_win),
+            budget_mean, run_mean, max([w["max"] for w in basis] or [0]), max([w["path"] for w in basis] or [0]))
+        + (("max_fire_us=%.0f (clean windows over 2000 us: %d/%d%s) paths/s=%.1f max_deferred_frames=%d" % (
             max(fire_windows or [0]), fire_over, len(fire_windows), " FLAG D14" if fire_windows and fire_over * 4 > len(fire_windows) else "",
-            sum(rs_paths) / len(rs_paths) if rs_paths else 0.0, int(max([num(d, "max_deferred_frames") for d in route_stats] or [0]))))
-        + " over_share_pct=[%s] windows_over_5pct=%d/%d" % (",".join("%.0f" % v for v in over_shares), contended_windows, len(over_shares)),
+            sum(num(r_, "paths_per_s") for r_ in rs_basis) / len(rs_basis) if rs_basis else 0.0, int(max([num(r_, "max_deferred_frames") for r_ in rs_basis] or [0]))))
+           if cost_judged else "max_fire_us=not judged deferred=not judged")
+        + " over_share_pct=[%s]" % ",".join("%.0f" % w["over_share"] for w in windows),
+        "window classes [%s] (. clean, C contended, X cost, ? unverified (no host data), F frames only): clean=%d contended=%d cost=%d unverified=%d frames=%d of %d; stalls=%s frame_deficit_pct=[%s]%s" % (
+            "".join(CLS_CHAR[w["cls"]] for w in windows), len(clean_w), len(cont_w), len(cost_w), sum(1 for w in windows if w["cls"] == "unverified"),
+            sum(1 for w in windows if w["cls"] == "frames"), n_win,
+            sum(w["stalls"] for w in windows if w["stalls"] is not None) if any(w["stalls"] is not None for w in windows) else "n/a",
+            ",".join(("%.0f" % w["fdef"]) if w["fdef"] is not None else "n/a" for w in windows), " INVALID (frame_deficit > 10 %% in %d windows)" % deficit_bad if invalid else ""),
+        "host sidecar: %s; load_start=%s load_end=%s gate=%s waited_s=%s%s" % (
+            "%d samples" % len(host) if host else "n/a (no sidecar)", gate.get("load_start", "n/a"), gate.get("load_end", "n/a"), gate.get("gate", "n/a"),
+            gate.get("gate_waited_s", "n/a"), " TIMEOUT (started above the gate)" if gate.get("gate_timeout") == "1" else ""),
         "goals=[%s] fight_share=%.1f%% armed_fight_share=%.1f%% (%d/%d) supp1=%.1f%% fire_noammo=%d/%d allunreachable air=%d ground=%d" % (
             " ".join("%s=%d" % kv_ for kv_ in sorted(goals.items())), fight_share, armed_share, vis_armed_fight, vis_armed, supp_share, noammo, debug_lines,
             allun.get("air", 0), allun.get("ground", 0)),
     ]
     if duel:
-        detail_lines.append("phases=%s mega_takes=%d lags_after_respawn_s=[%s] within_3s=%d" % (">".join(phases), len(mega), ",".join("%.1f" % v for v in mega_lags), mega_fast))
+        detail_lines.append("phases=%s mega_takes=%d first_after_live_s=%s timed_returns_s=[%s] within_3s=%d within_4s=%d" % (
+            ">".join(phases), len(mega), "%.1f" % first_after_live if first_after_live is not None else "-", ",".join("%.1f" % v for v in timed_lags), mega_fast, mega_4))
+        for (lag_, by_, ld_, st_) in timed:
+            detail_lines.append("mega timed take lag=%.1f s by=%s lead=%s state_at_respawn=%s" % (lag_, by_, "%.1f" % ld_ if ld_ is not None else "n/a", st_))
     else:
-        cmax_ = max([c[1] for c in corr] or [0.0])
-        detail_lines.append("client corrections (report-only) non-echo=%d max=%.1f cm echoes=%d" % (len(nonecho), cmax_, len(echoes)))
+        detail_lines.append("client corrections (report-only) non-echo=%d max=%.1f cm (t >= 2 s) possession_snap_cm=%.1f echoes=%d" % (len(nonecho), cmax_late, snap_cm, len(echoes)))
+    detail_lines.append("camp_lines=%d camp_episodes=%d camp_share_pct=%.1f (of %d goal changes) camp_max_lead_s=%.1f" % (
+        camp_lines, camp_episodes, 100.0 * camp_episodes / goal_changes if goal_changes else 0.0, goal_changes, camp_max_lead))
+    for w in windows:
+        if w["cls"] != "clean":
+            h = w["host"]
+            hs = "rq_wait_pct=%s steal_pct=%s majflt=%s psi_pct=%s" % tuple(("%.1f" % h[k_]) if (h and h[k_] is not None) else "n/a" for k_ in ("rq", "steal", "majflt", "psi")) if h else "host n/a"
+            detail_lines.append("window %d %s: mean_us=%.0f over_share=%.0f%% frame_deficit=%s stalls=%s %s" % (
+                w["i"], w["cls"].upper(), w["mean"], w["over_share"], "%.0f%%" % w["fdef"] if w["fdef"] is not None else "n/a",
+                w["stalls"] if w["stalls"] is not None else "n/a", hs))
     watch = [l for l in C if "VeloxBotWatch" in l]
     detail_lines.append("client watch lines=%d (feed=%d phase=%d pickup=%d)" % (len(watch), sum(1 for l in watch if " feed " in l), sum(1 for l in watch if " phase=" in l and "old=" in l), sum(1 for l in watch if " pickup " in l)))
+    behaviour_fails = [fl for fl in fails if not (fl.startswith("cost window") or fl.startswith("round invalid") or fl.startswith("VeloxBotBudget mean_us"))]
     stats = {"script": script, "pass": not fails, "stuck": len(stuck), "kills": kills, "frags": frags_total, "pickups": nbots, "major": major_taken,
-             "pocket": len(pocket), "bursts": len(bursts), "max_dwell": max_dwell, "repaths": repaths, "mega_fast": mega_fast, "contended": contended}
-    with open(os.path.join(out_dir, script + ".stats.json"), "w") as sf:
+             "pocket": len(pocket), "bursts": len(bursts), "max_dwell": max_dwell, "repaths": repaths, "mega_fast": mega_fast,
+             "timed": timed_lags, "first_after_live": first_after_live, "invalid": invalid, "windows": n_win, "clean": len(clean_w),
+             "contended": len(cont_w), "cost_windows": len(cost_w), "cost_judged": cost_judged, "behaviour_fail": bool(behaviour_fails),
+             "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w]}
+    with open(os.path.join(stats_dir, script + ".stats.json"), "w") as sf:
         json.dump(stats, sf)
-    verdict = "CONTENDED" if contended else ("FAIL" if fails else "PASS")
-    head = "%-18s %s kills=%d frags=%d pickups=%d stuck=%d max_dwell_s=%d link_max_dt=%.2f budget_mean_us=%.1f" % (script, verdict, kills, frags_total, nbots, len(stuck), max_dwell, link_max, budget_mean)
+    cost_txt = ("n/j" if not cost_judged else ("FAIL" if cost_w or budget_mean > BUDGET_MAX else "PASS"))
+    verdict = "INVALID" if invalid else ("FAIL" if fails else "PASS")
+    head = "%-18s %s cost=%s kills=%d frags=%d pickups=%d stuck=%d max_dwell_s=%d link_max_dt=%.2f budget_mean_us=%.1f clean=%d/%d" % (
+        script, verdict, cost_txt, kills, frags_total, nbots, len(stuck), max_dwell, link_max, budget_mean, len(clean_w), n_win)
     with open(result_path, "w") as out:
         out.write(head + "\n")
         for fl in fails:
             out.write("    - " + fl + "\n")
-        if contended:
-            out.write("    ~ CONTENDED (D40): %d of %d VeloxBotBudget windows had > 5 %% of ticks over 600 us; budget, max_fire and deferred are not judged and this round is excluded from the set evaluation - rerun it on an idle machine\n" % (contended_windows, len(over_shares)))
+        if not cost_judged and not invalid:
+            out.write("    ~ cost not judged (contended): %d of %d windows clean (< 50 %%); only the cost bands need a rerun (D46 1c)\n" % (len(clean_w), n_win))
+        if behaviour_fails and cont_w:
+            out.write("    ~ behaviour miss on a round with %d contended window(s): reproduce it on a clean round before it counts, unless it has a geometric trail (strikes at one position with a repath/offmesh line) (D46 1d)\n" % len(cont_w))
         for dl in detail_lines:
             out.write("    . " + dl + "\n")
     sys.exit(1 if fails else 0)
@@ -1401,6 +1665,7 @@ bot_set_eval() {
 import json, os, sys
 script, base, rounds = sys.argv[1], sys.argv[2], int(sys.argv[3])
 MAJOR_ALL = ["Health_Mega", "Armor_Red", "Armor_Yellow", "Powerup_BattleSuit", "Powerup_Haste", "Powerup_Quad", "Powerup_Regen"]
+BUDGET_MAX = 300.0
 runs = []
 for k in range(1, rounds + 1):
     d = os.path.join(base, "round-%d" % k) if rounds > 1 else base
@@ -1408,14 +1673,16 @@ for k in range(1, rounds + 1):
         runs.append(json.load(open(os.path.join(d, script + ".stats.json"))))
     except (OSError, ValueError):
         print("=== %s set evaluation: round %d has no stats (run aborted) ===" % (script, k)); sys.exit(1)
-all_runs = runs
-contended_rounds = [k + 1 for k, r in enumerate(all_runs) if r.get("contended")]
-runs = [r for r in all_runs if not r.get("contended")]
-S = lambda key: sum(r[key] for r in runs)
-major = sorted({m for r in runs for m in r["major"]})
+# D46 (1d): behaviour is judged on every round; only an invalid round (frame_deficit > 10 % in more than two windows) is left out.
+invalid_rounds = [k + 1 for k, r in enumerate(runs) if r.get("invalid")]
+valid = [r for r in runs if not r.get("invalid")]
+S = lambda key: sum(r[key] for r in valid)
+major = sorted({m for r in valid for m in r["major"]})
 missing = [m for m in MAJOR_ALL if m not in major]
-fails = []
-judged = rounds == 3 and not contended_rounds
+fails, cost_fails = [], []
+judged = rounds == 3 and not invalid_rounds
+timed = [v for r in valid for v in r.get("timed", [])]
+within3 = sum(1 for v in timed if v <= 3.0); within4 = sum(1 for v in timed if v <= 4.0)
 if script == "BotRun":
     if S("stuck") > 10: fails.append("sum VeloxBotStuck %d > 10" % S("stuck"))
     if S("kills") < 12: fails.append("sum kills by bots %d < 12" % S("kills"))
@@ -1423,23 +1690,86 @@ if script == "BotRun":
 else:
     if S("frags") < 9: fails.append("sum frags %d < 9" % S("frags"))
     if S("stuck") > 10: fails.append("sum VeloxBotStuck %d > 10" % S("stuck"))
-print("=== %s set evaluation over %d round(s) (D36%s) ===" % (script, rounds, "" if judged else "; bands are defined for --repeat 3: reported, not judged"))
+    # D46 (3): timed returns = takes after a VeloxPickupRespawn; set band sum within 4 s >= 3 and >= 1 within 3 s.
+    if within4 < 3: fails.append("Mega timed returns within 4 s: %d < 3" % within4)
+    if within3 < 1: fails.append("Mega timed returns within 3 s: none in the set")
+# Cost (D46 1c, 5): per round on its clean windows; a round with < 50 % clean windows is not judged.
+unjudged = [k + 1 for k, r in enumerate(runs) if not r.get("cost_judged") and not r.get("invalid")]
+for k, r in enumerate(runs):
+    if r.get("invalid"):
+        continue
+    cm = r.get("clean_means", [])
+    if r.get("cost_windows", 0): cost_fails.append("round %d: %d cost window(s)" % (k + 1, r["cost_windows"]))
+    if r.get("cost_judged") and cm and sum(cm) / len(cm) > BUDGET_MAX: cost_fails.append("round %d: clean mean_us %.1f > %.0f" % (k + 1, sum(cm) / len(cm), BUDGET_MAX))
+union = [v for r in valid for v in r.get("clean_means", [])]
+union_fire = [v for r in valid for v in r.get("clean_max_fire", [])]
+print("=== %s set evaluation over %d round(s) (D36/D46%s) ===" % (script, rounds, "" if judged else "; bands are defined for --repeat 3: reported, not judged"))
 print("  per round: kills=%s frags=%s stuck=%s pickups=%s max_dwell_s=%s repaths=%s" % (
-    [r["kills"] for r in runs], [r["frags"] for r in runs], [r["stuck"] for r in runs], [r["pickups"] for r in runs], [r["max_dwell"] for r in runs], [r["repaths"] for r in runs]))
+    [r["kills"] for r in valid], [r["frags"] for r in valid], [r["stuck"] for r in valid], [r["pickups"] for r in valid], [r["max_dwell"] for r in valid], [r["repaths"] for r in valid]))
 print("  sums: stuck=%d kills=%d frags=%d pocket_strikes=%d%s major_covered=%d/7 [%s]%s" % (
     S("stuck"), S("kills"), S("frags"), S("pocket"), " (FLAG: pocket strike -> architect)" if S("pocket") else "", len(major) if not missing else 7 - len(missing), ",".join(major),
     " missing=[%s]" % ",".join(missing) if missing else ""))
-if contended_rounds:
-    print("  CONTENDED round(s) %s (D40) excluded from the sums above: set not judged, rerun %s on an idle machine" % (
-        ",".join(str(k) for k in contended_rounds), "them" if len(contended_rounds) > 1 else "it"))
+if script == "BotDuel":
+    print("  mega timed returns (s): %s within_3s=%d within_4s=%d first_after_live_s=%s (reported)" % (
+        ",".join("%.1f" % v for v in timed), within3, within4, [("%.1f" % r["first_after_live"]) if r.get("first_after_live") is not None else "-" for r in valid]))
+print("  cost: windows clean/total per round %s; contended %s; cost windows %s; union of clean windows: %d window(s) mean_us=%.1f max_fire_us=%.0f" % (
+    ["%d/%d" % (r.get("clean", 0), r.get("windows", 0)) for r in runs], [r.get("contended", 0) for r in runs], [r.get("cost_windows", 0) for r in runs],
+    len(union), sum(union) / len(union) if union else 0.0, max(union_fire or [0])))
+if invalid_rounds:
+    print("  INVALID round(s) %s (frame_deficit > 10 %% in more than two windows, D46 1d): excluded from the sums, set not judged, rerun %s" % (
+        ",".join(str(k) for k in invalid_rounds), "them" if len(invalid_rounds) > 1 else "it"))
     sys.exit(1 if rounds == 3 else 0)
 if not judged:
     sys.exit(0)
 for f in fails:
     print("  - " + f)
-print("  set %s" % ("FAIL" if fails else "PASS"))
-sys.exit(1 if fails else 0)
+for f in cost_fails:
+    print("  - cost: " + f)
+cost_nj = len(unjudged) >= 2
+if cost_nj:
+    print("  union fallback (D46 5, the lead's call): %d clean window(s) over the set%s, mean_us=%.1f -> %s" % (
+        len(union), "" if len(union) >= 30 else " (< 30: not enough)", sum(union) / len(union) if union else 0.0,
+        "would PASS" if len(union) >= 30 and sum(union) / len(union) <= BUDGET_MAX and not cost_fails else "would not pass"))
+    print("  - cost NOT JUDGED: fewer than 50 %% clean windows in round(s) %s (D46 5: rerun this set after acting on the sidecar's cause; if it recurs, judge the union of the clean windows)" % ",".join(str(k) for k in unjudged))
+elif unjudged:
+    print("  cost judged on the other rounds; round %s had < 50 %% clean windows (not judged)" % ",".join(str(k) for k in unjudged))
+print("  set behaviour %s, cost %s" % ("FAIL" if fails else "PASS", "FAIL" if cost_fails else ("NOT JUDGED" if cost_nj else "PASS")))
+print("  set %s" % ("FAIL" if (fails or cost_fails or cost_nj) else "PASS"))
+sys.exit(1 if (fails or cost_fails or cost_nj) else 0)
 PY
+}
+
+# reeval <dir> : D46 (1f). Replays the per-round summary and the set evaluation of the bot soaks on saved logs. <dir> is a
+# nettest directory (<script>-server.log directly, or in round-<k>/ subdirectories). Results go to a scratch directory
+# next to the repo's CI output; the saved logs are not touched. Needs no engine. A missing sidecar means host columns n/a.
+reeval() {
+  local dir="$1" out rounds=0 k s failed=0 d any=0 round_dir
+  [[ -d "$dir" ]] || die "--reeval: not a directory: $dir"
+  dir="$(cd "$dir" && pwd)"
+  # accept the parent of nettest/
+  if [[ -d "$dir/nettest" ]]; then dir="$dir/nettest"; fi
+  while [[ -d "$dir/round-$((rounds + 1))" ]]; do rounds=$((rounds + 1)); done
+  VELOX_OUT="${VELOX_OUT:-$REPO_ROOT/Saved/CI}"
+  out="$VELOX_OUT/reeval-$(date +%Y%m%d-%H%M%S)-$$"
+  local scripts_re=()
+  IFS=',' read -r -a scripts_re <<< "$SCRIPTS_ARG"
+  for s in "${scripts_re[@]}"; do
+    [[ "$BOT_SCRIPTS" == *" $s "* ]] || continue
+    local n=$(( rounds > 0 ? rounds : 1 )) found=0
+    for (( k = 1; k <= n; k++ )); do
+      if (( rounds > 0 )); then round_dir="$dir/round-$k"; mkdir -p "$out/round-$k"; d="$out/round-$k"; else round_dir="$dir"; mkdir -p "$out"; d="$out"; fi
+      [[ -f "$round_dir/$s-server.log" ]] || continue
+      found=1; any=1
+      echo
+      echo "=== reeval $s${rounds:+ round $k/$n} ($round_dir) ==="
+      analyze_round "$s" "$round_dir/$s-server.log" "$round_dir/$s-client.log" 0 1 "$d/$s.result" "$(script_lag "$s")" "$round_dir" "$d" || failed=1
+      cat "$d/$s.result"
+    done
+    if (( found )); then bot_set_eval "$s" "$out" "$n" || failed=1; fi
+  done
+  (( any )) || die "--reeval: no BotRun/BotDuel logs under $dir (other scripts are not replayed)"
+  echo "Re-evaluated into: $out"
+  return "$failed"
 }
 
 main() {
@@ -1453,12 +1783,14 @@ main() {
       --lag)     [[ $# -ge 2 && "$2" =~ ^[0-9]+$ && "$2" -ge 20 ]] || die "--lag needs an integer >= 20 (ms)"; LAG_OVERRIDE="$2"; shift 2 ;;
       --repeat)  [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--repeat needs a positive integer"; REPEAT="$2"; shift 2 ;;
       --keep-going) KEEP_GOING=1; shift ;;
+      --reeval)  [[ $# -ge 2 ]] || die "--reeval needs a directory"; REEVAL_DIR="$2"; shift 2 ;;
       -h|--help) nettest_usage; exit 0 ;;
       *) nettest_usage >&2; die "unknown option: $1" ;;
     esac
   done
   IFS=',' read -r -a scripts <<< "$SCRIPTS_ARG"
   cd "$REPO_ROOT" || exit 1
+  if [[ -n "$REEVAL_DIR" ]]; then reeval "$REEVAL_DIR"; exit $?; fi
   load_env_file
   ci_resolve_engine
   EDITOR_CMD="$(find_editor_cmd)" || die "UnrealEditor-Cmd not found under $UE_ROOT/Engine/Binaries/Linux"
