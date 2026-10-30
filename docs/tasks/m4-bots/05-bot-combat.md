@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged; notes/05-report.md)
 **Depends on:** 04; ADR 0005 §4 (RocketJump), §6, §8, §9, §10, §13. Parallel with 06 (file ownership in the README).
 
 ## Goal
