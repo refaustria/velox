@@ -70,6 +70,8 @@ struct FVeloxBotState
 	bool bOffMeshRecovery = false;
 	double OffMeshMoveUntil = 0.0;
 	int32 OffMeshAttempts = 0;
+	/** Set by ApplyInput: the fire ability's NextFireTime advanced this tick (D14, budget fire exclusion). */
+	bool bShotFiredThisTick = false;
 	int32 OffMeshRecoveries = 0;
 	/** Target of the last recovery attempt (the next attempt avoids it). */
 	FVector OffMeshLastTarget = FVector::ZeroVector;
@@ -284,6 +286,10 @@ public:
 	/** A direct recovery move that has not brought the feet back onto the mesh within this is replaced by a new attempt (s). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0.5", Units = "s"))
 	float OffMeshRecoverTimeoutSeconds = 4.f;
+
+	/** Recovery attempts before the bot gives up and suicides through environment damage (D17, B28 respawn; no teleport). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1"))
+	int32 OffMeshMaxAttempts = 6;
 
 	/** velox.bots.Debug line interval (s). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0.1", Units = "s"))

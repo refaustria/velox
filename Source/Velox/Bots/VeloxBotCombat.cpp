@@ -4,6 +4,7 @@
 
 #include "Bots/VeloxBotController.h"
 #include "Bots/VeloxBotCoreTypes.h"
+#include "Bots/VeloxBotLog.h"
 #include "Bots/VeloxBotPathFollowingComponent.h"
 #include "Bots/VeloxBotSubsystem.h"
 #include "Bots/VeloxWeaponChoice.h"
@@ -352,6 +353,8 @@ namespace VeloxBotCombatGlueImpl
 			const float Jitter = 1.f + Aim.ReactionJitter * (2.f * Stream.FRand() - 1.f);
 			Combat.HeardId = Info.Id;
 			Combat.HeardReactTime = Now + Aim.ReactionSeconds * Jitter;
+			++Combat.HeardCount;
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotHear bot=%s from=%s react_in=%.3f"), *Bot.GetBotName(), *Attacker->GetName(), Combat.HeardReactTime - Now);
 		}
 	}
 
@@ -534,6 +537,9 @@ namespace VeloxBotCombatGlue
 						BestTime = Threat.TimeToClosest;
 						Combat.ProjectileDodgeDir = Threat.AwayDir;
 						Combat.ProjectileDodgeAt = Now + Params.ProjectileDodgeReactionSeconds;
+						Combat.ProjectileDodgeName = Projectile->GetFName();
+						Combat.ProjectileDodgeTClosest = Threat.TimeToClosest;
+						Combat.ProjectileDodgeDist = Threat.ClosestDistanceCm;
 					}
 				}
 			}
@@ -564,6 +570,9 @@ namespace VeloxBotCombatGlue
 			Combat.ProjectileDodgeAt = -1.0;
 			Combat.ProjectileDodgeUntil = Now + Settings.ProjectileDodgeHoldSeconds;
 			Combat.DodgeJumpUntil = Now + Settings.DodgeJumpHoldSeconds;
+			++Combat.DodgeCount;
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotDodge bot=%s projectile=%s t_closest=%.2f dist=%.0f dir=(%.2f,%.2f)"), *Bot.GetBotName(), *Combat.ProjectileDodgeName.ToString(),
+				Combat.ProjectileDodgeTClosest, Combat.ProjectileDodgeDist, Combat.ProjectileDodgeDir.X, Combat.ProjectileDodgeDir.Y);
 		}
 		const bool bDodging = Now < Combat.ProjectileDodgeUntil;
 		const FVeloxBotEnemyInfo* Target = Combat.GetTarget();
@@ -832,7 +841,7 @@ namespace VeloxBotCombatGlue
 	FString Describe(const FVeloxBotCombatState& Combat)
 	{
 		const FVeloxBotEnemyInfo* Target = Combat.GetTarget();
-		return FString::Printf(TEXT("enemy=%s vis=%d known=%d fire=%s presses=%d traces=%d"), Target ? *GetNameSafe(Target->Pawn.Get()) : TEXT("-"), Target && Target->bVisible ? 1 : 0,
-			Combat.Enemies.Num(), LexToString(Combat.LastVerdict), Combat.ShotsPressed, Combat.TracesTotal);
+		return FString::Printf(TEXT("enemy=%s vis=%d known=%d fire=%s presses=%d traces=%d heard=%d dodges=%d"), Target ? *GetNameSafe(Target->Pawn.Get()) : TEXT("-"), Target && Target->bVisible ? 1 : 0,
+			Combat.Enemies.Num(), LexToString(Combat.LastVerdict), Combat.ShotsPressed, Combat.TracesTotal, Combat.HeardCount, Combat.DodgeCount);
 	}
 }

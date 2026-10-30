@@ -47,6 +47,7 @@
 #include "Combat/VeloxHealthSet.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Weapons/VeloxWeaponCheats.h"
+#include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
 
 // ------------------------------------------------------------------------------------------------------ automation
@@ -806,6 +807,7 @@ namespace VeloxBotFt
 #include "Combat/VeloxHealthSet.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Weapons/VeloxWeaponCheats.h"
+#include "Weapons/VeloxWeaponDefinition.h"
 
 namespace VeloxBotRoutingFt
 {
@@ -823,6 +825,9 @@ namespace VeloxBotRoutingFt
 		int64 LastPathCount = 0;
 		int32 MaxPathsPerFrame = 0;
 		int32 Frames = 0;
+		/** Distinct evaluation records seen (the last record's time changes). */
+		int32 Evaluations = 0;
+		double LastEvaluationTime = -1.0;
 	};
 
 	TSharedPtr<FRoutingFt> GRoutingFt;
@@ -862,6 +867,11 @@ namespace VeloxBotRoutingFt
 		++F->Frames;
 
 		const FVeloxBotRouteRecord* Last = Router->FindLastEvaluation(Bot);
+		if (Last && Last->Time != F->LastEvaluationTime)
+		{
+			F->LastEvaluationTime = Last->Time;
+			++F->Evaluations;
+		}
 		const double Elapsed = F->Now() - F->StepStart;
 		if (F->Step == FRoutingFt::EStep::Choose)
 		{
@@ -903,6 +913,10 @@ namespace VeloxBotRoutingFt
 				F->Check(true, TEXT("goal_switched"), FString::Printf(TEXT("goal=%s item=%s"), LexToString(Bot->GetBotState().Goal.Type),
 					*GetNameSafe(Bot->GetBotState().Goal.Item.Get())));
 				F->Check(F->MaxPathsPerFrame <= 1, TEXT("paths_per_frame"), FString::Printf(TEXT("max=%d frames=%d total=%lld"), F->MaxPathsPerFrame, F->Frames, Router->GetPathQueryCount()));
+				// F5: one path query per frame and PathQueryCandidates queries per evaluation, so a peaceful run needs at most
+				// 3 x K frames per evaluation (the 04b run without Peaceful took 542 frames).
+				const int32 FrameLimit = FMath::CeilToInt32(3.f * UVeloxBotSettings::Get().PathQueryCandidates) * FMath::Max(F->Evaluations, 1);
+				F->Check(F->Frames <= FrameLimit, TEXT("frames"), FString::Printf(TEXT("frames=%d limit=%d evaluations=%d"), F->Frames, FrameLimit, F->Evaluations));
 				F->Step = FRoutingFt::EStep::Done;
 				return false;
 			}
@@ -971,6 +985,11 @@ namespace VeloxBotRoutingFt
 		{
 			UE_LOG(LogVeloxBots, Warning, TEXT("velox.bots.FtItemRouting: needs the authority world of L_ItemTest (-game)."));
 			return;
+		}
+		// A routing test: the bot must not fight the local player (every visibility change would re-trigger an evaluation, F5).
+		if (IConsoleVariable* Peaceful = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.bots.Peaceful")))
+		{
+			Peaceful->Set(1, ECVF_SetByCode);
 		}
 		TSharedRef<FRoutingFt> Ft = MakeShared<FRoutingFt>();
 		Ft->Name = TEXT("FT_BotItemRouting");
@@ -1199,6 +1218,342 @@ namespace VeloxBotOffMeshFt
 
 	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtOffMesh"),
 		TEXT("velox.bots.FtOffMesh [quit]: FT_BotOffMesh on L_ItemTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a bot put off the nav mesh (wall strips, cover top) recovers and reaches its goal. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
+}
+
+#endif // !UE_BUILD_SHIPPING
+
+// ------------------------------------------------------------------------------------------- task 04c-c: FT_BotCombatEvents
+//   velox.bots.FtCombatEvents  (console, `UnrealEditor-Cmd Velox.uproject L_CombatTest -game -nullrhi -UseFixedTimeStep
+//                              -FPS=60 -ExecCmds="velox.bots.Seed 1, velox.bots.FtCombatEvents quit"`; ADR 0005 D15): the
+//                              arena's dummies are removed. Case 1 (hear): a Hard bot standing still (forced goal on its own
+//                              spot) takes 10 damage with a second, frozen bot behind it as the instigator: the hearing
+//                              reaction is armed within ReactionSeconds x 1.3 (VeloxBotHear, the combat state's heard
+//                              counter) and the bot's yaw is within 20 degrees of the instigator inside 1 s. Case 2
+//                              (dodge): a rocket spawned from the rocket launcher definition 1500 cm away flying at the bot
+//                              (owner = the second bot): VeloxBotDodge (dodge counter) within ProjectileDodgeReactionSeconds
+//                              + 0.1 s and a lateral speed >= 200 cm/s inside 0.5 s of it. The placement, the damage and
+//                              the rocket are the test harness; the bot only gets input.
+
+#if !UE_BUILD_SHIPPING
+
+#include "Bots/VeloxDummyController.h"
+#include "Bots/VeloxDummySpawner.h"
+#include "Combat/VeloxGameplayEffects.h"
+#include "EngineUtils.h"
+#include "Weapons/VeloxProjectile.h"
+
+namespace VeloxBotCombatEventsFt
+{
+	/** Open floor of L_CombatTest between the cover blocks (Tools/editor/create_combat_test_map.py). */
+	const FVector BotSpot(0.0, 650.0, 0.0);
+	constexpr double SettleSeconds = 0.7;
+	constexpr double RestSpeedCmS = 20.0;
+	constexpr double RestTimeoutSeconds = 8.0;
+	constexpr int32 HearDamage = 10;
+	constexpr double DummyBehindCm = 500.0;
+	constexpr double TurnLimitSeconds = 1.0;
+	constexpr double TurnToleranceDeg = 20.0;
+	constexpr double HearFactor = 1.3;
+	constexpr double RocketDistanceCm = 1500.0;
+	constexpr double DodgeSlackSeconds = 0.1;
+	constexpr double LateralWindowSeconds = 0.5;
+	constexpr double LateralMinCmS = 200.0;
+	constexpr double CaseTimeoutSeconds = 4.0;
+
+	struct FCombatEventsFt : VeloxBotFt::FFtBase
+	{
+		int32 CaseIndex = 0;
+		/** 0 settle, 1 dummy placed (damage / rocket next), 2 observing. */
+		int32 Phase = 0;
+		double PhaseStart = 0.0;
+		TWeakObjectPtr<AVeloxBotController> Dummy;
+		int32 CountAtEvent = 0;
+		double EventTime = 0.0;
+		double EventYawToDummy = 0.0;
+		bool bCounted = false;
+		double CountedAt = 0.0;
+		double MaxLateral = 0.0;
+		TWeakObjectPtr<AVeloxProjectile> Rocket;
+	};
+
+	bool StartCase(const TSharedRef<FCombatEventsFt>& Ft)
+	{
+		UWorld* World = Ft->World.Get();
+		UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+		if (!Bots)
+		{
+			return false;
+		}
+		if (AVeloxBotController* Old = Ft->Bot.Get())
+		{
+			Ft->LogBotCost();
+			Bots->KickBot(Old->GetBotName());
+		}
+		if (AVeloxBotController* OldDummy = Ft->Dummy.Get())
+		{
+			Bots->KickBot(OldDummy->GetBotName());
+		}
+		AVeloxBotController* Bot = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Hard")), TEXT("FtEventsBot"));
+		AVeloxBotController* Dummy = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Easy")), TEXT("FtEventsDummy"));
+		AVeloxCharacter* Pawn = Bot ? Cast<AVeloxCharacter>(Bot->GetPawn()) : nullptr;
+		AVeloxCharacter* DummyPawn = Dummy ? Cast<AVeloxCharacter>(Dummy->GetPawn()) : nullptr;
+		AVeloxPlayerState* DummyPS = Dummy ? Dummy->GetPlayerState<AVeloxPlayerState>() : nullptr;
+		if (!Pawn || !DummyPawn || !DummyPS || !VeloxWeaponCheats::GiveAllWeapons(*DummyPS))
+		{
+			Ft->Check(false, TEXT("setup"), FString::Printf(TEXT("bot=%s dummy=%s"), *GetNameSafe(Bot), *GetNameSafe(Dummy)));
+			return false;
+		}
+		Ft->Bot = Bot;
+		Ft->Dummy = Dummy;
+		Dummy->SetFrozen(true);
+		// Out of every sight line until placed: the far corner.
+		VeloxBotFt::PlaceAtStart(*DummyPawn, FVector(1800.0, -1800.0, 0.0));
+		VeloxBotFt::PlaceAtStart(*Pawn, BotSpot);
+		Bot->SetForcedPointGoal(BotSpot);
+		Ft->Phase = 0;
+		Ft->PhaseStart = Ft->Now();
+		Ft->bCounted = false;
+		Ft->MaxLateral = 0.0;
+		return true;
+	}
+
+	bool Advance(const TSharedRef<FCombatEventsFt>& Ft)
+	{
+		++Ft->CaseIndex;
+		Ft->Phase = 0;
+		return Ft->CaseIndex < 2 && StartCase(Ft);
+	}
+
+	bool Tick(const TSharedRef<FCombatEventsFt>& Ft)
+	{
+		AVeloxBotController* Bot = Ft->Bot.Get();
+		AVeloxBotController* Dummy = Ft->Dummy.Get();
+		AVeloxCharacter* Pawn = Bot ? Cast<AVeloxCharacter>(Bot->GetPawn()) : nullptr;
+		AVeloxCharacter* DummyPawn = Dummy ? Cast<AVeloxCharacter>(Dummy->GetPawn()) : nullptr;
+		const UVeloxMovementComponent* Movement = Pawn ? Pawn->GetVeloxMovementComponent() : nullptr;
+		UWorld* World = Ft->World.Get();
+		if (!Movement || !DummyPawn || !World)
+		{
+			Ft->Check(false, TEXT("alive"), TEXT("bot or dummy pawn gone"));
+			return false;
+		}
+		const double T = Ft->Now();
+		const FVeloxBotCombatState& Combat = Bot->GetCombatState();
+		const bool bHearCase = Ft->CaseIndex == 0;
+
+		if (Ft->Phase == 0)
+		{
+			// At rest on its spot: the bot may carry its first path's speed past the goal and come back, so wait for the arrival.
+			if (T - Ft->PhaseStart < SettleSeconds || !Movement->IsOnGround() || Movement->GetSpeed2D() > RestSpeedCmS || !Bot->GetBotState().bGoalArrived)
+			{
+				if (T - Ft->PhaseStart > RestTimeoutSeconds)
+				{
+					Ft->Check(false, TEXT("rest"), FString::Printf(TEXT("speed=%.0f arrived=%d at=%s"), Movement->GetSpeed2D(), Bot->GetBotState().bGoalArrived ? 1 : 0, *Pawn->GetActorLocation().ToCompactString()));
+					return false;
+				}
+				return true;
+			}
+			// Behind the bot (opposite its view), outside the perception FOV.
+			const FVector Back = -FRotator(0.f, Bot->GetBotState().View.Yaw, 0.f).Vector();
+			const FVector Spot = Pawn->GetActorLocation() + Back * DummyBehindCm;
+			VeloxBotFt::PlaceAtStart(*DummyPawn, FVector(Spot.X, Spot.Y, 0.0));
+			Ft->Phase = 1;
+			Ft->PhaseStart = T;
+			return true;
+		}
+		if (Ft->Phase == 1)
+		{
+			if (T - Ft->PhaseStart < 0.2)
+			{
+				return true;
+			}
+			UVeloxAbilitySystemComponent* DummyASC = DummyPawn->GetVeloxAbilitySystemComponent();
+			UVeloxAbilitySystemComponent* BotASC = Pawn->GetVeloxAbilitySystemComponent();
+			if (!DummyASC || !BotASC)
+			{
+				Ft->Check(false, TEXT("asc"), TEXT("no ability system"));
+				return false;
+			}
+			Ft->EventTime = T;
+			if (bHearCase)
+			{
+				Ft->CountAtEvent = Combat.HeardCount;
+				FVeloxDamageSpecParams Params;
+				Params.Damage = HearDamage;
+				Params.DamageTag = VeloxGameplayTags::Damage_MachineGun;
+				Params.HitLocation = Pawn->GetActorLocation();
+				Params.bNoKnockback = true;
+				const FGameplayEffectSpecHandle Spec = VeloxEffects::MakeDamageSpec(DummyASC, Params);
+				if (!Spec.IsValid())
+				{
+					Ft->Check(false, TEXT("damage_spec"), TEXT("no spec"));
+					return false;
+				}
+				DummyASC->ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), BotASC);
+				const FVector ToDummy = DummyPawn->GetActorLocation() - Pawn->GetActorLocation();
+				Ft->EventYawToDummy = ToDummy.Rotation().Yaw;
+			}
+			else
+			{
+				Ft->CountAtEvent = Combat.DodgeCount;
+				const AVeloxPlayerState* DummyPS = DummyPawn->GetPlayerState<AVeloxPlayerState>();
+				const UVeloxWeaponInventoryComponent* Inventory = DummyPS ? DummyPS->GetWeaponInventory() : nullptr;
+				const UVeloxWeaponDefinition* Rocket = nullptr;
+				for (int32 i = 0; Inventory && i < Inventory->NumWeapons() && !Rocket; ++i)
+				{
+					const UVeloxWeaponDefinition* Definition = Inventory->GetDefinition(i);
+					Rocket = Definition && Definition->WeaponTag == VeloxGameplayTags::Weapon_RocketLauncher ? Definition : nullptr;
+				}
+				if (!Rocket)
+				{
+					Ft->Check(false, TEXT("rocket_definition"), TEXT("dummy has no rocket launcher"));
+					return false;
+				}
+				FVeloxProjectileLaunch Launch;
+				Launch.Definition = Rocket;
+				Launch.Shooter = DummyPawn;
+				Launch.SourceASC = DummyASC;
+				Launch.Origin = Pawn->GetActorLocation() + FVector(RocketDistanceCm, 0.0, 0.0);
+				Launch.Dir = -FVector::ForwardVector;
+				AVeloxProjectile* Projectile = AVeloxProjectile::SpawnServerProjectile(*World, Rocket->ProjectileClass, Launch);
+				Ft->Rocket = Projectile;
+				if (!Projectile)
+				{
+					Ft->Check(false, TEXT("rocket_spawn"), TEXT("no projectile"));
+					return false;
+				}
+			}
+			Ft->Phase = 2;
+			Ft->PhaseStart = T;
+			return true;
+		}
+
+		const double Since = T - Ft->EventTime;
+		if (bHearCase)
+		{
+			if (!Ft->bCounted && Combat.HeardCount > Ft->CountAtEvent)
+			{
+				Ft->bCounted = true;
+				Ft->CountedAt = Since;
+				const double Limit = Combat.AimParams.ReactionSeconds * HearFactor;
+				Ft->Check(Since <= Limit + 1.0 / 30.0, TEXT("hear"), FString::Printf(TEXT("seconds=%.3f limit=%.3f"), Since, Limit));
+			}
+			const double YawError = FMath::Abs(FRotator::NormalizeAxis(Bot->GetBotState().View.Yaw - Ft->EventYawToDummy));
+			if (Ft->bCounted && YawError <= TurnToleranceDeg)
+			{
+				Ft->Check(Since <= TurnLimitSeconds, TEXT("turn"), FString::Printf(TEXT("seconds=%.3f yaw_error=%.1f"), Since, YawError));
+				return Advance(Ft);
+			}
+			if (Since > TurnLimitSeconds)
+			{
+				Ft->Check(Ft->bCounted, TEXT("hear"), FString::Printf(TEXT("counted=%d heard=%d"), Ft->bCounted ? 1 : 0, Combat.HeardCount));
+				Ft->Check(false, TEXT("turn"), FString::Printf(TEXT("seconds=%.3f yaw_error=%.1f"), Since, YawError));
+				return Advance(Ft);
+			}
+			return true;
+		}
+
+		// Dodge case.
+		const double Lateral = FMath::Abs(Pawn->GetVelocity().Y);
+		if (!Ft->bCounted && Combat.DodgeCount > Ft->CountAtEvent)
+		{
+			Ft->bCounted = true;
+			Ft->CountedAt = Since;
+			const double Limit = Bot->GetDifficultyParams().ProjectileDodgeReactionSeconds + DodgeSlackSeconds;
+			Ft->Check(Since <= Limit, TEXT("dodge"), FString::Printf(TEXT("seconds=%.3f limit=%.3f"), Since, Limit));
+		}
+		if (Ft->bCounted)
+		{
+			Ft->MaxLateral = FMath::Max(Ft->MaxLateral, Lateral);
+			if (Since - Ft->CountedAt >= LateralWindowSeconds || Ft->MaxLateral >= LateralMinCmS)
+			{
+				Ft->Check(Ft->MaxLateral >= LateralMinCmS, TEXT("lateral"), FString::Printf(TEXT("max_cm_s=%.0f window_s=%.2f"), Ft->MaxLateral, Since - Ft->CountedAt));
+				if (AVeloxProjectile* Rocket = Ft->Rocket.Get())
+				{
+					Rocket->Destroy();
+				}
+				return Advance(Ft);
+			}
+		}
+		if (Since > CaseTimeoutSeconds)
+		{
+			Ft->Check(Ft->bCounted, TEXT("dodge"), FString::Printf(TEXT("timeout dodges=%d"), Combat.DodgeCount));
+			Ft->Check(false, TEXT("lateral"), TEXT("timeout"));
+			return false;
+		}
+		return true;
+	}
+
+	TSharedPtr<FCombatEventsFt> GEventsFt;
+
+	void Command(const TArray<FString>& Args, UWorld* World)
+	{
+		UVeloxBotSubsystem* Bots = World && World->GetNetMode() != NM_Client ? UVeloxBotSubsystem::Get(World) : nullptr;
+		if (!Bots)
+		{
+			UE_LOG(LogVeloxBots, Warning, TEXT("velox.bots.FtCombatEvents: needs the authority world of L_CombatTest (-game)."));
+			return;
+		}
+		// Hearing needs the bots to fight: Peaceful off.
+		if (IConsoleVariable* Peaceful = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.bots.Peaceful")))
+		{
+			Peaceful->Set(0, ECVF_SetByCode);
+		}
+		// The arena's strafing dummies are perceived enemies: remove them.
+		for (TActorIterator<AVeloxDummySpawner> It(World); It; ++It)
+		{
+			It->Destroy();
+		}
+		for (TActorIterator<AVeloxCharacter> It(World); It; ++It)
+		{
+			// The -game local player's pawn is an enemy too: the Hard bot would fight it (strafe, range keeping) instead of standing still.
+			if (Cast<AVeloxDummyController>(It->GetController()) || Cast<APlayerController>(It->GetController()))
+			{
+				It->Destroy();
+			}
+		}
+		if (GEngine)
+		{
+			GEngine->Exec(World, TEXT("velox.match.Phase Live"));
+		}
+		TSharedRef<FCombatEventsFt> Ft = MakeShared<FCombatEventsFt>();
+		Ft->Name = TEXT("FT_BotCombatEvents");
+		Ft->World = World;
+		Ft->bQuit = VeloxBotFt::ParseQuit(Args);
+		GEventsFt = Ft;
+		TWeakPtr<FCombatEventsFt> Weak = Ft;
+		Bots->CallWhenNavReady([Weak]()
+		{
+			const TSharedPtr<FCombatEventsFt> F = Weak.Pin();
+			if (!F)
+			{
+				return;
+			}
+			if (!StartCase(F.ToSharedRef()))
+			{
+				F->Finish();
+				return;
+			}
+			F->TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+			{
+				const TSharedPtr<FCombatEventsFt> Inner = Weak.Pin();
+				if (!Inner || Inner->bFinished)
+				{
+					return false;
+				}
+				if (!Tick(Inner.ToSharedRef()))
+				{
+					Inner->Finish();
+					return false;
+				}
+				return true;
+			}));
+		});
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtCombatEvents"),
+		TEXT("velox.bots.FtCombatEvents [quit]: FT_BotCombatEvents on L_CombatTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a Hard bot hears damage from behind and turns, dodges a rocket. Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
 }
 
