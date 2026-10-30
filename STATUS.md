@@ -51,21 +51,21 @@ _Last updated: 2026-10-30 afternoon (project lead). Branches: `main` = M0–M3; 
 
 ## Next
 - M4-07 acceptance on a quiet host (question 27) → merge `m4-bots` → `main`; M4 human playtest on the Apple Silicon Mac (`docs/playtests/m4-bots-checklist.md`).
-- After M4: `MaxRewindSeconds` 0.30 → 0.35 (q19, dev); free-spectate death camera (q16, plan as an M3 follow-up task with an architect note on replication/visibility).
+- After M4: `MaxRewindSeconds` 0.30 → 0.35 (q19, dev); weapon-switch retarget (q20, dev-hard, GAS/prediction); Easy/Medium spray + more Duel camping, "near-human" tuning (q24/q28, architect note then dev-hard); free-spectate death camera (q16, plan as an M3 follow-up task with an architect note on replication/visibility).
 - Then M5 (first real map + characters): architect ADR first.
 - Disk hygiene: keep ≥ 15 GB free (standing OK for caches/build artefacts).
 
 ## Open questions for the human
 27. ~~Quiet host window~~ — granted 2026-10-30 evening; acceptance run in progress.
-28. **Duel camping frequency (feel, decide at the Mac playtest):** Hard duellers camp a respawning Mega/RA in only ~1–8 % of goal changes (they mostly have a better item to fetch). More camping = raise `DuelCampOverScore` (now 7).
+28. ~~Duel camping frequency~~ — decided 2026-10-30: **yes, camp more**; target near-human dueller behaviour (raise `DuelCampOverScore`, verify in BotDuel; task after M4).
 26. **Playtest machine — decided 2026-10-30: Apple Silicon Mac.** The Intel MacBookPro16,2 cannot render UE 5.8 (Intel Metal support removed); it stays a headless compile/test host. Waiting for the Apple Silicon Mac. Setup there: macOS Sonoma 14.5+, Xcode 26.0 or 26.1.1 (not 26.4), UE 5.8 via the Epic Launcher, git-lfs, then `infra/ci/build-mac.sh` (Host arch → arm64, no flags needed) and the checklists in `docs/playtests/`. Tell me when it is ready.
 25. ~~Map convention~~ — decided 2026-10-30: walkable widths ≥ 120 cm, AgentRadius stays 45.
-24. **Easy bots "spray"?** Default: no preset sprays (same direct-hit radius for all). Decide after the Mac playtest.
+24. ~~Easy bots spray~~ — decided 2026-10-30: **yes**, Easy (and Medium mildly) spray; tune for near-human feel (task after M4).
 23. ~~M4 bot defaults~~ — decided 2026-10-30: all confirmed (Latin names, no bots by default/Medium, RJ Hard+Expert at ≥ 70 HP, Expert 0.7°/0.10 s, AddBot for all until M6).
 22. ~~UE 5.8 not installed on the Mac~~ — resolved 2026-10-30: engine installed at `/Users/cappa/unreal/UE_5.8`, LFS content pulled, Editor/Game compile and the 53-test automation suite is green (headless, no RHI). Optional: `brew install coreutils` for a time-limited test run (slow on Intel, builds from source).
 21. ~~M3 defaults~~ — decided 2026-10-30: all confirmed as listed in ADR 0004.
 19. ~~`MaxRewindSeconds`~~ — decided 2026-10-30: **0.35 s** (task queued after the M4 acceptance).
-20. **Weapon key during your own switch (B33)**: today a second weapon key while the old weapon is being lowered is ignored; Q3 retargets the switch. Decide after the playtest (checklist item 20).
+20. ~~Weapon key during own switch~~ — decided 2026-10-30: **yes, retarget the switch** (Q3 behaviour; task after M4).
 - (answered 2026-10-29) Mac is **Intel**. UE 5.8's UBT still builds x86_64: `DefaultArchitecture=MacTargetArchitectureHost` in BaseEngine.ini picks x64 on an Intel host, so `build-mac.sh` needs no change. Requirements per Epic's 5.8 docs: macOS Sonoma 14.5+ and Xcode 26.0 or 26.1.1 (Xcode 26.4 is incompatible). Epic does not explicitly confirm Intel for 5.8; verify on the Mac that the Launcher installs and the editor starts.
 12. ~~Weapon numbers~~ — decided 2026-10-30: Q3 vanilla.
 13. ~~Spawn protection~~ — decided 2026-10-30: 0 s.
