@@ -10,7 +10,9 @@ Layout (X forward):
   arena 4000 x 4000 cm (x,y -2000..2000), perimeter walls 400 high / 100 thick, 8 cover blocks,
   4 PlayerStarts near the corners (+-1700, +-1200; the first, (-1700,-1200), faces +X towards the dummies),
   3 AVeloxDummySpawner (bAutoSpawn) at 1000/2000/3000 cm from the first PlayerStart along +X, each strafing
-  +-300 cm along Y at full ground speed, static sun + sky light.
+  +-300 cm along Y at full ground speed, static sun + sky light,
+  M4 (ADR 0005 section 3): one NavMeshBoundsVolume over the arena so the server builds the runtime nav mesh for bots
+  (the arena is flat with cover blocks only, so no AVeloxNavLink is needed).
 """
 import unreal
 
@@ -31,7 +33,7 @@ STRAFE_SPEED_SCALE = 1.0
 
 ERRORS = []
 COUNTS = {}
-EXPECTED = {"ground": 1, "wall": 4, "cover": 8, "marker": 3, "dummyspawner": 3, "playerstart": 4, "light": 2}
+EXPECTED = {"ground": 1, "wall": 4, "cover": 8, "marker": 3, "dummyspawner": 3, "playerstart": 4, "light": 2, "navbounds": 1}
 
 # (x, y, size x, size y, size z): all clear of the dummy lane y -1500..-900 and of the PlayerStarts.
 COVER = [
@@ -141,6 +143,24 @@ def build_starts_dummies_lights():
     count("light")
 
 
+NAV_BOUNDS_BRUSH = 200.0   # a Python-spawned NavMeshBoundsVolume gets the default 200 cm cube brush; scale = size / 200
+
+
+def nav_bounds(label, center, size):
+    """NavMeshBoundsVolume over the whole map (ADR 0005 section 3; bWholeWorldNavigable is not a config property in 5.8)."""
+    v = EAS.spawn_actor_from_class(unreal.NavMeshBoundsVolume, unreal.Vector(*center))
+    v.set_actor_label(label)
+    v.set_folder_path("Navigation")
+    v.set_actor_scale3d(unreal.Vector(size[0] / NAV_BOUNDS_BRUSH, size[1] / NAV_BOUNDS_BRUSH, size[2] / NAV_BOUNDS_BRUSH))
+    origin, extent = v.get_actor_bounds(False)
+    log(f"{label}: origin {origin} extent {extent}")
+    want = unreal.Vector(size[0] / 2, size[1] / 2, size[2] / 2)
+    if abs(extent.x - want.x) > 1.0 or abs(extent.y - want.y) > 1.0 or abs(extent.z - want.z) > 1.0:
+        fail(f"{label}: bounds extent {extent} differs from {want} (brush is not the default 200 cm cube)")
+    count("navbounds")
+    return v
+
+
 def build_map():
     global EAS
     les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -160,6 +180,8 @@ def build_map():
 
     build_arena()
     build_starts_dummies_lights()
+    # Arena plus walls, floor slab to above the highest cover block (300 cm).
+    nav_bounds("NavMeshBounds", (0.0, 0.0, 300.0), (2 * HALF + 400, 2 * HALF + 400, 1000.0))
 
     log("spawned: " + ", ".join(f"{k}={v}" for k, v in sorted(COUNTS.items())))
     if COUNTS != EXPECTED:

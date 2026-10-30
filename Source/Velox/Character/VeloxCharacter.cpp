@@ -615,22 +615,31 @@ void AVeloxCharacter::Input_LookMouse(const FInputActionValue& InputActionValue)
 	AddControllerPitchInput(Degrees.Y);
 }
 
-void AVeloxCharacter::Input_JumpStarted(const FInputActionValue& InputActionValue)
+void AVeloxCharacter::SetJumpInput(bool bPressed)
 {
+	// The one jump entry point of players (Input_JumpStarted/Completed) and bots (ADR 0005 section 1).
 	if (UVeloxMovementComponent* VeloxMovement = GetVeloxMovementComponent())
 	{
-		VeloxMovement->SetJumpHeld(true);
+		VeloxMovement->SetJumpHeld(bPressed);
 	}
-	Jump();
+	if (bPressed)
+	{
+		Jump();
+	}
+	else
+	{
+		StopJumping();
+	}
+}
+
+void AVeloxCharacter::Input_JumpStarted(const FInputActionValue& InputActionValue)
+{
+	SetJumpInput(true);
 }
 
 void AVeloxCharacter::Input_JumpCompleted(const FInputActionValue& InputActionValue)
 {
-	if (UVeloxMovementComponent* VeloxMovement = GetVeloxMovementComponent())
-	{
-		VeloxMovement->SetJumpHeld(false);
-	}
-	StopJumping();
+	SetJumpInput(false);
 }
 
 void AVeloxCharacter::Input_CrouchStarted(const FInputActionValue& InputActionValue)

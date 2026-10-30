@@ -86,6 +86,23 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerRequestJoin();
 
+	// ---- Bots (ADR 0005 section 12; M4-04) ----
+
+	/**
+	 * Client -> server: the `AddBot [Easy|Medium|Hard|Expert] [Name]` console command typed on a client. Non-shipping
+	 * builds only (the shipping server ignores it until M6's admin auth) and rate-limited per controller.
+	 */
+	UFUNCTION(Server, Reliable)
+	void ServerAddBot(const FString& DifficultyName, const FString& BotName);
+
+	/** Client -> server: `KickBot [Name|all]` from a client console. Same guard and rate limit as ServerAddBot. */
+	UFUNCTION(Server, Reliable)
+	void ServerKickBot(const FString& NameOrAll);
+
+	/** Minimum time between two accepted bot commands of one client (s). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bots", meta = (ClampMin = "0", Units = "s"))
+	float BotCommandMinIntervalSeconds = 0.5f;
+
 	/** Console: toggles ready (soaks, headless tests, until IA_Ready lands in task 06). */
 	UFUNCTION(Exec)
 	void Ready();
@@ -185,6 +202,10 @@ private:
 	double PawnLostTime = -1.0;
 	TWeakObjectPtr<APawn> LastPawn;
 	double LastRespawnRequestTime = -1e9;
+	/** Server: world time of the last accepted ServerAddBot / ServerKickBot. */
+	double LastBotCommandTime = -1e9;
+	/** Server: guard (shipping, rate limit, argument length) for the bot RPCs; logs refusals. */
+	bool AcceptBotCommand(const TCHAR* Command, const FString& Args);
 	bool bInIntermission = false;
 	bool bScoreboardHeld = false;
 
