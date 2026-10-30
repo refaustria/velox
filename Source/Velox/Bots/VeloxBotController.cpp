@@ -160,6 +160,39 @@ namespace VeloxBotRules
 		return false;
 	}
 
+	bool UpdateStuckProgress(double& Since, float& StartDist, FVector2D& WindowTarget, bool bTracking, bool bPaused, const FVector2D& Target,
+		float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds)
+	{
+		if (!bTracking)
+		{
+			Since = -1.0;
+			return false;
+		}
+		// A target that moved by more than this (cm, 2-D) is a new one (numeric equality of path points, not a tunable).
+		constexpr double TargetToleranceCm = 1.0;
+		if (Since < 0.0 || FVector2D::DistSquared(Target, WindowTarget) > FMath::Square(TargetToleranceCm))
+		{
+			Since = Now;
+			StartDist = Dist2D;
+			WindowTarget = Target;
+			return false;
+		}
+		if (bPaused)
+		{
+			Since = FMath::Min(Since + FMath::Max(0.0, static_cast<double>(Dt)), Now);
+			StartDist = Dist2D;
+			return false;
+		}
+		const bool bProgress = Dist2D <= StartDist - ProgressCm;
+		const bool bExpired = !bProgress && Now - Since >= StuckSeconds;
+		if (bProgress || bExpired)
+		{
+			Since = Now;
+			StartDist = Dist2D;
+		}
+		return bExpired;
+	}
+
 	bool UpdateOffMesh(double& OffMeshSince, bool bOnMesh, bool bRecoveryMoveActive, double RecoveryMoveUntil, double Now, float GraceSeconds)
 	{
 		if (bOnMesh)
@@ -921,6 +954,8 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 	UVeloxBotPathFollowingComponent* Follow = GetBotPathFollowing();
 	const AVeloxCharacter* Character = GetBotCharacter();
 	const UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
+	// D18 progress rule input: the previous tick's applied wish was the follower's (the combat overlay did not replace it).
+	const bool bFollowerOwnedWish = State.Pending.WishDirWorld.Equals(State.Nav.WishDir, 1e-3);
 	State.Pending = FVeloxBotInput();
 	State.Pending.View = State.View;
 	if (!Follow || !Movement)
@@ -934,14 +969,33 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 	State.Pending.WishScale = State.Nav.WishScale;
 	State.Pending.bJumpHeld = State.Nav.bJumpHeld;
 
-	// Stuck (section 5): a path is being followed (not on a link, not arrived) and the bot barely moves.
+	// Stuck (section 5): a path is being followed (not on a link, not arrived) and the bot barely moves (speed rule), or
+	// it moves but the distance to the segment target does not shrink (D18 progress rule: oscillation under a low
+	// ceiling, circling). The progress clock stops while the combat overlay owns the wish (strafing, range keeping and
+	// dodges move the bot off the path on purpose; with an Item goal the path is only blended in): enforcing it there
+	// gave 10-22 strikes per FFA run, nearly all moving away from the target at 300-1100 cm/s. Stopping instead of
+	// resetting keeps a bot that scrapes under the ramp slab while an enemy flickers in and out of view accountable.
 	const double T = Now();
+	const float StuckSeconds = UVeloxBotSettings::Get().StuckSeconds;
 	const bool bTracking = State.bMoveActive && !State.bGoalArrived && !Follow->IsOnLink() && Follow->GetStatus() == EPathFollowingStatus::Moving;
-	if (VeloxBotRules::UpdateStuck(State.SlowSince, bTracking, Movement->GetSpeed2D(), StuckSpeedCmS, T, UVeloxBotSettings::Get().StuckSeconds))
+	const bool bSlow = VeloxBotRules::UpdateStuck(State.SlowSince, bTracking, Movement->GetSpeed2D(), StuckSpeedCmS, T, StuckSeconds);
+	const FVector2D SegmentTarget(Follow->GetCurrentTargetLocation());
+	const float SegmentDist = static_cast<float>(FVector2D::Distance(SegmentTarget, FVector2D(Movement->GetActorFeetLocation())));
+	const float WindowDist = State.ProgressDist;
+	const bool bNoProgress = VeloxBotRules::UpdateStuckProgress(State.ProgressSince, State.ProgressDist, State.ProgressTarget, bTracking, !bFollowerOwnedWish,
+		SegmentTarget, SegmentDist, StuckProgressCm, T, DeltaSeconds, StuckSeconds);
+	if (bSlow || bNoProgress)
 	{
 		++State.StuckStrikes;
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotStuck bot=%s at=%s goal=%s strikes=%d"), *GetBotName(), *Character->GetActorLocation().ToCompactString(), LexToString(State.Goal.Type),
-			State.StuckStrikes);
+		// toward: cosine between the horizontal velocity and the direction to the segment target (-1 = moving away).
+		const FVector2D ToTarget = (SegmentTarget - FVector2D(Movement->GetActorFeetLocation())).GetSafeNormal();
+		const float Toward = static_cast<float>(FVector2D::DotProduct(FVector2D(Movement->Velocity).GetSafeNormal(), ToTarget));
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotStuck bot=%s at=%s goal=%s strikes=%d rule=%s speed=%.0f toward=%.2f dist=%.0f window_dist=%.0f ground=%d"),
+			*GetBotName(), *Character->GetActorLocation().ToCompactString(), LexToString(State.Goal.Type), State.StuckStrikes, bSlow ? TEXT("speed") : TEXT("progress"),
+			Movement->GetSpeed2D(), Toward, SegmentDist, bNoProgress ? WindowDist : -1.f, Movement->IsOnGround() ? 1 : 0);
+		// One strike per window: both clocks restart.
+		State.SlowSince = -1.0;
+		State.ProgressSince = -1.0;
 		StopMove();
 		State.NextMoveTime = T;
 		if (State.StuckStrikes >= StuckStrikesToRoam)

@@ -61,6 +61,10 @@ struct FVeloxBotState
 	// --- Stuck detection (section 5) ---
 	double SlowSince = -1.0;
 	int32 StuckStrikes = 0;
+	/** D18 progress rule: start of the current window (-1 = none), the 2-D distance to the segment target then, that target. */
+	double ProgressSince = -1.0;
+	float ProgressDist = 0.f;
+	FVector2D ProgressTarget = FVector2D::ZeroVector;
 
 	// --- Off-mesh recovery (task 04b): feet on the ground but off the nav mesh, so no path can start here ---
 	/** First check that found the feet off the mesh (-1 = on the mesh). */
@@ -117,6 +121,19 @@ namespace VeloxBotRules
 	 * once that lasted StuckSeconds (SlowSince then restarts at Now); not tracking or fast enough resets it.
 	 */
 	VELOX_API bool UpdateStuck(double& SlowSince, bool bTracking, float Speed2D, float SpeedThreshold, double Now, float StuckSeconds);
+
+	/**
+	 * Progress stuck rule (ADR 0005 D18), beside UpdateStuck: while tracking, the 2-D distance Dist2D to the current
+	 * segment target must shrink by >= ProgressCm within StuckSeconds. The window (Since, StartDist, WindowTarget) starts
+	 * at the first tracked call, and restarts at Now with the current distance when the target moves (a new segment or
+	 * re-query; 2-D, more than 1 cm), when the progress is made (returns false), or when the window ran StuckSeconds
+	 * without it (returns true: a strike). bPaused (the combat overlay owns the wish): the window's clock stops (Since
+	 * moves forward by Dt) and the start distance follows the current one, so only follower time counts and the
+	 * follower is measured from where the overlay left the bot; a pause does not reset the clock. Not tracking clears the
+	 * window (Since = -1) and returns false.
+	 */
+	VELOX_API bool UpdateStuckProgress(double& Since, float& StartDist, FVector2D& WindowTarget, bool bTracking, bool bPaused, const FVector2D& Target,
+		float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds);
 
 	/**
 	 * Off-mesh recovery rule (task 04b), evaluated at the check cadence while on the ground: on the mesh resets OffMeshSince
@@ -216,6 +233,10 @@ public:
 	/** Below this horizontal speed with an active path the stuck clock runs (cm/s). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "cm/s"))
 	float StuckSpeedCmS = 50.f;
+
+	/** D18: while tracking a segment, the 2-D distance to its target must shrink by this much within StuckSeconds (cm). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "cm"))
+	float StuckProgressCm = 100.f;
 
 	/** Stuck strikes before a non-forced goal is dropped for a roam point. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1"))

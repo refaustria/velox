@@ -11,6 +11,8 @@
 #include "Bots/VeloxBotSubsystem.h"
 #include "Bots/VeloxNavLink.h"
 #include "Character/VeloxCharacter.h"
+#include "CollisionQueryParams.h"
+#include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "NavMesh/NavMeshPath.h"
@@ -44,12 +46,32 @@ namespace VeloxBotFollow
 		}
 		return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(static_cast<float>(FVector2D::DotProduct(A, B)), -1.f, 1.f)));
 	}
+
+	float HopHeadroomCm(float JumpVelocity, float GravityZ, float MarginCm)
+	{
+		const float G = FMath::Abs(GravityZ);
+		const float Margin = FMath::Max(0.f, MarginCm);
+		if (G < KINDA_SMALL_NUMBER)
+		{
+			return Margin;
+		}
+		return FMath::Square(JumpVelocity) / (2.f * G) + Margin;
+	}
 }
 
 namespace VeloxBotFollowPrivate
 {
 	/** A knockback arrived: the movement component's knockback grace rose since the previous step. */
 	constexpr float GraceRiseEpsilon = 1e-4f;
+
+	/**
+	 * Hop headroom sweep (D18): the capsule starts lifted by this much off the floor (cm; a geometric tolerance of the
+	 * query, not a tunable). Full radius: a capsule partly under a slab edge (the L_ItemTest ramp strip) must see it.
+	 */
+	constexpr float HeadroomSkinCm = 2.f;
+
+	/** A start-penetrating headroom hit whose depenetration normal points down by more than this is a ceiling. */
+	constexpr float CeilingNormalZ = 0.5f;
 
 	const TCHAR* ManeuverName(EVeloxManeuverType Type)
 	{
@@ -122,6 +144,47 @@ void UVeloxBotPathFollowingComponent::Reset()
 {
 	Super::Reset();
 	ClearLink();
+	NextHopHeadroomCheckTime = -1.0;
+	bHopHeadroomClear = true;
+}
+
+bool UVeloxBotPathFollowingComponent::HasHopHeadroom(double Now)
+{
+	if (Now < NextHopHeadroomCheckTime)
+	{
+		return bHopHeadroomClear;
+	}
+	NextHopHeadroomCheckTime = Now + HopHeadroomCheckSeconds;
+	const AVeloxCharacter* Character = GetBotCharacter();
+	const UVeloxMovementComponent* Movement = GetBotMovement();
+	const UCapsuleComponent* Capsule = Character ? Character->GetCapsuleComponent() : nullptr;
+	UWorld* World = GetWorld();
+	if (!Character || !Movement || !Capsule || !World)
+	{
+		bHopHeadroomClear = true;
+		return true;
+	}
+	using namespace VeloxBotFollowPrivate;
+	const float Rise = VeloxBotFollow::HopHeadroomCm(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), HopHeadroomMarginCm);
+	const float Radius = Capsule->GetScaledCapsuleRadius();
+	const float HalfHeight = FMath::Max(Radius, Capsule->GetScaledCapsuleHalfHeight());
+	const FVector Start = Character->GetActorLocation() + FVector(0.0, 0.0, HeadroomSkinCm);
+	const FVector End = Start + FVector(0.0, 0.0, FMath::Max(0.f, Rise - HeadroomSkinCm));
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(VeloxBotHopHeadroom), false, Character);
+	FHitResult Hit;
+	const bool bHit = World->SweepSingleByObjectType(Hit, Start, End, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic),
+		FCollisionShape::MakeCapsule(Radius, HalfHeight), Query);
+	// A start overlap is geometry the pawn already touches: the floor or a wall (depenetration up / sideways) is not a
+	// block, a ceiling it is jammed against (depenetration down: the capsule fills the clearance) is.
+	const bool bClear = !bHit || (Hit.bStartPenetrating && Hit.Normal.Z > -VeloxBotFollowPrivate::CeilingNormalZ);
+	if (bClear != bHopHeadroomClear)
+	{
+		const AVeloxBotController* Bot = GetBotController();
+		UE_LOG(LogVeloxBots, Verbose, TEXT("VeloxBotHeadroom bot=%s clear=%d at=%s rise=%.0f hit=%s"), Bot ? *Bot->GetBotName() : TEXT("-"), bClear ? 1 : 0,
+			*Character->GetActorLocation().ToCompactString(), Rise, bClear ? TEXT("-") : *GetNameSafe(Hit.GetActor()));
+	}
+	bHopHeadroomClear = bClear;
+	return bClear;
 }
 
 void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
@@ -517,5 +580,13 @@ void UVeloxBotPathFollowingComponent::FollowPathSegment(float DeltaTime)
 		Corner = VeloxBotFollow::CornerAngleDeg(Points[MoveSegmentEndIndex].Location - Points[MoveSegmentStartIndex].Location,
 			Points[MoveSegmentEndIndex + 1].Location - Points[MoveSegmentEndIndex].Location);
 	}
-	NavOutput = SteerToward(Target, static_cast<float>(FVector::Dist2D(Feet, Target)), Corner, bFinal, true, true);
+	const float Remaining = static_cast<float>(FVector::Dist2D(Feet, Target));
+	NavOutput = SteerToward(Target, Remaining, Corner, bFinal, true, true);
+	if (NavOutput.bJumpHeld && !HasHopHeadroom(Now))
+	{
+		// D18: a low ceiling (the L_ItemTest ramp underside) is inside the jump arc: walk this tick, steering as on the
+		// ground (no hop, so the wish is the ground wish, not an air-strafe angle).
+		NavOutput = SteerToward(Target, Remaining, Corner, bFinal, false, true);
+		++HopHeadroomBlockedTicks;
+	}
 }
