@@ -2,6 +2,7 @@
 
 #include "Bots/VeloxBotSubsystem.h"
 
+#include "Bots/VeloxBotCombat.h"
 #include "Bots/VeloxBotController.h"
 #include "Bots/VeloxBotDifficulty.h"
 #include "Bots/VeloxBotLog.h"
@@ -24,6 +25,12 @@
 #include "Weapons/VeloxProjectile.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxBotSubsystem)
+
+DEFINE_STAT(STAT_VeloxBots_Think);
+DEFINE_STAT(STAT_VeloxBots_Perceive);
+DEFINE_STAT(STAT_VeloxBots_Path);
+DEFINE_STAT(STAT_VeloxBots_Steer);
+DEFINE_STAT(STAT_VeloxBots_Apply);
 
 namespace VeloxBotSubsystemPrivate
 {
@@ -87,6 +94,7 @@ void UVeloxBotSubsystem::Deinitialize()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(NavPollHandle);
+		World->GetTimerManager().ClearTimer(BudgetHandle);
 		if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
 		{
 			NavSys->OnNavigationGenerationFinishedDelegate.RemoveDynamic(this, &ThisClass::OnNavigationGenerationFinished);
@@ -102,6 +110,10 @@ void UVeloxBotSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 	TimeSeed = static_cast<int32>(FPlatformTime::Cycles());
 	UE_LOG(LogVeloxBots, Log, TEXT("VeloxBots seed=%d (velox.bots.Seed=%d)"), GetMasterSeed(), VeloxBotSubsystemPrivate::CVarBotSeed.GetValueOnGameThread());
+
+	// Section 13: the budget line (only logged while bots exist).
+	BudgetWindowStart = InWorld.GetTimeSeconds();
+	InWorld.GetTimerManager().SetTimer(BudgetHandle, this, &ThisClass::LogBudget, UVeloxBotCombatSettings::Get().BudgetLogIntervalSeconds, true);
 
 	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(&InWorld);
 	if (!NavSys)
@@ -479,8 +491,15 @@ void UVeloxBotSubsystem::RegisterProjectile(AVeloxProjectile* Projectile)
 {
 	if (Projectile)
 	{
+		Projectiles.RemoveAll([](const TWeakObjectPtr<AVeloxProjectile>& Entry) { return !Entry.IsValid(); });
 		Projectiles.AddUnique(Projectile);
+		Projectile->OnEndPlay.AddUniqueDynamic(this, &ThisClass::HandleProjectileEndPlay);
 	}
+}
+
+void UVeloxBotSubsystem::HandleProjectileEndPlay(AActor* Actor, EEndPlayReason::Type /*EndPlayReason*/)
+{
+	UnregisterProjectile(Cast<AVeloxProjectile>(Actor));
 }
 
 void UVeloxBotSubsystem::UnregisterProjectile(AVeloxProjectile* Projectile)
@@ -493,10 +512,68 @@ TArray<AVeloxProjectile*> UVeloxBotSubsystem::GetProjectiles() const
 	TArray<AVeloxProjectile*> Result;
 	for (const TWeakObjectPtr<AVeloxProjectile>& Entry : Projectiles)
 	{
-		if (AVeloxProjectile* Projectile = Entry.Get())
+		if (AVeloxProjectile* Projectile = Entry.Get(); Projectile && !Projectile->HasExploded() && !Projectile->IsActorBeingDestroyed())
 		{
 			Result.Add(Projectile);
 		}
 	}
 	return Result;
+}
+
+void UVeloxBotSubsystem::RecordBotTick(const AVeloxBotController& Bot, double Micros, bool bPathQuery, bool bFireTick)
+{
+	BudgetMicros += Micros;
+	++BudgetTicks;
+	TotalMicros += Micros;
+	++TotalTicks;
+	if (bPathQuery)
+	{
+		// D10: the peak target excludes path-query ticks; their cost is reported separately (max_path_us, paths=/s).
+		++BudgetPaths;
+		BudgetMaxPathMicros = FMath::Max(BudgetMaxPathMicros, Micros);
+		return;
+	}
+	if (bFireTick)
+	{
+		// The fire ability's activation (TraceShot / projectile spawn, GE, per-shot logs) is the player's server path.
+		BudgetMaxFireMicros = FMath::Max(BudgetMaxFireMicros, Micros);
+		return;
+	}
+	BudgetMaxMicros = FMath::Max(BudgetMaxMicros, Micros);
+	TotalMaxMicros = FMath::Max(TotalMaxMicros, Micros);
+	const float Limit = UVeloxBotSettings::Get().BudgetWarnMicroseconds;
+	if (Limit > 0.f && Micros > Limit)
+	{
+		++BudgetOver;
+		if (!bBudgetWarned)
+		{
+			bBudgetWarned = true;
+			UE_LOG(LogVeloxBots, Warning, TEXT("VeloxBotBudget warn bot=%s us=%.0f limit=%.0f (a tick without a path query; further ones in this interval are counted in over=)"), *Bot.GetBotName(), Micros, Limit);
+		}
+	}
+}
+
+void UVeloxBotSubsystem::LogBudget()
+{
+	const UWorld* World = GetWorld();
+	const double Now = World ? World->GetTimeSeconds() : 0.0;
+	const double Window = FMath::Max(Now - BudgetWindowStart, UE_KINDA_SMALL_NUMBER);
+	const int32 NumLive = NumBots();
+	if (NumLive > 0 && BudgetTicks > 0)
+	{
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotBudget bots=%d mean_us=%.1f max_us=%.1f max_path_us=%.1f max_fire_us=%.1f paths=%.1f/s traces=%.1f/s navrays=%.1f/s ticks=%lld over=%d window=%.1f s run_mean_us=%.1f run_max_us=%.1f"), NumLive,
+			BudgetMicros / BudgetTicks, BudgetMaxMicros, BudgetMaxPathMicros, BudgetMaxFireMicros, BudgetPaths / Window, BudgetTraces / Window, BudgetNavRaycasts / Window, BudgetTicks, BudgetOver, Window, GetBudgetMeanMicros(),
+			TotalMaxMicros);
+	}
+	BudgetWindowStart = Now;
+	BudgetMicros = 0.0;
+	BudgetMaxMicros = 0.0;
+	BudgetMaxPathMicros = 0.0;
+	BudgetMaxFireMicros = 0.0;
+	BudgetTicks = 0;
+	BudgetPaths = 0;
+	BudgetTraces = 0;
+	BudgetNavRaycasts = 0;
+	BudgetOver = 0;
+	bBudgetWarned = false;
 }

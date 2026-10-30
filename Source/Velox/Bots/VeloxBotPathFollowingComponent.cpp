@@ -3,6 +3,7 @@
 #include "Bots/VeloxBotPathFollowingComponent.h"
 
 #include "AI/Navigation/NavigationTypes.h"
+#include "Bots/VeloxBotCombat.h"
 #include "Bots/VeloxBotController.h"
 #include "Bots/VeloxBotLog.h"
 #include "Bots/VeloxBotSettings.h"
@@ -382,8 +383,15 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 		In.DistToEnd = 0.f;
 	}
 	In.bImpulseReceived = bImpulse;
-	In.bSwitchDone = bRocketJumpSwitchDone;
-	In.bEligible = bRocketJumpEligible;
+	if (Maneuver.Type == EVeloxManeuverType::RocketJump)
+	{
+		// Review F1 / D11: eligibility of this link, asked now (the link was matched in this step's SetMoveSegment).
+		const AVeloxBotController* Bot = GetBotController();
+		const AVeloxNavLink* Link = CurrentLink.Get();
+		bool bSwitchDone = false;
+		In.bEligible = Bot && Link && Bot->EvaluateRocketJump(*Link, bSwitchDone);
+		In.bSwitchDone = bSwitchDone;
+	}
 	In.Time = Now;
 	const FVeloxManeuverOutput Out = Maneuver.Tick(In);
 
@@ -443,6 +451,17 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 		// Pads, drops, rocket jumps: straight at the target, no hop and no strafe gain (the landing is what matters).
 		NavOutput = SteerToward(Target, Remaining, 0.f, false, false, false);
 		NavOutput.bJumpHeld = Out.bJumpHeld;
+		if (Maneuver.Type == EVeloxManeuverType::RocketJump && !bOnGround &&
+			(Maneuver.Phase == EVeloxManeuverPhase::Launched || Maneuver.Phase == EVeloxManeuverPhase::Airborne))
+		{
+			// Task 05: the launch carries the run-up speed plus the splash's horizontal push, which overshoots a 4 m
+			// platform when the wish simply points at the end (vanilla air accelerate only adds speed below the wish
+			// speed). Steer the horizontal velocity toward the ballistic one that lands on the end (air braking).
+			const FVeloxBallisticArrive Arrive = VeloxBotRocketJump::ArriveWish(Feet, Movement->Velocity, LinkEnd, Movement->GetGravityZ(),
+				UVeloxBotCombatSettings::Get().RocketJumpArriveDeadbandCmS);
+			NavOutput.WishDir = Arrive.WishDir;
+			NavOutput.WishScale = Arrive.WishDir.IsZero() ? 0.f : 1.f;
+		}
 		break;
 	}
 	NavOutput.WishScale *= Out.WishScale;

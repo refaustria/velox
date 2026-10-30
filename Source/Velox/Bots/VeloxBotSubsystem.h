@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Engine/TimerHandle.h"
+#include "Stats/Stats.h"
 #include "Subsystems/WorldSubsystem.h"
 
 #include "VeloxBotSubsystem.generated.h"
@@ -15,6 +16,14 @@ class UVeloxBotDifficulty;
 class AVeloxNavLink;
 class AVeloxProjectile;
 class UWorld;
+
+// ADR 0005 section 13: per-phase cycle stats of the bot controllers (`stat VeloxBots`).
+DECLARE_STATS_GROUP(TEXT("VeloxBots"), STATGROUP_VeloxBots, STATCAT_Advanced);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Think"), STAT_VeloxBots_Think, STATGROUP_VeloxBots, VELOX_API);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Perceive"), STAT_VeloxBots_Perceive, STATGROUP_VeloxBots, VELOX_API);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Path"), STAT_VeloxBots_Path, STATGROUP_VeloxBots, VELOX_API);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Steer"), STAT_VeloxBots_Steer, STATGROUP_VeloxBots, VELOX_API);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Apply"), STAT_VeloxBots_Apply, STATGROUP_VeloxBots, VELOX_API);
 
 /** A link end matched by FindLinkByStart. */
 struct FVeloxNavLinkMatch
@@ -93,9 +102,28 @@ public:
 	/** The bot whose player name matches (case-insensitive), or null. */
 	AVeloxBotController* FindBot(const FString& Name) const;
 
+	/** Authority projectiles (AVeloxProjectile::BeginPlay); unregistered by their OnEndPlay. */
 	void RegisterProjectile(AVeloxProjectile* Projectile);
 	void UnregisterProjectile(AVeloxProjectile* Projectile);
+	/** Live (not exploded) registered projectiles. */
 	TArray<AVeloxProjectile*> GetProjectiles() const;
+
+	// --- Budget (ADR 0005 section 13) ---
+
+	/**
+	 * One controller tick of Bot took Micros (wall clock). Accumulated into the `VeloxBotBudget bots= mean_us= max_us=
+	 * paths=/s traces=/s` line every UVeloxBotCombatSettings::BudgetLogIntervalSeconds. max_us and the warning exclude
+	 * path-query ticks (D10; max_path_us reports them) and ticks that held the fire input (the fire ability's server
+	 * path, shared with players and logged per shot; max_fire_us reports them); a tick above UVeloxBotSettings::BudgetWarnMicroseconds is counted
+	 * (`over=`) and warned about at most once per interval.
+	 */
+	void RecordBotTick(const AVeloxBotController& Bot, double Micros, bool bPathQuery, bool bFireTick = false);
+	void NoteTraces(int32 Count) { BudgetTraces += Count; }
+	void NoteNavRaycast() { ++BudgetNavRaycasts; }
+
+	/** Whole-run budget figures (functional tests, velox.bots.List). */
+	double GetBudgetMeanMicros() const { return TotalTicks > 0 ? TotalMicros / TotalTicks : 0.0; }
+	double GetBudgetMaxMicros() const { return TotalMaxMicros; }
 
 protected:
 	//~UWorldSubsystem interface
@@ -108,6 +136,9 @@ protected:
 
 private:
 	void PollNavReady();
+	void LogBudget();
+	UFUNCTION()
+	void HandleProjectileEndPlay(AActor* Actor, EEndPlayReason::Type EndPlayReason);
 	UFUNCTION()
 	void OnNavigationGenerationFinished(ANavigationData* NavData);
 	void MarkNavReady();
@@ -129,4 +160,20 @@ private:
 	bool bNavUnavailable = false;
 
 	int32 TimeSeed = 0;
+
+	FTimerHandle BudgetHandle;
+	double BudgetWindowStart = 0.0;
+	double BudgetMicros = 0.0;
+	double BudgetMaxMicros = 0.0;
+	double BudgetMaxPathMicros = 0.0;
+	double BudgetMaxFireMicros = 0.0;
+	int64 BudgetTicks = 0;
+	int32 BudgetPaths = 0;
+	int32 BudgetTraces = 0;
+	int32 BudgetNavRaycasts = 0;
+	int32 BudgetOver = 0;
+	bool bBudgetWarned = false;
+	double TotalMicros = 0.0;
+	double TotalMaxMicros = 0.0;
+	int64 TotalTicks = 0;
 };

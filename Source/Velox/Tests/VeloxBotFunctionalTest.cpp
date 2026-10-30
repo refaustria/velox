@@ -9,7 +9,12 @@
 //                                nav built < 5 s; a Medium bot with the forced goal Velox.Item.Health.Mega traverses the
 //                                pad link (VeloxBotLink type=JumpPad result=ok) and takes the Mega within 25 s; then
 //                                Velox.Item.Armor.Red from the Mega platform: a Drop traversal and the RA taken within
-//                                35 s. The rocket-jump case is task 05's. Logs `VeloxBotFt check=... ok=` and
+//                                35 s. Task 05: then (preset Hard, velox.combat.GiveAllWeapons for the bot) goal
+//                                Velox.Item.Ammo.Rockets on the third platform: VeloxBotLink type=RocketJump result=ok and
+//                                the pickup taken within 25 s (apex and self damage logged); then the abort path: the bot
+//                                walks back to the link's run-up side, is sent to the rockets again and loses its rocket
+//                                launcher (test harness) once the RocketJump traversal begins: VeloxBotLink type=RocketJump
+//                                result=aborted reason=ineligible within 20 s. Logs `VeloxBotFt check=... ok=` and
 //                                `VeloxBotFt result=PASS|FAIL`; quit exits 0/1.
 //   velox.bots.FtStrafeCorridor  FT_BotStrafeCorridor (console, L_MovementTest, same flags): a Hard bot from the corridor
 //                                start (x 300) to its end (x 5000): peak speed >= 1.25 x MaxGroundSpeed inside the corridor
@@ -38,6 +43,10 @@
 #include "Items/VeloxItemRegistrySubsystem.h"
 #include "Items/VeloxPickup.h"
 #include "Movement/VeloxMovementComponent.h"
+#include "Combat/VeloxHealthSet.h"
+#include "GameModes/VeloxPlayerState.h"
+#include "Weapons/VeloxWeaponCheats.h"
+#include "Weapons/VeloxWeaponInventoryComponent.h"
 
 // ------------------------------------------------------------------------------------------------------ automation
 
@@ -268,18 +277,35 @@ namespace VeloxBotFt
 	constexpr double NavBuildLimitSeconds = 5.0;
 	constexpr double MegaLimitSeconds = 25.0;
 	constexpr double RedArmorLimitSeconds = 35.0;
+	/** Task 05: the rocket-jump case (ADR 0005 section 14) and its abort path. */
+	constexpr double RocketsLimitSeconds = 25.0;
+	constexpr double RocketWalkBackLimitSeconds = 25.0;
+	constexpr double RocketAbortLimitSeconds = 20.0;
+	/** The abort case's walk-back point: this far beyond the rocket-jump link start, away from the platform (cm). */
+	constexpr double RocketWalkBackCm = 300.0;
 	/** The Mega's pad link ends at the item (create_item_test_map.py). */
 	constexpr double MegaLinkEndToleranceCm = 200.0;
 
 	struct FNavFt : FFtBase
 	{
-		enum class EStep : uint8 { WaitNav, Mega, RedArmor, Done };
+		enum class EStep : uint8 { WaitNav, Mega, RedArmor, Rockets, RocketWalkBack, RocketAbort, Done };
 		EStep Step = EStep::WaitNav;
 		double StepStart = 0.0;
 		TWeakObjectPtr<AVeloxPickup> Mega;
 		TWeakObjectPtr<AVeloxPickup> RedArmor;
+		TWeakObjectPtr<AVeloxPickup> Rockets;
 		bool bPadOk = false;
 		bool bDropOk = false;
+		// Task 05: rocket jump.
+		bool bRocketOk = false;
+		bool bRocketAborted = false;
+		bool bLauncherStripped = false;
+		FVector RocketLinkStart = FVector::ZeroVector;
+		FVector RocketLinkEnd = FVector::ZeroVector;
+		double RocketStartZ = 0.0;
+		double RocketApexZ = -1e9;
+		float LastHealth = -1.f;
+		float MaxHealthDrop = 0.f;
 		int32 LinksOk = 0;
 		int32 LinksFailed = 0;
 		FDelegateHandle TakenHandle;
@@ -302,11 +328,31 @@ namespace VeloxBotFt
 		Ft->Check(Bots && Bots->IsNavReady(), TEXT("nav_built"), FString::Printf(TEXT("seconds=%.3f limit=%.1f"), Bots ? Bots->GetNavBuildSeconds() : -1.0, NavBuildLimitSeconds));
 		Ft->Check(Bots && Bots->GetNavBuildSeconds() >= 0.0 && Bots->GetNavBuildSeconds() < NavBuildLimitSeconds, TEXT("nav_build_time"),
 			FString::Printf(TEXT("seconds=%.3f"), Bots ? Bots->GetNavBuildSeconds() : -1.0));
+		// The FFA rules would start a 20 s countdown when the bot joins and ResetLevel (respawn everyone) at Live, which
+		// lands in the middle of the rocket-jump case (task 05): enter Live first, before the bot exists.
+		if (GEngine)
+		{
+			GEngine->Exec(World, TEXT("velox.match.Phase Live"));
+		}
+		// A navigation test: the bot must not fight the local player (task 05 added combat to every bot).
+		if (IConsoleVariable* Peaceful = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.bots.Peaceful")))
+		{
+			Peaceful->Set(1, ECVF_SetByCode);
+		}
 		Ft->Mega = FirstPickup(World, VeloxGameplayTags::Item_Health_Mega);
 		Ft->RedArmor = FirstPickup(World, VeloxGameplayTags::Item_Armor_Red);
+		Ft->Rockets = FirstPickup(World, VeloxGameplayTags::Item_Ammo_Rockets);
+		for (const AVeloxNavLink* Link : Bots ? Bots->GetNavLinks() : TArray<AVeloxNavLink*>())
+		{
+			if (Link->GetLinkType() == EVeloxNavLinkType::RocketJump)
+			{
+				Ft->RocketLinkStart = Link->GetStartWorld();
+				Ft->RocketLinkEnd = Link->GetEndWorld();
+			}
+		}
 		AVeloxBotController* Bot = Bots ? Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Medium")), TEXT("FtNav")) : nullptr;
 		Ft->Bot = Bot;
-		if (!Bot || !Bot->GetPawn() || !Ft->Mega.IsValid() || !Ft->RedArmor.IsValid() || !Registry)
+		if (!Bot || !Bot->GetPawn() || !Ft->Mega.IsValid() || !Ft->RedArmor.IsValid() || !Ft->Rockets.IsValid() || Ft->RocketLinkStart.IsZero() || !Registry)
 		{
 			Ft->Check(false, TEXT("setup"), FString::Printf(TEXT("bot=%s pawn=%s mega=%s ra=%s"), *GetNameSafe(Bot), Bot ? *GetNameSafe(Bot->GetPawn()) : TEXT("-"),
 				*GetNameSafe(Ft->Mega.Get()), *GetNameSafe(Ft->RedArmor.Get())));
@@ -334,6 +380,20 @@ namespace VeloxBotFt
 			{
 				F->bDropOk = true;
 			}
+			if (Report.Type == EVeloxManeuverType::RocketJump)
+			{
+				// The pickup overlap can fire in the descent, a few ticks before the landing ends the traversal (as for the Mega).
+				if (bOk && !F->bRocketOk && (F->Step == FNavFt::EStep::Rockets || F->Step == FNavFt::EStep::RocketWalkBack))
+				{
+					F->bRocketOk = true;
+					F->Check(true, TEXT("rocket_jump_link"), FString::Printf(TEXT("seconds=%.2f apex_cm=%.0f (above start floor) max_health_drop=%.0f"), F->Now() - F->StepStart,
+						F->RocketApexZ - F->RocketStartZ, F->MaxHealthDrop));
+				}
+				if (F->Step == FNavFt::EStep::RocketAbort && F->bLauncherStripped && Report.Result == EVeloxManeuverResult::Ineligible)
+				{
+					F->bRocketAborted = true;
+				}
+			}
 		});
 		Ft->TakenHandle = Registry->OnPickupTaken.AddLambda([Weak](AVeloxPickup* Pickup, APlayerState* TakenBy)
 		{
@@ -357,8 +417,28 @@ namespace VeloxBotFt
 				F->Check(F->bPadOk, TEXT("mega_via_jump_pad"), TEXT("VeloxBotLink type=JumpPad result=ok on the Mega's pad link"));
 				F->Check(F->bDropOk, TEXT("ra_via_drop"), TEXT("VeloxBotLink type=Drop result=ok before the take"));
 				F->Check(Elapsed <= RedArmorLimitSeconds, TEXT("ra_taken"), FString::Printf(TEXT("seconds=%.2f limit=%.1f"), Elapsed, RedArmorLimitSeconds));
-				F->Step = FNavFt::EStep::Done;
-				F->Finish();
+				// Task 05: the rocket-jump case. Preset Hard (rocket jumps on) and every weapon (velox.combat.GiveAllWeapons).
+				AVeloxPlayerState* PS = B->GetPlayerState<AVeloxPlayerState>();
+				const bool bGiven = PS && VeloxWeaponCheats::GiveAllWeapons(*PS);
+				B->SetDifficulty(UVeloxBotSubsystem::LoadDifficulty(TEXT("Hard")));
+				F->Check(bGiven && B->GetDifficultyParams().bRocketJumps, TEXT("rocket_setup"), FString::Printf(TEXT("weapons=%d difficulty=%s"), bGiven ? 1 : 0, *GetNameSafe(B->GetDifficulty())));
+				F->Step = FNavFt::EStep::Rockets;
+				F->StepStart = F->Now();
+				F->RocketStartZ = F->RocketLinkStart.Z;
+				F->RocketApexZ = -1e9;
+				F->MaxHealthDrop = 0.f;
+				F->LastHealth = -1.f;
+				B->SetForcedItemGoal(F->Rockets.Get());
+			}
+			else if (F->Step == FNavFt::EStep::Rockets && Pickup == F->Rockets.Get())
+			{
+				F->Check(Elapsed <= RocketsLimitSeconds, TEXT("rockets_taken"), FString::Printf(TEXT("seconds=%.2f limit=%.1f apex_cm=%.0f max_health_drop=%.0f"), Elapsed, RocketsLimitSeconds,
+					F->RocketApexZ - F->RocketStartZ, F->MaxHealthDrop));
+				// Abort path: back to the floor beyond the link start, then toward the rockets again without a launcher.
+				const FVector Away = (F->RocketLinkStart - F->RocketLinkEnd).GetSafeNormal2D();
+				F->Step = FNavFt::EStep::RocketWalkBack;
+				F->StepStart = F->Now();
+				B->SetForcedPointGoal(F->RocketLinkStart + Away * RocketWalkBackCm);
 			}
 		});
 		Ft->Step = FNavFt::EStep::Mega;
@@ -381,12 +461,68 @@ namespace VeloxBotFt
 				return false;
 			}
 			const double Elapsed = F->Now() - F->StepStart;
-			const double Limit = F->Step == FNavFt::EStep::Mega ? MegaLimitSeconds : RedArmorLimitSeconds;
+			double Limit = RedArmorLimitSeconds;
+			const TCHAR* What = TEXT("ra_taken");
+			switch (F->Step)
+			{
+			case FNavFt::EStep::Mega: Limit = MegaLimitSeconds; What = TEXT("mega_taken"); break;
+			case FNavFt::EStep::Rockets: Limit = RocketsLimitSeconds; What = TEXT("rockets_taken"); break;
+			case FNavFt::EStep::RocketWalkBack: Limit = RocketWalkBackLimitSeconds; What = TEXT("rocket_walk_back"); break;
+			case FNavFt::EStep::RocketAbort: Limit = RocketAbortLimitSeconds; What = TEXT("rocket_abort_logged"); break;
+			default: break;
+			}
 			if (Elapsed > Limit)
 			{
-				F->Check(false, F->Step == FNavFt::EStep::Mega ? TEXT("mega_taken") : TEXT("ra_taken"), FString::Printf(TEXT("timeout after %.1f s: %s"), Elapsed, *F->Bot->DescribeForDebug()));
+				F->Check(false, What, FString::Printf(TEXT("timeout after %.1f s: %s"), Elapsed, *F->Bot->DescribeForDebug()));
 				F->Finish();
 				return false;
+			}
+			AVeloxBotController* B = F->Bot.Get();
+			const APawn* Pawn = B->GetPawn();
+			if (F->Step == FNavFt::EStep::Rockets && Pawn)
+			{
+				// Report numbers: apex above the run-up floor and the largest one-tick health drop (the self splash).
+				F->RocketApexZ = FMath::Max(F->RocketApexZ, Pawn->GetActorLocation().Z - static_cast<double>(Pawn->GetSimpleCollisionHalfHeight()));
+				const AVeloxPlayerState* PS = B->GetPlayerState<AVeloxPlayerState>();
+				const UVeloxHealthSet* Health = PS ? PS->GetHealthSet() : nullptr;
+				if (Health)
+				{
+					if (F->LastHealth >= 0.f)
+					{
+						F->MaxHealthDrop = FMath::Max(F->MaxHealthDrop, F->LastHealth - Health->GetHealth());
+					}
+					F->LastHealth = Health->GetHealth();
+				}
+			}
+			if (F->Step == FNavFt::EStep::RocketWalkBack && B->GetBotState().bGoalArrived)
+			{
+				F->Check(F->bRocketOk, TEXT("rockets_via_rocket_jump"), TEXT("VeloxBotLink type=RocketJump result=ok"));
+				F->Check(true, TEXT("rocket_walk_back"), FString::Printf(TEXT("seconds=%.2f at=%s"), Elapsed, Pawn ? *Pawn->GetActorLocation().ToCompactString() : TEXT("-")));
+				F->Step = FNavFt::EStep::RocketAbort;
+				F->StepStart = F->Now();
+				B->SetForcedItemGoal(F->Rockets.Get());
+			}
+			if (F->Step == FNavFt::EStep::RocketAbort)
+			{
+				const UVeloxBotPathFollowingComponent* Follow = B->GetBotPathFollowing();
+				if (!F->bLauncherStripped && Follow && Follow->IsOnLink() && Follow->GetManeuver().Type == EVeloxManeuverType::RocketJump && Follow->GetManeuver().IsActive())
+				{
+					// Test harness: the launcher is gone mid-traversal -> the maneuver must abort as ineligible.
+					const AVeloxPlayerState* PS = B->GetPlayerState<AVeloxPlayerState>();
+					if (UVeloxWeaponInventoryComponent* Inventory = PS ? PS->GetWeaponInventory() : nullptr)
+					{
+						Inventory->RemoveAllWeapons();
+						F->bLauncherStripped = true;
+						UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFt test=%s rocket launcher removed during the RocketJump traversal (phase=%d)"), F->Name, static_cast<int32>(Follow->GetManeuver().Phase));
+					}
+				}
+				if (F->bRocketAborted)
+				{
+					F->Check(true, TEXT("rocket_abort_logged"), FString::Printf(TEXT("seconds=%.2f VeloxBotLink type=RocketJump result=aborted reason=ineligible"), Elapsed));
+					F->Step = FNavFt::EStep::Done;
+					F->Finish();
+					return false;
+				}
 			}
 			return true;
 		}));
@@ -419,7 +555,7 @@ namespace VeloxBotFt
 	}
 
 	FAutoConsoleCommandWithWorldAndArgs NavFtCmd(TEXT("velox.bots.FtNavigation"),
-		TEXT("velox.bots.FtNavigation [quit]: FT_BotNavigation on L_ItemTest (-game -nullrhi -UseFixedTimeStep -FPS=60): pad and drop traversals to Mega and RA. Non-shipping."),
+		TEXT("velox.bots.FtNavigation [quit]: FT_BotNavigation on L_ItemTest (-game -nullrhi -UseFixedTimeStep -FPS=60): pad and drop traversals to Mega and RA, rocket jump to the rockets platform and its abort path. Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&NavFtCommand));
 
 	// ------------------------------------------------------------------------------------- FT_BotStrafeCorridor
@@ -563,6 +699,11 @@ namespace VeloxBotFt
 		{
 			UE_LOG(LogVeloxBots, Warning, TEXT("velox.bots.FtStrafeCorridor: needs the authority world of L_MovementTest (-game)."));
 			return;
+		}
+		// A steering test: the bot must not fight the local player (task 05 added combat to every bot).
+		if (IConsoleVariable* Peaceful = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.bots.Peaceful")))
+		{
+			Peaceful->Set(1, ECVF_SetByCode);
 		}
 		TSharedRef<FCorridorFt> Ft = MakeShared<FCorridorFt>();
 		Ft->Name = TEXT("FT_BotStrafeCorridor");

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "AIController.h"
+#include "Bots/VeloxBotCombat.h"
 #include "Bots/VeloxBotCoreTypes.h"
 #include "Bots/VeloxBotPathFollowingComponent.h"
 #include "Bots/VeloxBotTypes.h"
@@ -19,6 +20,7 @@
 #include "VeloxBotController.generated.h"
 
 class AVeloxCharacter;
+class AVeloxNavLink;
 class AVeloxPickup;
 class APlayerState;
 class UNavigationQueryFilter;
@@ -133,6 +135,8 @@ public:
 	/** Possessions so far (1 on the first life). */
 	int32 GetLifeCount() const { return LifeCount; }
 	const FVeloxBotState& GetBotState() const { return State; }
+	/** Perception / aim / fire state (task 05): enemies, target, aim model. Read by the debug line and task 06's goal choice. */
+	const FVeloxBotCombatState& GetCombatState() const { return Combat; }
 	UVeloxBotPathFollowingComponent* GetBotPathFollowing() const;
 	/** Player name of the PlayerState ("?" without one). */
 	FString GetBotName() const;
@@ -149,6 +153,13 @@ public:
 
 	/** Query filter for this tick from the preset and the bot's state (section 4): Full / Hop / Walk. */
 	TSubclassOf<UNavigationQueryFilter> GetNavFilter() const;
+
+	/**
+	 * Rocket-jump eligibility for Link (section 4, review F1 / D11): the preset rocket-jumps, the bot owns the launcher and
+	 * a rocket, and its health is at least the link's MinHealthForRocketJump. bOutSwitchDone: the launcher is the current
+	 * weapon and its switch has ended. Asked by the follower inside the maneuver begin / tick (no one-tick-stale state).
+	 */
+	bool EvaluateRocketJump(const AVeloxNavLink& Link, bool& bOutSwitchDone) const;
 
 	/** Called by the follower when a link traversal ends: VeloxBotLink log line, counters, re-query on failure. */
 	void NotifyLinkFinished(const FVeloxBotLinkReport& Report);
@@ -191,6 +202,10 @@ public:
 	/** Minimum time between path requests of one bot (s). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
 	float RepathIntervalSeconds = 0.5f;
+
+	/** Fight goal, enemy remembered but not visible (D12): the chase path is re-queried when the last seen location moved farther than this (cm). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "cm"))
+	float ChaseMoveToleranceCm = 300.f;
 
 	/** A goal target that moved farther than this re-queries the path (cm). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "cm"))
@@ -251,6 +266,8 @@ protected:
 	bool StartRoam();
 
 	FVeloxBotState State;
+	/** Task 05 (VeloxBotCombatGlue): reset per life inside Perceive. */
+	FVeloxBotCombatState Combat;
 
 private:
 	void Decide(float DeltaSeconds);
@@ -263,7 +280,6 @@ private:
 	void ResetLifeState();
 	void ReleaseAllInput();
 	void LogDebugLine(double Now);
-	void UpdateRocketJumpState();
 
 	void OnPickupTaken(AVeloxPickup* Pickup, APlayerState* TakenBy);
 

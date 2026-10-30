@@ -426,9 +426,18 @@ bool AVeloxBotController::GetGoalTarget(FVector& OutTarget, float& OutAcceptance
 		}
 		return false;
 	case EVeloxBotGoal::Fight:
+		// D12 (task 05): no path while the enemy is visible (the combat overlay, bounded by the leash, is the whole wish);
+		// remembered but unseen -> chase its last seen location, re-queried only when that moved ChaseMoveToleranceCm.
 		if (const APawn* Enemy = State.Goal.Enemy.Get())
 		{
-			OutTarget = Enemy->GetActorLocation();
+			const APlayerState* EnemyPS = Enemy->GetPlayerState();
+			const FVeloxBotEnemyInfo* Info = EnemyPS ? Combat.FindEnemy(EnemyPS->GetPlayerId()) : nullptr;
+			if (!Info || Info->bVisible)
+			{
+				return false;
+			}
+			const bool bKeep = State.bMoveActive && FVector::Dist(Info->LastSeenLocation, State.MoveTarget) <= ChaseMoveToleranceCm;
+			OutTarget = bKeep ? State.MoveTarget : Info->LastSeenLocation;
 			OutAcceptance = PointAcceptanceRadiusCm;
 			return true;
 		}
@@ -477,9 +486,10 @@ bool AVeloxBotController::StartRoam()
 
 // ------------------------------------------------------------------------------------------------------ phases
 
-void AVeloxBotController::Perceive(float /*DeltaSeconds*/)
+void AVeloxBotController::Perceive(float DeltaSeconds)
 {
-	// Task 05: FOV + LOS perception, damage hearing, enemy memory (section 6).
+	// Section 6 (task 05): FOV + LOS perception at the preset's interval, damage hearing, enemy memory, projectile threats.
+	VeloxBotCombatGlue::Perceive(*this, Combat, Stream, DeltaSeconds);
 }
 
 void AVeloxBotController::UpdateGoal(float /*DeltaSeconds*/)
@@ -493,9 +503,10 @@ void AVeloxBotController::UpdateGoal(float /*DeltaSeconds*/)
 	}
 }
 
-void AVeloxBotController::UpdateCombat(float /*DeltaSeconds*/)
+void AVeloxBotController::UpdateCombat(float DeltaSeconds)
 {
-	// Task 05: strafe / dodge / range-keeping overlay on State.Pending (section 10).
+	// Section 10 (task 05): strafe / dodge / range-keeping overlay on State.Pending (never on a link segment).
+	VeloxBotCombatGlue::Overlay(*this, Combat, Stream, State.Nav, State.Pending, DeltaSeconds);
 }
 
 void AVeloxBotController::Decide(float DeltaSeconds)
@@ -544,24 +555,17 @@ TSubclassOf<UNavigationQueryFilter> AVeloxBotController::GetNavFilter() const
 	return bCan ? TSubclassOf<UNavigationQueryFilter>(UVeloxNavFilter_Full::StaticClass()) : Base;
 }
 
-void AVeloxBotController::UpdateRocketJumpState()
+bool AVeloxBotController::EvaluateRocketJump(const AVeloxNavLink& Link, bool& bOutSwitchDone) const
 {
-	UVeloxBotPathFollowingComponent* Follow = GetBotPathFollowing();
-	if (!Follow)
-	{
-		return;
-	}
-	const AVeloxNavLink* Link = Follow->GetCurrentLink();
 	const AVeloxPlayerState* PS = GetPlayerState<AVeloxPlayerState>();
 	const UVeloxHealthSet* Health = PS ? PS->GetHealthSet() : nullptr;
 	const UVeloxAmmoSet* Ammo = PS ? PS->GetAmmoSet() : nullptr;
 	const UVeloxWeaponInventoryComponent* Inventory = PS ? PS->GetWeaponInventory() : nullptr;
 	const bool bOwns = VeloxBotControllerPrivate::OwnedWeaponIndex(PS, VeloxGameplayTags::Weapon_RocketLauncher) != INDEX_NONE;
-	const bool bEligible = Params.bRocketJumps && bOwns && Ammo && Ammo->GetRockets() >= 1.f && Health && Link && Health->GetHealth() >= Link->GetMinHealthForRocketJump();
 	const UVeloxWeaponDefinition* Current = VeloxBotControllerPrivate::CurrentWeapon(PS);
-	const bool bSwitchDone = Current && Current->WeaponTag == VeloxGameplayTags::Weapon_RocketLauncher && Inventory && Inventory->GetPendingIndex() == INDEX_NONE &&
+	bOutSwitchDone = bOwns && Current && Current->WeaponTag == VeloxGameplayTags::Weapon_RocketLauncher && Inventory && Inventory->GetPendingIndex() == INDEX_NONE &&
 		Now() >= Inventory->GetSwitchEndTime();
-	Follow->SetRocketJumpState(bEligible, bSwitchDone);
+	return Params.bRocketJumps && bOwns && Ammo && Ammo->GetRockets() >= 1.f && Health && Health->GetHealth() >= Link.GetMinHealthForRocketJump();
 }
 
 void AVeloxBotController::StopMove()
@@ -736,7 +740,6 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 		State.Nav = FVeloxBotNavOutput();
 		return;
 	}
-	UpdateRocketJumpState();
 	Follow->StepFollow(DeltaSeconds);
 	State.Nav = Follow->GetNavOutput();
 	State.Pending.WishDirWorld = State.Nav.WishDir;
@@ -766,37 +769,9 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 
 void AVeloxBotController::Act(float DeltaSeconds)
 {
-	// Idle aim (task 05 replaces it with the aim model): look along the path, level, at the preset's turn rate.
-	FRotator Desired = State.View;
-	if (!State.Nav.PathDir.IsNearlyZero())
-	{
-		Desired = FRotator(0.f, static_cast<float>(FMath::RadiansToDegrees(FMath::Atan2(State.Nav.PathDir.Y, State.Nav.PathDir.X))), 0.f);
-	}
-	const AVeloxCharacter* Character = GetBotCharacter();
-	if (State.Nav.bFaceEnd && Character)
-	{
-		const FVector ToEnd = State.Nav.FaceTarget - Character->GetActorLocation();
-		Desired.Yaw = static_cast<float>(FMath::RadiansToDegrees(FMath::Atan2(ToEnd.Y, ToEnd.X)));
-		Desired.Pitch = 0.f;
-	}
-	State.Pending.View = VeloxBotRules::TurnToward(State.View, Desired, Params.MaxTurnRateDegPerSec, DeltaSeconds);
-	if (State.Nav.bForcePitch)
-	{
-		// The rocket-jump tick: pitch set in one tick (Q3 BotRocketJump), yaw already facing the end.
-		State.Pending.View.Pitch = State.Nav.PitchDeg;
-	}
-	State.Pending.bFireHeld = State.Nav.bFire;
-	if (State.Nav.bWantRocketLauncher)
-	{
-		const AVeloxPlayerState* PS = GetPlayerState<AVeloxPlayerState>();
-		const UVeloxWeaponInventoryComponent* Inventory = PS ? PS->GetWeaponInventory() : nullptr;
-		const int32 Index = VeloxBotControllerPrivate::OwnedWeaponIndex(PS, VeloxGameplayTags::Weapon_RocketLauncher);
-		const UVeloxWeaponDefinition* Launcher = Inventory ? Inventory->GetDefinition(Index) : nullptr;
-		if (Launcher && Inventory->GetCurrentIndex() != Index && Inventory->GetPendingIndex() != Index)
-		{
-			State.Pending.SelectSlot = Launcher->Slot;
-		}
-	}
+	// Sections 8 / 9 (task 05): aim model -> View (maneuver view requests win: rocket-jump yaw, pitch, fire, launcher),
+	// weapon choice -> SelectSlot, fire rule -> bFireHeld. Idle aim follows the path.
+	VeloxBotCombatGlue::Act(*this, Combat, Stream, State.Nav, State.View, State.Pending, DeltaSeconds);
 }
 
 void AVeloxBotController::ApplyInput(const FVeloxBotInput& Input, float DeltaSeconds)
@@ -892,15 +867,36 @@ void AVeloxBotController::Tick(float DeltaSeconds)
 		return;
 	}
 
-	Perceive(DeltaSeconds);
-	Decide(DeltaSeconds);
-	EnsureMove(Now());
-	Navigate(DeltaSeconds);
-	UpdateCombat(DeltaSeconds);
-	Act(DeltaSeconds);
-	ApplyInput(State.Pending, DeltaSeconds);
+	const double NextMoveBefore = State.NextMoveTime;
+	{
+		SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Think);
+		{
+			SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Perceive);
+			Perceive(DeltaSeconds);
+		}
+		{
+			SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Path);
+			Decide(DeltaSeconds);
+			EnsureMove(Now());
+		}
+		{
+			SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Steer);
+			Navigate(DeltaSeconds);
+			UpdateCombat(DeltaSeconds);
+			Act(DeltaSeconds);
+		}
+		{
+			SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Apply);
+			ApplyInput(State.Pending, DeltaSeconds);
+		}
+	}
 
 	const double Micros = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartCycles) * 1000.0;
+	if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(GetWorld()))
+	{
+		// Section 13: VeloxBotBudget; EnsureMove pushes NextMoveTime forward exactly when it issues a path query.
+		Bots->RecordBotTick(*this, Micros, State.NextMoveTime != NextMoveBefore, State.Pending.bFireHeld);
+	}
 	State.TickMicrosSum += Micros;
 	State.TickMicrosMax = FMath::Max(State.TickMicrosMax, Micros);
 	++State.TickCount;
@@ -923,9 +919,9 @@ FString AVeloxBotController::DescribeForDebug() const
 		Link = FString::Printf(TEXT("%s:%s"), VeloxBotControllerPrivate::ManeuverLabel(Follow->GetManeuver().Type), *GetNameSafe(Follow->GetCurrentLink()));
 	}
 	const AVeloxPickup* Item = State.Goal.Item.Get();
-	return FString::Printf(TEXT("VeloxBot name=%s index=%d life=%d difficulty=%s goal=%s forced=%d arrived=%d item=%s enemy=%s vis=0 weapon=%s speed=%.0f ground=%d link=%s filter=%s pos=%s path=%d stuck=%d links_ok=%d links_failed=%d tick_us_mean=%.1f tick_us_max=%.1f"),
+	return FString::Printf(TEXT("VeloxBot name=%s index=%d life=%d difficulty=%s goal=%s forced=%d arrived=%d item=%s %s weapon=%s speed=%.0f ground=%d link=%s filter=%s pos=%s path=%d stuck=%d links_ok=%d links_failed=%d tick_us_mean=%.1f tick_us_max=%.1f"),
 		*GetBotName(), BotIndex, LifeCount, *GetNameSafe(Difficulty), LexToString(State.Goal.Type), State.bForcedGoal ? 1 : 0, State.bGoalArrived ? 1 : 0,
-		Item && Item->GetDefinition() ? *Item->GetDefinition()->GetName() : TEXT("-"), *GetNameSafe(State.Goal.Enemy.Get()), Weapon ? *Weapon->GetName() : TEXT("-"),
+		Item && Item->GetDefinition() ? *Item->GetDefinition()->GetName() : TEXT("-"), *VeloxBotCombatGlue::Describe(Combat), Weapon ? *Weapon->GetName() : TEXT("-"),
 		Movement ? Movement->GetSpeed2D() : 0.f, Movement && Movement->IsOnGround() ? 1 : 0, *Link, VeloxBotControllerPrivate::FilterLabel(GetNavFilter()),
 		Character ? *Character->GetActorLocation().ToCompactString() : TEXT("-"), State.bMoveActive ? 1 : 0, State.StuckStrikes, State.LinksOk, State.LinksFailed,
 		State.TickCount > 0 ? State.TickMicrosSum / State.TickCount : 0.0, State.TickMicrosMax);
