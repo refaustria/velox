@@ -74,6 +74,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Velox|Character")
 	bool IsCorpse() const { return bIsCorpse; }
 
+	/**
+	 * Jump key state, the single jump entry point of players and bots (ADR 0005 section 1): pressed = SetJumpHeld(true) +
+	 * Jump(), released = SetJumpHeld(false) + StopJumping(). Input_JumpStarted/Completed call it; so does the bot controller.
+	 */
+	void SetJumpInput(bool bPressed);
+
 	/** Tints PlaceholderBody with the PlayerState's colour (dark when a corpse). Server and clients; no-op without a body material. */
 	void ApplyPlayerColor();
 

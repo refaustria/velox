@@ -9,8 +9,9 @@
 
 #include "VeloxBotSubsystem.generated.h"
 
-class AController;
 class ANavigationData;
+class AVeloxBotController;
+class UVeloxBotDifficulty;
 class AVeloxNavLink;
 class AVeloxProjectile;
 class UWorld;
@@ -70,12 +71,27 @@ public:
 	/** velox.bots.Seed if non-zero (deterministic tests), else the time-based seed drawn at world begin play. */
 	int32 GetMasterSeed() const;
 
-	// --- Registries filled by tasks 04 (bots) and 05 (projectiles) ---
+	// --- Bots (ADR 0005 section 12) ---
 
-	void RegisterBot(AController* Bot);
-	void UnregisterBot(AController* Bot);
-	TArray<AController*> GetBots() const;
+	/**
+	 * Adds a bot: spawns an AVeloxBotController (its PlayerState comes from bWantsPlayerState), names it (Name, else the
+	 * next free UVeloxBotSettings::BotNames entry), flags it IsABot, gives it a palette colour and restarts it through the
+	 * game mode (outside PostMatch). Null when refused: no Velox game mode, or the mode's MaxActivePlayers reached
+	 * (`VeloxBot add refused reason=full`). Difficulty null = UVeloxBotSettings::DefaultDifficulty.
+	 */
+	AVeloxBotController* AddBot(const UVeloxBotDifficulty* Difficulty = nullptr, const FString& Name = FString());
+	/** Removes the bot named NameOrAll (case-insensitive), or every bot for "all": pawn and controller destroyed, Logout runs. Count removed. */
+	int32 KickBot(const FString& NameOrAll);
+	/** Easy | Medium | Hard | Expert (or a DA_Bot_* asset name / object path); empty = the settings default. Null if unknown. */
+	static const UVeloxBotDifficulty* LoadDifficulty(const FString& NameOrPath);
+
+	/** Registration (AVeloxBotController::BeginPlay / EndPlay): assigns the lowest free BotIndex (perception stagger). */
+	void RegisterBot(AVeloxBotController* Bot);
+	void UnregisterBot(AVeloxBotController* Bot);
+	TArray<AVeloxBotController*> GetBots() const;
 	int32 NumBots() const { return GetBots().Num(); }
+	/** The bot whose player name matches (case-insensitive), or null. */
+	AVeloxBotController* FindBot(const FString& Name) const;
 
 	void RegisterProjectile(AVeloxProjectile* Projectile);
 	void UnregisterProjectile(AVeloxProjectile* Projectile);
@@ -99,7 +115,7 @@ private:
 	int32 CountNavRelevantTriggers() const;
 
 	TArray<TWeakObjectPtr<AVeloxNavLink>> NavLinks;
-	TArray<TWeakObjectPtr<AController>> Bots;
+	TArray<TWeakObjectPtr<AVeloxBotController>> Bots;
 	TArray<TWeakObjectPtr<AVeloxProjectile>> Projectiles;
 
 	TArray<TFunction<void()>> NavReadyCallbacks;

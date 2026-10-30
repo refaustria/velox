@@ -2,6 +2,9 @@
 
 #include "GameModes/VeloxPlayerController.h"
 
+#include "Bots/VeloxBotDifficulty.h"
+#include "Bots/VeloxBotLog.h"
+#include "Bots/VeloxBotSubsystem.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
@@ -28,6 +31,12 @@
 #include "UserSettings/EnhancedInputUserSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxPlayerController)
+
+namespace VeloxPlayerControllerBotsPrivate
+{
+	/** Longest accepted argument string of ServerAddBot / ServerKickBot (difficulty + name). */
+	constexpr int32 MaxBotCommandArgsLen = 128;
+}
 
 AVeloxPlayerController::AVeloxPlayerController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -76,6 +85,58 @@ void AVeloxPlayerController::ServerRequestRespawn_Implementation()
 	if (AVeloxGameMode* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AVeloxGameMode>() : nullptr)
 	{
 		GameMode->TryRespawn(this, false);
+	}
+}
+
+bool AVeloxPlayerController::AcceptBotCommand(const TCHAR* Command, const FString& Args)
+{
+#if UE_BUILD_SHIPPING
+	UE_LOG(LogVeloxBots, Warning, TEXT("VeloxBot %s from %s refused reason=shipping"), Command, *AVeloxPlayerState::VeloxPlayerLabel(PlayerState));
+	return false;
+#else
+	const UWorld* World = GetWorld();
+	const double Now = World ? World->GetTimeSeconds() : 0.0;
+	if (Args.Len() > VeloxPlayerControllerBotsPrivate::MaxBotCommandArgsLen)
+	{
+		UE_LOG(LogVeloxBots, Warning, TEXT("VeloxBot %s from %s refused reason=args"), Command, *AVeloxPlayerState::VeloxPlayerLabel(PlayerState));
+		return false;
+	}
+	if (Now - LastBotCommandTime < BotCommandMinIntervalSeconds)
+	{
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot %s from %s refused reason=rate_limit"), Command, *AVeloxPlayerState::VeloxPlayerLabel(PlayerState));
+		return false;
+	}
+	LastBotCommandTime = Now;
+	UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot %s from %s args=[%s] (client RPC)"), Command, *AVeloxPlayerState::VeloxPlayerLabel(PlayerState), *Args);
+	return true;
+#endif
+}
+
+void AVeloxPlayerController::ServerAddBot_Implementation(const FString& DifficultyName, const FString& BotName)
+{
+	if (!AcceptBotCommand(TEXT("AddBot"), DifficultyName + TEXT(" ") + BotName))
+	{
+		return;
+	}
+	UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(GetWorld());
+	const UVeloxBotDifficulty* Difficulty = UVeloxBotSubsystem::LoadDifficulty(DifficultyName);
+	if (!Bots || !Difficulty)
+	{
+		UE_LOG(LogVeloxBots, Warning, TEXT("VeloxBot AddBot refused reason=%s difficulty=%s"), !Bots ? TEXT("no_subsystem") : TEXT("unknown_difficulty"), *DifficultyName);
+		return;
+	}
+	Bots->AddBot(Difficulty, BotName);
+}
+
+void AVeloxPlayerController::ServerKickBot_Implementation(const FString& NameOrAll)
+{
+	if (!AcceptBotCommand(TEXT("KickBot"), NameOrAll))
+	{
+		return;
+	}
+	if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(GetWorld()))
+	{
+		Bots->KickBot(NameOrAll.IsEmpty() ? FString(TEXT("all")) : NameOrAll);
 	}
 }
 

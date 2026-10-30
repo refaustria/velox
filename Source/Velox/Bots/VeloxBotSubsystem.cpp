@@ -2,12 +2,18 @@
 
 #include "Bots/VeloxBotSubsystem.h"
 
+#include "Bots/VeloxBotController.h"
+#include "Bots/VeloxBotDifficulty.h"
 #include "Bots/VeloxBotLog.h"
+#include "Bots/VeloxBotSettings.h"
 #include "Bots/VeloxNavLink.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
-#include "GameFramework/Controller.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameModes/VeloxGameMode.h"
+#include "GameModes/VeloxGameModeDefinition.h"
+#include "GameModes/VeloxPlayerState.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "Items/VeloxPickup.h"
@@ -25,6 +31,8 @@ namespace VeloxBotSubsystemPrivate
 	constexpr float NavPollSeconds = 0.1f;
 	/** One warning if the initial build has not finished after this long (ADR 0005 section 13: <= 1 s expected). */
 	constexpr double NavSlowWarnSeconds = 30.0;
+	/** Content folder of the DA_Bot_* presets (Tools/editor/create_bot_content.py). */
+	const TCHAR* const BotContentDir = TEXT("/Game/Bots");
 
 	TAutoConsoleVariable<int32> CVarBotSeed(TEXT("velox.bots.Seed"), 0,
 		TEXT("Master random seed of the bots (ADR 0005 section 12). 0 = time-seeded; non-zero = deterministic (functional tests)."),
@@ -309,30 +317,162 @@ int32 UVeloxBotSubsystem::GetMasterSeed() const
 	return Forced != 0 ? Forced : TimeSeed;
 }
 
-void UVeloxBotSubsystem::RegisterBot(AController* Bot)
+void UVeloxBotSubsystem::RegisterBot(AVeloxBotController* Bot)
 {
-	if (Bot)
+	if (!Bot)
 	{
-		Bots.AddUnique(Bot);
+		return;
 	}
-}
-
-void UVeloxBotSubsystem::UnregisterBot(AController* Bot)
-{
-	Bots.RemoveAll([Bot](const TWeakObjectPtr<AController>& Entry) { return !Entry.IsValid() || Entry.Get() == Bot; });
-}
-
-TArray<AController*> UVeloxBotSubsystem::GetBots() const
-{
-	TArray<AController*> Result;
-	for (const TWeakObjectPtr<AController>& Entry : Bots)
+	Bots.RemoveAll([](const TWeakObjectPtr<AVeloxBotController>& Entry) { return !Entry.IsValid(); });
+	if (Bots.Contains(Bot))
 	{
-		if (AController* Bot = Entry.Get())
+		return;
+	}
+	if (Bot->GetBotIndex() == INDEX_NONE)
+	{
+		// Lowest free index (a kicked bot's index is reused): stagger slots stay dense.
+		int32 Index = 0;
+		while (Bots.ContainsByPredicate([Index](const TWeakObjectPtr<AVeloxBotController>& Entry) { return Entry->GetBotIndex() == Index; }))
+		{
+			++Index;
+		}
+		Bot->SetBotIndex(Index);
+	}
+	Bots.Add(Bot);
+}
+
+void UVeloxBotSubsystem::UnregisterBot(AVeloxBotController* Bot)
+{
+	Bots.RemoveAll([Bot](const TWeakObjectPtr<AVeloxBotController>& Entry) { return !Entry.IsValid() || Entry.Get() == Bot; });
+}
+
+TArray<AVeloxBotController*> UVeloxBotSubsystem::GetBots() const
+{
+	TArray<AVeloxBotController*> Result;
+	for (const TWeakObjectPtr<AVeloxBotController>& Entry : Bots)
+	{
+		if (AVeloxBotController* Bot = Entry.Get(); Bot && !Bot->IsActorBeingDestroyed())
 		{
 			Result.Add(Bot);
 		}
 	}
 	return Result;
+}
+
+AVeloxBotController* UVeloxBotSubsystem::FindBot(const FString& Name) const
+{
+	for (AVeloxBotController* Bot : GetBots())
+	{
+		if (Bot->GetBotName().Equals(Name, ESearchCase::IgnoreCase))
+		{
+			return Bot;
+		}
+	}
+	return nullptr;
+}
+
+const UVeloxBotDifficulty* UVeloxBotSubsystem::LoadDifficulty(const FString& NameOrPath)
+{
+	if (NameOrPath.IsEmpty())
+	{
+		return UVeloxBotSettings::Get().DefaultDifficulty.LoadSynchronous();
+	}
+	FString Path = NameOrPath;
+	if (!Path.StartsWith(TEXT("/")))
+	{
+		// Easy -> /Game/Bots/DA_Bot_Easy.DA_Bot_Easy (Tools/editor/create_bot_content.py); DA_Bot_Hard works too.
+		const FString AssetName = Path.StartsWith(TEXT("DA_Bot_"), ESearchCase::IgnoreCase) ? Path : FString::Printf(TEXT("DA_Bot_%s"), *Path);
+		Path = FString::Printf(TEXT("%s/%s.%s"), VeloxBotSubsystemPrivate::BotContentDir, *AssetName, *AssetName);
+	}
+	return TSoftObjectPtr<UVeloxBotDifficulty>(FSoftObjectPath(Path)).LoadSynchronous();
+}
+
+AVeloxBotController* UVeloxBotSubsystem::AddBot(const UVeloxBotDifficulty* Difficulty, const FString& Name)
+{
+	UWorld* World = GetWorld();
+	AVeloxGameMode* GameMode = World ? World->GetAuthGameMode<AVeloxGameMode>() : nullptr;
+	if (!GameMode)
+	{
+		UE_LOG(LogVeloxBots, Warning, TEXT("VeloxBot add refused reason=no_game_mode"));
+		return nullptr;
+	}
+	const UVeloxGameModeDefinition* Definition = GameMode->GetGameModeDefinition();
+	const int32 Active = GameMode->GetNumActivePlayers();
+	if (Definition && Active >= Definition->MaxActivePlayers)
+	{
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot add refused reason=full active=%d max_active=%d"), Active, Definition->MaxActivePlayers);
+		return nullptr;
+	}
+	if (!Difficulty)
+	{
+		Difficulty = LoadDifficulty(FString());
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AVeloxBotController* Bot = World->SpawnActor<AVeloxBotController>(AVeloxBotController::StaticClass(), FTransform::Identity, SpawnParams);
+	AVeloxPlayerState* PS = Bot ? Bot->GetPlayerState<AVeloxPlayerState>() : nullptr;
+	if (!PS)
+	{
+		UE_LOG(LogVeloxBots, Warning, TEXT("VeloxBot add refused reason=no_player_state controller=%s"), *GetNameSafe(Bot));
+		if (Bot)
+		{
+			Bot->Destroy();
+		}
+		return nullptr;
+	}
+	Bot->SetDifficulty(Difficulty);
+	RegisterBot(Bot);
+
+	TArray<FString> Taken;
+	if (const AGameStateBase* GameState = World->GetGameState())
+	{
+		for (const APlayerState* Other : GameState->PlayerArray)
+		{
+			if (Other && Other != PS)
+			{
+				Taken.Add(Other->GetPlayerName());
+			}
+		}
+	}
+	PS->SetPlayerName(VeloxBotRules::NextBotName(UVeloxBotSettings::Get().BotNames, Taken, Name));
+	PS->SetIsABot(true);
+	GameMode->AssignPlayerColor(*PS);
+	UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot add name=%s difficulty=%s index=%d color=%d active=%d"), *PS->GetPlayerName(), *GetNameSafe(Difficulty), Bot->GetBotIndex(),
+		PS->HasPlayerColor() ? static_cast<int32>(PS->GetPlayerColorIndex()) : -1, Active + 1);
+	GameMode->StartBot(Bot);
+	return Bot;
+}
+
+int32 UVeloxBotSubsystem::KickBot(const FString& NameOrAll)
+{
+	const bool bAll = NameOrAll.Equals(TEXT("all"), ESearchCase::IgnoreCase);
+	TArray<AVeloxBotController*> Victims;
+	for (AVeloxBotController* Bot : GetBots())
+	{
+		if (bAll || Bot->GetBotName().Equals(NameOrAll, ESearchCase::IgnoreCase))
+		{
+			Victims.Add(Bot);
+		}
+	}
+	for (AVeloxBotController* Bot : Victims)
+	{
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot kick name=%s index=%d"), *Bot->GetBotName(), Bot->GetBotIndex());
+		APawn* Pawn = Bot->GetPawn();
+		Bot->UnPossess();
+		if (Pawn)
+		{
+			Pawn->Destroy();
+		}
+		// AController::Destroyed -> AGameModeBase::Logout -> the match rules re-evaluate (section 12).
+		UnregisterBot(Bot);
+		Bot->Destroy();
+	}
+	if (Victims.IsEmpty())
+	{
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot kick name=%s result=none"), *NameOrAll);
+	}
+	return Victims.Num();
 }
 
 void UVeloxBotSubsystem::RegisterProjectile(AVeloxProjectile* Projectile)

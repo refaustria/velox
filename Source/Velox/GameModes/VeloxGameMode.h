@@ -49,6 +49,13 @@ public:
 	/** Hands PlayerState the first unused palette colour (wraps around when all are taken). Idempotent. */
 	void AssignPlayerColor(AVeloxPlayerState& PlayerState);
 
+	/**
+	 * Server, from UVeloxBotSubsystem::AddBot (ADR 0005 section 12): counts the bot (AGameMode::NumBots), restarts it
+	 * through RestartPlayer (the AI path; not during PostMatch, the restart spawns everyone) and asks for a match
+	 * evaluation (a join: AI counts as active and is always ready, ADR 0004 C8).
+	 */
+	void StartBot(AController* Bot);
+
 	/** The combat settings of Controller's PlayerState (class defaults when unavailable); never null. */
 	static const UVeloxCombatSettings& GetCombatSettingsFor(const AController* Controller);
 
@@ -62,6 +69,8 @@ public:
 	virtual void Logout(AController* Exiting) override;
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void InitGameState() override;
+	/** Super, then the URL's bots (?Bots=N, ?BotsFill=1, ?BotDifficulty=Hard; UVeloxBotSettings::DefaultBotCount without ?Bots=). */
+	virtual void StartPlay() override;
 	/** Makes a joiner a spectator when every player slot of the mode is taken (ADR 0004 section 5). */
 	virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal) override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;

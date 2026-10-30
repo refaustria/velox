@@ -3,6 +3,11 @@
 #include "GameModes/VeloxGameMode.h"
 
 #include "AbilitySystemComponent.h"
+#include "Bots/VeloxBotController.h"
+#include "Bots/VeloxBotDifficulty.h"
+#include "Bots/VeloxBotLog.h"
+#include "Bots/VeloxBotSettings.h"
+#include "Bots/VeloxBotSubsystem.h"
 #include "Bots/VeloxDummyController.h"
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
@@ -12,14 +17,24 @@
 #include "Core/VeloxGameplayTags.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
+#include "GameModes/VeloxGameModeDefinition.h"
 #include "GameModes/VeloxGameState.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameModes/VeloxSpawnSelection.h"
+#include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "UI/VeloxHUD.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxGameMode)
+
+namespace VeloxGameModeBotsPrivate
+{
+	// URL options of ADR 0005 section 12.
+	const TCHAR* const BotsOption = TEXT("Bots");
+	const TCHAR* const BotsFillOption = TEXT("BotsFill");
+	const TCHAR* const BotDifficultyOption = TEXT("BotDifficulty");
+}
 
 AVeloxGameMode::AVeloxGameMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -325,8 +340,58 @@ void AVeloxGameMode::RestartPlayerAtPlayerStart(AController* NewPlayer, AActor* 
 	}
 }
 
+void AVeloxGameMode::StartBot(AController* Bot)
+{
+	if (!Bot)
+	{
+		return;
+	}
+	++NumBots;
+	if (!(bMatchRulesEnabled && Phase == EVeloxMatchPhase::PostMatch))
+	{
+		RestartPlayer(Bot);
+	}
+	RequestMatchEvaluation();
+}
+
+void AVeloxGameMode::StartPlay()
+{
+	Super::StartPlay();
+
+	using namespace VeloxGameModeBotsPrivate;
+	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+	const bool bHasCount = UGameplayStatics::HasOption(OptionsString, BotsOption);
+	const int32 Requested = bHasCount ? UGameplayStatics::GetIntOption(OptionsString, BotsOption, 0) : Settings.DefaultBotCount;
+	const bool bFill = UGameplayStatics::GetIntOption(OptionsString, BotsFillOption, 0) != 0;
+	const int32 MaxActive = GameModeDefinition ? GameModeDefinition->MaxActivePlayers : 0;
+	const int32 Count = VeloxBotRules::UrlBotCount(Requested, MaxActive, bFill);
+	if (Count <= 0)
+	{
+		return;
+	}
+	UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(GetWorld());
+	const FString DifficultyName = UGameplayStatics::ParseOption(OptionsString, BotDifficultyOption);
+	const UVeloxBotDifficulty* Difficulty = UVeloxBotSubsystem::LoadDifficulty(DifficultyName);
+	UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot url bots=%d requested=%d fill=%d max_active=%d difficulty=%s (%s)"), Count, Requested, bFill ? 1 : 0, MaxActive,
+		DifficultyName.IsEmpty() ? TEXT("default") : *DifficultyName, *GetNameSafe(Difficulty));
+	if (!Bots || (!DifficultyName.IsEmpty() && !Difficulty))
+	{
+		UE_LOG(LogVeloxBots, Warning, TEXT("VeloxBot url bots not added: %s"), !Bots ? TEXT("no bot subsystem") : TEXT("unknown ?BotDifficulty"));
+		return;
+	}
+	for (int32 i = 0; i < Count; ++i)
+	{
+		Bots->AddBot(Difficulty);
+	}
+}
+
 void AVeloxGameMode::Logout(AController* Exiting)
 {
+	if (const AVeloxBotController* Bot = Cast<AVeloxBotController>(Exiting))
+	{
+		NumBots = FMath::Max(0, NumBots - 1);
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot logout name=%s bots=%d"), *Bot->GetBotName(), NumBots);
+	}
 	if (UWorld* World = GetWorld())
 	{
 		if (FPendingRespawn* Pending = Exiting ? PendingRespawns.Find(Exiting) : nullptr)
