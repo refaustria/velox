@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev
-**Status:** todo
+**Status:** done (merged; DA_Bot_* presets, settings, BOT rows)
 **Depends on:** ADR 0005 §11, §12 (data/UI side only; parallel with 01 and 02)
 
 ## Goal
