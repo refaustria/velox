@@ -144,3 +144,76 @@ there; 04g, 04h and 04i-B did not cause it.
   - Slowdown: bots ×5.2–6.8, `frame_other` ×3.7–4.3.
 - Ten-run FFA set: PASS. Σ stuck 3, at most 1 per run, bursts 0, pocket 0, `max_dwell` 6 (1 run ≥ 6),
   link `dt` ≤ 1.36 s, Σ kills 105, at least 5 per run.
+
+## Outcome addendum — root-cause diagnosis of the process-slow step (2026-10-31, head 974502f)
+Diagnosis only, no game code changed. `perf` 6.12 with `perf_event_paranoid=1`. Runs: BotDuel server plus a 120 Hz
+spectator client (the nettest command lines), 100–150 s each, with a 0.5 s sampler (per-thread CPU, faults, vmstat,
+IRQs, steal), `perf stat`/`perf record` on the game thread, and external probe processes. The per-run tables are kept
+outside the repo, in the agent scratchpad `a08b/summaries.txt`.
+
+**The step is not in the server. It is a VM-wide slowdown that a running 120 Hz UE client switches on.**
+- *Reproduced:* the step appeared in 8 of 8 runs with a 120 Hz client, at +20 to +62 s. `frame_other` went up ×4–6.
+  The server game thread's CPU went from 7 % to 25–30 %, and the client game thread's CPU from 34 % to 78 %.
+  Steal stayed at 0.00 %. Faults, swap-ins and kernel share did not change.
+- *Profile:* in a `perf record` (cpu-clock) of the game thread, slow and fast windows have the same profile shape.
+  Every DSO is about equally slower. No kernel symbol appears: no page faults, TLB flushes or migration.
+- *The client is the trigger:*
+  - Killing the client returns the server to R_other 1.0–1.2 at once.
+  - A second server started during the slow state, with no client of its own, also runs slow (R 3–4). It recovers
+    when the client is killed.
+  - With no client, or with a 30 Hz client, there is no step in 150 s.
+  - With a 60 Hz client the slow state came and went again by itself.
+- *VM-wide and instruction-side:* an external C probe, not UE, measured these kernels:
+
+  | Probe kernel | What it does | Fast | Slow |
+  |---|---|---|---|
+  | `code` | calls 4096 functions spread over 16 MB of text (iTLB / L2-miss bound) | 1.0–1.1 ms | 3.2–4.7 ms |
+  | `big` | 256 MB pointer chase | 3.6 ms | 4.3 ms (+20 %) |
+  | ALU, scalar FP, SSE | tight loops | unchanged | unchanged |
+
+  The `code` kernel slowed on every vCPU the probe ran on. A standalone 120 Hz client, with no server at all, gives the
+  same ×3 on the probe; it ends when the client exits. This is why the in-process `calib_*` probes (tight or
+  data-side) stayed flat.
+- *Not reproduced by synthetic co-runners.* None of these moved the `code` probe by more than 25 %:
+  - `sched_yield` or `getppid` loops, at 100 % or at 45 % duty on a 120 Hz pacing;
+  - cross-thread futex wakeups at up to 96 k/s;
+  - PAUSE spin-loops;
+  - 4 × 64 MB memset or random-read thrashers;
+  - 4 big-code co-runners;
+  - the client's per-frame `/proc/meminfo`, `/proc/self/status` and `overcommit_ratio` reads, at 232/s and at 115 k/s.
+
+  The client's syscall mix (strace) is mostly futex, `clock_nanosleep` and `sched_yield`, plus 3 `/proc` reads per
+  frame. Its game thread spends 20–45 % of its time in the frame limiter's `sched_yield` spin.
+- *Pinning does not help:*
+  - server on vCPUs 0–7 and client on 8–15: step at +35 s;
+  - game thread alone on vCPU 2: step at +20 s;
+  - the same, plus a SCHED_IDLE spinner on vCPU 2 that keeps the vCPU from halting: step at +45 s.
+
+  Guest CPU placement cannot separate the processes at the level where the effect happens.
+- *Side finding:* the host lowers the clock after a vCPU idles. After a 100 ms sleep, a vCPU runs the ALU loop
+  ×3.7 slower for 6–9 ms. This explains the smaller noise; it is not the step, because the SCHED_IDLE spinner does
+  not remove the step.
+
+**Conclusion.** The cause is below the guest kernel: hypervisor or host hardware, for example host uncore/L3 frequency,
+host SMT/LLC sharing with other host load, or a KVM exit-path cost. A real UE client at ≥ 60–120 Hz drives it into a
+bistable slow state. In that state instruction-fetch-heavy code anywhere in the VM runs 3–5× slower. The guest cannot
+see this mechanism:
+- the vCPU model is `QEMU Virtual CPU version 2.5+`, with no PMU (`cycles`/`instructions`/TLB events "not
+  supported"), no PCID, no AVX/XSAVE and no TSC-deadline timer;
+- the cpuidle driver is `none` (plain HLT).
+
+Nothing in Velox's code causes it. D47's process-slow class is the right handling.
+
+**Needs the human / host root, as proposals:**
+1. Give the VM `-cpu host` (host-passthrough), or a named model with `pmu=on`, `pcid`, `invpcid`, `tsc-deadline`,
+   `xsave` and `avx2`. This makes `perf stat -e cycles,instructions,iTLB-load-misses` usable in the guest and removes
+   the PTI flush cost.
+2. During a slow state, on the hypervisor host:
+   - run `perf kvm stat live` / `kvm_stat`;
+   - check the host governor and uncore frequency (`turbostat`);
+   - check whether other VMs are loading the host, the host SMT placement of the vCPU threads, and whether this VM
+     is nested.
+3. Guest-root tests: `modprobe cpuidle-haltpoll`, and a boot with `nopti` (test only).
+
+Until then, nettest cost rounds stay under D47. A 30 Hz client cap did not show the step in 150 s; that could be a
+runner-side workaround for cost-only rounds, but it is the architect's call.
