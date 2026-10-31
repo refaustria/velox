@@ -1221,6 +1221,9 @@ if script in ("BotRun", "BotDuel"):
     MAJOR = re.compile(r"item=DA_Item_(Health_Mega|Armor_Red|Armor_Yellow|Powerup_[A-Za-z]+)")
     MAJOR_ALL = ["Health_Mega", "Armor_Red", "Armor_Yellow", "Powerup_BattleSuit", "Powerup_Haste", "Powerup_Quad", "Powerup_Regen"]
     DWELL_RADIUS, DWELL_MAX, LINK_DT_MAX, BUDGET_MAX = 150.0, 8, 8.0, 300.0
+    # ADR 0005 D49 (b): the arena floor and the drop below it that labels a bot as having left the arena. Margin: the map's KillZ
+    # (task 07f) must lie >= 300 cm below ARENA_FLOOR_Z - LEFT_ARENA_DZ, so a healthy KillZ never trips the label first.
+    ARENA_FLOOR_Z, LEFT_ARENA_DZ = 0.0, 1500.0
     STUCK_MAX, PICKUPS_MIN = 6, 15
     # ADR 0005 D47 (g): runner constants, not tunables.
     R_OTHER_SLOW, RR_WINDOW_MAX, RR_ROUND_MAX, REF_BAND, MIN_CLEAN_WINDOWS = 2.0, 2.5, 2.0, 1.6, 6
@@ -1232,6 +1235,10 @@ if script in ("BotRun", "BotDuel"):
             return None
         y_, mo, d_, h, mi, s_, ms = (int(v) for v in m.groups())
         return datetime.datetime(y_, mo, d_, h, mi, s_, ms * 1000, tzinfo=datetime.timezone.utc).timestamp()
+
+    def hms(line):
+        m = TSR.match(line)
+        return "%s.%s.%s" % (m.group(4), m.group(5), m.group(6)) if m else "?"
 
     def stamp(line):
         m = TSR.match(line)
@@ -1271,6 +1278,7 @@ if script in ("BotRun", "BotDuel"):
     mega_lead = collections.defaultdict(list)     # bot -> [(stamp, lead)] of its Health.Mega route lines
     goal_changes = camp_episodes = 0              # D46 (4): VeloxBotRoute bot= goal= lines / episodes of camp=1
     camp_open = {}; camp_max_lead = 0.0
+    left_arena = None; world_victims = []; fell_out_lines = 0   # D49 (b)
     for l in S:
         if "Error:" in l or "Ensure condition" in l:
             errors.append(l.strip()[:160])
@@ -1286,9 +1294,14 @@ if script in ("BotRun", "BotDuel"):
                 if "item=DA_Item_Health_Mega" in l:
                     d = kv(l); mega.append((num(d, "t"), m.group(1), num(d, "respawn_in"))); mega_stamp[num(d, "t")] = utc(l)
             continue
+        if "VeloxDeath" in l and "fell out of the world" in l:
+            fell_out_lines += 1
         if "VeloxKill victim=" in l and "ignored" not in l:
             m = re.search(r"killer=(\S+) suicide=(\d)", l)
             vm = re.search(r"victim=(\S+)", l)
+            tm = re.search(r"tags=\[([^\]]*)\]", l)
+            if vm and tm and "Damage.Environment" in tm.group(1):
+                world_victims.append(vm.group(1))
             if vm:
                 kill_at[vm.group(1)].append(utc(l))
             if m and m.group(2) == "1":
@@ -1328,6 +1341,8 @@ if script in ("BotRun", "BotDuel"):
         if m:
             name, body = m.group(1), m.group(2)
             x_, y_ = float(m.group(3)), float(m.group(4))
+            if left_arena is None and float(m.group(5)) < ARENA_FLOOR_Z - LEFT_ARENA_DZ:
+                left_arena = (name, hms(l), float(m.group(5)))
             gm = re.search(r"goal=(\S+)", body); g = gm.group(1).lower() if gm else "?"
             goals[g] += 1; debug_lines += 1
             im_ = re.search(r"item=(\S+)", body)
@@ -1611,12 +1626,17 @@ if script in ("BotRun", "BotDuel"):
     if cost_w: fails.append("cost window(s) %s: bots slowed, thread did not (or rr > 2.5), no host cause (D46 1c/D47; dev-hard profiling per D14)" % ",".join(str(w["i"]) for w in cost_w))
     if invalid: fails.append("round invalid: frame_deficit > 10 %% in %d windows (server not running the game at 60 Hz, D46 1d)" % deficit_bad)
     if not budget_windows: fails.append("no VeloxBotBudget lines")
+    # D49 (b): a bot that left the arena / a pawn killed by the world is content or engine, not bot work; labels go first.
+    if world_victims:
+        fails.insert(0, "%d pawn(s) killed by the world (%s): left the arena through the 07f clip - content defect, not bot work" % (len(world_victims), ",".join(world_victims)))
+    if left_arena:
+        fails.insert(0, "bot %s alive below the arena at %s (z %.0f): KillZ/FellOutOfWorld not working - content/engine, not bot work; the round's other misses are consequences" % (left_arena[0], left_arena[1], left_arena[2]))
     if duel:
         if "Countdown" not in phases or "Live" not in phases or phases.index("Countdown") > phases.index("Live"):
             fails.append("phase did not go Countdown -> Live without a human: %s" % ">".join(phases))
         if frags_total < 1: fails.append("no frag in %.0f s" % duration)
         # D48 (b): the per-round "a timed Mega return within 6 s" is a printed FLAG (below), not a fail; the set bands judge the Mega.
-        if camp_lines < 1: fails.append("no VeloxBotRoute camp=1 line")
+        # D49 (a): the per-round camp=1 line is a printed FLAG (detail below); the set band judges Σ camp_episodes.
     else:
         if kills < 1: fails.append("no kill by a bot")
         if nbots < PICKUPS_MIN: fails.append("pickups by bots %d < %d" % (nbots, PICKUPS_MIN))
@@ -1668,6 +1688,10 @@ if script in ("BotRun", "BotDuel"):
             detail_lines.append("mega timed take lag=%.1f s cycle=%d by=%s lead=%s state_at_respawn=%s" % (lag_, cy_, by_, "%.1f" % ld_ if ld_ is not None else "n/a", st_))
     else:
         detail_lines.append("client corrections (report-only) non-echo=%d max=%.1f cm (t >= 2 s) possession_snap_cm=%.1f echoes=%d" % (len(nonecho), cmax_late, snap_cm, len(echoes)))
+    if duel and camp_episodes == 0:
+        detail_lines.append("FLAG no camp=1 route line in this round (fact of the round, D49; the set band judges)")
+    detail_lines.append("left_arena=%s world_kills=%d [%s] fell_out_lines=%d" % (
+        "%s@%s z=%.0f" % left_arena if left_arena else "none", len(world_victims), ",".join(world_victims), fell_out_lines))
     detail_lines.append("camp_lines=%d camp_episodes=%d camp_share_pct=%.1f (of %d goal changes) camp_max_lead_s=%.1f" % (
         camp_lines, camp_episodes, 100.0 * camp_episodes / goal_changes if goal_changes else 0.0, goal_changes, camp_max_lead))
     for w in windows:
@@ -1686,6 +1710,8 @@ if script in ("BotRun", "BotDuel"):
              "timed": timed_lags, "timed_cycles": timed_cycles, "transition_windows": sum(1 for w in windows if w.get("transition")), "first_after_live": first_after_live, "invalid": invalid, "windows": n_win, "clean": len(clean_w),
              "contended": len(cont_w), "p_windows": len(p_w), "frame_other_ref": fo_ref, "mean_ref": mean_ref, "rr_round": rr_round,
              "p_norm_mean_us": p_norm_mean, "cost_windows": len(cost_w), "cost_judged": cost_judged, "behaviour_fail": bool(behaviour_fails),
+             "camp_episodes": camp_episodes, "camp_lines": camp_lines, "goal_changes": goal_changes, "camp_max_lead": camp_max_lead,
+             "left_arena": left_arena[0] if left_arena else None, "world_kills": len(world_victims),
              "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w]}
     with open(os.path.join(stats_dir, script + ".stats.json"), "w") as sf:
         json.dump(stats, sf)
@@ -1789,6 +1815,8 @@ else:
     # (within_4s stays printed).
     if within6 < 3: fails.append("Mega timed returns within 6 s: %d < 3" % within6)
     if within3 < 1: fails.append("Mega timed returns within 3 s: none in the set")
+    # D49 (a): the camp band is on the set (episodes, D46 4), not per round.
+    if sum(r.get("camp_episodes", 0) for r in valid) < 2: fails.append("Duel camp episodes over the set: %d < 2 (D49)" % sum(r.get("camp_episodes", 0) for r in valid))
 # Cost (D46 1c, 5): per round on its clean windows; a round with < 50 % clean windows is not judged.
 refs = [r["frame_other_ref"] for r in valid if r.get("frame_other_ref")]
 min_ref = min(refs) if refs else None
@@ -1810,6 +1838,11 @@ print("  per round: kills=%s frags=%s stuck=%s pickups=%s max_dwell_s=%s repaths
 print("  sums: stuck=%d kills=%d frags=%d pocket_strikes=%d%s major_covered=%d/7 [%s]%s" % (
     S("stuck"), S("kills"), S("frags"), S("pocket"), " (FLAG: pocket strike -> architect)" if S("pocket") else "", len(major) if not missing else 7 - len(missing), ",".join(major),
     " missing=[%s]" % ",".join(missing) if missing else ""))
+if script == "BotDuel":
+    print("  camp: episodes=%s sum=%d lines=%s share_pct=%s max_lead_s=%s" % (
+        [r.get("camp_episodes", 0) for r in valid], sum(r.get("camp_episodes", 0) for r in valid), [r.get("camp_lines", 0) for r in valid],
+        ["%.1f" % (100.0 * r.get("camp_episodes", 0) / r["goal_changes"]) if r.get("goal_changes") else "0.0" for r in valid], ["%.1f" % r.get("camp_max_lead", 0.0) for r in valid]))
+print("  left_arena=[%s] world_kills=[%s]" % (",".join(r.get("left_arena") or "none" for r in runs), ",".join(str(r.get("world_kills", 0)) for r in runs)))
 if script == "BotDuel":
     print("  mega timed returns (s): %s within_6s=%d within_3s=%d within_4s=%d first_cycle=[%s] later_cycle=[%s] first_after_live_s=%s (reported)" % (
         ",".join("%.1f" % v for v in timed), within6, within3, within4, ",".join("%.1f" % v for v in first_cycle), ",".join("%.1f" % v for v in later_cycle), [("%.1f" % r["first_after_live"]) if r.get("first_after_live") is not None else "-" for r in valid]))
