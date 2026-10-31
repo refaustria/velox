@@ -1340,29 +1340,37 @@ if script in ("BotRun", "BotDuel"):
     STUCK_MAX, PICKUPS_MIN = 6, 15
     # ADR 0005 D47 (g): runner constants, not tunables.
     R_OTHER_SLOW, RR_WINDOW_MAX, RR_ROUND_MAX, REF_BAND, MIN_CLEAN_WINDOWS = 2.0, 2.5, 2.0, 1.6, 6
-    # ADR 0005 D50 (5): report-only target bands per preset (lo, hi); None = no bound / "report".
+    # ADR 0005 D51 (11): report-only regression bands per (preset, script) on L_ItemTest (the D50 (5) table is withdrawn),
+    # pooled over the round/set (sums over sums). (lo, hi); None = report (no band), a None bound = unbounded on that side.
     NH_BANDS = {
-        "Easy":   {"acc_hitscan_pct": (10, 22), "acc_proj_pct": (15, 35), "shots_per_kill": (25, 60), "trigger_share_pct": (50, None), "held_share_pct": (20, 45)},
-        "Medium": {"acc_hitscan_pct": (22, 35), "acc_proj_pct": (30, 50), "shots_per_kill": (12, 30), "trigger_share_pct": (45, None), "held_share_pct": (10, 30)},
-        "Hard":   {"acc_hitscan_pct": (35, 50), "acc_proj_pct": (45, 65), "shots_per_kill": (6, 15), "trigger_share_pct": None, "held_share_pct": (None, 15)},
-        "Expert": {"acc_hitscan_pct": (50, 65), "acc_proj_pct": (60, 80), "shots_per_kill": (4, 9), "trigger_share_pct": None, "held_share_pct": (None, 0)},
+        ("Easy", "BotRun"):    {"acc_mg_pct": (10, 24), "acc_rg_pct": None,     "acc_rl_pct": (15, 45), "held_share_pct": (25, 60),   "trigger_share_pct": None,     "acc_hitscan_pct": None},
+        ("Medium", "BotRun"):  {"acc_mg_pct": (10, 24), "acc_rg_pct": (30, 60), "acc_rl_pct": (15, 45), "held_share_pct": (20, 50),   "trigger_share_pct": (30, None), "acc_hitscan_pct": None},
+        ("Hard", "BotDuel"):   {"acc_mg_pct": (47, 61), "acc_rg_pct": (35, 60), "acc_rl_pct": (15, 45), "held_share_pct": (None, 10), "trigger_share_pct": None,     "acc_hitscan_pct": (51, 61)},
+        ("Expert", "BotRun"):  {"acc_mg_pct": (44, 60), "acc_rg_pct": (45, 75), "acc_rl_pct": (15, 45), "held_share_pct": (None, 0),  "trigger_share_pct": None,     "acc_hitscan_pct": (49, 59)},
     }
-    NH_ORDER = ("acc_hitscan_pct", "acc_proj_pct", "shots_per_kill", "trigger_share_pct", "held_share_pct")
+    NH_ORDER = ("acc_hitscan_pct", "acc_proj_pct", "shots_per_kill", "trigger_share_pct", "held_share_pct", "acc_mg_pct", "acc_rg_pct", "acc_rl_pct")
+    NH_ORDER_BOT = NH_ORDER[:5]   # per-bot lines have no per-weapon split
 
     def nh_pct(a, b):
         return ("%.1f" % (100.0 * a / b)) if b else "n/a"
 
-    def nh_values(q):
-        """The five D50 (4) quantities from summed numerators / denominators (None where the denominator is 0)."""
+    def nh_values(q, wq=None, rl_so=0):
+        """The D51 (11) quantities from summed numerators / denominators (None where the denominator is 0). wq: weapon ->
+        [hits, shots]; acc_rl_pct leaves the explosions whose only victim is the owner (rl_so) out of the denominator."""
         shots = q["hs_shots"] + q["pj_shots"]
-        return {"acc_hitscan_pct": 100.0 * q["hs_hits"] / q["hs_shots"] if q["hs_shots"] else None,
-                "acc_proj_pct": 100.0 * q["pj_hits"] / q["pj_shots"] if q["pj_shots"] else None,
-                "shots_per_kill": float(shots) / q["kills"] if (q["kills"] and shots) else None,
-                "trigger_share_pct": 100.0 * q["fire"] / q["vis"] if q["vis"] else None,
-                "held_share_pct": 100.0 * q["held"] / q["fire"] if q["fire"] else None}
+        v_ = {"acc_hitscan_pct": 100.0 * q["hs_hits"] / q["hs_shots"] if q["hs_shots"] else None,
+              "acc_proj_pct": 100.0 * q["pj_hits"] / q["pj_shots"] if q["pj_shots"] else None,
+              "shots_per_kill": float(shots) / q["kills"] if (q["kills"] and shots) else None,
+              "trigger_share_pct": 100.0 * q["fire"] / q["vis"] if q["vis"] else None,
+              "held_share_pct": 100.0 * q["held"] / q["fire"] if q["fire"] else None}
+        for key_, w_ in (("acc_mg_pct", "MG"), ("acc_rg_pct", "RG"), ("acc_rl_pct", "RL")):
+            h_, n_ = (wq or {}).get(w_, (0, 0))
+            n_ -= rl_so if w_ == "RL" else 0
+            v_[key_] = 100.0 * h_ / n_ if n_ > 0 else None
+        return v_
 
-    def nh_band(key, v, preset_):
-        b_ = NH_BANDS.get(preset_, {}).get(key)
+    def nh_band(key, v, preset_, script_):
+        b_ = NH_BANDS.get((preset_, script_), {}).get(key)
         if not b_:
             return ""
         lo_, hi_ = b_
@@ -1372,10 +1380,10 @@ if script in ("BotRun", "BotDuel"):
         ok_ = (lo_ is None or v >= lo_) and (hi_ is None or v <= hi_)
         return "[%s %s]" % (txt_, "IN" if ok_ else "OUT")
 
-    def nh_format(q, preset_):
-        vals = nh_values(q)
+    def nh_format(q, preset_, wq=None, rl_so=0):
+        vals = nh_values(q, wq, rl_so)
         return " ".join("%s=%s%s" % (k_, ("%.1f" % vals[k_]) if vals[k_] is not None else ("-" if k_ == "shots_per_kill" else "n/a"),
-                                     nh_band(k_, vals[k_], preset_) if preset_ else "") for k_ in NH_ORDER)
+                                     nh_band(k_, vals[k_], preset_, script) if preset_ else "") for k_ in (NH_ORDER if wq is not None else NH_ORDER_BOT))
 
     def utc(line):
         """UTC epoch seconds of the log line's [yyyy.mm.dd-hh.mm.ss:mmm] stamp (UE logs UTC); the host sidecar uses epoch."""
@@ -1437,6 +1445,7 @@ if script in ("BotRun", "BotDuel"):
     NH_KEYS = ("hs_shots", "hs_hits", "pj_shots", "pj_hits", "kills", "vis", "fire", "held", "samples", "camp_samples")
     nh = collections.defaultdict(lambda: dict((k_, 0) for k_ in NH_KEYS))
     nh_weapon = collections.defaultdict(lambda: [0, 0])   # weapon -> [hits, shots] over all bots (Live)
+    nh_rl_so = collections.Counter()                      # D51 (11): RL explosions whose only victim is the owner (Live)
     WEAPON_ABBR = {"MachineGun": "MG", "Shotgun": "SG", "LightningGun": "LG", "Railgun": "RG", "RocketLauncher": "RL", "PlasmaGun": "PG", "Gauntlet": "GT"}
     presets = collections.Counter()
     for l in S:
@@ -1470,6 +1479,13 @@ if script in ("BotRun", "BotDuel"):
                 nh[d["by"]]["pj_shots"] += 1; nh[d["by"]]["pj_hits"] += int(hit_)
                 wn_ = d.get("weapon", "-").replace("DA_Weapon_", "")
                 w_ = nh_weapon[WEAPON_ABBR.get(wn_, wn_)]; w_[1] += 1; w_[0] += int(hit_)
+                # D51 (11) predicate, read from VeloxProjectile.cpp (Explode): confirm_victims counts only non-owner victims and
+                # direct= is never the owner, so hit_ false means no other pawn was hurt. The owner is in the splash set
+                # (splash >= 1 with no confirm victim: it is the only entry) when self=local|here; when its self splash runs in
+                # the move timeline (self=move_timed) the owner is taken out of the splash set, so that explosion with no victim
+                # is the owner's alone. A rocket into a wall far from everybody has splash=0 and self=local: a plain miss.
+                if WEAPON_ABBR.get(wn_, wn_) == "RL" and not hit_ and (num(d, "splash") >= 1 or d.get("self") == "move_timed"):
+                    nh_rl_so["n"] += 1
             continue
         if "VeloxKill victim=" in l and "ignored" not in l:
             m = re.search(r"killer=(\S+) suicide=(\d)", l)
@@ -1814,7 +1830,8 @@ if script in ("BotRun", "BotDuel"):
     if cost_judged and budget_mean > BUDGET_MAX: fails.append("VeloxBotBudget mean_us %.1f > %.0f (clean windows)" % (budget_mean, BUDGET_MAX))
     if cost_judged and p_norm_mean is not None and p_norm_mean > BUDGET_MAX: fails.append("p_norm_mean_us %.1f > %.0f (process-slow windows divided by R_other, D47 c)" % (p_norm_mean, BUDGET_MAX))
     if cost_judged and rr_round is not None and rr_round > RR_ROUND_MAX: fails.append("rr_round %.2f > %.1f (bots slowed more than the thread over the process-slow windows, D47 c)" % (rr_round, RR_ROUND_MAX))
-    if cost_w: fails.append("cost window(s) %s: bots slowed, thread did not (or rr > 2.5), no host cause (D46 1c/D47; dev-hard profiling per D14)" % ",".join(str(w["i"]) for w in cost_w))
+    # D51 (9)(ii): a round whose cost is not judged has no cost verdict: its X windows are printed (note below), not a FAIL.
+    if cost_w and cost_judged: fails.append("cost window(s) %s: bots slowed, thread did not (or rr > 2.5), no host cause (D46 1c/D47; dev-hard profiling per D14)" % ",".join(str(w["i"]) for w in cost_w))
     if invalid: fails.append("round invalid: frame_deficit > 10 %% in %d windows (server not running the game at 60 Hz, D46 1d)" % deficit_bad)
     if not budget_windows: fails.append("no VeloxBotBudget lines")
     # D49 (b): a bot that left the arena / a pawn killed by the world is content or engine, not bot work; labels go first.
@@ -1891,8 +1908,8 @@ if script in ("BotRun", "BotDuel"):
         camp_lines, camp_episodes, 100.0 * camp_episodes / goal_changes if goal_changes else 0.0, goal_changes, camp_max_lead))
     # ADR 0005 D50 (4)/(5): near-human quantities (Live), per bot and pooled, with the preset's report-only band.
     nh_sum = dict((k_, sum(nh[b_][k_] for b_ in bots)) for k_ in NH_KEYS)
-    detail_lines.append("near-human (Live, D50; preset=%s%s): %s acc_by_weapon={%s} camp_time_pct=%s" % (
-        preset, " calibration=%s" % calibration if calibration else "", nh_format(nh_sum, preset),
+    detail_lines.append("near-human (Live, D51; preset=%s%s): %s rl_self_only=%d acc_by_weapon={%s} camp_time_pct=%s" % (
+        preset, " calibration=%s" % calibration if calibration else "", nh_format(nh_sum, preset, dict(nh_weapon), nh_rl_so["n"]), nh_rl_so["n"],
         ",".join("%s:%s" % (w_, nh_pct(v_[0], v_[1])) for w_, v_ in sorted(nh_weapon.items())), nh_pct(nh_sum["camp_samples"], nh_sum["samples"])))
     for b_ in sorted(bots):
         detail_lines.append("near-human bot %s: %s camp_time_pct=%s (hitscan %d/%d proj %d/%d kills %d vis %d fire %d held %d)" % (
@@ -1918,7 +1935,7 @@ if script in ("BotRun", "BotDuel"):
              "left_arena": left_arena[0] if left_arena else None, "world_kills": len(world_victims),
              "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w],
              "preset": preset, "calibration": calibration or None, "nh": nh_sum, "nh_bots": dict((b_, nh[b_]) for b_ in sorted(bots)),
-             "nh_weapon": dict(nh_weapon), "max_fire_us": max([w["fire"] for w in windows] or [0]), "mega_takes": len(mega), "link_max": link_max}
+             "nh_weapon": dict(nh_weapon), "rl_self_only": nh_rl_so["n"], "max_fire_us": max([w["fire"] for w in windows] or [0]), "mega_takes": len(mega), "link_max": link_max}
     with open(os.path.join(stats_dir, script + ".stats.json"), "w") as sf:
         json.dump(stats, sf)
     cost_txt = ("n/j" if not cost_judged else ("FAIL" if cost_w or budget_mean > BUDGET_MAX or (p_norm_mean or 0) > BUDGET_MAX or (rr_round or 0) > RR_ROUND_MAX else "PASS"))
@@ -1933,6 +1950,8 @@ if script in ("BotRun", "BotDuel"):
             out.write("    ~ not judged (calibration=%s): %s\n" % (calibration, fl))
         if not cost_judged and not invalid:
             out.write("    ~ cost not judged: clean %d + process-slow %d of %d windows (needs clean >= %d and clean + P >= 50 %%); only the cost bands need a rerun (D46 1c, D47 c)\n" % (len(clean_w), len(p_w), n_win, MIN_CLEAN_WINDOWS if fo_ref is not None else 0))
+        if cost_w and not cost_judged and not invalid:
+            out.write("    ~ %d cost-class (X) window(s) on a round whose cost is not judged: not a FAIL (D51 9 ii); the set evaluation labels the round slow throughout (D47 d) or flags it\n" % len(cost_w))
         if behaviour_fails and cont_w:
             out.write("    ~ behaviour miss on a round with %d contended window(s): reproduce it on a clean round before it counts, unless it has a geometric trail (strikes at one position with a repath/offmesh line) (D46 1d)\n" % len(cont_w))
         for dl in detail_lines:
@@ -1988,11 +2007,20 @@ PY
 # (round-<k>/ directories for --repeat > 1). Judged for --repeat 3 only; other counts are reported, not judged.
 bot_set_eval() {
   python3 -I - "$1" "$2" "$3" <<'PY'
-import json, os, sys
+import json, os, re, sys
 script, base, rounds = sys.argv[1], sys.argv[2], int(sys.argv[3])
 MAJOR_ALL = ["Health_Mega", "Armor_Red", "Armor_Yellow", "Powerup_BattleSuit", "Powerup_Haste", "Powerup_Quad", "Powerup_Regen"]
 BUDGET_MAX = 300.0
 R_OTHER_SLOW_SET = 2.0   # D47 (d): a round whose frame_other_ref exceeds this x the set's smallest was slow throughout
+# ADR 0005 D51 (7)/(1)/(6): the judged lower bands of a --repeat 3 set (largest k with P(sum < k | unchanged) <= 2.5 %, task 03 rounds).
+BOTRUN_KILLS_MIN = 20       # D51 (1): BotRun sum kills by bots (was 12, D36)
+BOTDUEL_FRAGS_MIN = 20      # D51 (1): BotDuel sum frags (was 9, D36)
+BOTDUEL_CAMP_MIN = 7        # D51 (1), D49 (a)/(4): BotDuel sum camp episodes, Live phase (was 2)
+MEGA_WITHIN3_MIN = 1        # D51 (6): sum of timed Mega returns <= 3 s (the timing clause, D46 3)
+MEGA_WITHIN10_MIN = 2       # D51 (6): sum of timed Mega returns <= 10 s (replaces D48 b "within 6 s >= 3")
+STUCK_SUM_MAX = 10          # D36, re-checked unchanged by D51 (7)
+# D51 (11): the camp trio on the BotDuel set line (episodes per round mean, camp share %, camp time %, max lead s); report-only.
+CAMP_TRIO_BANDS = {"episodes_per_round_mean": (3, 6), "camp_share_pct": (4, 12), "camp_time_pct": (2, 8), "camp_max_lead_s": (None, 23)}
 runs = []
 for k in range(1, rounds + 1):
     d = os.path.join(base, "round-%d" % k) if rounds > 1 else base
@@ -2010,31 +2038,82 @@ fails, cost_fails = [], []
 judged = rounds == 3 and not invalid_rounds
 timed = [v for r in valid for v in r.get("timed", [])]
 within3 = sum(1 for v in timed if v <= 3.0); within4 = sum(1 for v in timed if v <= 4.0); within6 = sum(1 for v in timed if v <= 6.0)
+within10 = sum(1 for v in timed if v <= 10.0)
 timed_cy = [(v, c) for r in valid for v, c in zip(r.get("timed", []), r.get("timed_cycles", []))]
 first_cycle = [v for v, c in timed_cy if c == 1]; later_cycle = [v for v, c in timed_cy if c >= 2]
 if script == "BotRun":
-    if S("stuck") > 10: fails.append("sum VeloxBotStuck %d > 10" % S("stuck"))
-    if S("kills") < 12: fails.append("sum kills by bots %d < 12" % S("kills"))
+    if S("stuck") > STUCK_SUM_MAX: fails.append("sum VeloxBotStuck %d > %d" % (S("stuck"), STUCK_SUM_MAX))
+    if S("kills") < BOTRUN_KILLS_MIN: fails.append("sum kills by bots %d < %d (D51)" % (S("kills"), BOTRUN_KILLS_MIN))
     if missing: fails.append("bMajorItem never taken by a bot: %s" % ",".join(missing))
 else:
-    if S("frags") < 9: fails.append("sum frags %d < 9" % S("frags"))
-    if S("stuck") > 10: fails.append("sum VeloxBotStuck %d > 10" % S("stuck"))
-    # D48 (b), amending D46 (3): timed returns = takes after a VeloxPickupRespawn; set band sum within 6 s >= 3 and >= 1 within 3 s
-    # (within_4s stays printed).
-    if within6 < 3: fails.append("Mega timed returns within 6 s: %d < 3" % within6)
-    if within3 < 1: fails.append("Mega timed returns within 3 s: none in the set")
-    # D49 (a): the camp band is on the set (episodes, D46 4), not per round.
-    if sum(r.get("camp_episodes", 0) for r in valid) < 2: fails.append("Duel camp episodes over the set: %d < 2 (D49)" % sum(r.get("camp_episodes", 0) for r in valid))
+    if S("frags") < BOTDUEL_FRAGS_MIN: fails.append("sum frags %d < %d (D51)" % (S("frags"), BOTDUEL_FRAGS_MIN))
+    if S("stuck") > STUCK_SUM_MAX: fails.append("sum VeloxBotStuck %d > %d" % (S("stuck"), STUCK_SUM_MAX))
+    # D51 (6), replacing D48 (b): timed returns = takes after a VeloxPickupRespawn; set band sum <= 3 s >= 1 and sum <= 10 s >= 2.
+    # within_6s/within_4s, first_cycle/later_cycle and the per-round FLAG stay printed.
+    if within3 < MEGA_WITHIN3_MIN: fails.append("Mega timed returns within 3 s: %d < %d (D51 6)" % (within3, MEGA_WITHIN3_MIN))
+    if within10 < MEGA_WITHIN10_MIN: fails.append("Mega timed returns within 10 s: %d < %d (D51 6)" % (within10, MEGA_WITHIN10_MIN))
+    # D49 (a)/D51 (1): the camp band is on the set (episodes, D46 4), not per round.
+    if sum(r.get("camp_episodes", 0) for r in valid) < BOTDUEL_CAMP_MIN: fails.append("Duel camp episodes over the set: %d < %d (D49/D51)" % (sum(r.get("camp_episodes", 0) for r in valid), BOTDUEL_CAMP_MIN))
 # Cost (D46 1c, 5): per round on its clean windows; a round with < 50 % clean windows is not judged.
 refs = [r["frame_other_ref"] for r in valid if r.get("frame_other_ref")]
 min_ref = min(refs) if refs else None
 slow_thru = [k + 1 for k, r in enumerate(runs) if not r.get("invalid") and min_ref and r.get("frame_other_ref") and r["frame_other_ref"] > R_OTHER_SLOW_SET * min_ref]
 unjudged = [k + 1 for k, r in enumerate(runs) if (not r.get("cost_judged") or (k + 1) in slow_thru) and not r.get("invalid")]
+
+def round_dir(k):
+    return os.path.join(base, "round-%d" % k) if rounds > 1 else base
+
+def relabel_result(k, nx):
+    """D51 (9)(ii)/(iii): a round that is slow throughout (D47 d) has no cost verdict. Its X windows become P, its cost
+    windows n/a, and its .result is rewritten to the behaviour verdict (cost-class FAIL lines dropped)."""
+    path = os.path.join(round_dir(k), script + ".result")
+    try:
+        lines = open(path).read().split("\n")
+    except OSError:
+        return None
+    cost_pre = ("cost window(s)", "VeloxBotBudget mean_us", "p_norm_mean_us", "rr_round")
+    lines = [l for l in lines if not (l.startswith("    - ") and l[6:].startswith(cost_pre))]
+    still_failing = any(l.startswith("    - ") for l in lines)
+    out = []
+    for i, l in enumerate(lines):
+        if i == 0:
+            l = re.sub(r"cost=(n/j|FAIL|PASS)", "cost=n/j cost_windows=n/a (slow throughout, D47 d)", l, count=1)
+            l = re.sub(r" P=(\d+)$", lambda m: " P=%d" % (int(m.group(1)) + nx), l)
+            if not still_failing:
+                l = re.sub(r"^(\S+\s+)FAIL ", r"\1PASS ", l)
+        elif l.startswith("    . budget cost=FAIL"):
+            l = l.replace("budget cost=FAIL", "budget cost=n/j", 1)
+        elif l.startswith("    . window classes ["):
+            l = re.sub(r"^(    \. window classes \[)([^\]]*)\]", lambda m: m.group(1) + m.group(2).replace("X", "P") + "]", l)
+            l = re.sub(r" P=(\d+) contended", lambda m: " P=%d contended" % (int(m.group(1)) + nx), l, count=1)
+            l = re.sub(r" cost=\d+ unverified", " cost=0 unverified", l, count=1)
+        elif re.match(r"    \. window \d+ COST:", l):
+            l = re.sub(r"(window \d+) COST:", r"\1 PROCESS-SLOW (relabelled, D47 d):", l, count=1)
+        out.append(l)
+    if not any(l.startswith("    ~ slow throughout") for l in out):
+        j = next((i for i, l in enumerate(out) if l.startswith("    . ")), len(out))
+        out.insert(j, "    ~ slow throughout (D47 d): X windows re-labelled P, cost_windows=n/a, no cost verdict (D51 9 ii); the behaviour verdict stands")
+    with open(path, "w") as f:
+        f.write("\n".join(out))
+    return out[0]
+
+relabelled = {}
+for k in slow_thru:
+    nx = runs[k - 1].get("cost_windows", 0)
+    head = relabel_result(k, nx)
+    if head is not None:
+        relabelled[k] = head
+flags = []
+for k, r in enumerate(runs):
+    if r.get("invalid") or (k + 1) in slow_thru:
+        continue
+    if not r.get("cost_judged") and r.get("cost_windows", 0):
+        flags.append("FLAG unjudged round %d with %d cost windows (not slow throughout)" % (k + 1, r["cost_windows"]))
 for k, r in enumerate(runs):
     if r.get("invalid") or (k + 1) in slow_thru:
         continue
     cm = r.get("clean_means", [])
-    if r.get("cost_windows", 0): cost_fails.append("round %d: %d cost window(s)" % (k + 1, r["cost_windows"]))
+    if r.get("cost_judged") and r.get("cost_windows", 0): cost_fails.append("round %d: %d cost window(s)" % (k + 1, r["cost_windows"]))
     if r.get("cost_judged") and r.get("p_norm_mean_us") is not None and r["p_norm_mean_us"] > BUDGET_MAX: cost_fails.append("round %d: p_norm_mean_us %.1f > %.0f" % (k + 1, r["p_norm_mean_us"], BUDGET_MAX))
     if r.get("cost_judged") and r.get("rr_round") is not None and r["rr_round"] > 2.0: cost_fails.append("round %d: rr_round %.2f > 2.0" % (k + 1, r["rr_round"]))
     if r.get("cost_judged") and cm and sum(cm) / len(cm) > BUDGET_MAX: cost_fails.append("round %d: clean mean_us %.1f > %.0f" % (k + 1, sum(cm) / len(cm), BUDGET_MAX))
@@ -2051,13 +2130,14 @@ if script == "BotDuel":
         [r.get("camp_episodes", 0) for r in valid], sum(r.get("camp_episodes", 0) for r in valid), [r.get("camp_lines", 0) for r in valid],
         ["%.1f" % (100.0 * r.get("camp_episodes", 0) / r["goal_changes"]) if r.get("goal_changes") else "0.0" for r in valid], ["%.1f" % r.get("camp_max_lead", 0.0) for r in valid]))
 print("  left_arena=[%s] world_kills=[%s]" % (",".join(r.get("left_arena") or "none" for r in runs), ",".join(str(r.get("world_kills", 0)) for r in runs)))
-# ADR 0005 D50 (4)/(5): near-human quantities pooled over the valid rounds (sums of numerators over sums of denominators),
-# with the preset's band and IN/OUT; report-only. Rounds from before D50 have no "nh" key: n/a.
+# ADR 0005 D51 (11): near-human quantities pooled over the valid rounds (sums of numerators over sums of denominators), per
+# (preset, script) with the band and IN/OUT; report-only. The same table as analyze_round's NH_BANDS (None = report).
+# Rounds from before D50 have no "nh" key: n/a.
 NH_BANDS = {
-    "Easy":   {"acc_hitscan_pct": (10, 22), "acc_proj_pct": (15, 35), "shots_per_kill": (25, 60), "trigger_share_pct": (50, None), "held_share_pct": (20, 45)},
-    "Medium": {"acc_hitscan_pct": (22, 35), "acc_proj_pct": (30, 50), "shots_per_kill": (12, 30), "trigger_share_pct": (45, None), "held_share_pct": (10, 30)},
-    "Hard":   {"acc_hitscan_pct": (35, 50), "acc_proj_pct": (45, 65), "shots_per_kill": (6, 15), "trigger_share_pct": None, "held_share_pct": (None, 15)},
-    "Expert": {"acc_hitscan_pct": (50, 65), "acc_proj_pct": (60, 80), "shots_per_kill": (4, 9), "trigger_share_pct": None, "held_share_pct": (None, 0)},
+    ("Easy", "BotRun"):    {"acc_mg_pct": (10, 24), "acc_rg_pct": None,     "acc_rl_pct": (15, 45), "held_share_pct": (25, 60),   "trigger_share_pct": None,     "acc_hitscan_pct": None},
+    ("Medium", "BotRun"):  {"acc_mg_pct": (10, 24), "acc_rg_pct": (30, 60), "acc_rl_pct": (15, 45), "held_share_pct": (20, 50),   "trigger_share_pct": (30, None), "acc_hitscan_pct": None},
+    ("Hard", "BotDuel"):   {"acc_mg_pct": (47, 61), "acc_rg_pct": (35, 60), "acc_rl_pct": (15, 45), "held_share_pct": (None, 10), "trigger_share_pct": None,     "acc_hitscan_pct": (51, 61)},
+    ("Expert", "BotRun"):  {"acc_mg_pct": (44, 60), "acc_rg_pct": (45, 75), "acc_rl_pct": (15, 45), "held_share_pct": (None, 0),  "trigger_share_pct": None,     "acc_hitscan_pct": (49, 59)},
 }
 def band_txt(b_, v):
     if not b_:
@@ -2076,19 +2156,25 @@ if nh_runs:
         for k_, v_ in r["nh"].items():
             q[k_] = q.get(k_, 0) + v_
     shots = q["hs_shots"] + q["pj_shots"]
-    vals = [("acc_hitscan_pct", 100.0 * q["hs_hits"] / q["hs_shots"] if q["hs_shots"] else None),
-            ("acc_proj_pct", 100.0 * q["pj_hits"] / q["pj_shots"] if q["pj_shots"] else None),
-            ("shots_per_kill", float(shots) / q["kills"] if (q["kills"] and shots) else None),
-            ("trigger_share_pct", 100.0 * q["fire"] / q["vis"] if q["vis"] else None),
-            ("held_share_pct", 100.0 * q["held"] / q["fire"] if q["fire"] else None)]
     pre = presets_[0] if len(presets_) == 1 else None
     wsum = {}
     for r in nh_runs:
         for w_, (h_, n_) in r.get("nh_weapon", {}).items():
             a_ = wsum.setdefault(w_, [0, 0]); a_[0] += h_; a_[1] += n_
-    print("  near-human (D50, Live, pooled over %d round(s), preset=%s%s; report-only): %s" % (
+    rl_so = sum(r.get("rl_self_only", 0) for r in nh_runs)   # D51 (11): RL explosions whose only victim is the owner
+    def wacc(w_):
+        h_, n_ = wsum.get(w_, (0, 0))
+        n_ -= rl_so if w_ == "RL" else 0
+        return 100.0 * h_ / n_ if n_ > 0 else None
+    vals = [("acc_hitscan_pct", 100.0 * q["hs_hits"] / q["hs_shots"] if q["hs_shots"] else None),
+            ("acc_proj_pct", 100.0 * q["pj_hits"] / q["pj_shots"] if q["pj_shots"] else None),
+            ("shots_per_kill", float(shots) / q["kills"] if (q["kills"] and shots) else None),
+            ("trigger_share_pct", 100.0 * q["fire"] / q["vis"] if q["vis"] else None),
+            ("held_share_pct", 100.0 * q["held"] / q["fire"] if q["fire"] else None),
+            ("acc_mg_pct", wacc("MG")), ("acc_rg_pct", wacc("RG")), ("acc_rl_pct", wacc("RL"))]
+    print("  near-human (D51, Live, pooled over %d round(s), preset=%s%s; report-only): %s rl_self_only=%d" % (
         len(nh_runs), "/".join(presets_), " calibration=%s" % ",".join(calib) if calib else "",
-        " ".join("%s=%s%s" % (k_, ("%.1f" % v_) if v_ is not None else "n/a", band_txt(NH_BANDS.get(pre, {}).get(k_), v_)) for k_, v_ in vals)))
+        " ".join("%s=%s%s" % (k_, ("%.1f" % v_) if v_ is not None else "n/a", band_txt(NH_BANDS.get((pre, script), {}).get(k_), v_)) for k_, v_ in vals), rl_so))
     print("    acc_by_weapon={%s} camp_time_pct=%s (hitscan %d/%d proj %d/%d kills %d vis %d fire %d held %d samples %d)" % (
         ",".join("%s:%s" % (w_, ("%.1f" % (100.0 * a_[0] / a_[1])) if a_[1] else "n/a") for w_, a_ in sorted(wsum.items())),
         ("%.1f" % (100.0 * q["camp_samples"] / q["samples"])) if q["samples"] else "n/a",
@@ -2100,22 +2186,28 @@ if nh_runs:
         sh_ = 100.0 * sum(ep_) / gc_ if gc_ else None
         ct_ = 100.0 * q["camp_samples"] / q["samples"] if q["samples"] else None
         ml_ = max(r.get("camp_max_lead", 0.0) for r in nh_runs)
-        print("    camp trio (D50 5): episodes_per_round_mean=%.2f%s camp_share_pct=%s%s camp_time_pct=%s%s camp_max_lead_s=%.1f%s" % (
-            em_, band_txt((3, 5), em_), ("%.1f" % sh_) if sh_ is not None else "n/a", band_txt((4, 12), sh_),
-            ("%.1f" % ct_) if ct_ is not None else "n/a", band_txt((3, 8), ct_), ml_, band_txt((None, 23), ml_)))
+        CB_ = CAMP_TRIO_BANDS
+        print("    camp trio (D51 11): episodes_per_round_mean=%.2f%s camp_share_pct=%s%s camp_time_pct=%s%s camp_max_lead_s=%.1f%s" % (
+            em_, band_txt(CB_["episodes_per_round_mean"], em_), ("%.1f" % sh_) if sh_ is not None else "n/a", band_txt(CB_["camp_share_pct"], sh_),
+            ("%.1f" % ct_) if ct_ is not None else "n/a", band_txt(CB_["camp_time_pct"], ct_), ml_, band_txt(CB_["camp_max_lead_s"], ml_)))
 else:
-    print("  near-human (D50): n/a (no nh stats: rounds from before D50)")
+    print("  near-human (D51): n/a (no nh stats: rounds from before D50)")
 if script == "BotDuel":
-    print("  mega timed returns (s): %s within_6s=%d within_3s=%d within_4s=%d first_cycle=[%s] later_cycle=[%s] first_after_live_s=%s (reported)" % (
-        ",".join("%.1f" % v for v in timed), within6, within3, within4, ",".join("%.1f" % v for v in first_cycle), ",".join("%.1f" % v for v in later_cycle), [("%.1f" % r["first_after_live"]) if r.get("first_after_live") is not None else "-" for r in valid]))
+    print("  mega timed returns (s): %s within_6s=%d within_3s=%d within_4s=%d within_10s=%d first_cycle=[%s] later_cycle=[%s] first_after_live_s=%s (within_3s/within_10s judged, D51 6)" % (
+        ",".join("%.1f" % v for v in timed), within6, within3, within4, within10, ",".join("%.1f" % v for v in first_cycle), ",".join("%.1f" % v for v in later_cycle), [("%.1f" % r["first_after_live"]) if r.get("first_after_live") is not None else "-" for r in valid]))
 print("  cost (D47): frame_other_ref per round %s (set min %s); mean_ref %s; P windows %s; rr_round %s; p_norm_mean_us %s%s" % (
     [("%.0f" % r["frame_other_ref"]) if r.get("frame_other_ref") else "-" for r in runs], "%.0f" % min_ref if min_ref else "-",
     [("%.1f" % r["mean_ref"]) if r.get("mean_ref") else "-" for r in runs], [r.get("p_windows", 0) for r in runs],
     [("%.2f" % r["rr_round"]) if r.get("rr_round") is not None else "-" for r in runs], [("%.1f" % r["p_norm_mean_us"]) if r.get("p_norm_mean_us") is not None else "-" for r in runs],
     "; round(s) %s slow throughout (frame_other_ref > %.1f x set min: all windows process-slow, cost not judged)" % (",".join(str(k) for k in slow_thru), R_OTHER_SLOW_SET) if slow_thru else ""))
 print("  cost: windows clean/total per round %s; contended %s; cost windows %s; union of clean windows: %d window(s) mean_us=%.1f max_fire_us=%.0f" % (
-    ["%d/%d" % (r.get("clean", 0), r.get("windows", 0)) for r in runs], [r.get("contended", 0) for r in runs], [r.get("cost_windows", 0) for r in runs],
+    ["%d/%d" % (r.get("clean", 0), r.get("windows", 0)) for r in runs], [r.get("contended", 0) for r in runs],
+    [("n/a (slow throughout, D47 d)" if (k + 1) in relabelled else r.get("cost_windows", 0)) for k, r in enumerate(runs)],
     len(union), sum(union) / len(union) if union else 0.0, max(union_fire or [0])))
+for k, h in sorted(relabelled.items()):
+    print("  round %d (slow throughout, D47 d; .result rewritten to the behaviour verdict): %s" % (k, h))
+for f in flags:
+    print("  " + f)
 if calib:
     # D50 (4): calibration rounds are calibrated at another preset than D36/D48/D49's; no band is judged.
     print("  calibration=%s: no D36/D48/D49 band judged (report only)" % ",".join(calib))
@@ -2144,11 +2236,23 @@ sys.exit(1 if (fails or cost_fails or cost_nj) else 0)
 PY
 }
 
+# bot_result_failed <result-file> : 0 when the (possibly rewritten) first line of a bot script's .result carries a FAIL/INVALID
+# verdict or the file is missing. D51 (9)(iii): after bot_set_eval has re-labelled a slow-throughout round, the round counts as
+# the rewritten verdict says.
+bot_result_failed() {
+  local v
+  [[ -f "$1" ]] || return 0
+  v="$(head -n 1 "$1" | awk '{print $2}')"
+  [[ "$v" == FAIL || "$v" == INVALID ]] && return 0
+  [[ "$v" == PASS || "$v" == CALIB ]] && return 1
+  return 0
+}
+
 # reeval <dir> : D46 (1f). Replays the per-round summary and the set evaluation of the bot soaks on saved logs. <dir> is a
 # nettest directory (<script>-server.log directly, or in round-<k>/ subdirectories). Results go to a scratch directory
 # next to the repo's CI output; the saved logs are not touched. Needs no engine. A missing sidecar means host columns n/a.
 reeval() {
-  local dir="$1" out rounds=0 k s failed=0 d any=0 round_dir
+  local dir="$1" out rounds=0 k s failed=0 d any=0 round_dir set_failed script_failed
   [[ -d "$dir" ]] || die "--reeval: not a directory: $dir"
   dir="$(cd "$dir" && pwd)"
   # accept the parent of nettest/
@@ -2170,10 +2274,27 @@ reeval() {
       analyze_round "$s" "$round_dir/$s-server.log" "$round_dir/$s-client.log" 0 1 "$d/$s.result" "$(script_lag "$s")" "$round_dir" "$d" || failed=1
       cat "$d/$s.result"
     done
-    if (( found )); then bot_set_eval "$s" "$out" "$n" || failed=1; fi
+    if (( found )); then
+      # D51 (9)(iii): for a --repeat 3 set the set verdict decides; a round only keeps the analyze_round failure when its
+      # (re-labelled) .result still reads FAIL/INVALID after the set evaluation. Other counts are reported, not judged.
+      set_failed=0
+      bot_set_eval "$s" "$out" "$n" || set_failed=1
+      if (( n == 3 )); then
+        script_failed=$set_failed
+        for (( k = 1; k <= n; k++ )); do
+          if (( rounds > 0 )); then d="$out/round-$k"; else d="$out"; fi
+          [[ -f "$d/$s.result" ]] || continue
+          if bot_result_failed "$d/$s.result"; then script_failed=1; fi
+        done
+        (( script_failed )) && failed=1
+      elif (( set_failed )); then
+        failed=1
+      fi
+    fi
   done
   (( any )) || die "--reeval: no BotRun/BotDuel logs under $dir (other scripts are not replayed)"
   echo "Re-evaluated into: $out"
+  if (( failed )); then echo "NET SOAK FAILED" >&2; else info "NET SOAK OK"; fi
   return "$failed"
 }
 
@@ -2217,14 +2338,15 @@ main() {
     esac
   done
 
-  local failed=0 round round_failed passed_rounds=0 rounds_run=0
+  local failed=0 round round_failed passed_rounds=0 rounds_run=0 set_run=0 set_failed=0 rf rdir
+  local -A nb_failed=()
   for (( round = 1; round <= REPEAT; round++ )); do
     if (( REPEAT > 1 )); then OUT_DIR="$base_dir/round-$round"; else OUT_DIR="$base_dir"; fi
     mkdir -p "$OUT_DIR"
     round_failed=0
     for s in "${scripts[@]}"; do
-      if ! run_one "$s"; then round_failed=1; fi
-      [[ -f "$OUT_DIR/$s.result" ]] || { echo "$s: no result (run aborted)" > "$OUT_DIR/$s.result"; round_failed=1; }
+      if ! run_one "$s"; then round_failed=1; [[ "$BOT_SCRIPTS" == *" $s "* ]] || nb_failed[$round]=1; fi
+      [[ -f "$OUT_DIR/$s.result" ]] || { echo "$s: no result (run aborted)" > "$OUT_DIR/$s.result"; round_failed=1; [[ "$BOT_SCRIPTS" == *" $s "* ]] || nb_failed[$round]=1; }
     done
     rounds_run=$round
     echo
@@ -2237,16 +2359,34 @@ main() {
       passed_rounds=$((passed_rounds + 1))
     fi
   done
-  echo "Rounds passed: $passed_rounds/$rounds_run (requested $REPEAT)"
   for s in "${scripts[@]}"; do
     if [[ "$BOT_SCRIPTS" == *" $s "* ]]; then
       if (( rounds_run == REPEAT )); then
-        bot_set_eval "$s" "$base_dir" "$REPEAT" || failed=1
+        set_run=1
+        bot_set_eval "$s" "$base_dir" "$REPEAT" || set_failed=1
       else
         echo "=== $s set evaluation skipped: only $rounds_run of $REPEAT rounds ran ==="
       fi
     fi
   done
+  if (( set_run && REPEAT == 3 )); then
+    # ADR 0005 D51 (9)(iii): for a --repeat 3 bot set the set verdict decides. bot_set_eval has rewritten the .result of a
+    # slow-throughout round to its behaviour verdict, so the rounds are re-counted from the results; a round that still reads
+    # FAIL/INVALID (a behaviour miss) fails the run as before. The bot sets' cost never fails a round on its own any more.
+    failed=$set_failed
+    passed_rounds=0
+    for (( round = 1; round <= rounds_run; round++ )); do
+      rf=${nb_failed[$round]:-0}
+      rdir="$base_dir/round-$round"
+      for s in "${scripts[@]}"; do
+        if [[ "$BOT_SCRIPTS" == *" $s "* ]] && bot_result_failed "$rdir/$s.result"; then rf=1; fi
+      done
+      if (( rf )); then failed=1; else passed_rounds=$((passed_rounds + 1)); fi
+    done
+  elif (( set_failed )); then
+    failed=1
+  fi
+  echo "Rounds passed: $passed_rounds/$rounds_run (requested $REPEAT)"
   echo "Logs: $base_dir"
   if [[ "$failed" == 1 ]]; then echo "NET SOAK FAILED" >&2; exit 1; fi
   info "NET SOAK OK"
