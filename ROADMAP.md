@@ -61,12 +61,14 @@ Acceptance criteria:
 Goal: bots that play FFA/Duel credibly using the player movement component.
 
 Acceptance criteria:
-- [ ] NavMesh on the test map with nav-links for jump pads, drops, and rocket jumps; link traversal implemented through the movement component (bots strafe-jump along long corridors).
-- [ ] Item routing: bots evaluate item value vs. distance and respawn timers; duel bots time Mega/Red Armor.
-- [ ] Aim model with configurable reaction time, aim error, tracking smoothness; weapon choice by range and ammo; dodge/strafe behaviour under fire.
-- [ ] Difficulty presets as data assets.
-- [ ] Bots work on a dedicated server with human players; `AddBot`/`KickBot` console commands.
-- [ ] Automation tests for aim-error distribution and item-value scoring; functional test map where a bot reaches a jump-pad-only platform.
+- [x] NavMesh on the test map with nav-links for jump pads, drops, and rocket jumps; link traversal implemented through the movement component (bots strafe-jump along long corridors).
+- [x] Item routing: bots evaluate item value vs. distance and respawn timers; duel bots time Mega/Red Armor.
+- [x] Aim model with configurable reaction time, aim error, tracking smoothness; weapon choice by range and ammo; dodge/strafe behaviour under fire.
+- [x] Difficulty presets as data assets.
+- [x] Bots work on a dedicated server with human players; `AddBot`/`KickBot` console commands.
+- [x] Automation tests for aim-error distribution and item-value scoring; functional test map where a bot reaches a jump-pad-only platform.
+
+Done 2026-10-31 on `m4-bots` (ADR 0005 D13–D49; closing acceptance D36/D46–D49, evidence `docs/adr/evidence/0005-D49-m4-final/`). Human playtest on the Apple Silicon Mac still pending (`docs/playtests/m4-bots-checklist.md`).
 
 ## M5 — First real map + characters
 
