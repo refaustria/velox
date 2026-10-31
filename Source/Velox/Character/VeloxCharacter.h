@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AbilitySystemInterface.h"
+#include "Character/VeloxAnimInstance.h"
 #include "GameFramework/Character.h"
 #include "GameplayCueInterface.h"
 #include "Engine/TimerHandle.h"
@@ -23,6 +24,8 @@ class UVeloxHitboxComponent;
 class UVeloxMovementComponent;
 class UVeloxScriptedInputComponent;
 class UVeloxPawnData;
+class UVeloxCharacterCosmetics;
+class USkeletalMesh;
 struct FActiveGameplayEffectHandle;
 struct FGameplayEffectRemovalInfo;
 struct FGameplayEffectSpec;
@@ -37,6 +40,9 @@ namespace VeloxCharacterGeometry
 	inline constexpr float EyeHeight = 55.f;
 	inline constexpr float CrouchedHalfHeight = 50.f;
 	inline constexpr float CrouchedEyeHeight = 40.f;
+	/** Class-default mesh placement (ADR 0006 section 4.1): feet at the capsule bottom, FBX forward. Crouch reads the CDO. */
+	inline constexpr float MeshOffsetZ = -CapsuleHalfHeight;
+	inline constexpr float MeshYawDeg = -90.f;
 }
 
 UCLASS(Config = Game)
@@ -85,6 +91,19 @@ public:
 
 	/** Test hook: the body's current colour parameter value (black when there is no body material). */
 	FLinearColor GetBodyColor() const;
+
+	// ---- ADR 0006 section 4 (task 08): third-person cosmetics
+	/** The loaded cosmetics data asset (null on a dedicated server and until the async load finished). */
+	const UVeloxCharacterCosmetics* GetCharacterCosmetics() const { return CharacterCosmetics; }
+	/** Skin slot currently on the mesh (INDEX_NONE before cosmetics/skin). */
+	int32 GetAppliedSkinSlot() const { return AppliedSkinSlot; }
+	/** True when the mesh plays Sequences directly (no AnimClass, bUseSequencePlayback). */
+	bool IsUsingSequencePlayback() const { return bSequencePlayback; }
+	/** Leg state of the sequence-playback driver. */
+	EVeloxLegState GetSequenceLegState() const { return SequenceAnimState.LegState; }
+	/** Client: re-chooses the skin (own skin or forced enemy skin) and applies its colour; a corpse keeps its skin. */
+	void ApplyCharacterSkin();
+	// ---- end task 08
 
 	/**
 	 * Server (ADR 0004 section 3): writes the remaining time of the active Haste and Quad effects on the PlayerState ASC into
@@ -136,7 +155,11 @@ public:
 protected:
 	//~AActor interface
 	virtual void PostInitializeComponents() override;
+	/** Non-server worlds: requests the pawn data's cosmetics (ADR 0006 section 4.3). */
+	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	/** Drives the sequence-playback fallback (ADR 0006 section 4.5) when it is active; nothing else. */
+	virtual void Tick(float DeltaSeconds) override;
 	//~End of AActor interface
 
 	//~APawn interface
@@ -238,4 +261,35 @@ private:
 
 	TWeakObjectPtr<UAbilitySystemComponent> PowerupWatchedASC;
 	FDelegateHandle PowerupAppliedHandle;
+
+	// ---- ADR 0006 section 4 (task 08): third-person cosmetics (non-server worlds only)
+	/** Once per pawn: async-load PawnData->Cosmetics through UVeloxAssetManager (dedicated server: Verbose log, nothing). */
+	void RequestCharacterCosmetics();
+	void OnCharacterCosmeticsLoaded(const UVeloxCharacterCosmetics* Loaded);
+	/** Mesh, offset/yaw, anim class or sequence playback, placeholder visibility. */
+	void SetUpCosmeticMesh();
+	/** Moves the mesh to OffsetZ/YawDeg keeping the engine's base offsets (smoothing, crouch) consistent. */
+	void ApplyCosmeticMeshOffset(float OffsetZ, float YawDeg);
+	/** After the engine crouch code reset the mesh Z from the class default: re-adds CosmeticMeshZDelta. */
+	void ReapplyCosmeticMeshZDelta();
+	void PlaySequenceForState();
+	bool IsOwnedByLocalPlayer() const;
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UVeloxCharacterCosmetics> CharacterCosmetics;
+
+	/** Skin material instance on the mesh (BodyColorParameter = body colour, darkened on corpses). */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SkinMaterial;
+
+	bool bCosmeticsRequested = false;
+	bool bSequencePlayback = false;
+	int32 AppliedSkinSlot = INDEX_NONE;
+	FLinearColor AppliedSkinColor = FLinearColor::White;
+	/** CosmeticsMeshOffsetZ minus the class-default mesh Z, re-added after the engine's crouch offset reset. */
+	float CosmeticMeshZDelta = 0.f;
+	FVeloxAnimStateData SequenceAnimState;
+	FVeloxAnimSampler SequenceAnimSampler;
+	FDelegateHandle SettingsAppliedHandle;
+	// ---- end task 08
 };

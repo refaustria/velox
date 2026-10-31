@@ -9,6 +9,7 @@
 #include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Character/VeloxCharacter.h"
+#include "Core/VeloxCharacterCosmetics.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Core/VeloxPawnData.h"
 #include "GameModes/VeloxGameMode.h"
@@ -70,7 +71,7 @@ void AVeloxPlayerState::BeginPlay()
 void AVeloxPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AVeloxPlayerState, PlayerColorIndex);
+	DOREPLIFETIME(AVeloxPlayerState, SkinIndex);
 	DOREPLIFETIME(AVeloxPlayerState, bReady);
 	DOREPLIFETIME(AVeloxPlayerState, Kills);
 	DOREPLIFETIME(AVeloxPlayerState, Deaths);
@@ -110,19 +111,24 @@ bool AVeloxPlayerState::SetReady(bool bInReady)
 FColor AVeloxPlayerState::GetPlayerColor() const
 {
 	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(GetCombatSettings());
-	return Settings.PlayerColorPalette.IsValidIndex(PlayerColorIndex) ? Settings.PlayerColorPalette[PlayerColorIndex] : FColor::White;
+	return UVeloxCharacterCosmetics::ResolveBodyColor(CharacterCosmetics.Get(), SkinIndex, Settings.PlayerColorPalette);
 }
 
-void AVeloxPlayerState::SetPlayerColorIndex(uint8 InIndex)
+void AVeloxPlayerState::SetCharacterCosmetics(const UVeloxCharacterCosmetics* InCosmetics)
 {
-	if (HasAuthority() && PlayerColorIndex != InIndex)
+	CharacterCosmetics = InCosmetics;
+}
+
+void AVeloxPlayerState::SetSkinIndex(uint8 InIndex)
+{
+	if (HasAuthority() && SkinIndex != InIndex)
 	{
-		PlayerColorIndex = InIndex;
+		SkinIndex = InIndex;
 		RefreshPawnColor();
 	}
 }
 
-void AVeloxPlayerState::OnRep_PlayerColorIndex()
+void AVeloxPlayerState::OnRep_SkinIndex()
 {
 	RefreshPawnColor();
 }

@@ -116,6 +116,16 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Velox|Gameplay")
 	FColor CrosshairColor = FColor::Green;
 
+	/** Q3 cg_forceModel (ADR 0006 section 4.3, question 6): every pawn the local player does not own wears ForcedEnemySkin. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Velox|Gameplay")
+	bool bForceEnemySkin = true;
+
+	/** Skin name from UVeloxCharacterCosmetics::Skins for forced enemies (unknown names fall back to the own skins). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Velox|Gameplay")
+	FName ForcedEnemySkin = DefaultForcedEnemySkin();
+
+	static FName DefaultForcedEnemySkin() { return FName(TEXT("Green")); }
+
 	/** Sent as `?Name=` on connect (UVeloxGameInstance::BuildConnectURL). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Velox|Gameplay")
 	FString PlayerName = TEXT("Player");

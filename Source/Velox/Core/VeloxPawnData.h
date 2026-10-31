@@ -9,6 +9,7 @@
 
 class APawn;
 class UVeloxAbilitySet;
+class UVeloxCharacterCosmetics;
 class UVeloxInputConfig;
 class UVeloxMovementSettings;
 
@@ -36,4 +37,11 @@ public:
 	/** Ability sets granted to the owning player's ability system component (M2). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Abilities")
 	TArray<TObjectPtr<UVeloxAbilitySet>> AbilitySets;
+
+	/**
+	 * Third-person mesh, skins and animations (ADR 0006 section 4.3). Soft: resolved by UVeloxAssetManager on non-server
+	 * worlds only, so the dedicated server never loads it.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics")
+	TSoftObjectPtr<UVeloxCharacterCosmetics> Cosmetics;
 };
