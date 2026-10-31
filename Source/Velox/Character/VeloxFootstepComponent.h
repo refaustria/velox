@@ -43,6 +43,8 @@ private:
 	/** Where a foot sound comes from: the foot socket, else the actor location offset sideways. */
 	FVector GetFootLocation(bool bRight) const;
 	void PlayStep(bool bRight);
+	/** The soft / hard landing sound for a landing at vertical speed Vz (HandleLanded and the proxy path of TickComponent). */
+	void PlayLanding(float Vz);
 
 	UFUNCTION()
 	void OnHealthChanged(UVeloxHealthComponent* HealthComponent, float OldValue, float NewValue, AActor* Instigator);

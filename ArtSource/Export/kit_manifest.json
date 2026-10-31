@@ -1,0 +1,420 @@
+{
+ "materials": {
+  "Concrete": {
+   "emissive": 0.0,
+   "roughness": 0.9,
+   "texture": "T_Kit_Concrete",
+   "tint": [
+    0.43,
+    0.43,
+    0.41
+   ]
+  },
+  "ConcreteDark": {
+   "emissive": 0.0,
+   "roughness": 0.92,
+   "texture": "T_Kit_Concrete",
+   "tint": [
+    0.3,
+    0.3,
+    0.29
+   ]
+  },
+  "Floor": {
+   "emissive": 0.0,
+   "roughness": 0.85,
+   "texture": "T_Kit_ConcreteFloor",
+   "tint": [
+    0.37,
+    0.37,
+    0.36
+   ]
+  },
+  "Light": {
+   "emissive": 6.0,
+   "roughness": 0.4,
+   "texture": null,
+   "tint": [
+    1.0,
+    0.92,
+    0.75
+   ]
+  },
+  "Plate": {
+   "emissive": 0.0,
+   "roughness": 0.5,
+   "texture": "T_Kit_Plate",
+   "tint": [
+    0.3,
+    0.32,
+    0.34
+   ]
+  },
+  "Steel": {
+   "emissive": 0.0,
+   "roughness": 0.55,
+   "texture": "T_Kit_Steel",
+   "tint": [
+    0.34,
+    0.38,
+    0.42
+   ]
+  },
+  "SteelDark": {
+   "emissive": 0.0,
+   "roughness": 0.6,
+   "texture": "T_Kit_Steel",
+   "tint": [
+    0.22,
+    0.25,
+    0.28
+   ]
+  },
+  "Trim": {
+   "emissive": 0.0,
+   "roughness": 0.8,
+   "texture": "T_Kit_Trim",
+   "tint": [
+    0.44,
+    0.41,
+    0.35
+   ]
+  }
+ },
+ "module_cm": 400,
+ "pieces": [
+  {
+   "bounds_max": [
+    400.0,
+    400.0,
+    0.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    -20.0
+   ],
+   "fbx": "SM_Kit_Floor_400.fbx",
+   "lightmap_res": 128,
+   "material": "MI_Kit_Floor",
+   "name": "SM_Kit_Floor_400",
+   "pivot": "min X/Y corner, top face at Z 0 (slab hangs 20 cm below)",
+   "tris": 12
+  },
+  {
+   "bounds_max": [
+    400.0,
+    400.0,
+    20.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Ceiling_400.fbx",
+   "lightmap_res": 64,
+   "material": "MI_Kit_ConcreteDark",
+   "name": "SM_Kit_Ceiling_400",
+   "pivot": "min X/Y corner, underside at Z 0 (slab goes up 20 cm)",
+   "tris": 12
+  },
+  {
+   "bounds_max": [
+    400.0,
+    20.0,
+    400.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Wall_400.fbx",
+   "lightmap_res": 64,
+   "material": "MI_Kit_Concrete",
+   "name": "SM_Kit_Wall_400",
+   "pivot": "min X/Y corner at floor level; room side is local +Y",
+   "tris": 12
+  },
+  {
+   "bounds_max": [
+    400.0,
+    25.0,
+    400.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Wall_Trim.fbx",
+   "lightmap_res": 64,
+   "material": "MI_Kit_Concrete",
+   "name": "SM_Kit_Wall_Trim",
+   "pivot": "as Wall_400; trim stands 5 cm out on the +Y (room) face",
+   "tris": 60
+  },
+  {
+   "bounds_max": [
+    400.0,
+    25.0,
+    200.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Wall_Half.fbx",
+   "lightmap_res": 64,
+   "material": "MI_Kit_Concrete",
+   "name": "SM_Kit_Wall_Half",
+   "pivot": "as Wall_400, 200 cm high (cap course 5 cm out on +Y)",
+   "tris": 24
+  },
+  {
+   "bounds_max": [
+    400.0,
+    25.0,
+    400.0
+   ],
+   "bounds_min": [
+    0.0,
+    -5.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Wall_Door300.fbx",
+   "lightmap_res": 64,
+   "material": "MI_Kit_Steel",
+   "name": "SM_Kit_Wall_Door300",
+   "pivot": "as Wall_400; opening x 50..350, 300 cm high; steel frame 5 cm proud",
+   "tris": 72
+  },
+  {
+   "bounds_max": [
+    400.0,
+    25.0,
+    400.0
+   ],
+   "bounds_min": [
+    0.0,
+    -5.0,
+    300.0
+   ],
+   "fbx": "SM_Kit_Wall_Door400.fbx",
+   "lightmap_res": 64,
+   "material": "MI_Kit_Steel",
+   "name": "SM_Kit_Wall_Door400",
+   "pivot": "as Wall_400; opening is the full 400 cm width, 300 cm high",
+   "tris": 24
+  },
+  {
+   "bounds_max": [
+    80.0,
+    80.0,
+    400.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Pillar.fbx",
+   "lightmap_res": 32,
+   "material": "MI_Kit_Concrete",
+   "name": "SM_Kit_Pillar",
+   "pivot": "min X/Y corner at floor level, 80 x 80 footprint",
+   "tris": 36
+  },
+  {
+   "bounds_max": [
+    400.0,
+    400.0,
+    107.18
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Ramp_15.fbx",
+   "lightmap_res": 128,
+   "material": "MI_Kit_Plate",
+   "name": "SM_Kit_Ramp_15",
+   "pivot": "min X/Y corner at the low end floor; rises along +X",
+   "tris": 8
+  },
+  {
+   "bounds_max": [
+    400.0,
+    400.0,
+    100.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Stairs_5x20.fbx",
+   "lightmap_res": 128,
+   "material": "MI_Kit_ConcreteDark",
+   "name": "SM_Kit_Stairs_5x20",
+   "pivot": "min X/Y corner at the lowest floor; rises along +X, tread 80",
+   "tris": 52
+  },
+  {
+   "bounds_max": [
+    400.0,
+    10.0,
+    0.0
+   ],
+   "bounds_min": [
+    0.0,
+    -5.0,
+    -40.0
+   ],
+   "fbx": "SM_Kit_Ledge_Edge.fbx",
+   "lightmap_res": 32,
+   "material": "MI_Kit_SteelDark",
+   "name": "SM_Kit_Ledge_Edge",
+   "pivot": "min X/Y at the platform top edge (Z 0 = platform top), hangs below",
+   "tris": 24
+  },
+  {
+   "bounds_max": [
+    400.0,
+    8.0,
+    110.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Railing_Stub.fbx",
+   "lightmap_res": 32,
+   "material": "MI_Kit_Steel",
+   "name": "SM_Kit_Railing_Stub",
+   "pivot": "min X/Y corner at platform top level",
+   "tris": 96
+  },
+  {
+   "bounds_max": [
+    400.0,
+    200.0,
+    0.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    -60.0
+   ],
+   "fbx": "SM_Kit_Bridge_400.fbx",
+   "lightmap_res": 64,
+   "material": "MI_Kit_Plate",
+   "name": "SM_Kit_Bridge_400",
+   "pivot": "min X/Y corner, deck top at Z 0, 200 wide, runs along +X",
+   "tris": 72
+  },
+  {
+   "bounds_max": [
+    300.0,
+    300.0,
+    5.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Pad_Ring.fbx",
+   "lightmap_res": 32,
+   "material": "MI_Kit_SteelDark",
+   "name": "SM_Kit_Pad_Ring",
+   "pivot": "min X/Y corner of the 300 x 300 bounding box at floor level",
+   "tris": 48
+  },
+  {
+   "bounds_max": [
+    100.0,
+    100.0,
+    40.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Pedestal.fbx",
+   "lightmap_res": 32,
+   "material": "MI_Kit_SteelDark",
+   "name": "SM_Kit_Pedestal",
+   "pivot": "min X/Y corner at floor level, 100 x 100 x 40",
+   "tris": 36
+  },
+  {
+   "bounds_max": [
+    200.0,
+    30.0,
+    20.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Light_Fixture.fbx",
+   "lightmap_res": 32,
+   "material": "MI_Kit_Light",
+   "name": "SM_Kit_Light_Fixture",
+   "pivot": "min X/Y corner, underside at Z 0; place at ceiling height minus 20",
+   "tris": 36
+  },
+  {
+   "bounds_max": [
+    400.0,
+    5.0,
+    20.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Skirting_400.fbx",
+   "lightmap_res": 32,
+   "material": "MI_Kit_Trim",
+   "name": "SM_Kit_Skirting_400",
+   "pivot": "min X/Y corner at floor level; room side is local +Y of the wall it hugs",
+   "tris": 12
+  },
+  {
+   "bounds_max": [
+    400.0,
+    40.0,
+    40.0
+   ],
+   "bounds_min": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "fbx": "SM_Kit_Ceiling_Beam.fbx",
+   "lightmap_res": 32,
+   "material": "MI_Kit_ConcreteDark",
+   "name": "SM_Kit_Ceiling_Beam",
+   "pivot": "min X/Y corner, bottom at Z 0, 40 cm deep; hangs below the ceiling",
+   "tris": 12
+  }
+ ],
+ "tex_cm": 200.0,
+ "textures": {
+  "T_Kit_Concrete": 512,
+  "T_Kit_ConcreteFloor": 512,
+  "T_Kit_Plate": 512,
+  "T_Kit_Steel": 512,
+  "T_Kit_Trim": 256
+ },
+ "total_tris": 648
+}

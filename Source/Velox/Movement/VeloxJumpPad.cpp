@@ -80,7 +80,7 @@ void AVeloxJumpPad::PostInitializeComponents()
 void AVeloxJumpPad::MulticastLaunchCue_Implementation(FVector_NetQuantize Location, AActor* Launched)
 {
 	const APawn* Pawn = Cast<APawn>(Launched);
-	if (Pawn && Pawn->IsLocallyControlled())
+	if (UVeloxAudioSettings::IsLocalPlayerPawn(Pawn))
 	{
 		// A remote owning client played it at its predicted launch; only a listen server's / standalone own pawn has not.
 		if (GetNetMode() == NM_ListenServer || GetNetMode() == NM_Standalone)
@@ -200,7 +200,7 @@ FString AVeloxJumpPad::DescribeLaunchProblem(const FVector& Launch, float Gravit
 
 void AVeloxJumpPad::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	const ACharacter* Character = Cast<ACharacter>(OtherActor);
+	ACharacter* Character = Cast<ACharacter>(OtherActor);
 	UVeloxMovementComponent* MoveComp = Character ? Cast<UVeloxMovementComponent>(Character->GetCharacterMovement()) : nullptr;
 	if (!MoveComp || OtherComp != Character->GetCapsuleComponent())
 	{
@@ -232,7 +232,7 @@ void AVeloxJumpPad::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedCompone
 	{
 		if (Character->GetLocalRole() == ROLE_Authority)
 		{
-			MulticastLaunchCue(GetLaunchOrigin(), const_cast<ACharacter*>(Character));
+			MulticastLaunchCue(GetLaunchOrigin(), Character);
 		}
 		else if (FCString::Strcmp(MoveComp->GetMoveSourceName(), TEXT("live")) == 0)
 		{

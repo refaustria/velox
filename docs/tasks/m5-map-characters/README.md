@@ -23,7 +23,9 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 | 15 | [dm1-art-pass](15-dm1-art-pass.md) | dev | 3 h | 07, 14 | 4 | todo |
 | 16 | [lighting-bake-and-perf-audit](16-lighting-bake-and-perf-audit.md) | dev (A) / human + dev (B) | A 3 h; B bake 1–3 h on the Apple Silicon Mac | A: 05 (tool), 15; B: 15, the Mac (E0.1) | 4 | todo |
 | 17 | [m5-playtest-checklist](17-m5-playtest-checklist.md) | dev | 1 h | 15, 16, 08–13 | 4 | todo |
-| 18 | [architect-review-cosmetics](18-architect-review-cosmetics.md) | architect | 1–2 h | 08, 09, 10 merged | 4 | todo |
+| 18 | [architect-review-cosmetics](18-architect-review-cosmetics.md) | architect | 1–2 h | 08, 09, 10 merged | 4 | done (approve with follow-ups, E1) |
+| 18b | [cosmetics-review-fixes](18b-cosmetics-review-fixes.md) | dev | 2–3 h | 18 (D1–D3, D5–D7); before 17 runs on the Mac | 4 | todo |
+| 18c | [weapon-cosmetics-consolidation](18c-weapon-cosmetics-consolidation.md) | dev | 3 h | 18b, E1; before 13 fills the weapon meshes | 4 | todo |
 
 ## Wave plan (from ADR 0006 implementation notes)
 

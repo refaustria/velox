@@ -19,6 +19,10 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Character/VeloxCharacter.h"
+#include "Core/VeloxAudioSettings.h"
+#include "Core/VeloxCharacterCosmetics.h"
+#include "Core/VeloxPawnData.h"
 #include "Engine/Engine.h"
 #include "GameFramework/GameUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -101,6 +105,7 @@ namespace VeloxSettingsWidgetPrivate
 
 void UVeloxKeyRowProxy::HandleClicked()
 {
+	UVeloxAudioSettings::PlayUIClick(Owner.Get());
 	if (UVeloxSettingsWidget* Widget = Owner.Get())
 	{
 		Widget->BeginRebind(RowIndex);
@@ -227,6 +232,10 @@ UWidget* UVeloxSettingsWidget::BuildDefaultTree()
 	AddRow(TEXT("Field of view"), FovSlider, FovValue);
 	AutoSwitchCheck = MakeCheck(TEXT("AutoSwitchCheck"));
 	AddRow(TEXT("Switch to picked-up weapons"), AutoSwitchCheck, nullptr);
+	ForceEnemySkinCheck = MakeCheck(TEXT("ForceEnemySkinCheck"));
+	AddRow(TEXT("Force enemy skin"), ForceEnemySkinCheck, nullptr);
+	ForcedEnemySkinCombo = MakeCombo(TEXT("ForcedEnemySkinCombo"));
+	AddRow(TEXT("Enemy skin"), ForcedEnemySkinCombo, nullptr);
 	CrosshairStyleCombo = MakeCombo(TEXT("CrosshairStyleCombo"));
 	AddOptions(CrosshairStyleCombo, CrosshairNames);
 	AddRow(TEXT("Crosshair"), CrosshairStyleCombo, nullptr);
@@ -294,6 +303,7 @@ void UVeloxSettingsWidget::BindElements()
 			Slider->OnValueChanged.AddUniqueDynamic(this, &ThisClass::HandleSliderChanged);
 		}
 	}
+	FillSkinOptions();
 	if (ApplyButton)
 	{
 		ApplyButton->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleApply);
@@ -325,16 +335,19 @@ void UVeloxSettingsWidget::HandleSliderChanged(float Value)
 
 void UVeloxSettingsWidget::HandleApply()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	ApplyChanges();
 }
 
 void UVeloxSettingsWidget::HandleDefaults()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	RestoreDefaults();
 }
 
 void UVeloxSettingsWidget::HandleBack()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	Close();
 }
 
@@ -411,6 +424,48 @@ void UVeloxSettingsWidget::FillFrameRateOptions(float CurrentLimit)
 	}
 }
 
+void UVeloxSettingsWidget::FillSkinOptions()
+{
+	if (!ForcedEnemySkinCombo || ForcedEnemySkinCombo->GetOptionCount() > 0)
+	{
+		return;
+	}
+	TArray<FName> Names;
+	// The cosmetics asset is reached through the pawn data (the owning pawn's, else the pawn class default's).
+	const UVeloxPawnData* PawnData = nullptr;
+	if (const AVeloxCharacter* Pawn = Cast<AVeloxCharacter>(GetOwningPlayerPawn()))
+	{
+		PawnData = Pawn->GetPawnData();
+	}
+	if (!PawnData)
+	{
+		const AVeloxCharacter* Defaults = GetDefault<AVeloxCharacter>();
+		if (const FSoftObjectProperty* Property = CastField<FSoftObjectProperty>(AVeloxCharacter::StaticClass()->FindPropertyByName(TEXT("DefaultPawnData"))))
+		{
+			const FSoftObjectPtr& Soft = Property->GetPropertyValue_InContainer(Defaults);
+			PawnData = Cast<UVeloxPawnData>(Soft.LoadSynchronous());
+		}
+	}
+	if (const UVeloxCharacterCosmetics* Cosmetics = PawnData ? PawnData->Cosmetics.LoadSynchronous() : nullptr)
+	{
+		for (const FVeloxSkin& Skin : Cosmetics->Skins)
+		{
+			Names.Add(Skin.Name);
+		}
+	}
+	if (Names.IsEmpty())
+	{
+		for (const TCHAR* Name : {TEXT("Red"), TEXT("Blue"), TEXT("Green"), TEXT("Yellow"), TEXT("Magenta"), TEXT("Cyan")})
+		{
+			Names.Add(FName(Name));
+		}
+	}
+	for (const FName& Name : Names)
+	{
+		ForcedEnemySkinCombo->AddOption(Name.ToString());
+	}
+}
+
 void UVeloxSettingsWidget::ReadFromSettings(const UVeloxGameUserSettings& Settings, bool bKeepIdentity)
 {
 	using namespace VeloxSettingsWidgetPrivate;
@@ -429,6 +484,15 @@ void UVeloxSettingsWidget::ReadFromSettings(const UVeloxGameUserSettings& Settin
 	if (AutoSwitchCheck)
 	{
 		AutoSwitchCheck->SetIsChecked(Settings.bAutoSwitchOnPickup);
+	}
+	if (ForceEnemySkinCheck)
+	{
+		ForceEnemySkinCheck->SetIsChecked(Settings.bForceEnemySkin);
+	}
+	if (ForcedEnemySkinCombo)
+	{
+		// An unknown name (asset changed) selects nothing; the pawn then falls back to its own skin, as the setting documents.
+		ForcedEnemySkinCombo->SetSelectedOption(Settings.ForcedEnemySkin.ToString());
 	}
 	if (PlayerNameBox && !bKeepIdentity)
 	{
@@ -498,6 +562,14 @@ void UVeloxSettingsWidget::WriteToSettings(UVeloxGameUserSettings& Settings) con
 	if (AutoSwitchCheck)
 	{
 		Settings.bAutoSwitchOnPickup = AutoSwitchCheck->IsChecked();
+	}
+	if (ForceEnemySkinCheck)
+	{
+		Settings.bForceEnemySkin = ForceEnemySkinCheck->IsChecked();
+	}
+	if (ForcedEnemySkinCombo && ForcedEnemySkinCombo->GetSelectedIndex() >= 0)
+	{
+		Settings.ForcedEnemySkin = FName(*ForcedEnemySkinCombo->GetSelectedOption());
 	}
 	if (PlayerNameBox)
 	{

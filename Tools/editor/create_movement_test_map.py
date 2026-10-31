@@ -239,7 +239,7 @@ def build_map():
 
 
 def main():
-    vm.configure(log_prefix="[VeloxMoveMap]")
+    vm.configure(log_prefix="[VeloxMoveMap]", fill_nav_kinds=("platform",))
     vm.greybox_materials(create=True)
     if not vm.ERRORS:
         build_map()

@@ -118,6 +118,12 @@ void UVeloxFootstepComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	{
 		UVeloxAudioSettings::PlayAt(GetWorld(), Settings.JumpSound, Character->GetActorLocation(), EVeloxAudioAttenuation::Player, EVeloxAudioConcurrency::None, TEXT("jump_proxy"));
 	}
+	// ACharacter::Landed never runs on a proxy (SimulateMovement lands via SetPostLandedPhysics): the mirror case of the jump above.
+	if (Character->GetLocalRole() == ROLE_SimulatedProxy && !bWasGrounded && bGrounded)
+	{
+		PlayLanding(LastFallingVz);
+		LastFallingVz = 0.f;
+	}
 	if (Movement->IsFalling())
 	{
 		LastFallingVz = static_cast<float>(Movement->Velocity.Z);
@@ -140,9 +146,13 @@ void UVeloxFootstepComponent::HandleLanded(float ImpactVz)
 	{
 		return;
 	}
-	const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
 	// The pawn's own velocity may already be cleared; fall back to the last speed seen while falling.
-	const float Vz = FMath::IsNearlyZero(ImpactVz) ? LastFallingVz : ImpactVz;
+	PlayLanding(FMath::IsNearlyZero(ImpactVz) ? LastFallingVz : ImpactVz);
+}
+
+void UVeloxFootstepComponent::PlayLanding(float Vz)
+{
+	const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
 	const int32 Kind = VeloxFootstepMath::LandingKind(Vz, Settings.LandSoftVz, Settings.LandHardVz);
 	if (Kind == 0)
 	{
@@ -172,7 +182,7 @@ void UVeloxFootstepComponent::OnHealthChanged(UVeloxHealthComponent* HealthCompo
 	}
 	const int32 Band = VeloxFootstepMath::PainBand(NewValue, Settings.PainHeavyBelow, Settings.PainMediumBelow);
 	const TSoftObjectPtr<USoundBase>& Sound = Band == 2 ? Settings.PainHeavySound : (Band == 1 ? Settings.PainMediumSound : Settings.PainLightSound);
-	if (Character->IsLocallyControlled())
+	if (UVeloxAudioSettings::IsLocalPlayerPawn(Character))
 	{
 		UVeloxAudioSettings::Play2D(GetWorld(), Sound, TEXT("pain_own"));
 		return;
@@ -194,7 +204,7 @@ void UVeloxFootstepComponent::HandleCorpse()
 	}
 	bDeathPlayed = true;
 	const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
-	if (Character->IsLocallyControlled())
+	if (UVeloxAudioSettings::IsLocalPlayerPawn(Character))
 	{
 		UVeloxAudioSettings::Play2D(GetWorld(), Settings.DeathSound, TEXT("death_own"));
 		return;

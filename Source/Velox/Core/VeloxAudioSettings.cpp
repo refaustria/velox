@@ -3,6 +3,8 @@
 #include "Core/VeloxAudioSettings.h"
 
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CoreMisc.h"
 #include "Sound/SoundAttenuation.h"
@@ -180,4 +182,15 @@ bool UVeloxAudioSettings::Play2D(const UWorld* World, const TSoftObjectPtr<USoun
 	UE_LOG(LogVeloxAudio, Verbose, TEXT("VeloxAudio play2d %s sound=%s"), DebugName, *Loaded->GetName());
 	UGameplayStatics::PlaySound2D(World, Loaded, VolumeMultiplier);
 	return true;
+}
+
+bool UVeloxAudioSettings::IsLocalPlayerPawn(const APawn* Pawn)
+{
+	return Pawn && Cast<APlayerController>(Pawn->GetController()) && Pawn->IsLocallyControlled();
+}
+
+void UVeloxAudioSettings::PlayUIClick(const UObject* WorldContext)
+{
+	const UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
+	Play2D(World, Get().UIClickSound, TEXT("ui_click"));
 }

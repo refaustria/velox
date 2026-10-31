@@ -26,6 +26,10 @@ struct VELOX_API FVeloxKillFeedEntry : public FFastArraySerializerItem
 	UPROPERTY()
 	FString KillerName;
 
+	/** APlayerState::GetPlayerId() of the killer (the victim for a suicide); the announcer matches frags on it, not on names (review 0006 D6). */
+	UPROPERTY()
+	int32 KillerPlayerId = INDEX_NONE;
+
 	UPROPERTY()
 	FString VictimName;
 
