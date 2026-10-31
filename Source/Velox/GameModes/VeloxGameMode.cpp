@@ -57,6 +57,9 @@ AVeloxGameMode::AVeloxGameMode(const FObjectInitializer& ObjectInitializer)
 {
 	GameStateClass = AVeloxGameState::StaticClass();
 	PlayerControllerClass = AVeloxPlayerController::StaticClass();
+	// C11 amendment 3 (ii): ?SpectatorOnly=1 logins (AGameModeBase::SpawnPlayerController) get the Velox controller too,
+	// so pure spectators have the Velox binds, the view-point clamp, the scoreboard buttons and the intermission view.
+	ReplaySpectatorPlayerControllerClass = AVeloxPlayerController::StaticClass();
 	PlayerStateClass = AVeloxPlayerState::StaticClass();
 	DefaultPawnClass = AVeloxCharacter::StaticClass();
 	HUDClass = AVeloxHUD::StaticClass();
@@ -166,15 +169,24 @@ void AVeloxGameMode::NotifyControllerDied(AController* Controller, AVeloxCharact
 	{
 		const EVeloxDeathCamera Camera = GetDeathCamera();
 		AVeloxPlayerController* VeloxPC = Cast<AVeloxPlayerController>(PC);
-		if (Camera == EVeloxDeathCamera::FreeSpectate && VeloxPC)
+		// C11 amendment 3 (i): the match-ending frag queues EvaluateMatch and CompleteDeath for the same tick, so the
+		// intermission may already hold this controller; it keeps the intermission view (either timer order).
+		const bool bIntermission = (VeloxPC && VeloxPC->IsInIntermission()) || (bMatchRulesEnabled && Phase == EVeloxMatchPhase::PostMatch);
+		const TCHAR* SpectateRule = TEXT("corpse");
+		if (bIntermission)
+		{
+			SpectateRule = TEXT("intermission");
+		}
+		else if (Camera == EVeloxDeathCamera::FreeSpectate && VeloxPC)
 		{
 			VeloxPC->BeginDeathSpectate(Corpse);
+			SpectateRule = TEXT("free");
 		}
 		else if (Corpse)
 		{
 			PC->SetViewTarget(Corpse);
 		}
-		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath step=6 spectate=%s controller=%s"), Camera == EVeloxDeathCamera::FreeSpectate && VeloxPC ? TEXT("free") : TEXT("corpse"), *Controller->GetName());
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath step=6 spectate=%s controller=%s"), SpectateRule, *Controller->GetName());
 	}
 	const UVeloxCombatSettings& Settings = GetCombatSettingsFor(Controller);
 	const bool bAI = !Controller->IsPlayerController();

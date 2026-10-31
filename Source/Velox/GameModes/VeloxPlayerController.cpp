@@ -131,14 +131,13 @@ void AVeloxPlayerController::BeginDeathSpectate(const AVeloxCharacter* Corpse)
 	bDeathSpectating = true;
 	NumSpectatorSyncs = 0;
 	NumSpectatorClamps = 0;
-	// The first sync after this death is judged against the death eye, never against a point of an earlier spectate.
-	LastAcceptedSpectatorPoint = DeathSpectateEye;
 	LastAcceptedSpectatorTime = World->GetTimeSeconds();
 	LastSpectatorSyncLocation = DeathSpectateEye;
 	LastSpectatorSyncRotation = DeathSpectateRotation;
 	SetControlRotation(DeathSpectateRotation);
 	ChangeState(NAME_Spectating);
-	// The seed is set again after the state change (leaving a previous spectating state resets it).
+	// The first sync after this death is judged against the death eye, never against a point of an earlier spectate.
+	// Seeded after the state change: the ChangeState override resets the seed whenever a spectating state is left.
 	LastAcceptedSpectatorPoint = DeathSpectateEye;
 	if (!IsLocalController())
 	{
@@ -163,6 +162,13 @@ void AVeloxPlayerController::ClientBeginDeathSpectate_Implementation(FVector Eye
 void AVeloxPlayerController::BeginSpectatingState()
 {
 	Super::BeginSpectatingState();
+	// Evidence for C11 amendment 3 (ii) (soak logs): which bindings the local spectator pawn got (SpawnSpectatorPawn has
+	// possessed and restarted it, so SetupPlayerInputComponent has run).
+	if (const ADefaultPawn* Spectator = IsLocalController() ? GetSpectatorPawn() : nullptr)
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSpectate pawn_bound pawn=%s controller=%s input_config=%s default_bindings=%d only_spectator=%d"), *Spectator->GetName(), *GetName(),
+			*GetNameSafe(GetInputConfig()), Spectator->bAddDefaultMovementBindings ? 1 : 0, PlayerState && PlayerState->IsOnlyASpectator() ? 1 : 0);
+	}
 	if (bDeathSpectating && IsLocalController())
 	{
 		PlaceDeathSpectatorPawn();
@@ -171,15 +177,20 @@ void AVeloxPlayerController::BeginSpectatingState()
 
 void AVeloxPlayerController::PlaceDeathSpectatorPawn()
 {
-	SetControlRotation(DeathSpectateRotation);
+	// C11 amendment 3 (iii): the eye is the server's (the corpse position is authoritative); a remote client keeps its own
+	// control rotation, since the server's is the one of its last ServerMove (up to one RTT stale; a flick-death snapped).
+	// The authority (listen host, standalone) has the same rotation either way and uses the server's.
+	const bool bKeepClientRotation = GetLocalRole() < ROLE_Authority;
+	const FRotator Rotation = bKeepClientRotation ? GetControlRotation() : DeathSpectateRotation;
+	SetControlRotation(Rotation);
 	ASpectatorPawn* Spectator = GetSpectatorPawn();
 	if (Spectator)
 	{
-		Spectator->SetActorLocationAndRotation(DeathSpectateEye, DeathSpectateRotation, false, nullptr, ETeleportType::TeleportPhysics);
+		Spectator->SetActorLocationAndRotation(DeathSpectateEye, Rotation, false, nullptr, ETeleportType::TeleportPhysics);
 		SetViewTarget(Spectator);
 	}
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSpectate begin at=(%.1f,%.1f,%.1f) rot=(%.1f,%.1f) pawn=%s"), DeathSpectateEye.X, DeathSpectateEye.Y, DeathSpectateEye.Z, DeathSpectateRotation.Pitch,
-		DeathSpectateRotation.Yaw, *GetNameSafe(Spectator));
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSpectate begin at=(%.1f,%.1f,%.1f) rot=(%.1f,%.1f) rot_source=%s pawn=%s"), DeathSpectateEye.X, DeathSpectateEye.Y, DeathSpectateEye.Z, Rotation.Pitch,
+		Rotation.Yaw, bKeepClientRotation ? TEXT("client") : TEXT("server"), *GetNameSafe(Spectator));
 }
 
 void AVeloxPlayerController::ChangeState(FName NewState)
@@ -357,9 +368,11 @@ bool AVeloxPlayerController::IsInIntermission() const
 
 void AVeloxPlayerController::EnterIntermission(AActor* ViewTarget)
 {
-	// C11: a dead player stops flying first (the spectator pawn is destroyed on both ends); the owning client follows
-	// through ClientGotoState, which reaches it before ClientEnterIntermission (both reliable, same channel).
-	if (bDeathSpectating && IsInState(NAME_Spectating))
+	// C11: a spectating controller (dead player or pure spectator, amendment 3 (iv)) stops flying first (the spectator pawn
+	// is destroyed on both ends); the owning client follows through ClientGotoState, which reaches it before
+	// ClientEnterIntermission (both reliable, same channel). The level reset restores PlayerWaiting; MustSpectate keeps a
+	// pure spectator pawnless.
+	if (IsInState(NAME_Spectating))
 	{
 		ChangeState(NAME_Inactive);
 		if (HasAuthority() && !IsLocalController())
@@ -369,6 +382,10 @@ void AVeloxPlayerController::EnterIntermission(AActor* ViewTarget)
 	}
 	bInIntermission = true;
 	SetIgnoreMoveInput(true);
+	// C11 amendment 3 (i), task 04b: the match-ending frag's victim is unpossessed after this (CompleteDeath on the server,
+	// OnRep_Pawn on the owning client), and APlayerController::SetPawn(nullptr) calls AutoManageActiveCameraTarget(this),
+	// which would replace the intermission view with the controller itself. Off until the level reset (Reset/ClientReset).
+	bAutoManageActiveCameraTarget = false;
 	if (ViewTarget)
 	{
 		SetViewTarget(ViewTarget);
@@ -395,6 +412,7 @@ void AVeloxPlayerController::ClientEnterIntermission_Implementation(AActor* View
 void AVeloxPlayerController::Reset()
 {
 	bInIntermission = false;
+	bAutoManageActiveCameraTarget = GetClass()->GetDefaultObject<APlayerController>()->bAutoManageActiveCameraTarget;
 	ResetIgnoreMoveInput();
 	Super::Reset();
 }
@@ -408,6 +426,7 @@ void AVeloxPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void AVeloxPlayerController::ClientReset_Implementation()
 {
 	bInIntermission = false;
+	bAutoManageActiveCameraTarget = GetClass()->GetDefaultObject<APlayerController>()->bAutoManageActiveCameraTarget;
 	ResetIgnoreMoveInput();
 	Super::ClientReset_Implementation();
 	ApplyUIInputMode();

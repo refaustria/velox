@@ -45,6 +45,7 @@ public:
 	/**
 	 * C11 server clamp: the AABB union of the map's ANavMeshBoundsVolumes (ADR 0005 D1), computed once on first use
 	 * (components are registered by then); invalid = no volume = unbounded. The margin is added by the caller.
+	 * The cache lives as long as the game mode, i.e. one map (the volumes are static per map; a map change makes a new game mode).
 	 */
 	const FBox& GetSpectateBounds();
 
