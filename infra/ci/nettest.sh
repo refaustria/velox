@@ -396,6 +396,10 @@ for name, lines in (("server", S), ("client", C)):
     for l in lines:
         if re.search(r"Fatal error|Assertion failed|Signal 11|SIGSEGV|CRASH", l):
             fails.append("%s: crash marker: %s" % (name, l.strip()[:160])); break
+# ADR 0006 / review 0006 gate: the dedicated server never loads or plays a cosmetic or an audio asset.
+for l in S:
+    if re.search(r"VeloxAudio play|VeloxViewModel weapon=|VeloxCosmetics .*: mesh=", l):
+        fails.append("server: cosmetic/audio line in the dedicated server log (ADR 0006 section 1): %s" % l.strip()[:160]); break
 if not server_alive:
     fails.append("server process died during the run")
 if crc != 0:

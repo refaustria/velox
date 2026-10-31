@@ -2,6 +2,8 @@
 
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "Character/VeloxAnimInstance.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
@@ -26,6 +28,7 @@
 #include "Sound/SoundBase.h"
 #include "UI/VeloxAnnouncerComponent.h"
 #include "UI/VeloxHUDFormat.h"
+#include "Weapons/VeloxGameplayAbility_Fire.h"
 #include "Weapons/VeloxProjectile.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxCombatFeedbackComponent)
@@ -47,7 +50,92 @@ namespace VeloxFeedbackAudio
 UVeloxCombatFeedbackComponent::UVeloxCombatFeedbackComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	// Ticks only until the dry-fire hook is bound (local player's pawn, clients and listen host); see TryBindAbilityFailed.
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = false;
+}
+
+void UVeloxCombatFeedbackComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	const APawn* Pawn = Cast<APawn>(GetOwner());
+	if (Pawn && UVeloxAudioSettings::CanPlayAudio(GetWorld()) && Pawn->GetLocalRole() != ROLE_SimulatedProxy)
+	{
+		SetComponentTickEnabled(true);
+	}
+}
+
+void UVeloxCombatFeedbackComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UnbindAbilityFailed();
+	Super::EndPlay(EndPlayReason);
+}
+
+void UVeloxCombatFeedbackComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	const APawn* Pawn = Cast<APawn>(GetOwner());
+	if (!Pawn)
+	{
+		SetComponentTickEnabled(false);
+		return;
+	}
+	if (const AController* Controller = Pawn->GetController(); Controller && !Cast<APlayerController>(Controller))
+	{
+		// A bot never hears its own dry fire.
+		SetComponentTickEnabled(false);
+		return;
+	}
+	TryBindAbilityFailed();
+	if (BoundAbilitySystem.IsValid())
+	{
+		SetComponentTickEnabled(false);
+	}
+}
+
+void UVeloxCombatFeedbackComponent::TryBindAbilityFailed()
+{
+	const APawn* Pawn = Cast<APawn>(GetOwner());
+	if (BoundAbilitySystem.IsValid() || !UVeloxAudioSettings::IsLocalPlayerPawn(Pawn))
+	{
+		return;
+	}
+	const IAbilitySystemInterface* Interface = Cast<IAbilitySystemInterface>(Pawn);
+	UAbilitySystemComponent* ASC = Interface ? Interface->GetAbilitySystemComponent() : nullptr;
+	if (!ASC || ASC->GetAvatarActor() != Pawn)
+	{
+		return;
+	}
+	BoundAbilitySystem = ASC;
+	AbilityFailedHandle = ASC->AbilityFailedCallbacks.AddUObject(this, &ThisClass::OnAbilityFailed);
+}
+
+void UVeloxCombatFeedbackComponent::UnbindAbilityFailed()
+{
+	if (UAbilitySystemComponent* ASC = BoundAbilitySystem.Get())
+	{
+		ASC->AbilityFailedCallbacks.Remove(AbilityFailedHandle);
+	}
+	BoundAbilitySystem.Reset();
+	AbilityFailedHandle.Reset();
+}
+
+void UVeloxCombatFeedbackComponent::OnAbilityFailed(const UGameplayAbility* Ability, const FGameplayTagContainer& FailureReason)
+{
+	const UWorld* World = GetWorld();
+	if (!World || !Ability || !Ability->IsA<UVeloxGameplayAbility_Fire>() || !FailureReason.HasTag(UAbilitySystemGlobals::Get().ActivateFailCostTag)
+		|| !UVeloxAudioSettings::IsLocalPlayerPawn(Cast<APawn>(GetOwner())))
+	{
+		return;
+	}
+	const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
+	const double Now = World->GetTimeSeconds();
+	if (Now - LastDryFireTime < Settings.DryFireMinInterval)
+	{
+		return;
+	}
+	LastDryFireTime = Now;
+	UVeloxAudioSettings::Play2D(World, Settings.DryFireSound, TEXT("dry_fire"));
 }
 
 void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters)
@@ -159,7 +247,7 @@ void UVeloxCombatFeedbackComponent::PlayCueAudio(const FGameplayTag& CueTag, con
 	}
 	const APawn* Pawn = Cast<APawn>(GetOwner());
 	const bool bIsFire = TagName.EndsWith(TEXT(".Fire"));
-	if (bIsFire && Pawn && Pawn->IsLocallyControlled())
+	if (bIsFire && UVeloxAudioSettings::IsLocalPlayerPawn(Pawn))
 	{
 		// The own weapon plays 2D at full volume, outside the concurrency groups (never stolen).
 		UVeloxAudioSettings::Play2D(World, Entry->Sound, *TagName);
@@ -186,7 +274,7 @@ void UVeloxCombatFeedbackComponent::UpdateBeamAudio(bool bStart)
 	const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
 	const FVeloxCueSound* Loop = Settings.FindCueSound(VeloxGameplayTags::GameplayCue_Weapon_LightningGun_Beam);
 	const APawn* Pawn = Cast<APawn>(Owner);
-	const bool bOwn = Pawn && Pawn->IsLocallyControlled();
+	const bool bOwn = UVeloxAudioSettings::IsLocalPlayerPawn(Pawn);
 	if (bStart)
 	{
 		if (BeamAudio)
@@ -284,7 +372,7 @@ bool UVeloxCombatFeedbackComponent::HandlePowerupCue(const FGameplayTag& CueTag,
 		ApplyPowerupTint();
 		// Announcer: "Quad Damage" when the local player's pawn gets the powerup (ADR 0006 section 9).
 		const APawn* Pawn = Cast<APawn>(GetOwner());
-		if (!bWasActive && Powerup == VeloxGameplayTags::Powerup_Quad && Pawn && Pawn->IsLocallyControlled() && Pawn->GetController())
+		if (!bWasActive && Powerup == VeloxGameplayTags::Powerup_Quad && UVeloxAudioSettings::IsLocalPlayerPawn(Pawn))
 		{
 			if (UVeloxAnnouncerComponent* Announcer = Pawn->GetController()->FindComponentByClass<UVeloxAnnouncerComponent>())
 			{

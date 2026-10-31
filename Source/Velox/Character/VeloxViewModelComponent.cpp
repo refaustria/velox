@@ -107,7 +107,7 @@ void UVeloxViewModelComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 
 void UVeloxViewModelComponent::ApplyToView(FMinimalViewInfo& OutResult) const
 {
-	if (!ViewMesh)
+	if (!ViewMesh || !ViewMesh->IsVisible())
 	{
 		return;
 	}

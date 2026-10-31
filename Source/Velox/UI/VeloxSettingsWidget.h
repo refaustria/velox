@@ -97,6 +97,11 @@ public:
 	TObjectPtr<UCheckBox> AutoSwitchCheck;
 	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
 	TObjectPtr<UEditableTextBox> PlayerNameBox;
+	/** Q3 cg_forceModel: every pawn the player does not own wears the skin picked in ForcedEnemySkinCombo (review 0006 D7). */
+	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
+	TObjectPtr<UCheckBox> ForceEnemySkinCheck;
+	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
+	TObjectPtr<UComboBoxString> ForcedEnemySkinCombo;
 	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
 	TObjectPtr<UComboBoxString> CrosshairStyleCombo;
 	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
@@ -162,6 +167,8 @@ private:
 	void RefreshValueTexts();
 	void FillResolutionOptions(const FIntPoint& Current);
 	void FillFrameRateOptions(float CurrentLimit);
+	/** Skin names of DA_Cosmetics_Velox (the pawn data's soft reference); the six palette names when the asset is missing. */
+	void FillSkinOptions();
 
 	struct FKeyRow
 	{

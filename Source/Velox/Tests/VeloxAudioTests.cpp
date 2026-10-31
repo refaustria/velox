@@ -5,7 +5,9 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Character/VeloxFootstepMath.h"
+#include "AIController.h"
 #include "Core/VeloxAudioSettings.h"
+#include "GameFramework/Pawn.h"
 #include "UI/VeloxAnnouncerComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxFootstepCadenceTest, "Velox.Audio.FootstepCadence",
@@ -108,6 +110,7 @@ bool FVeloxFootstepCadenceTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("LandHardVz"), Settings.LandHardVz, 1000.f);
 	TestEqual(TEXT("AnnouncerQueueDepth"), Settings.AnnouncerQueueDepth, 2);
 	TestEqual(TEXT("LeadLineCooldown"), Settings.LeadLineCooldown, 5.f);
+	TestEqual(TEXT("DryFireMinInterval"), Settings.DryFireMinInterval, 0.25f);
 	return true;
 }
 
@@ -147,6 +150,23 @@ bool FVeloxAnnouncerRulesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("empty"), Queue.Pop().IsNone());
 	Queue.Push(TEXT("x"), 0);
 	TestTrue(TEXT("depth 0 queues nothing"), Queue.Waiting.IsEmpty());
+	return true;
+}
+
+// Review 0006 D1: a bot is never the local player. APawn::IsLocallyControlled is true for an AI controller on the authority
+// (AController::IsLocalController), so the rule needs a player controller; the world-free half is checked here, the rest by the
+// standalone Bots=2 Verbose-log check of task 18b.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxOwnPawnRuleTest, "Velox.Audio.OwnPawnRule",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FVeloxOwnPawnRuleTest::RunTest(const FString& Parameters)
+{
+	TestFalse(TEXT("no pawn is not the local player"), UVeloxAudioSettings::IsLocalPlayerPawn(nullptr));
+	APawn* Pawn = NewObject<APawn>(GetTransientPackage());
+	TestFalse(TEXT("an uncontrolled pawn is not the local player"), UVeloxAudioSettings::IsLocalPlayerPawn(Pawn));
+	Pawn->Controller = NewObject<AAIController>(GetTransientPackage());
+	TestFalse(TEXT("a pawn with an AI controller is not the local player"), UVeloxAudioSettings::IsLocalPlayerPawn(Pawn));
+	Pawn->Controller = nullptr;
 	return true;
 }
 
