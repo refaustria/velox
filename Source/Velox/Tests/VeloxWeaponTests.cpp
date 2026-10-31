@@ -658,7 +658,7 @@ bool FVeloxCombatWeaponTableTest::RunTest(const FString& Parameters)
 	if (TestNotNull(TEXT("DA_CombatSettings_Default"), Settings))
 	{
 		TestEqual(TEXT("FireRateJitterToleranceSeconds 0.5 (B32, also the switch tolerance B37)"), Settings->FireRateJitterToleranceSeconds, 0.5f);
-		TestEqual(TEXT("MaxRewindSeconds 0.30 (B34)"), Settings->MaxRewindSeconds, 0.30f);
+		TestEqual(TEXT("MaxRewindSeconds 0.35 (B34, q19)"), Settings->MaxRewindSeconds, 0.35f);
 		TestEqual(TEXT("BeamKeepAliveSeconds 0.25"), Settings->BeamKeepAliveSeconds, 0.25f);
 	}
 	return true;

@@ -132,9 +132,9 @@ struct FVeloxShotRequest
 	float HintTargetStamp = 0.f;
 	/**
 	 * Tolerances; ApplySettings copies them from the shooter's combat settings (these defaults only matter without it).
-	 * MaxRewindSeconds equals the UVeloxCombatSettings default 0.30 (ADR 0003 B34; 0.35 is human question 19).
+	 * MaxRewindSeconds equals the UVeloxCombatSettings default 0.35 (ADR 0003 B34, human question 19).
 	 */
-	float MaxRewindSeconds = 0.30f;
+	float MaxRewindSeconds = 0.35f;
 	float MaxOriginErrorCm = 75.f;
 	/**
 	 * Snap Origin to the shooter's server eye when farther than MaxOriginErrorCm (B15); the eye is the one at

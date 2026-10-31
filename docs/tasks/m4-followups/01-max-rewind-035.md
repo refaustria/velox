@@ -2,7 +2,7 @@
 
 **Milestone:** M4 follow-ups (human decision q19, 2026-10-30)
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** ADR 0003 (B34), STATUS question 19
 
 ## Goal
@@ -29,3 +29,4 @@ Raise the lag-compensation rewind cap from 0.30 s to 0.35 s as the human decided
 Standard format.
 
 ## Notes / outcome
+Done 2026-10-31. `MaxRewindSeconds` 0.30 -> 0.35 in the `UVeloxCombatSettings` default (`DA_CombatSettings_Default.uasset` does not serialise the field, so it follows the default; the `VeloxWeaponTests` row asserts 0.35 on the loaded asset), the `UVeloxLagCompensationSubsystem.h` default/comment, `create_bootstrap_content.py`, `docs/content-bootstrap.md` and an ADR 0003 B34 amendment. History: `HistoryWindowSeconds` 1.0 s, subsystem window = max(1.0, MaxRewind + 0.1) = 1.0 s >= 0.35 + 0.1 margin, unchanged. No other hard-coded 0.30 rewind assumptions (remaining 0.30 hits are bot ReactionSeconds). Results: build.sh CI OK 97 tests; fts.sh 7/7; nettest FireRun,FireRunControl,KnockbackRun --repeat 2 PASS 2/2 (FireRun rewind_med 133 ms, 11/11 hits, stamp 11).
