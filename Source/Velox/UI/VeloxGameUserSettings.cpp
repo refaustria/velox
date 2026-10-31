@@ -95,6 +95,8 @@ void UVeloxGameUserSettings::ResetVeloxValues()
 	CrosshairStyle = EVeloxCrosshairStyle::Cross;
 	CrosshairSize = VeloxSettingsMath::DefaultCrosshairSize;
 	CrosshairColor = FColor::Green;
+	bForceEnemySkin = true;
+	ForcedEnemySkin = DefaultForcedEnemySkin();
 	MasterVolume = 1.f;
 	EffectsVolume = 1.f;
 	MusicVolume = 1.f;
@@ -118,6 +120,10 @@ void UVeloxGameUserSettings::ValidateSettings()
 	EffectsVolume = VeloxSettingsMath::ClampVolume(EffectsVolume);
 	MusicVolume = VeloxSettingsMath::ClampVolume(MusicVolume);
 	PlayerName = VeloxSettingsMath::SanitizePlayerName(PlayerName);
+	if (ForcedEnemySkin.IsNone())
+	{
+		ForcedEnemySkin = DefaultForcedEnemySkin();
+	}
 }
 
 void UVeloxGameUserSettings::ApplyNonResolutionSettings()

@@ -2,18 +2,21 @@
 
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 
+#include "Character/VeloxAnimInstance.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxGameplayEffectContext.h"
 #include "Components/AudioComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/MeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Core/VeloxAudioSettings.h"
 #include "DrawDebugHelpers.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
+#include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "HAL/IConsoleManager.h"
@@ -84,6 +87,12 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 		{
 			++NumFireCues;
 			OnFireCue.Broadcast();
+			// ADR 0006 section 4.5 (task 08): one-frame bFiring for the AnimGraph's Fire_Upper slot.
+			const ACharacter* Character = Cast<ACharacter>(GetOwner());
+			if (UVeloxAnimInstance* AnimInstance = Character && Character->GetMesh() ? Cast<UVeloxAnimInstance>(Character->GetMesh()->GetAnimInstance()) : nullptr)
+			{
+				AnimInstance->NotifyFired();
+			}
 		}
 		else if (TagName.EndsWith(TEXT(".Impact")))
 		{
