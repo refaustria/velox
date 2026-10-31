@@ -22,6 +22,7 @@ Spec: `docs/adr/0005-bots.md` (ADR 0005; implementation notes list the tasks). T
 | 07 | [bot-soak-and-playtest](07-bot-soak-and-playtest.md) | dev | 2 h | 04c-b, 04c-c, 04d, 04e, 04f; acceptance rounds on a head with 04g (D38) | Wave 4 | todo (may start now, D38) |
 | 07b | [runner-host-classifier](07b-runner-host-classifier.md) | dev | 2 h | 07 tooling, ADR 0005 D46 | Wave 4 (before the acceptance rerun) | done |
 | 08 | [bot-cost](08-bot-cost.md) | dev-hard | 3 h | 07b, the M4-07 rerun on an idle host (D46 1c cost FAIL) | Wave 4 | done (diagnosis; no bot fix possible, see outcome) |
+| 07c | [process-slow-class](07c-process-slow-class.md) | dev | 1-2 h | 07b, 08, ADR 0005 D47 | Wave 4 (before the D47 cost rerun) | todo |
 
 ## Wave plan (from ADR 0005)
 - **Wave 1:** 01 || 02 || 03
