@@ -21,6 +21,10 @@
 //   Velox.Combat.RemoteSwitchTimeline B37 on the server for a remote shooter: six bunched MG shots -> refire wait
 //                                    <= one interval, rail wait 1.1 s at T + 0.4, the switch gate at 0.55 / 0.35 s left
 //                                    with the 0.5 s resend tolerance, the completing rail clears the drop timer.
+//   Velox.Combat.SwitchPrediction    B42/B44 owning-client switch prediction (world-free): the replicated-index
+//                                    classification (confirm, echo of an older step, rep / timeout correction), the
+//                                    bounded chain, the rejection rollback (restore the replaced retarget target);
+//                                    ResetLocalSwitchState in a private world.
 //   Velox.Combat.HitscanDummy        RG / MG / SG / LG FireTest at a dummy (AVeloxDummyController) 10 m away: the
 //                                    Q3 damage reaches its health and armor through TraceShot and GE_Damage; one fire
 //                                    and one impact cue per shot on the shooter's feedback component; the server pattern
@@ -64,6 +68,7 @@
 #include "Weapons/VeloxGameplayAbility_WeaponSwitch.h"
 #include "Weapons/VeloxShotTargetData.h"
 #include "Weapons/VeloxShotValidation.h"
+#include "Weapons/VeloxSwitchPrediction.h"
 #include "Weapons/VeloxWeaponCheats.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
@@ -1058,8 +1063,8 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	ASC->RemoveActiveGameplayEffect(ExtraSwitching);
 
 	// Task 08b D4: an accepted shot of the pending weapon completes the switch (CompletePendingSwitch, called by
-	// FinalisePendingSwitch on the server) while the switch instance still waits for its drop end; a switch in the same
-	// frame must then activate. RG -> RL now waits for the rail's refire (1.5 s), so the instance is long active.
+	// FinalisePendingSwitch on the server) before its drop end; a switch in the same frame must then activate. RG -> RL
+	// now waits for the rail's refire (1.5 s). B42: the switch instance ends at activation, the inventory owns the drop.
 	FGameplayAbilitySpec* SwitchSpec = ASC->FindAbilitySpecFromClass(UVeloxGameplayAbility_WeaponSwitch::StaticClass());
 	if (!TestNotNull(TEXT("D4: switch spec"), SwitchSpec))
 	{
@@ -1071,7 +1076,9 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
 	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot5);
 	W.Advance(1.f / 60.f);
-	TestTrue(TEXT("D4: RG -> RL running (instance active, tag, pending RL)"), SwitchActive() && ASC->HasMatchingGameplayTag(State_WeaponSwitching) && Inventory->GetPendingIndex() == RL);
+	TestTrue(TEXT("D4: RG -> RL running (tag, pending RL, drop timer)"), ASC->HasMatchingGameplayTag(State_WeaponSwitching) && Inventory->GetPendingIndex() == RL
+		&& Inventory->IsPendingDropTimerActive());
+	TestFalse(TEXT("B42: the switch instance ended at activation"), SwitchActive());
 	Inventory->CompletePendingSwitch();
 	TestEqual(TEXT("D4: completed -> RL current"), Inventory->GetCurrentIndex(), RL);
 	TestEqual(TEXT("D4: completed -> no pending index"), Inventory->GetPendingIndex(), static_cast<int32>(INDEX_NONE));
@@ -1082,14 +1089,17 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot2);
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
 	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot2);
-	TestTrue(TEXT("D4: switch in the same frame as the completion activates"), SwitchActive() && Inventory->GetPendingIndex() == MG);
-	// A local press during the own drop is still ignored (the shooter's machine does not retrigger).
-	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot7);
+	TestEqual(TEXT("D4: switch in the same frame as the completion activates"), Inventory->GetPendingIndex(), MG);
+	// B42: a local press during the own drop retargets the switch (pre-B42: ignored); drop end and switch end stay.
+	const double SwitchEndMG = Inventory->GetSwitchEndTime();
+	ASC->AbilityInputTagPressed(InputTag_Weapon_Slot5);
 	ASC->ProcessAbilityInput(1.f / 60.f, false);
-	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot7);
-	TestEqual(TEXT("D4: local press during the drop ignored (pending stays MG)"), Inventory->GetPendingIndex(), MG);
-	// The server receiving a new switch while the previous instance still runs (latency-shifted drop end): it supersedes
-	// (B33: the MG switch has 0.45 s <= Raise + Tol left, so it completes first; then RG is a real change).
+	ASC->AbilityInputTagReleased(InputTag_Weapon_Slot5);
+	TestEqual(TEXT("B42: local press during the drop retargets (pending MG -> RL, the weapon being lowered)"), Inventory->GetPendingIndex(), RL);
+	TestEqual(TEXT("B42: ... switch end unchanged"), Inventory->GetSwitchEndTime(), SwitchEndMG, 1e-9);
+	// The server receiving a new (non-retarget) switch while the previous one is pending (latency-shifted drop end): it
+	// supersedes (B33: the switch has 0.45 s <= Raise + Tol left, so it completes first, RL stays current; then RG is a
+	// real change whose wait is the superseded switch's remaining 0.45 s, B42).
 	{
 		FGameplayEventData Event;
 		Event.EventTag = InputTag_Weapon_Slot7;
@@ -1097,8 +1107,9 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("D4: server activation during a running switch supersedes it"), ASC->InternalTryActivateAbility(SwitchHandle, FPredictionKey(), nullptr, nullptr, &Event));
 	}
 	TestEqual(TEXT("D4: superseded -> pending RG"), Inventory->GetPendingIndex(), RG);
-	TestTrue(TEXT("D4: superseded -> SwitchEndTime of the new switch"), Inventory->GetSwitchEndTime() > W.World->GetTimeSeconds());
-	W.Advance(0.3f);
+	TestEqual(TEXT("D4: superseded -> current RL"), Inventory->GetCurrentIndex(), RL);
+	TestEqual(TEXT("B42: superseding switch end = old remaining 0.45 + drop + raise"), Inventory->GetSwitchEndTime(), SwitchEndMG + 0.45, 2e-3);
+	W.Advance(0.7f);
 	TestEqual(TEXT("D4: the superseding switch lands on RG"), Inventory->GetCurrentIndex(), RG);
 	TestFalse(TEXT("D4: no switch running after its drop"), SwitchActive());
 	W.Advance(0.3f);
@@ -1137,16 +1148,16 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 		// passed and the raise runs there) the server receives RG -> MG: accepted, the RG switch completes first.
 		ClearSwitch();
 		ServerSwitch(RG);
-		TestTrue(TEXT("B33 (a): MG -> RG running, pending RG"), SwitchActive() && Inventory->GetPendingIndex() == RG && Inventory->GetCurrentIndex() == MG);
+		TestTrue(TEXT("B33 (a): MG -> RG running, pending RG"), Inventory->GetPendingIndex() == RG && Inventory->GetCurrentIndex() == MG);
 		TestTrue(TEXT("B37: SetPendingIndex armed the inventory's drop timer"), Inventory->IsPendingDropTimerActive());
 		W.Advance(0.1f);
 		const double RemainingA = UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC);
 		AddInfo(FString::Printf(TEXT("B33 (a): remaining %.3f s at the switch-back (limit %.3f, raise %.3f)"), RemainingA, Limit, Raise));
-		TestTrue(TEXT("B33 (a): server drop still running (raise < remaining <= raise + tol)"), SwitchActive() && RemainingA > Raise && RemainingA <= Limit);
+		TestTrue(TEXT("B33 (a): server drop still running (raise < remaining <= raise + tol)"), Inventory->GetPendingIndex() == RG && RemainingA > Raise && RemainingA <= Limit);
 		ServerSwitch(MG);
 		TestEqual(TEXT("B33 (a): switch-back accepted -> pending MG"), Inventory->GetPendingIndex(), MG);
 		TestEqual(TEXT("B33 (a): the superseded switch completed -> current RG"), Inventory->GetCurrentIndex(), RG);
-		TestTrue(TEXT("B33 (a): the switch-back runs (instance active, tag)"), SwitchActive() && ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+		TestTrue(TEXT("B33 (a): the switch-back runs (tag, drop timer)"), Inventory->IsPendingDropTimerActive() && ASC->HasMatchingGameplayTag(State_WeaponSwitching));
 		TestTrue(TEXT("B33 (a): SwitchEndTime of the switch-back"), Inventory->GetSwitchEndTime() > W.World->GetTimeSeconds());
 		W.Advance(1.6f);
 		TestEqual(TEXT("B33 (a): the switch-back lands on MG"), Inventory->GetCurrentIndex(), MG);
@@ -1174,7 +1185,7 @@ bool FVeloxCombatInventoryTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("B33 (b): a third weapon during the drop rejected too (current RG, pending MG)"), Inventory->GetCurrentIndex() == RG && Inventory->GetPendingIndex() == MG);
 		TestFalse(TEXT("B33 (b): no switch instance running after the rejection"), SwitchActive());
 
-		// (c) B37 iii (08e item 2): the engine's retrigger ended the superseded instance, but the inventory's own timer
+		// (c) B37 iii (08e item 2): no switch instance waits for the drop (B42: it ended at activation), the inventory's own timer
 		// still completes the switch at its drop end (refire 1.5 + drop 0.2) without any further RPC; the GE keeps
 		// running through the raise.
 		TestTrue(TEXT("B37 (c): the superseded switch's drop timer is still armed after the rejection"), Inventory->IsPendingDropTimerActive());
@@ -1382,6 +1393,396 @@ bool FVeloxCombatRemoteSwitchTimelineTest::RunTest(const FString& Parameters)
 	const double WaitNoHaste = Refire();
 	AddInfo(FString::Printf(TEXT("B41: MG refire wait one frame after a shot without Haste: %.4f (want 0.0833)"), WaitNoHaste));
 	TestEqual(TEXT("B41: no Haste: refire wait at T' + 1/60 = 0.1 - 1/60"), WaitNoHaste, 0.1 - 1.0 / 60.0, 1e-3);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatSwitchRetargetRulesTest, "Velox.Combat.SwitchRetargetRules", VeloxWeaponTest::Flags)
+
+bool FVeloxCombatSwitchRetargetRulesTest::RunTest(const FString& Parameters)
+{
+	// ADR 0003 B42, world-free: the new switch's wait, the server's retarget classification, the event encoding.
+	using namespace VeloxFireTiming;
+	TestEqual(TEXT("wait: no switch running -> refire wait"), SwitchStartWait(0.3, 0.0), 0.3, 1e-12);
+	TestEqual(TEXT("wait: in a raise -> the remaining raise (Q3 weaponTime)"), SwitchStartWait(0.0, 0.15), 0.15, 1e-12);
+	TestEqual(TEXT("wait: the larger of both, never a sum"), SwitchStartWait(0.1, 0.15), 0.15, 1e-12);
+	TestEqual(TEXT("wait: negatives clamp to 0"), SwitchStartWait(-1.0, -2.0), 0.0, 1e-12);
+
+	TestTrue(TEXT("classify: pending drop -> Pending"), ClassifyRemoteRetarget(true, 10.0, -1.0, 0.5) == ERemoteRetarget::Pending);
+	TestTrue(TEXT("classify: pending wins over a recent drop end"), ClassifyRemoteRetarget(true, 10.0, 9.9, 0.5) == ERemoteRetarget::Pending);
+	TestTrue(TEXT("classify: drop ended 0.1 s ago -> Late"), ClassifyRemoteRetarget(false, 10.0, 9.9, 0.5) == ERemoteRetarget::Late);
+	TestTrue(TEXT("classify: drop ended exactly Tol ago -> Late"), ClassifyRemoteRetarget(false, 10.5, 10.0, 0.5) == ERemoteRetarget::Late);
+	TestTrue(TEXT("classify: drop ended > Tol ago -> Fresh"), ClassifyRemoteRetarget(false, 10.51, 10.0, 0.5) == ERemoteRetarget::Fresh);
+	TestTrue(TEXT("classify: no drop this life -> Fresh"), ClassifyRemoteRetarget(false, 10.0, -1.0, 0.5) == ERemoteRetarget::Fresh);
+	TestTrue(TEXT("classify: drop end in the future (bad input) -> Fresh"), ClassifyRemoteRetarget(false, 10.0, 10.2, 0.5) == ERemoteRetarget::Fresh);
+
+	using Switch = UVeloxGameplayAbility_WeaponSwitch;
+	int32 Index = 0;
+	bool bRetarget = false;
+	for (const int32 I : { 0, 3, 15 })
+	{
+		for (const bool bR : { false, true })
+		{
+			const bool bOk = Switch::DecodeSwitchEvent(Switch::EncodeSwitchEvent(I, bR), Index, bRetarget);
+			TestTrue(*FString::Printf(TEXT("event round trip index %d retarget %d"), I, bR ? 1 : 0), bOk && Index == I && bRetarget == bR);
+		}
+	}
+	TestFalse(TEXT("event: negative rejected"), Switch::DecodeSwitchEvent(-1.f, Index, bRetarget));
+	TestFalse(TEXT("event: 32 rejected"), Switch::DecodeSwitchEvent(32.f, Index, bRetarget));
+	TestFalse(TEXT("event: NaN rejected"), Switch::DecodeSwitchEvent(std::numeric_limits<float>::quiet_NaN(), Index, bRetarget));
+	TestFalse(TEXT("event: inf rejected"), Switch::DecodeSwitchEvent(std::numeric_limits<float>::infinity(), Index, bRetarget));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatSwitchPredictionTest, "Velox.Combat.SwitchPrediction", VeloxWeaponTest::Flags)
+
+bool FVeloxCombatSwitchPredictionTest::RunTest(const FString& Parameters)
+{
+	// ADR 0003 B42/B44 (review of B42, D1/D2/D4): the owning client's switch prediction decisions, world-free.
+	using namespace VeloxSwitchPrediction;
+	constexpr int32 A = 0, B = 1, C = 2, D = 3, E = 4, F = 5;
+	auto Kind = [](const FReplicatedIndexResult& R) { return R.Kind; };
+
+	// --- ClassifyReplicatedIndex ---
+	{
+		const FChain Empty;
+		TestTrue(TEXT("rep: no prediction -> confirm"), Kind(ClassifyReplicatedIndex(INDEX_NONE, false, B, Empty)) == EReplicatedIndex::Confirm);
+		TestTrue(TEXT("rep: live prediction = replicated -> confirm"), Kind(ClassifyReplicatedIndex(B, true, B, Empty)) == EReplicatedIndex::Confirm);
+		FChain Chain;
+		Chain.Add(B);
+		Chain.Add(C);
+		TestTrue(TEXT("rep: predicted == replicated while a chain is live -> confirm (no log)"), Kind(ClassifyReplicatedIndex(D, true, D, Chain)) == EReplicatedIndex::Confirm);
+		const FReplicatedIndexResult EchoB = ClassifyReplicatedIndex(D, true, B, Chain);
+		TestTrue(TEXT("rep: echo of the oldest step -> stands"), EchoB.Kind == EReplicatedIndex::EchoOfOlderStep && EchoB.TrimCount == 1);
+		const FReplicatedIndexResult EchoC = ClassifyReplicatedIndex(D, true, C, Chain);
+		TestTrue(TEXT("rep: echo of the newer step -> stands, trims up to it (coalesced skip of B)"), EchoC.Kind == EReplicatedIndex::EchoOfOlderStep && EchoC.TrimCount == 2);
+		TestTrue(TEXT("rep: value not in the chain while live -> rep correction"), Kind(ClassifyReplicatedIndex(D, true, E, Chain)) == EReplicatedIndex::CorrectionRep);
+		TestTrue(TEXT("rep: live, empty chain, different value -> rep correction"), Kind(ClassifyReplicatedIndex(D, true, A, Empty)) == EReplicatedIndex::CorrectionRep);
+		TestTrue(TEXT("rep: expired prediction contradicted -> timeout"), Kind(ClassifyReplicatedIndex(D, false, E, Empty)) == EReplicatedIndex::CorrectionTimeout);
+		TestTrue(TEXT("rep: expired prediction, value in the chain -> timeout (no echo after expiry)"), Kind(ClassifyReplicatedIndex(D, false, B, Chain)) == EReplicatedIndex::CorrectionTimeout);
+		TestTrue(TEXT("rep: expired prediction = replicated -> confirm"), Kind(ClassifyReplicatedIndex(D, false, D, Chain)) == EReplicatedIndex::Confirm);
+	}
+
+	// --- AdvanceChain (PredictCurrentIndex) ---
+	{
+		FChain Chain;
+		TestFalse(TEXT("chain: no live prediction, the replicated value -> no prediction"), AdvanceChain(Chain, INDEX_NONE, false, A, A));
+		TestTrue(TEXT("chain: first prediction -> predicted, chain empty"), AdvanceChain(Chain, INDEX_NONE, false, B, A) && Chain.Num() == 0);
+		TestTrue(TEXT("chain: B -> C live -> chain [B]"), AdvanceChain(Chain, B, true, C, A) && Chain.Num() == 1 && Chain[0] == B);
+		TestTrue(TEXT("chain: quick switch back to the replicated A while live stays a prediction"), AdvanceChain(Chain, C, true, A, A) && Chain.Num() == 2 && Chain[1] == C);
+		TestTrue(TEXT("chain: the same index again adds nothing"), AdvanceChain(Chain, A, true, A, A) && Chain.Num() == 2);
+		AdvanceChain(Chain, A, true, D, A); // [B, C, A]
+		AdvanceChain(Chain, D, true, E, A); // [B, C, A, D]
+		TestTrue(TEXT("chain: four steps kept"), Chain.Num() == MaxChain && Chain[0] == B && Chain[3] == D);
+		AdvanceChain(Chain, E, true, F, A); // [C, A, D, E]
+		TestTrue(TEXT("chain: bounded at 4, the oldest evicted"), Chain.Num() == MaxChain && Chain[0] == C && Chain[3] == E);
+		TestTrue(TEXT("chain: the evicted step's echo is a correction now"), Kind(ClassifyReplicatedIndex(F, true, B, Chain)) == EReplicatedIndex::CorrectionRep);
+		TestTrue(TEXT("chain: an expired prediction restarts the chain"), AdvanceChain(Chain, F, false, B, A) && Chain.Num() == 0);
+	}
+
+	// --- ClassifyLocalRejection (D1) ---
+	{
+		constexpr int16 K1 = 11, K2 = 12;
+		TestTrue(TEXT("reject: not the latest key -> nothing rolled back"), ClassifyLocalRejection(K1, K2, C, B, C, INDEX_NONE) == ELocalRejection::NotLatest);
+		TestTrue(TEXT("reject: retarget B -> C refused, still pending C -> restore B pending"), ClassifyLocalRejection(K2, K2, C, B, C, INDEX_NONE) == ELocalRejection::RestorePending);
+		TestTrue(TEXT("reject: retarget refused after the local drop landed on C -> restore B predicted"), ClassifyLocalRejection(K2, K2, C, B, INDEX_NONE, C) == ELocalRejection::RestoreLanded);
+		TestTrue(TEXT("reject: retarget refused, local result gone (prediction expired) -> full rollback"), ClassifyLocalRejection(K2, K2, C, B, INDEX_NONE, INDEX_NONE) == ELocalRejection::FullRollback);
+		TestTrue(TEXT("reject: retarget back to the weapon being lowered (A) refused -> restore B pending"), ClassifyLocalRejection(K2, K2, A, B, A, INDEX_NONE) == ELocalRejection::RestorePending);
+		TestTrue(TEXT("reject: a non-retarget switch refused while pending -> full rollback"), ClassifyLocalRejection(K1, K1, B, INDEX_NONE, B, INDEX_NONE) == ELocalRejection::FullRollback);
+		TestTrue(TEXT("reject: a non-retarget switch refused after its drop -> full rollback"), ClassifyLocalRejection(K1, K1, B, INDEX_NONE, INDEX_NONE, B) == ELocalRejection::FullRollback);
+		TestTrue(TEXT("reject: consumed record (latest key 0) -> nothing rolled back"), ClassifyLocalRejection(K2, 0, INDEX_NONE, INDEX_NONE, INDEX_NONE, INDEX_NONE) == ELocalRejection::NotLatest);
+	}
+
+	// --- ResetLocalSwitchState (D2), private world ---
+	{
+		using namespace VeloxWeaponTest;
+		FWeaponWorld W;
+		AVeloxCharacter* Pawn = W.Spawn(FVector(0, 0, 100), AAIController::StaticClass());
+		AVeloxPlayerState* PlayerState = PS(Pawn);
+		UVeloxWeaponInventoryComponent* Inventory = PlayerState ? PlayerState->GetWeaponInventory() : nullptr;
+		const UVeloxWeaponTable* Table = Inventory ? Inventory->GetWeaponTable() : nullptr;
+		if (!TestNotNull(TEXT("reset: inventory"), Inventory) || !TestNotNull(TEXT("reset: table"), Table))
+		{
+			return false;
+		}
+		const int32 MG = Table->FindBySlot(2);
+		const int32 RL = Table->FindBySlot(5);
+		const int32 RG = Table->FindBySlot(7);
+		Inventory->AddWeapon(Table->Get(RL), 5);
+		Inventory->AddWeapon(Table->Get(RG), 5);
+		W.Advance(0.1f);
+		const double Now = W.World->GetTimeSeconds();
+		Inventory->PredictCurrentIndex(RL);
+		Inventory->PredictCurrentIndex(RG); // a live chain [RL]
+		Inventory->SetSwitchEndTime(Now + 0.45);
+		Inventory->SetPendingIndex(RL, 0.2f);
+		Inventory->RetargetPendingIndex(MG);
+		Inventory->NoteLocalSwitch(7);
+		TestTrue(TEXT("reset: a pending switch, its drop timer, a switch end and a predicted index are set up"), Inventory->GetPendingIndex() == MG && Inventory->IsPendingDropTimerActive()
+			&& Inventory->GetSwitchEndTime() > Now && Inventory->GetCurrentIndex() == RG);
+		Inventory->ResetLocalSwitchState();
+		TestEqual(TEXT("reset: no pending index"), Inventory->GetPendingIndex(), static_cast<int32>(INDEX_NONE));
+		TestFalse(TEXT("reset: no drop timer"), Inventory->IsPendingDropTimerActive());
+		TestEqual(TEXT("reset: no switch end"), Inventory->GetSwitchEndTime(), 0.0);
+		TestEqual(TEXT("reset: no predicted index (the replicated MG shows)"), Inventory->GetCurrentIndex(), MG);
+		Inventory->PredictCurrentIndex(MG);
+		TestEqual(TEXT("reset: no chain survives (predicting the replicated value is no prediction)"), Inventory->GetCurrentIndex(), MG);
+		Inventory->PredictCurrentIndex(RL);
+		TestEqual(TEXT("reset: a new prediction after the reset works"), Inventory->GetCurrentIndex(), RL);
+		Inventory->ResetLocalSwitchState();
+		W.Advance(0.5f);
+		TestEqual(TEXT("reset: the old life's drop never lands"), Inventory->GetCurrentIndex(), MG);
+		TestEqual(TEXT("reset: authoritative index untouched"), Inventory->GetAuthoritativeIndex(), MG);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatSwitchRetargetLocalTest, "Velox.Combat.SwitchRetargetLocal", VeloxWeaponTest::Flags)
+
+bool FVeloxCombatSwitchRetargetLocalTest::RunTest(const FString& Parameters)
+{
+	// ADR 0003 B42 on the shooter's machine (an AI-controlled authority: the bot path; the owning client runs the same
+	// PrepareInputActivation / ActivateAbility / inventory drop, predicting the index instead of setting it), through the
+	// real input path: retarget in the drop (to a third weapon, back to the weapon being lowered, the same target again,
+	// an unowned slot), a press in the raise (wait = remaining raise), the current weapon in the raise (no-op).
+	using namespace VeloxWeaponTest;
+	using namespace VeloxGameplayTags;
+
+	FWeaponWorld W;
+	AVeloxCharacter* Pawn = W.Spawn(FVector(0, 0, 100), AAIController::StaticClass());
+	AVeloxPlayerState* PlayerState = PS(Pawn);
+	UVeloxWeaponInventoryComponent* Inventory = PlayerState ? PlayerState->GetWeaponInventory() : nullptr;
+	UVeloxAbilitySystemComponent* ASC = PlayerState ? PlayerState->GetVeloxAbilitySystemComponent() : nullptr;
+	const UVeloxWeaponTable* Table = Inventory ? Inventory->GetWeaponTable() : nullptr;
+	if (!TestNotNull(TEXT("inventory"), Inventory) || !TestNotNull(TEXT("table"), Table) || !ASC)
+	{
+		return false;
+	}
+	const int32 MG = Table->FindBySlot(2);
+	const int32 SG = Table->FindBySlot(3);
+	const int32 RL = Table->FindBySlot(5);
+	const int32 RG = Table->FindBySlot(7);
+	const int32 PG = Table->FindBySlot(8);
+	TestTrue(TEXT("add SG, RL, RG (PG stays unowned)"), Inventory->AddWeapon(Table->Get(SG), 10) && Inventory->AddWeapon(Table->Get(RL), 5) && Inventory->AddWeapon(Table->Get(RG), 5));
+	TestFalse(TEXT("PG unowned"), Inventory->OwnsIndex(PG));
+	TestFalse(TEXT("local shooter path"), UVeloxGameplayAbility_Fire::IsServerForRemoteShooter(ASC->AbilityActorInfo.Get()));
+	W.Advance(0.5f);
+	TestEqual(TEXT("MG current"), Inventory->GetCurrentIndex(), MG);
+
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory->GetCombatSettings());
+	const double Drop = Settings.WeaponDropTime;
+	const double Raise = Settings.WeaponRaiseTime;
+	const FGameplayAbilitySpec* SwitchSpec = ASC->FindAbilitySpecFromClass(UVeloxGameplayAbility_WeaponSwitch::StaticClass());
+	if (!TestNotNull(TEXT("switch spec"), SwitchSpec))
+	{
+		return false;
+	}
+	const FGameplayAbilitySpecHandle SwitchHandle = SwitchSpec->Handle;
+	auto SwitchActive = [&]() { const FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromHandle(SwitchHandle); return Spec && Spec->IsActive(); };
+	auto Press = [&](const FGameplayTag& Tag)
+	{
+		ASC->AbilityInputTagPressed(Tag);
+		ASC->ProcessAbilityInput(1.f / 60.f, false);
+		ASC->AbilityInputTagReleased(Tag);
+	};
+	int32 Changes = 0;
+	const FDelegateHandle ChangeHandle = Inventory->OnCurrentWeaponChanged.AddLambda([&Changes](int32, int32) { ++Changes; });
+
+	// MG -> RG (no refire wait): drop end T + Drop, switch end T + Drop + Raise.
+	const double T = W.World->GetTimeSeconds();
+	Press(InputTag_Weapon_Slot7);
+	TestTrue(TEXT("MG -> RG: pending RG, drop timer"), Inventory->GetPendingIndex() == RG && Inventory->IsPendingDropTimerActive());
+	TestFalse(TEXT("B42: no switch instance stays active"), SwitchActive());
+	const double SwitchEnd = Inventory->GetSwitchEndTime();
+	TestEqual(TEXT("switch end = T + Drop + Raise"), SwitchEnd, T + Drop + Raise, 1e-3);
+
+	// Retarget in the drop (0.1 s in): RG -> SG; drop end and switch end stay.
+	W.AdvanceTo(T + 0.1);
+	Press(InputTag_Weapon_Slot3);
+	TestEqual(TEXT("drop: retarget to SG"), Inventory->GetPendingIndex(), SG);
+	TestEqual(TEXT("drop: switch end unchanged"), Inventory->GetSwitchEndTime(), SwitchEnd, 1e-9);
+	TestEqual(TEXT("drop: drop end unchanged (remaining)"), Inventory->GetPendingDropRemaining(), T + Drop - W.World->GetTimeSeconds(), 2e-3);
+	TestEqual(TEXT("drop: still MG"), Inventory->GetCurrentIndex(), MG);
+	// The same target again: no-op. An unowned slot: ignored. Next cycles from the pending target (SG -> RL).
+	Press(InputTag_Weapon_Slot3);
+	TestTrue(TEXT("drop: same target again -> no-op"), Inventory->GetPendingIndex() == SG && FMath::IsNearlyEqual(Inventory->GetSwitchEndTime(), SwitchEnd, 1e-9));
+	Press(InputTag_Weapon_Slot8);
+	TestTrue(TEXT("drop: unowned PG ignored"), Inventory->GetPendingIndex() == SG && FMath::IsNearlyEqual(Inventory->GetSwitchEndTime(), SwitchEnd, 1e-9));
+	TestEqual(TEXT("drop: Next resolves from the pending target (SG -> RL)"), Inventory->ResolveSelectInput(InputTag_Weapon_Next), RL);
+	// Back to the weapon being lowered: Q3 raises it again at the same drop end (no shortcut).
+	Press(InputTag_Weapon_Slot2);
+	TestEqual(TEXT("drop: retarget back to MG"), Inventory->GetPendingIndex(), MG);
+	TestEqual(TEXT("drop: switch end still unchanged"), Inventory->GetSwitchEndTime(), SwitchEnd, 1e-9);
+	W.AdvanceTo(T + Drop + 0.02);
+	TestTrue(TEXT("drop end: MG current, nothing pending"), Inventory->GetCurrentIndex() == MG && Inventory->GetPendingIndex() == INDEX_NONE);
+	TestEqual(TEXT("drop end: no weapon change (MG -> MG)"), Changes, 0);
+	TestTrue(TEXT("raise: still switching"), ASC->HasMatchingGameplayTag(State_WeaponSwitching) && W.World->GetTimeSeconds() < SwitchEnd);
+	// The fire gate holds through the raise of the re-raised MG.
+	const float Bullets0 = PlayerState->GetAmmoSet()->GetBullets();
+	ASC->AbilityInputTagPressed(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	ASC->AbilityInputTagReleased(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	TestEqual(TEXT("raise: no MG shot before the switch end"), PlayerState->GetAmmoSet()->GetBullets(), Bullets0);
+
+	// Raise phase (0.1 s before the switch end): the current weapon again is a no-op; RL is a new switch whose wait is the
+	// remaining raise: switch end = Now + remaining + Drop + Raise, drop end = Now + remaining + Drop.
+	W.AdvanceTo(SwitchEnd - 0.1);
+	Press(InputTag_Weapon_Slot2);
+	TestTrue(TEXT("raise: the current weapon again -> no-op"), Inventory->GetPendingIndex() == INDEX_NONE && FMath::IsNearlyEqual(Inventory->GetSwitchEndTime(), SwitchEnd, 1e-9));
+	const double TR = W.World->GetTimeSeconds();
+	const double Remaining = SwitchEnd - TR;
+	Press(InputTag_Weapon_Slot5);
+	AddInfo(FString::Printf(TEXT("raise press: remaining raise %.4f s"), Remaining));
+	TestEqual(TEXT("raise: RL pending"), Inventory->GetPendingIndex(), RL);
+	TestEqual(TEXT("raise: switch end = now + remaining raise + drop + raise"), Inventory->GetSwitchEndTime(), TR + Remaining + Drop + Raise, 2e-3);
+	TestEqual(TEXT("raise: drop remaining = remaining raise + drop"), Inventory->GetPendingDropRemaining(), Remaining + Drop, 2e-3);
+	TestEqual(TEXT("raise: GE covers the whole new switch"), UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC), Remaining + Drop + Raise, 2e-3);
+	const double SwitchEndRL = Inventory->GetSwitchEndTime();
+	W.AdvanceTo(TR + Remaining + Drop - 0.02);
+	TestEqual(TEXT("raise: still MG before the new drop end"), Inventory->GetCurrentIndex(), MG);
+	W.AdvanceTo(TR + Remaining + Drop + 0.02);
+	TestEqual(TEXT("raise: RL after the new drop end"), Inventory->GetCurrentIndex(), RL);
+	// In RL's raise: RL again is a no-op (current).
+	Press(InputTag_Weapon_Slot5);
+	TestTrue(TEXT("RL raise: RL again -> no-op"), Inventory->GetPendingIndex() == INDEX_NONE && FMath::IsNearlyEqual(Inventory->GetSwitchEndTime(), SwitchEndRL, 1e-9));
+	W.AdvanceTo(SwitchEndRL + 0.02);
+	TestFalse(TEXT("switch over: tag gone"), ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+	TestEqual(TEXT("one weapon change in all (MG -> RL)"), Changes, 1);
+
+	// Retarget during the refire wait (part of the wait/drop): fire RL (0.8 s refire), switch to RG, retarget to SG.
+	ASC->AbilityInputTagPressed(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	ASC->AbilityInputTagReleased(InputTag_Fire);
+	ASC->ProcessAbilityInput(1.f / 60.f, false);
+	W.Advance(1.f / 60.f);
+	Press(InputTag_Weapon_Slot7);
+	const double SwitchEndW = Inventory->GetSwitchEndTime();
+	const double DropLeftW = Inventory->GetPendingDropRemaining();
+	AddInfo(FString::Printf(TEXT("refire-wait switch: drop remaining %.4f s"), DropLeftW));
+	TestTrue(TEXT("refire wait: RG pending, drop end after the refire wait"), Inventory->GetPendingIndex() == RG && DropLeftW > Drop + 0.5);
+	W.Advance(0.2f);
+	Press(InputTag_Weapon_Slot3);
+	TestTrue(TEXT("refire wait: retarget to SG keeps the switch end"), Inventory->GetPendingIndex() == SG && FMath::IsNearlyEqual(Inventory->GetSwitchEndTime(), SwitchEndW, 1e-9));
+	W.AdvanceTo(SwitchEndW + 0.02);
+	TestEqual(TEXT("refire wait: lands on SG"), Inventory->GetCurrentIndex(), SG);
+	Inventory->OnCurrentWeaponChanged.Remove(ChangeHandle);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatSwitchRetargetRemoteTest, "Velox.Combat.SwitchRetargetRemote", VeloxWeaponTest::Flags)
+
+bool FVeloxCombatSwitchRetargetRemoteTest::RunTest(const FString& Parameters)
+{
+	// ADR 0003 B42 on the server for a remote shooter (authoritative): a retarget RPC applied to the pending switch, to a
+	// drop that ended within the resend tolerance (late), outside it (fresh), the same target, an unowned weapon, and the
+	// raise-phase wait from the server's GE.
+	using namespace VeloxWeaponTest;
+	using namespace VeloxGameplayTags;
+
+	FWeaponWorld W;
+	AVeloxPlayerController* ShooterPC = nullptr;
+	AVeloxCharacter* Shooter = W.SpawnRemoteShooter(FVector(0, 0, 100), ShooterPC);
+	if (!TestNotNull(TEXT("remote shooter"), Shooter) || !PS(Shooter))
+	{
+		return false;
+	}
+	W.Advance(0.3f);
+	UVeloxAbilitySystemComponent* ASC = PS(Shooter)->GetVeloxAbilitySystemComponent();
+	UVeloxWeaponInventoryComponent* Inventory = PS(Shooter)->GetWeaponInventory();
+	const UVeloxWeaponTable* Table = Inventory ? Inventory->GetWeaponTable() : nullptr;
+	if (!TestNotNull(TEXT("inventory"), Inventory) || !TestNotNull(TEXT("table"), Table) || !ASC)
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("remote shooter path"), UVeloxGameplayAbility_Fire::IsServerForRemoteShooter(ASC->AbilityActorInfo.Get())))
+	{
+		return false;
+	}
+	const int32 MG = Table->FindBySlot(2);
+	const int32 SG = Table->FindBySlot(3);
+	const int32 RL = Table->FindBySlot(5);
+	const int32 RG = Table->FindBySlot(7);
+	const int32 PG = Table->FindBySlot(8);
+	TestTrue(TEXT("add SG, RL, RG (PG stays unowned)"), Inventory->AddWeapon(Table->Get(SG), 10) && Inventory->AddWeapon(Table->Get(RL), 5) && Inventory->AddWeapon(Table->Get(RG), 5));
+	Inventory->SetCurrentIndex(MG);
+	const FGameplayAbilitySpec* SwitchSpec = ASC->FindAbilitySpecFromClass(UVeloxGameplayAbility_WeaponSwitch::StaticClass());
+	if (!TestNotNull(TEXT("switch spec"), SwitchSpec))
+	{
+		return false;
+	}
+	const FGameplayAbilitySpecHandle SwitchHandle = SwitchSpec->Handle;
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(Inventory->GetCombatSettings());
+	const double Drop = Settings.WeaponDropTime;
+	const double Raise = Settings.WeaponRaiseTime;
+	const double Tol = Settings.GetFireRateJitterToleranceSeconds();
+	int16 NextKey = 200;
+	auto RemoteSwitch = [&](int32 Target, bool bRetarget)
+	{
+		FPredictionKey Key;
+		Key.Current = NextKey++;
+		FGameplayEventData Event;
+		Event.EventTag = InputTag_Weapon_Slot2;
+		Event.EventMagnitude = UVeloxGameplayAbility_WeaponSwitch::EncodeSwitchEvent(Target, bRetarget);
+		return ASC->InternalTryActivateAbility(SwitchHandle, Key, nullptr, nullptr, &Event);
+	};
+	auto GERemaining = [&]() { return UVeloxGameplayAbility_Fire::GetSwitchRemaining(ASC); };
+
+	// (1) Pending: MG -> RG, 0.1 s later retarget SG, then MG (the weapon being lowered); drop end and GE stay.
+	const double T = W.World->GetTimeSeconds();
+	TestTrue(TEXT("MG -> RG activates"), RemoteSwitch(RG, false));
+	TestEqual(TEXT("GE = drop + raise"), GERemaining(), Drop + Raise, 1e-3);
+	W.AdvanceTo(T + 0.1);
+	RemoteSwitch(SG, true);
+	TestEqual(TEXT("(1) retarget pending -> SG"), Inventory->GetPendingIndex(), SG);
+	TestEqual(TEXT("(1) drop end unchanged"), Inventory->GetPendingDropRemaining(), T + Drop - W.World->GetTimeSeconds(), 2e-3);
+	TestEqual(TEXT("(1) GE unchanged"), GERemaining(), T + Drop + Raise - W.World->GetTimeSeconds(), 2e-3);
+	RemoteSwitch(SG, true);
+	TestEqual(TEXT("(1) same target again -> no-op"), Inventory->GetPendingIndex(), SG);
+	RemoteSwitch(PG, true);
+	TestEqual(TEXT("(1) unowned PG rejected -> pending SG"), Inventory->GetPendingIndex(), SG);
+	RemoteSwitch(MG, true);
+	TestEqual(TEXT("(1) back to the weapon being lowered -> pending MG"), Inventory->GetPendingIndex(), MG);
+	W.AdvanceTo(T + Drop + 0.02);
+	TestTrue(TEXT("(1) drop end: MG current, nothing pending"), Inventory->GetCurrentIndex() == MG && Inventory->GetPendingIndex() == INDEX_NONE);
+	TestEqual(TEXT("(1) last drop end recorded"), Inventory->GetLastDropEndTime(), T + Drop, 1.0 / 60.0 + 1e-3);
+
+	// (2) Late: the retarget arrives after the server's drop end (jitter): within the tolerance the target becomes current
+	// at once, the raise (GE) runs on.
+	W.Advance(1.0f);
+	const double T2 = W.World->GetTimeSeconds();
+	RemoteSwitch(RG, false);
+	W.AdvanceTo(T2 + Drop + 0.05);
+	TestEqual(TEXT("(2) RG after the server's drop end"), Inventory->GetCurrentIndex(), RG);
+	const double GE2 = GERemaining();
+	RemoteSwitch(SG, true);
+	TestEqual(TEXT("(2) late retarget -> SG current at once"), Inventory->GetCurrentIndex(), SG);
+	TestEqual(TEXT("(2) ... nothing pending"), Inventory->GetPendingIndex(), static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("(2) ... GE (raise) unchanged"), GERemaining(), GE2, 1e-3);
+
+	// (3) Fresh: a retarget long after any drop end (> Tol) runs as a fresh switch on the server's timeline.
+	W.Advance(static_cast<float>(Tol) + 0.5f);
+	TestFalse(TEXT("(3) no switch running"), ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+	RemoteSwitch(RL, true);
+	TestEqual(TEXT("(3) fresh -> pending RL"), Inventory->GetPendingIndex(), RL);
+	TestEqual(TEXT("(3) fresh -> full GE"), GERemaining(), Drop + Raise, 1e-3);
+	// A fresh retarget onto the weapon the server holds is a no-op, not a rejection.
+	W.Advance(1.0f);
+	RemoteSwitch(RL, true);
+	TestTrue(TEXT("(3) fresh retarget onto the current weapon -> no-op"), Inventory->GetCurrentIndex() == RL && Inventory->GetPendingIndex() == INDEX_NONE
+		&& !ASC->HasMatchingGameplayTag(State_WeaponSwitching));
+
+	// (4) Raise-phase press on the server: wait = the server GE's remaining raise.
+	W.Advance(1.0f);
+	const double T4 = W.World->GetTimeSeconds();
+	RemoteSwitch(MG, false);
+	W.AdvanceTo(T4 + Drop + 0.1);
+	TestEqual(TEXT("(4) MG current in its raise"), Inventory->GetCurrentIndex(), MG);
+	const double Remaining4 = GERemaining();
+	AddInfo(FString::Printf(TEXT("(4) server remaining raise %.4f"), Remaining4));
+	RemoteSwitch(RG, false);
+	TestEqual(TEXT("(4) raise press: pending RG"), Inventory->GetPendingIndex(), RG);
+	TestEqual(TEXT("(4) raise press: drop remaining = remaining raise + drop"), Inventory->GetPendingDropRemaining(), Remaining4 + Drop, 2e-3);
+	TestEqual(TEXT("(4) raise press: GE = remaining raise + drop + raise"), GERemaining(), Remaining4 + Drop + Raise, 2e-3);
 	return true;
 }
 

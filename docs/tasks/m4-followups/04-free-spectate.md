@@ -3,7 +3,7 @@
 **Milestone:** M4 follow-ups (human decision q16, 2026-10-30; an M3 game-loop feature)
 **Agent:** dev-hard
 **Status:** done (dev-hard, 2026-10-31; architect design review pending)
-**Depends on:** ADR 0004 C11 (this task's ruling), ADR 0003 §8 / B8 / B28 / B42, STATUS question 16
+**Depends on:** ADR 0004 C11 (this task's ruling), ADR 0003 §8 / B8 / B28 / B43, STATUS question 16
 
 ## Goal
 A dead human free-flies through the arena until the respawn instead of watching the corpse: the engine's spectating state with a project spectator pawn (`AVeloxSpectatorPawn`, client-local, unreplicated), selected per mode by `UVeloxGameModeDefinition::DeathCamera` (default `FreeSpectate`; `Corpse` keeps today's path). The server clamps the client-synced view point into the arena; a dead player keeps the player's information rules (no spectator item timers, player rows); fire/jump after `MinRespawnDelay` respawns as today; bots, dummies, forced respawn and the intermission keep working. B8's death order is preserved.
@@ -21,7 +21,7 @@ A dead human free-flies through the arena until the respawn instead of watching 
 (Out of scope: `Bots/*`, relevance/replication-graph changes, follow-cam, any Blueprint. Report back if the engine facts in C11 (1) differ.)
 
 ## Relevant ADRs / references
-- `docs/adr/0004-game-loop-items-modes-ui.md` §5, §6, **C11**; `docs/adr/0003-combat-gas-and-lag-compensation.md` §8, B8 (death order), B28 (AI auto-respawn), B42 (supersession note)
+- `docs/adr/0004-game-loop-items-modes-ui.md` §5, §6, **C11**; `docs/adr/0003-combat-gas-and-lag-compensation.md` §8, B8 (death order), B28 (AI auto-respawn), B43 (supersession note)
 - UE 5.8 `Engine/Source/Runtime/Engine/Private/PlayerController.cpp`: `BeginSpectatingState`, `SpawnSpectatorPawn`, `ServerSetSpectatorLocation_Implementation`, `GetPlayerViewPoint`, `OnPossess`, `ClientRestart_Implementation`; `GameModeBase.cpp`: `RestartPlayerAtPlayerStart`, `MustSpectate`
 - `docs/tasks/m2-combat/notes/06-report.md` (death flow as built), `docs/tasks/m4-followups/01-max-rewind-035.md` (format)
 

@@ -325,6 +325,8 @@ void AVeloxCharacter::InitAbilityActorInfo()
 			if (UVeloxWeaponInventoryComponent* Inventory = VeloxPS->GetWeaponInventory())
 			{
 				Inventory->ResetShotSeq();
+				// ADR 0003 B44: no switch of the old life survives into this one (pending, drop timer, switch end, prediction).
+				Inventory->ResetLocalSwitchState();
 				// Every client resets every player's counter (only the owning client's is used): Log for the own pawn only.
 				if (GetLocalRole() == ROLE_AutonomousProxy)
 				{
