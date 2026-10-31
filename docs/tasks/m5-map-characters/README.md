@@ -9,10 +9,11 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 | 03 | [nav-coverage-lint](03-nav-coverage-lint.md) | dev-hard | 3 h | ADR §6, ADR 0005 D41 | 0 | done (deviations accepted, E0.2) |
 | 03b | [test-maps-lint-baseline-and-regen](03b-test-maps-lint-baseline-and-regen.md) | dev | 2–3 h | 02, 03, E0.2 (e), E0.4 | 0b (parallel with 05) | todo |
 | 04 | [soak-runner-map-override-and-bands](04-soak-runner-map-override-and-bands.md) | dev | 2–3 h | ADR §7 | 0 | done (findings ruled, E0.3) |
-| 04b | [runner-per-instance-coverage-and-link-definition](04b-runner-per-instance-coverage-and-link-definition.md) | dev | 1–2 h | 04, E0.3 | 0b (before 06's final sets) | todo |
+| 04b | [runner-per-instance-coverage-and-link-definition](04b-runner-per-instance-coverage-and-link-definition.md) | dev | 1–2 h | 04, E0.3 | 0b (before 06's final sets) | done |
+| 04c | [runner-dwell-timed-wait-exclusion](04c-runner-dwell-timed-wait-exclusion.md) | dev | 2 h | 04b, E2, `notes/dwell-report.md` | 0b (before 06's final sets) | todo |
 | 05 | [dm1-blockout](05-dm1-blockout.md) | dev | 3 h (may split: layout+map / FT+gating) | 02, 03, E0.2/E0.5 (final lint with 03b) | 1 | todo |
 | 06 | [dm1-bot-iteration](06-dm1-bot-iteration.md) | dev | 3 h (+ soak time) | 04, 04b, 05 | 1 | todo |
-| 07 | [dm1-band-ruling](07-dm1-band-ruling.md) | architect | 1 h | 06 | 1 | todo |
+| 07 | [dm1-band-ruling](07-dm1-band-ruling.md) | architect | 1 h | 06, E2 | 1 | todo |
 | 08 | [character-cosmetics-and-anim-instance](08-character-cosmetics-and-anim-instance.md) | dev-hard | 3 h | ADR §4 | 2 (parallel with 1) | todo |
 | 09 | [view-model-and-weapon-cosmetics](09-view-model-and-weapon-cosmetics.md) | dev | 3 h | 08 | 2 | todo |
 | 10 | [audio-foundation](10-audio-foundation.md) | dev | 3 h (may split: content script / hooks+announcer) | 09 | 2 | todo |
@@ -30,7 +31,7 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 ## Wave plan (from ADR 0006 implementation notes)
 
 - **Wave 0 — infrastructure, all four in parallel:** 01 answers the lighting question before anything depends on it; 02 gives the DM1 generator its library; 03 pays the nav-lint debt; 04 makes the soaks map-aware. No art, no new gameplay. **Done 2026-10-31; rulings in ADR 0006 E0.** Wave 0b (03b, 04b) closes the findings and runs in parallel with 05.
-- **Wave 1 — the map as gameplay:** 05 blockout (gated by lint + FT), 06 bots iterate the layout (report-only sets, evidence), 07 architect fixes the DM1 bands as ADR 0006 E1.
+- **Wave 1 — the map as gameplay:** 05 blockout (gated by lint + FT), 06 bots iterate the layout (report-only sets, evidence), 07 architect fixes the DM1 bands as ADR 0006 E3 (E1 = cosmetics review, E2 = dwell rule from the 03b finding, task 04c).
 - **Wave 2 — character/cosmetics code, parallel with wave 1:** 08 (dev-hard: replicated pawn/PlayerState surface), then 09 and 10. Everything works with empty soft references, so no art is needed.
 - **Wave 3 — art pipeline, parallel tasks:** 11–14 each produce a Blender script, a spec document and a verified headless import path. If Blender is on no host they end as "script + spec + fixture-proven import"; the human then runs the scripts on the Mac (or approves `apt install blender` here) and the import is one command.
 - **Wave 4 — assembly and acceptance:** 15 art pass (same soaks, same bands; fallback-C lighting, not in `MapsToCook`), 16 part A audit + tightened `LightingBuilt` + cook dry run on the VM, 16 part B the human's Production bake on the Apple Silicon Mac + `MapsToCook` + default map, 17 checklist, 18 review. M5 is done when the ROADMAP criteria hold, the bake is committed *and* the human signs the checklist on the Apple Silicon Mac.
