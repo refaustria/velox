@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done (with one open item: FtOffMesh `ra_strip` / `mega_strip`, see outcome)
 **Depends on:** 02 (library), 03 (lint), ADR 0006 E0.2 (e) and E0.4
 
 ## Goal
@@ -42,3 +42,8 @@ The three test maps are regenerated exactly once from the task-02 library (so th
 Standard format plus: the three lint summary lines before/after, the counts lines, the soak verdict lines with the D51 comparison, and the 45° finding.
 
 ## Notes / outcome
+
+2026-10-31 (dev): Done. Build green, 107 tests, 0 failing (new `NavCoverageClusters` rows). Edge strips implemented (`bEdge`, `kind=edge`, `edge=<n>`, navlint gate on `clusters - edge`). Maps regenerated once and committed; baseline in `notes/03b-report.md`. Item map: lowclear 0, former clusters 5/6 gone; combat lowclear 0; movement lowclear 13 -> 2 (the 45 deg platform junction, not a one-line fix, finding in the report).
+- **Open item (lead decides):** `fts.sh` is 6/7: `FtOffMesh` cases `ra_strip` / `mega_strip` (`Source/Velox/Tests/VeloxBotFunctionalTest.cpp` l. 1230-1231, outside this task's scope) start a bot in the 100 cm slots north of the RA / Mega platforms - exactly the slots E0.2 (e) orders sealed. After the seal the start (2100, 1450) lies inside `RedArmor_NorthFill`, the bot gets `no_clear_point` x6 and `giveup`. The task text assumed the slot cases were the D17 room ones. Options: drop the two cases (the D17-room slot A / B cases keep the D45 class covered) or point them at the YA slot. Not done here (out of scope).
+- Soaks: `nettest.sh --scripts BotRun,BotDuel --repeat 3 --keep-going`: both set evaluations PASS (bands=L_ItemTest); BotDuel round 1 FAILed one per-round rule, max_dwell 6 s at Rapidus (2539,-1715) goal=item (SE quadrant, far from the changed slots). `ffa.sh --repeat 3`: all judged invariants PASS.
+

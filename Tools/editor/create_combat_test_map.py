@@ -108,7 +108,7 @@ def build_map():
 
 
 def main():
-    vm.configure(log_prefix="[VeloxCombatMap]")
+    vm.configure(log_prefix="[VeloxCombatMap]", fill_nav_kinds=("cover",))
     vm.greybox_materials(keys=("Floor", "Wall", "Platform", "MarkerA"))
     if not vm.ERRORS:
         build_map()
