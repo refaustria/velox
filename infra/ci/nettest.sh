@@ -305,7 +305,7 @@ run_one() {
 # <script>.stats.json (--reeval writes to a scratch directory so the saved logs stay untouched).
 analyze_round() {
   python3 -I - "$@" <<'PY'
-import math, os, re, statistics, sys
+import collections, math, os, re, statistics, sys
 
 script, slog, clog, crc, server_alive, result_path, lag_ms, out_dir = sys.argv[1:9]
 stats_dir = sys.argv[9] if len(sys.argv) > 9 else out_dir
@@ -790,6 +790,29 @@ elif script in ("FireRun", "FireRunControl", "FireRunHold"):
         detail.append("held=[%s]" % " ".join(rows))
         if len(held) != 3:
             fails.append("expected 3 held rail RPCs (VeloxShotRpcHeld seq=), got %d" % len(held))
+    # ADR 0003 B42 (task m4-followups/02): the switch-retarget phase. Every client retarget (a weapon key during its own
+    # drop) must reach the server as a retarget (mode=pending, or mode=late within the resend tolerance; mode=fresh =
+    # outside it), and no predicted weapon may be contradicted by the server (VeloxWeaponSwitchCorrection on the client).
+    corrections = [l for l in C if "VeloxWeaponSwitchCorrection" in l]
+    retarget_c = [l for l in C if "VeloxWeaponSwitch retarget" in l]
+    retarget_s = [kv(l) for l in S if "VeloxWeaponSwitch retarget" in l]
+    modes = collections.Counter(d.get("mode", "?") for d in retarget_s)
+    detail.append("retarget client=%d server=%d modes=%s switch_corrections=%d" % (len(retarget_c), len(retarget_s),
+        ",".join("%s:%d" % kvp for kvp in sorted(modes.items())) or "-", len(corrections)))
+    if corrections:
+        fails.append("%d VeloxWeaponSwitchCorrection line(s) on the client, first: %s" % (len(corrections), corrections[0].split("VeloxWeaponSwitchCorrection", 1)[1].strip()[:140]))
+    if len(retarget_c) < 4:
+        fails.append("expected >= 4 client switch retargets (FireRun.json retarget phase), got %d" % len(retarget_c))
+    if len(retarget_s) != len(retarget_c):
+        fails.append("server saw %d switch retargets, the client made %d" % (len(retarget_s), len(retarget_c)))
+    if modes.get("fresh"):
+        fails.append("%d server retarget(s) outside the resend tolerance (mode=fresh)" % modes["fresh"])
+    # B42 (b): presses during a raise start a new switch whose wait includes the remaining raise (running= > 0).
+    raise_sw = [kv(l) for l in C if "VeloxWeaponSwitch " in l and " running=" in l and "role=client" in l]
+    raise_n = sum(1 for d in raise_sw if num(d, "running") > 0.0)
+    detail.append("raise_switches=%d" % raise_n)
+    if raise_n < 2:
+        fails.append("expected >= 2 raise-phase switches (client VeloxWeaponSwitch running= > 0), got %d" % raise_n)
     railfile = os.path.join(out_dir, "FireRun.railhits")
     if not control:
         if not hold_run:

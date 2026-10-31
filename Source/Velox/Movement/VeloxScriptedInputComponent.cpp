@@ -704,7 +704,8 @@ bool UVeloxScriptedInputComponent::SelectWeaponSlot(int32 Slot)
 		UE_LOG(LogVeloxNet, Warning, TEXT("VeloxScript: weapon slot %d not selectable (asc=%d index=%d owned=%d)"), Slot, ASC ? 1 : 0, Index, Inventory && Inventory->OwnsIndex(Index) ? 1 : 0);
 		return false;
 	}
-	if (Inventory->GetCurrentIndex() == Index || Inventory->GetPendingIndex() == Index)
+	// ADR 0003 B42: during a drop only the running target is a no-op (a press back to the current weapon retargets).
+	if (Inventory->GetPendingIndex() != INDEX_NONE ? Inventory->GetPendingIndex() == Index : Inventory->GetCurrentIndex() == Index)
 	{
 		return false;
 	}

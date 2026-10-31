@@ -110,7 +110,10 @@ public:
 	const UVeloxWeaponDefinition* GetCurrentDefinition() const { return GetDefinition(GetCurrentIndex()); }
 	/** The replicated (server) value. */
 	int32 GetAuthoritativeIndex() const { return CurrentIndex == NoWeapon ? INDEX_NONE : CurrentIndex; }
-	/** Server: target of a running switch (INDEX_NONE otherwise). */
+	/**
+	 * Target of a running switch in its refire wait / drop (INDEX_NONE otherwise). Server: authoritative. Owning client
+	 * (ADR 0003 B42): the locally predicted switch, so a press during the own drop retargets it.
+	 */
 	int32 GetPendingIndex() const { return PendingIndex == NoWeapon ? INDEX_NONE : PendingIndex; }
 	const UVeloxWeaponDefinition* GetPendingDefinition() const { return GetDefinition(GetPendingIndex()); }
 
@@ -173,12 +176,38 @@ public:
 	 */
 	void SetCurrentIndex(int32 Index);
 	/**
-	 * Server (ADR 0003 B37 iii): Index becomes the target of a running switch whose drop ends DropEndSeconds from now. The
-	 * inventory owns that drop end: PendingDropTimer runs CompletePendingDrop then (DropEndSeconds <= 0: at once), so a
-	 * superseding switch activation that ends the switch instance (B33) cannot orphan the pending switch. GE_WeaponSwitching
-	 * keeps running through the raise; SwitchEndTime is not touched. INDEX_NONE clears the pending index and the timer.
+	 * Every machine that runs the switch activation (ADR 0003 B37 iii, B42): Index becomes the target of a running switch
+	 * whose drop ends DropEndSeconds from now. The inventory owns that drop end: PendingDropTimer runs CompletePendingDrop
+	 * then (DropEndSeconds <= 0: at once). Server: the index becomes current (SetCurrentIndex). Owning client: the
+	 * predicted index (PredictCurrentIndex), unless the pawn is dead by then. GE_WeaponSwitching keeps running through the
+	 * raise; SwitchEndTime is not touched. INDEX_NONE clears the pending index and the timer.
 	 */
 	void SetPendingIndex(int32 Index, float DropEndSeconds);
+	/**
+	 * B42 retarget: a running drop lands on Index instead; its drop end (the timer) and SwitchEndTime stay. False (and
+	 * nothing changes) without a pending switch or for an index outside the table.
+	 */
+	bool RetargetPendingIndex(int32 Index);
+	/** Seconds until the pending drop ends (0 without one). */
+	double GetPendingDropRemaining() const;
+	/** Server (B42): world time of the last drop completion (timer, shot or supersede); < 0 = none this life. */
+	double GetLastDropEndTime() const { return LastDropEndTime; }
+	/** Owning client (B42): the latest local switch activation (switch or retarget) has this prediction key. */
+	void NoteLocalSwitch(int16 PredictionKey) { LocalSwitchKey = PredictionKey; }
+	/**
+	 * Owning client (B42): the server refused the switch activation with PredictionKey (ClientRejectSwitch, or the key's
+	 * rejected delegate after ClientActivateAbilityFailed). Logs VeloxWeaponSwitchCorrection reason=rejected; if it is
+	 * still the latest local switch, the pending switch, the switch end and the predicted index are dropped (the
+	 * replicated index stands).
+	 */
+	void CancelLocalSwitch(int16 PredictionKey);
+	/**
+	 * Server -> owning client (B42): a switch activation GAS confirmed but ActivateAbility refused (not owned, B33
+	 * supersede, ...). The instance ends at activation, so a replicated EndAbility no longer reaches a running client
+	 * instance; the inventory's local switch is rolled back instead.
+	 */
+	UFUNCTION(Client, Reliable)
+	void ClientRejectSwitch(int16 PredictionKey);
 	/** Tests and logs: the server's pending drop timer is armed. */
 	bool IsPendingDropTimerActive() const;
 	/**
@@ -311,6 +340,10 @@ private:
 	/** B37 (iii), PendingDropTimer: Target becomes current if it is still the pending index. */
 	void CompletePendingDrop(int32 Target);
 	void ClearPendingDropTimer();
+	/** Owning client: drops the predicted index (and its chain); broadcasts if the effective index changes. */
+	void ClearPrediction();
+	/** Owning client: logs VeloxWeaponSwitchCorrection (a predicted weapon the server did not confirm). */
+	void NoteSwitchCorrection(const TCHAR* Reason, int32 Predicted, int32 Server) const;
 
 	/** Bit i = weapon table index i is owned. Owner only. */
 	UPROPERTY(ReplicatedUsing = OnRep_OwnedMask)
@@ -320,6 +353,7 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentIndex)
 	uint8 CurrentIndex = NoWeapon;
 
+	/** Server: authoritative pending target. Owning client: the predicted one (B42). Not replicated. */
 	uint8 PendingIndex = NoWeapon;
 
 	/** Server: fire ability spec per table index (invalid when not owned or the weapon has no fire ability). */
@@ -333,6 +367,9 @@ private:
 
 	int32 PredictedIndex = INDEX_NONE;
 	double PredictionExpireTime = 0.0;
+	/** Owning client (B42): earlier predictions of the current unconfirmed chain, oldest first (their echoes are stale). */
+	static constexpr int32 MaxStalePredictions = 4;
+	TArray<int32, TInlineAllocator<MaxStalePredictions>> StalePredictions;
 
 	/** Owning client: weapons owned by a predicted pickup and the local world time each prediction expires. */
 	uint16 PredictedOwnedMask = 0;
@@ -344,6 +381,11 @@ private:
 	uint8 ServerPatternSeqCounter = 0;
 
 	double SwitchEndTime = 0.0;
+
+	/** Server (B42): see GetLastDropEndTime. */
+	double LastDropEndTime = -1.0;
+	/** Owning client (B42): prediction key of the latest local switch activation. */
+	int16 LocalSwitchKey = 0;
 
 	double RejectLogWindowStart = -1.0;
 	int32 RejectLogCount = 0;

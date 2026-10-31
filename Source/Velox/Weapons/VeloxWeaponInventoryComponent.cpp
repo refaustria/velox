@@ -309,6 +309,7 @@ void UVeloxWeaponInventoryComponent::ResetToLoadout()
 	}
 	OwnedMask = Desired;
 	SwitchEndTime = 0.0;
+	LastDropEndTime = -1.0;
 	// B37: a switch running at death must not land on a weapon of the old life (SetCurrentIndex clears it too).
 	ClearPendingDropTimer();
 	ResetShotSeq();
@@ -394,7 +395,7 @@ void UVeloxWeaponInventoryComponent::SetPendingIndex(int32 Index, float DropEndS
 {
 	PendingIndex = (Index >= 0 && Index < UVeloxWeaponTable::MaxWeapons) ? static_cast<uint8>(Index) : NoWeapon;
 	ClearPendingDropTimer();
-	if (PendingIndex == NoWeapon || !GetOwner() || !GetOwner()->HasAuthority())
+	if (PendingIndex == NoWeapon || !GetOwner())
 	{
 		return;
 	}
@@ -406,6 +407,62 @@ void UVeloxWeaponInventoryComponent::SetPendingIndex(int32 Index, float DropEndS
 	}
 	World->GetTimerManager().SetTimer(PendingDropTimer, FTimerDelegate::CreateUObject(this, &ThisClass::CompletePendingDrop, static_cast<int32>(PendingIndex)), DropEndSeconds,
 		false);
+}
+
+bool UVeloxWeaponInventoryComponent::RetargetPendingIndex(int32 Index)
+{
+	if (PendingIndex == NoWeapon || Index < 0 || Index >= UVeloxWeaponTable::MaxWeapons)
+	{
+		return false;
+	}
+	if (PendingIndex == static_cast<uint8>(Index))
+	{
+		return true;
+	}
+	// The drop end stays: re-arm the timer with its remaining time for the new target (its payload is the target).
+	const bool bTimer = IsPendingDropTimerActive();
+	const double Remaining = GetPendingDropRemaining();
+	SetPendingIndex(Index, bTimer ? static_cast<float>(FMath::Max(Remaining, static_cast<double>(UE_KINDA_SMALL_NUMBER))) : 0.f);
+	return true;
+}
+
+double UVeloxWeaponInventoryComponent::GetPendingDropRemaining() const
+{
+	const UWorld* World = GetWorld();
+	if (PendingIndex == NoWeapon || !World || !World->GetTimerManager().IsTimerActive(PendingDropTimer))
+	{
+		return 0.0;
+	}
+	return FMath::Max(static_cast<double>(World->GetTimerManager().GetTimerRemaining(PendingDropTimer)), 0.0);
+}
+
+void UVeloxWeaponInventoryComponent::ClientRejectSwitch_Implementation(int16 PredictionKey)
+{
+	CancelLocalSwitch(PredictionKey);
+}
+
+void UVeloxWeaponInventoryComponent::CancelLocalSwitch(int16 PredictionKey)
+{
+	if (GetOwner() && GetOwner()->HasAuthority())
+	{
+		return;
+	}
+	NoteSwitchCorrection(TEXT("rejected"), PendingIndex != NoWeapon ? GetPendingIndex() : GetCurrentIndex(), GetAuthoritativeIndex());
+	if (PredictionKey != LocalSwitchKey)
+	{
+		return;
+	}
+	PendingIndex = NoWeapon;
+	ClearPendingDropTimer();
+	SwitchEndTime = 0.0;
+	ClearPrediction();
+}
+
+void UVeloxWeaponInventoryComponent::NoteSwitchCorrection(const TCHAR* Reason, int32 Predicted, int32 Server) const
+{
+	const UWorld* World = GetWorld();
+	UE_LOG(LogVeloxCombat, Log, TEXT("%s: VeloxWeaponSwitchCorrection reason=%s predicted=%s server=%s t=%.3f"), *GetNameSafe(GetOwner()), Reason, *GetNameSafe(GetDefinition(Predicted)),
+		*GetNameSafe(GetDefinition(Server)), World ? World->GetTimeSeconds() : 0.0);
 }
 
 bool UVeloxWeaponInventoryComponent::IsPendingDropTimerActive() const
@@ -422,7 +479,25 @@ void UVeloxWeaponInventoryComponent::CompletePendingDrop(int32 Target)
 		return;
 	}
 	UE_LOG(LogVeloxCombat, Verbose, TEXT("%s: VeloxWeaponSwitch drop end (inventory) -> current %d (was %d)"), *GetNameSafe(GetOwner()), Target, GetAuthoritativeIndex());
-	SetCurrentIndex(Target);
+	if (GetOwner() && GetOwner()->HasAuthority())
+	{
+		if (const UWorld* World = GetWorld())
+		{
+			LastDropEndTime = World->GetTimeSeconds();
+		}
+		SetCurrentIndex(Target);
+		return;
+	}
+	// Owning client (B42): the predicted switch result. A pawn that died during the drop keeps the server's weapon (the
+	// server's ResetToLoadout replaces the switch) and must not stay blocked by the old life's switch end.
+	PendingIndex = NoWeapon;
+	const UVeloxAbilitySystemComponent* ASC = GetVeloxASC();
+	if (ASC && ASC->HasMatchingGameplayTag(VeloxGameplayTags::State_Dead))
+	{
+		SwitchEndTime = 0.0;
+		return;
+	}
+	PredictCurrentIndex(Target);
 }
 
 void UVeloxWeaponInventoryComponent::ClearPendingDropTimer()
@@ -474,6 +549,10 @@ void UVeloxWeaponInventoryComponent::CompletePendingSwitchIndexOnly()
 		ASC->RemoveActiveGameplayEffectBySourceEffect(UVeloxGE_WeaponSwitching::StaticClass(), nullptr);
 	}
 	SwitchEndTime = 0.0;
+	if (const UWorld* World = GetWorld())
+	{
+		LastDropEndTime = World->GetTimeSeconds();
+	}
 	SetCurrentIndex(Target);
 }
 
@@ -485,12 +564,29 @@ void UVeloxWeaponInventoryComponent::PredictCurrentIndex(int32 Index)
 		return;
 	}
 	const int32 Old = GetCurrentIndex();
-	if (Index == GetAuthoritativeIndex())
+	const bool bLive = PredictedIndex != INDEX_NONE && World->GetTimeSeconds() < PredictionExpireTime;
+	if (!bLive && Index == GetAuthoritativeIndex())
 	{
 		PredictedIndex = INDEX_NONE;
+		StalePredictions.Reset();
 	}
 	else
 	{
+		// B42: a newer prediction while an older one is still unconfirmed (rapid switching, retargets at high RTT): the
+		// older one's replicated value may still arrive and must not override this one (OnRep_CurrentIndex). Kept even
+		// when Index equals the (possibly stale) replicated value, so a quick switch back is not flipped by that echo.
+		if (!bLive)
+		{
+			StalePredictions.Reset();
+		}
+		else if (PredictedIndex != Index)
+		{
+			if (StalePredictions.Num() >= MaxStalePredictions)
+			{
+				StalePredictions.RemoveAt(0);
+			}
+			StalePredictions.Add(PredictedIndex);
+		}
 		PredictedIndex = Index;
 		PredictionExpireTime = World->GetTimeSeconds() + PredictionTimeout;
 	}
@@ -500,11 +596,41 @@ void UVeloxWeaponInventoryComponent::PredictCurrentIndex(int32 Index)
 	}
 }
 
+void UVeloxWeaponInventoryComponent::ClearPrediction()
+{
+	const int32 Old = GetCurrentIndex();
+	PredictedIndex = INDEX_NONE;
+	StalePredictions.Reset();
+	if (Old != GetCurrentIndex())
+	{
+		OnCurrentWeaponChanged.Broadcast(Old, GetCurrentIndex());
+	}
+}
+
 void UVeloxWeaponInventoryComponent::OnRep_CurrentIndex(uint8 OldIndex)
 {
 	const int32 OldEffective = PredictedIndex != INDEX_NONE ? PredictedIndex : (OldIndex == NoWeapon ? INDEX_NONE : static_cast<int32>(OldIndex));
+	const UWorld* World = GetWorld();
+	const bool bLive = PredictedIndex != INDEX_NONE && World && World->GetTimeSeconds() < PredictionExpireTime;
+	// B42: the echo of an older, superseded prediction of this chain (the server is one step behind): the newer
+	// prediction stands until its own value arrives or it times out.
+	const int32 Auth = GetAuthoritativeIndex();
+	const int32 StaleAt = bLive && PredictedIndex != Auth ? StalePredictions.Find(Auth) : INDEX_NONE;
+	if (StaleAt != INDEX_NONE)
+	{
+		StalePredictions.RemoveAt(0, StaleAt + 1);
+		UE_LOG(LogVeloxCombat, Verbose, TEXT("%s: VeloxWeaponSwitch rep %s is an older step, prediction %s stands"), *GetNameSafe(GetOwner()), *GetNameSafe(GetDefinition(Auth)),
+			*GetNameSafe(GetDefinition(PredictedIndex)));
+		return;
+	}
+	// B42 metric: a prediction the replicated value contradicts is a visible correction on the owner.
+	if (PredictedIndex != INDEX_NONE && PredictedIndex != Auth)
+	{
+		NoteSwitchCorrection(bLive ? TEXT("rep") : TEXT("timeout"), PredictedIndex, Auth);
+	}
 	// The server confirmed (or overrode) the prediction.
 	PredictedIndex = INDEX_NONE;
+	StalePredictions.Reset();
 	if (OldEffective != GetAuthoritativeIndex())
 	{
 		OnCurrentWeaponChanged.Broadcast(OldEffective, GetAuthoritativeIndex());
