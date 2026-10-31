@@ -1,0 +1,19 @@
+=== D50 (6)(iv) re-derivation over /home/bojan/velox/.claude/worktrees/agent-aabdcf7d37e32da35/docs/adr/evidence/0005-D50-near-human ===
+BotRun rounds 12 (valid 12), BotDuel rounds 12 (valid 12), FFA runs 10
+--- lower bands (largest k with P(sum < k | unchanged) <= 2.5 %; both models) ---
+BotRun sum kills (3)         rounds=12 values=[10, 12, 10, 9, 9, 7, 8, 12, 10, 12, 13, 9] mean=10.08 | k_bootstrap=24 k_poisson=20 -> proposed k=20 | current >= 12: P(fail) bootstrap 0.00 % poisson 0.01 %
+BotDuel sum frags (3)        rounds=12 values=[9, 11, 8, 10, 12, 9, 7, 10, 11, 10, 9, 14] mean=10.00 | k_bootstrap=24 k_poisson=20 -> proposed k=20 | current >= 9: P(fail) bootstrap 0.00 % poisson 0.00 %
+BotDuel sum camp episodes (3) rounds=12 values=[2, 6, 5, 4, 4, 6, 5, 7, 5, 5, 3, 4] mean=4.67 | k_bootstrap=9 k_poisson=7 -> proposed k=7 | current >= 2: P(fail) bootstrap 0.00 % poisson 0.00 %
+FFA sum kills (10)           rounds=10 values=[10, 8, 11, 8, 8, 9, 11, 9, 9, 9] mean=9.20 | k_bootstrap=86 k_poisson=74 -> proposed k=74 | current >= 70: P(fail) bootstrap 0.00 % poisson 0.75 %
+--- D48 (b) Mega band (set of three BotDuel rounds: sum timed returns <= 6 s >= 3 and >= 1 within 3 s) ---
+timed returns n=26 (2.17 per round) p(<=6 s)=0.69 p(<=3 s)=0.62 values=['13.6', '1.8', '0.6', '1.3', '5.0', '3.1', '0.0', '2.1', '0.9', '0.9', '0.1', '0.7', '0.0', '0.0', '7.8', '9.6', '9.6', '2.6', '2.7', '8.8', '1.2', '8.4', '0.1', '0.7', '15.2', '12.9']
+P(Mega band fails | unchanged): binomial at n=6 per set 7.97 %, bootstrap over rounds 12.14 % -> ABOVE 2.5 %: to the architect
+--- upper bands (re-checked, not moved) ---
+BotRun sets: set-1:stuck=3 set-2:stuck=0 set-3:stuck=0 set-4:stuck=0
+BotRun per round: stuck max=1 (cap 6) bursts=0 pocket=0 max_dwell=5 (<= 8) link_max_dt=1.60 (<= 8)
+BotDuel sets: set-1:stuck=2 set-2:stuck=1 set-3:stuck=3 set-4:stuck=0
+BotDuel per round: stuck max=2 (cap 6) bursts=0 pocket=0 max_dwell=7 (<= 8) link_max_dt=1.83 (<= 8)
+FFA: sum stuck=3 (<= 30) max run stuck=1 (cap 7) bursts=0 pocket=0 max_dwell=4 dwell>=6 runs=0 link_max_dt=1.51
+--- report-only ranges ---
+BotRun: clean mean_us range 74.5-97.8 (rounds > 300: 0; not cost-judged rounds: 1), max_fire_us (all windows) range 3754-8266, clean-window max_fire_us > 2000: 14/108 (13 %), camp_share_pct range 0.0-0.0
+BotDuel: clean mean_us range 80.5-99.0 (rounds > 300: 0; not cost-judged rounds: 2), max_fire_us (all windows) range 4884-9109, clean-window max_fire_us > 2000: 6/103 (6 %), camp_share_pct range 3.3-10.0

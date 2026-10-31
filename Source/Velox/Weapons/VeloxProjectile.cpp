@@ -533,8 +533,9 @@ void AVeloxProjectile::ServerExplode(const FVeloxProjectileImpact& Impact)
 	Info.bConfirmSent = bConfirmSent;
 #endif
 
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileExplode seq=%u weapon=%s owner=%s at=%s age_ms=%.1f direct=%s splash=%d self=%s confirm_victims=%d confirm_dmg=%u kill=%d confirm_sent=%d quad=%d"),
-		ShotSeq, *GetNameSafe(Definition), *GetNameSafe(OwnerPawn), *Origin.ToCompactString(), State.Age * 1000.0, *GetNameSafe(Impact.Pawn), Splash.Num(),
+	// ADR 0005 D50 (4): by= is the source ASC owner's player label (also after the shooter died).
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileExplode seq=%u weapon=%s owner=%s by=%s at=%s age_ms=%.1f direct=%s splash=%d self=%s confirm_victims=%d confirm_dmg=%u kill=%d confirm_sent=%d quad=%d"),
+		ShotSeq, *GetNameSafe(Definition), *GetNameSafe(OwnerPawn), *AVeloxPlayerState::VeloxPlayerLabel(Cast<APlayerState>(ASC->GetOwnerActor())), *Origin.ToCompactString(), State.Age * 1000.0, *GetNameSafe(Impact.Pawn), Splash.Num(),
 		bSkipOwner ? TEXT("move_timed") : (bResolveOwnerHere ? TEXT("here") : TEXT("local")), Confirm.Victims, ConfirmDamage, Confirm.bKill ? 1 : 0, bConfirmSent ? 1 : 0, bQuad ? 1 : 0);
 
 	// The authoritative explosion for every client, the owner included: outside any prediction window (an explosion

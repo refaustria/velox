@@ -10,7 +10,7 @@
 // Field table: every overridable POD field once; cvars velox.bots.<Field> are generated from it (pattern of velox.move.*).
 #define VELOX_BOT_FLOAT_FIELDS(X) \
 	X(ReactionSeconds) X(ReactionJitter) X(AimErrorDeg) X(ErrorCorrelationSeconds) X(TrackingSmoothingSeconds) X(MaxTurnRateDegPerSec) \
-	X(LeadScale) X(FireConeDeg) X(PerceptionFovDeg) X(PerceptionRangeCm) X(PerceptionIntervalSeconds) X(EnemyMemorySeconds) \
+	X(LeadScale) X(FireConeDeg) X(DirectHitRadiusScale) X(FireReleaseConeScale) X(FireHoldAfterLostSeconds) X(PerceptionFovDeg) X(PerceptionRangeCm) X(PerceptionIntervalSeconds) X(EnemyMemorySeconds) \
 	X(EstimatedTravelSpeed) X(ItemTimingSkill) X(MaxWaitSeconds) X(GoalReevaluateSeconds) X(GoalSwitchHysteresis) \
 	X(FightItemBias) X(StrafeAmplitude) X(StrafeFlipSecondsMin) X(StrafeFlipSecondsMax) X(DodgeJumpChancePerSec) \
 	X(ProjectileDodgeReactionSeconds) X(PreferredRange)
@@ -63,6 +63,9 @@ FVeloxBotDifficultyParams UVeloxBotDifficulty::BuildBaseParams() const
 	P.bLeadProjectiles = bLeadProjectiles;
 	P.LeadScale = LeadScale;
 	P.FireConeDeg = FireConeDeg;
+	P.DirectHitRadiusScale = DirectHitRadiusScale;
+	P.FireReleaseConeScale = FireReleaseConeScale;
+	P.FireHoldAfterLostSeconds = FireHoldAfterLostSeconds;
 
 	P.PerceptionFovDeg = PerceptionFovDeg;
 	P.PerceptionRangeCm = PerceptionRangeCm;

@@ -1881,7 +1881,8 @@ bool FVeloxBotsItemRoutingTest::RunTest(const FString& Parameters)
 
 // ======================================================================================================== task 05
 // Velox.Bots.ShouldFire       the section 8 fire rule rows: ammo, visibility, cone, range band, ground rockets,
-//                             self-splash safety (wall in the face, target inside the blast), switch in progress.
+//                             self-splash safety (wall in the face, target inside the blast), switch in progress; D50 rows
+//                             a-e (gate scale, trigger hysteresis, hold-after-lost, never-relaxed checks, Expert = none).
 // Velox.Bots.CombatRules      FOV, sticky target choice, the section 10 overlay (strafe side, range keeping, leash,
 //                             path blend, dodge), projectile threat geometry, chance rolls.
 // Velox.Bots.RocketJumpAbort  Maneuver rocket-jump rows: eligibility lost on the approach, during the switch and in the
@@ -2021,6 +2022,90 @@ bool FVeloxBotsShouldFireTest::RunTest(const FString& Parameters)
 		In.bAimHit = false;
 		In.AimHitPoint = FVector(960.0, 60.0, 30.0);
 		TestTrue(TEXT("no world hit and off the cone -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Hard) == EVeloxFireVerdict::OffTarget);
+	}
+	// ADR 0005 D50 (2) rows a-e: the per-preset gate scale, the trigger hysteresis and the hold-after-lost.
+	{
+		FVeloxBotDifficultyParams Spray = Hard;
+		Spray.FireConeDeg = 7.f;
+		Spray.FireReleaseConeScale = 1.5f;
+		Spray.FireHoldAfterLostSeconds = 0.2f;
+		// (a) not held, 5 deg off at 1000 cm (87 cm lateral): inside the 7 deg cone, outside the 60 cm gate.
+		FVeloxFireInput In = DeadOn();
+		In.AimDir = DirFromYawDeg(5.0);
+		In.DirectHitRadiusCm = 60.f * 1.f;
+		TestTrue(TEXT("D50 a: gate scale 1, inside the cone, outside the gate -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::OffTarget);
+		In.DirectHitRadiusCm = 60.f * 0.f;
+		TestTrue(TEXT("D50 a: gate scale 0 (cone only) -> Fire"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::Fire);
+		// (b) held: 1.4 x cone inside the 1.5 release cone -> FireHeld (the gate is not applied while held); 1.6 x -> OffTarget.
+		In = DeadOn();
+		In.DirectHitRadiusCm = 60.f;
+		In.bTriggerHeld = true;
+		In.AimDir = DirFromYawDeg(1.4 * 7.0);
+		TestTrue(TEXT("D50 b: held, 1.4 x cone, release 1.5 -> FireHeld"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::FireHeld);
+		TestTrue(TEXT("D50 b: FireHeld counts as ShouldFire"), VeloxBotCombat::ShouldFire(In, Spray));
+		In.AimDir = DirFromYawDeg(1.6 * 7.0);
+		TestTrue(TEXT("D50 b: held, 1.6 x cone -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::OffTarget);
+		In.bTriggerHeld = false;
+		In.AimDir = DirFromYawDeg(1.4 * 7.0);
+		TestTrue(TEXT("D50 b: released, 1.4 x cone -> OffTarget (the full rule again)"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::OffTarget);
+		// (c) held, target lost 0.1 s with hold 0.2 -> FireHeld (TargetCentre = last seen location); lost 0.3 s -> NoTarget.
+		In = DeadOn();
+		In.bTriggerHeld = true;
+		In.bTargetVisible = false;
+		In.DesiredPoint = FVector::ZeroVector;
+		In.AimDir = DirFromYawDeg(30.0);
+		In.SecondsSinceTargetSeen = 0.1f;
+		TestTrue(TEXT("D50 c: held, lost 0.1 s, hold 0.2 -> FireHeld"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::FireHeld);
+		In.SecondsSinceTargetSeen = 0.3f;
+		TestTrue(TEXT("D50 c: held, lost 0.3 s -> NoTarget"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::NoTarget);
+		In.SecondsSinceTargetSeen = 0.1f;
+		In.bTriggerHeld = false;
+		TestTrue(TEXT("D50 c: not held, lost 0.1 s -> NoTarget (the hold needs a held trigger)"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::NoTarget);
+		In.bTriggerHeld = true;
+		In.MinRangeCm = 0.f;
+		In.MaxRangeCm = 900.f;
+		TestTrue(TEXT("D50 c: held, lost, last seen location outside the band -> OutOfRange"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::OutOfRange);
+		// (d) never relaxed while held: ammo, self-splash (wall in the face, also after the target was lost).
+		In = DeadOn();
+		In.bTriggerHeld = true;
+		In.bHasAmmo = false;
+		TestTrue(TEXT("D50 d: held + no ammo -> NoAmmo"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::NoAmmo);
+		In = DeadOn();
+		In.bTriggerHeld = true;
+		In.bWeaponReady = false;
+		TestTrue(TEXT("D50 d: held + switch in progress -> NotReady"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::NotReady);
+		In = DeadOn();
+		In.bTriggerHeld = true;
+		In.SplashRadiusCm = 120.f;
+		In.SelfSplashMarginCm = 50.f;
+		In.bAimHit = true;
+		In.AimHitPoint = FVector(150.0, 0.0, 60.0);
+		In.AimDir = DirFromYawDeg(1.4 * 7.0);
+		TestTrue(TEXT("D50 d: held + wall inside SplashRadius + margin -> SelfSplash"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::SelfSplash);
+		In.bTargetVisible = false;
+		In.SecondsSinceTargetSeen = 0.1f;
+		TestTrue(TEXT("D50 d: held, lost + wall in the face -> SelfSplash"), VeloxBotCombat::EvaluateFire(In, Spray) == EVeloxFireVerdict::SelfSplash);
+		// (e) Expert (release 1.0, hold 0): no hysteresis.
+		FVeloxBotDifficultyParams Expert = Hard;
+		Expert.FireConeDeg = 3.f;
+		Expert.FireReleaseConeScale = 1.f;
+		Expert.FireHoldAfterLostSeconds = 0.f;
+		In = DeadOn();
+		In.bTriggerHeld = true;
+		In.AimDir = DirFromYawDeg(1.01 * 3.0);
+		TestTrue(TEXT("D50 e: Expert held, 1.01 x cone -> OffTarget"), VeloxBotCombat::EvaluateFire(In, Expert) == EVeloxFireVerdict::OffTarget);
+		In.AimDir = FVector(1.0, 0.0, 0.0);
+		In.bTargetVisible = false;
+		In.SecondsSinceTargetSeen = 0.01f;
+		TestTrue(TEXT("D50 e: Expert held, lost 0.01 s -> NoTarget"), VeloxBotCombat::EvaluateFire(In, Expert) == EVeloxFireVerdict::NoTarget);
+		In = DeadOn();
+		In.bTriggerHeld = true;
+		In.DirectHitRadiusCm = 60.f;
+		In.TargetCentre = FVector(2000.0, 0.0, 60.0);
+		In.DesiredPoint = In.TargetCentre;
+		In.AimDir = DirFromYawDeg(2.5); // 87 cm lateral at 2000 cm: inside the 3 deg cone, outside the gate
+		TestTrue(TEXT("D50 e: Expert held, inside the cone, outside the gate -> OffTarget (release 1.0 = no hysteresis)"), VeloxBotCombat::EvaluateFire(In, Expert) == EVeloxFireVerdict::OffTarget);
+		TestTrue(TEXT("D50: LexToString(FireHeld) is held"), FString(LexToString(EVeloxFireVerdict::FireHeld)) == TEXT("held"));
 	}
 	return true;
 }

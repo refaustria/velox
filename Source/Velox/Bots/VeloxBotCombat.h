@@ -145,6 +145,8 @@ public:
 enum class EVeloxFireVerdict : uint8
 {
 	Fire,
+	/** ADR 0005 D50: fire by the held trigger's hysteresis (release cone or hold-after-lost), not by the full rule. */
+	FireHeld,
 	NoWeapon,
 	NotReady,
 	NoAmmo,
@@ -159,6 +161,7 @@ inline const TCHAR* LexToString(EVeloxFireVerdict Verdict)
 	switch (Verdict)
 	{
 	case EVeloxFireVerdict::Fire: return TEXT("fire");
+	case EVeloxFireVerdict::FireHeld: return TEXT("held");
 	case EVeloxFireVerdict::NoWeapon: return TEXT("noweapon");
 	case EVeloxFireVerdict::NotReady: return TEXT("notready");
 	case EVeloxFireVerdict::NoAmmo: return TEXT("noammo");
@@ -195,8 +198,12 @@ struct FVeloxFireInput
 	float MaxRangeCm = 0.f;
 	float SelfSplashMarginCm = 50.f;
 	float SplashHitFraction = 0.8f;
-	/** Direct-hit weapons: the aim ray must pass within this of DesiredPoint (0 = cone only). */
+	/** Direct-hit weapons: the aim ray must pass within this of DesiredPoint (0 = cone only; the glue scales it per preset, D50). */
 	float DirectHitRadiusCm = 0.f;
+	/** ADR 0005 D50: last tick's fire-rule verdict was Fire or FireHeld (the trigger is down). */
+	bool bTriggerHeld = false;
+	/** D50: 0 while the target is visible, Now - LastSeenTime otherwise (TargetCentre is then the last seen location). */
+	float SecondsSinceTargetSeen = 0.f;
 };
 
 /** One enemy candidate for target selection. */
@@ -242,10 +249,16 @@ struct FVeloxProjectileThreat
 
 namespace VeloxBotCombat
 {
-	/** Fire rule of ADR 0005 section 8 with the reason; Fire = hold the trigger this tick. */
+	/**
+	 * Fire rule of ADR 0005 section 8 with the reason; Fire / FireHeld = hold the trigger this tick. D50: while the trigger
+	 * is held (In.bTriggerHeld) and the full rule says OffTarget, the aim test is angle <= FireConeDeg x FireReleaseConeScale
+	 * without the direct-hit gate (FireHeld; FireReleaseConeScale <= 1 = no hysteresis); a held trigger stays down
+	 * FireHoldAfterLostSeconds after the target left sight (FireHeld, no aim test; range to the last seen location).
+	 * NoWeapon, NotReady, NoAmmo, OutOfRange and SelfSplash are never relaxed.
+	 */
 	VELOX_API EVeloxFireVerdict EvaluateFire(const FVeloxFireInput& In, const FVeloxBotDifficultyParams& Difficulty);
 
-	/** EvaluateFire == Fire (the ADR's signature). */
+	/** EvaluateFire is Fire or FireHeld (the ADR's signature). */
 	VELOX_API bool ShouldFire(const FVeloxFireInput& In, const FVeloxBotDifficultyParams& Difficulty);
 
 	/** Target inside the view cone: angle(ViewDir, Target - Eye) <= FovDeg / 2 (FovDeg >= 360: always). */
@@ -350,6 +363,8 @@ struct FVeloxBotCombatState
 
 	double NextWeaponChoiceTime = -1.0;
 	EVeloxFireVerdict LastVerdict = EVeloxFireVerdict::NoTarget;
+	/** D50: the fire rule's own verdict last tick was Fire / FireHeld (after the rocket-jump suppression, before maneuver fire). */
+	bool bRuleTriggerHeld = false;
 	int32 ShotsPressed = 0;
 	int32 TracesTotal = 0;
 

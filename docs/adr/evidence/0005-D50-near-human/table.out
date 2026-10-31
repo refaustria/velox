@@ -1,0 +1,30 @@
+round                              kills frags stuck  camp  megaT timed_s                mean_us   cost | acc_hs acc_pj    spk   trig   held  campT
+botrun/set-1:round-1/BotRun           10    10     1     0      3 6.9                       82.4    n/j |   17.1   20.8   88.7   36.7   46.8    0.0
+botrun/set-1:round-2/BotRun           12    12     1     0      4 5.2,0.3                   74.5 judged |   20.4   32.8   45.3   42.6   31.0    0.0
+botrun/set-1:round-3/BotRun           10    10     1     0      4 8.2,2.1                   77.2 judged |   16.4   31.4   74.0   41.5   31.3    0.0
+botrun/set-2:round-1/BotRun            9     9     0     0      3 8.7                       79.5 judged |   18.9   20.4   94.6   43.6   39.3    0.0
+botrun/set-2:round-2/BotRun            9     9     0     0      4 4.4,0.0                   97.8 judged |   21.6   23.8   82.0   41.3   32.6    0.0
+botrun/set-2:round-3/BotRun            7     7     0     0      4 5.6,3.5                   81.6 judged |   13.5   22.8  116.2   42.1   44.1    0.0
+botrun/set-3:round-1/BotRun            8     8     0     0      3 5.4                       78.3 judged |   16.4   33.3   85.3   40.7   40.7    0.0
+botrun/set-3:round-2/BotRun           12    12     0     0      4 0.0,3.5                   77.0 judged |   21.9   14.6   69.0   48.6   29.4    0.0
+botrun/set-3:round-3/BotRun           10    10     0     0      3 1.5                       85.0 judged |   13.8   20.2  106.6   40.1   35.3    0.0
+botrun/set-4:round-1/BotRun           12    12     0     0      4 0.8,10.3                  74.5 judged |   18.1   32.6   44.3   37.8   27.6    0.0
+botrun/set-4:round-2/BotRun           13    13     0     0      4 2.9,2.0                   77.1 judged |   23.6   30.4   59.8   42.7   37.5    0.0
+botrun/set-4:round-3/BotRun            9     9     0     0      4 4.4,1.2                   77.9 judged |   17.4   23.7   85.1   44.9   33.0    0.0
+POOLED botrun                      acc_hitscan_pct=18.2 acc_proj_pct=23.8 shots_per_kill=74.8 trigger_share_pct=41.9 held_share_pct=35.6 camp_time_pct=0.0
+
+round                              kills frags stuck  camp  megaT timed_s                mean_us   cost | acc_hs acc_pj    spk   trig   held  campT
+botduel/set-1:round-1/BotDuel          9     9     0     2      4 13.6,1.8                  83.7    n/j |   57.3   20.0   34.7   23.4    0.0    3.2
+botduel/set-1:round-2/BotDuel         11    11     0     6      4 0.6,1.3                   80.8 judged |   54.3   42.1   17.6   22.7    0.0    4.7
+botduel/set-1:round-3/BotDuel          8     8     2     5      4 5.0,3.1                   83.0 judged |   58.1   20.7   43.9   29.8    0.0    4.1
+botduel/set-2:round-1/BotDuel         10    10     0     4      5 0.0,2.1,0.9               81.3 judged |   57.9   42.9   28.0   23.0    0.0    2.3
+botduel/set-2:round-2/BotDuel         12    12     1     4      5 0.9,0.1,0.7               80.5 judged |   53.6   23.5   22.7   20.3    0.0    5.6
+botduel/set-2:round-3/BotDuel          9     9     0     6      4 0.0,0.0                   87.7    n/j |   48.1    4.7   44.4   29.1    0.0    3.7
+botduel/set-3:round-1/BotDuel          7     7     2     5      4 7.8,9.6                   99.0 judged |   53.1   17.1   33.0   19.0    0.0    4.1
+botduel/set-3:round-2/BotDuel         10    10     1     7      4 9.6,2.6                   94.2 judged |   54.4   28.9   33.1   26.6    0.0    3.2
+botduel/set-3:round-3/BotDuel         11    11     0     5      4 2.7,8.8                   85.8 judged |   52.3   35.9   23.4   22.0    0.0    2.8
+botduel/set-4:round-1/BotDuel         10    10     0     5      4 1.2,8.4                   88.1 judged |   59.0   17.6   43.9   25.0    0.0    2.8
+botduel/set-4:round-2/BotDuel          9     9     0     3      4 0.1,0.7                   85.2 judged |   54.5   43.3   32.9   17.2    0.0    2.3
+botduel/set-4:round-3/BotDuel         14    14     0     4      4 15.2,12.9                 86.6 judged |   56.6   28.6   25.0   21.5    0.0    3.3
+POOLED botduel                     acc_hitscan_pct=55.2 acc_proj_pct=25.4 shots_per_kill=30.6 trigger_share_pct=23.3 held_share_pct=0.0 camp_time_pct=3.5
+
