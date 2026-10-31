@@ -42,6 +42,9 @@ HOST_SAMPLE_S=5
 LOAD_GATE="${VELOX_LOAD_GATE:-2.0}"
 LOAD_GATE_WAIT="${VELOX_LOAD_GATE_WAIT:-120}"
 REEVAL_DIR=""
+# ADR 0005 D50 (4): --bot-difficulty <preset> substitutes BotDifficulty= in the BotRun/BotDuel URLs; such rounds are
+# calibration rounds (stats.json calibration=<preset>, no D36/D48/D49 band judged).
+BOT_DIFFICULTY=""
 
 nettest_usage() {
   cat <<USAGE
@@ -72,6 +75,9 @@ Options:
   --reeval DIR     Re-run the per-round summary and the set evaluation of the bot soaks on saved logs (a nettest
                    directory, with or without round-<k>/ subdirectories; needs no engine). Host columns are n/a where
                    no <script>-host.log sidecar exists; budget lines without frames=/stalls= degrade the same way.
+  --bot-difficulty P  Calibration (ADR 0005 D50 4): BotRun/BotDuel run with BotDifficulty=P (Easy|Medium|Hard|Expert); the
+                   rounds carry calibration=P, print every quantity and judge no D36/D48/D49 band (per-round misses are
+                   printed as "~ not judged" notes, the set line reports only)
   -h, --help       Show this help
 
 Environment: UE_ROOT, VELOX_PROJECT, VELOX_OUT (as for build.sh), VELOX_NETTEST_TIMEOUT, VELOX_LOAD_GATE (1-min load
@@ -224,6 +230,9 @@ run_one() {
       cexec="$cexec, velox.bots.Watch $BOT_DUEL_SECONDS"; connect_url="127.0.0.1:$PORT?SpectatorOnly=1"; script_args=()
       client_timeout=$(( CLIENT_TIMEOUT > BOT_DUEL_SECONDS + 90 ? CLIENT_TIMEOUT : BOT_DUEL_SECONDS + 90 )) ;;
   esac
+  if [[ -n "$BOT_DIFFICULTY" && "$BOT_SCRIPTS" == *" $script "* ]]; then
+    map="$(sed -E "s/BotDifficulty=[A-Za-z]+/BotDifficulty=$BOT_DIFFICULTY/" <<< "$map")"
+  fi
   if [[ "$ITEM_SCRIPTS" == *" $script "* ]]; then
     # M3 task 04 / ADR 0004 section 10: velox.items.Watch logs the client's placeholder and Health/Armor/Bullets changes.
     map="L_ItemTest"; cexec="$cexec, velox.items.Watch"
@@ -297,7 +306,7 @@ run_one() {
   read -r load_end _ < /proc/loadavg || load_end=0
   echo "load_end=$load_end" >> "$OUT_DIR/$script-gate.txt"
 
-  analyze_round "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$lag" "$OUT_DIR"
+  VELOX_BOT_CALIBRATION="$BOT_DIFFICULTY" analyze_round "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$lag" "$OUT_DIR"
 }
 
 # analyze_round <script> <server log> <client log> <client rc> <server alive 0|1> <result file> <lag ms> <dir> [<stats dir>]
@@ -1227,6 +1236,42 @@ if script in ("BotRun", "BotDuel"):
     STUCK_MAX, PICKUPS_MIN = 6, 15
     # ADR 0005 D47 (g): runner constants, not tunables.
     R_OTHER_SLOW, RR_WINDOW_MAX, RR_ROUND_MAX, REF_BAND, MIN_CLEAN_WINDOWS = 2.0, 2.5, 2.0, 1.6, 6
+    # ADR 0005 D50 (5): report-only target bands per preset (lo, hi); None = no bound / "report".
+    NH_BANDS = {
+        "Easy":   {"acc_hitscan_pct": (10, 22), "acc_proj_pct": (15, 35), "shots_per_kill": (25, 60), "trigger_share_pct": (50, None), "held_share_pct": (20, 45)},
+        "Medium": {"acc_hitscan_pct": (22, 35), "acc_proj_pct": (30, 50), "shots_per_kill": (12, 30), "trigger_share_pct": (45, None), "held_share_pct": (10, 30)},
+        "Hard":   {"acc_hitscan_pct": (35, 50), "acc_proj_pct": (45, 65), "shots_per_kill": (6, 15), "trigger_share_pct": None, "held_share_pct": (None, 15)},
+        "Expert": {"acc_hitscan_pct": (50, 65), "acc_proj_pct": (60, 80), "shots_per_kill": (4, 9), "trigger_share_pct": None, "held_share_pct": (None, 0)},
+    }
+    NH_ORDER = ("acc_hitscan_pct", "acc_proj_pct", "shots_per_kill", "trigger_share_pct", "held_share_pct")
+
+    def nh_pct(a, b):
+        return ("%.1f" % (100.0 * a / b)) if b else "n/a"
+
+    def nh_values(q):
+        """The five D50 (4) quantities from summed numerators / denominators (None where the denominator is 0)."""
+        shots = q["hs_shots"] + q["pj_shots"]
+        return {"acc_hitscan_pct": 100.0 * q["hs_hits"] / q["hs_shots"] if q["hs_shots"] else None,
+                "acc_proj_pct": 100.0 * q["pj_hits"] / q["pj_shots"] if q["pj_shots"] else None,
+                "shots_per_kill": float(shots) / q["kills"] if (q["kills"] and shots) else None,
+                "trigger_share_pct": 100.0 * q["fire"] / q["vis"] if q["vis"] else None,
+                "held_share_pct": 100.0 * q["held"] / q["fire"] if q["fire"] else None}
+
+    def nh_band(key, v, preset_):
+        b_ = NH_BANDS.get(preset_, {}).get(key)
+        if not b_:
+            return ""
+        lo_, hi_ = b_
+        txt_ = ("%s-%s" % (lo_, hi_)) if (lo_ is not None and hi_ is not None) else ((">=%s" % lo_) if lo_ is not None else ("<=%s" % hi_))
+        if v is None:
+            return "[%s n/a]" % txt_
+        ok_ = (lo_ is None or v >= lo_) and (hi_ is None or v <= hi_)
+        return "[%s %s]" % (txt_, "IN" if ok_ else "OUT")
+
+    def nh_format(q, preset_):
+        vals = nh_values(q)
+        return " ".join("%s=%s%s" % (k_, ("%.1f" % vals[k_]) if vals[k_] is not None else ("-" if k_ == "shots_per_kill" else "n/a"),
+                                     nh_band(k_, vals[k_], preset_) if preset_ else "") for k_ in NH_ORDER)
 
     def utc(line):
         """UTC epoch seconds of the log line's [yyyy.mm.dd-hh.mm.ss:mmm] stamp (UE logs UTC); the host sidecar uses epoch."""
@@ -1279,6 +1324,17 @@ if script in ("BotRun", "BotDuel"):
     goal_changes = camp_episodes = 0              # D46 (4): VeloxBotRoute bot= goal= lines / episodes of camp=1
     camp_open = {}; camp_max_lead = 0.0
     left_arena = None; world_victims = []; fell_out_lines = 0   # D49 (b)
+    # ADR 0005 D50 (4): near-human quantities, per bot, Live phase only (numerators and denominators; pooled as sums).
+    #   hitscan: VeloxShot by=<bot> lines, a hit = hits >= 1 (an SG volley is one line, LG one line per 50 ms tick).
+    #   projectile: VeloxProjectileExplode by=<bot> lines, a hit = direct != None (a pawn was struck) or confirm_victims >= 1
+    #     (ApplyDamage counts every non-owner victim, direct or splash, into confirm_victims; splash= also counts the owner
+    #     and self= is only the owner's self-splash path, so neither is used).
+    #   1 Hz VeloxBot samples: vis=1, fire=fire|held among them, fire=held, and the camp label of the latest route line.
+    NH_KEYS = ("hs_shots", "hs_hits", "pj_shots", "pj_hits", "kills", "vis", "fire", "held", "samples", "camp_samples")
+    nh = collections.defaultdict(lambda: dict((k_, 0) for k_ in NH_KEYS))
+    nh_weapon = collections.defaultdict(lambda: [0, 0])   # weapon -> [hits, shots] over all bots (Live)
+    WEAPON_ABBR = {"MachineGun": "MG", "Shotgun": "SG", "LightningGun": "LG", "Railgun": "RG", "RocketLauncher": "RL", "PlasmaGun": "PG", "Gauntlet": "GT"}
+    presets = collections.Counter()
     for l in S:
         if "Error:" in l or "Ensure condition" in l:
             errors.append(l.strip()[:160])
@@ -1296,8 +1352,25 @@ if script in ("BotRun", "BotDuel"):
             continue
         if "VeloxDeath" in l and "fell out of the world" in l:
             fell_out_lines += 1
+        if "VeloxShot seq=" in l and " by=" in l and "rewind_ms=" in l:
+            d = kv(l)
+            if live and d.get("by") in bots:
+                hit_ = num(d, "hits") >= 1
+                nh[d["by"]]["hs_shots"] += 1; nh[d["by"]]["hs_hits"] += int(hit_)
+                w_ = nh_weapon[WEAPON_ABBR.get(d.get("weapon", "-"), d.get("weapon", "-"))]; w_[1] += 1; w_[0] += int(hit_)
+            continue
+        if "VeloxProjectileExplode seq=" in l and " by=" in l:
+            d = kv(l)
+            if live and d.get("by") in bots:
+                hit_ = d.get("direct", "None") not in ("None", "none") or num(d, "confirm_victims") >= 1
+                nh[d["by"]]["pj_shots"] += 1; nh[d["by"]]["pj_hits"] += int(hit_)
+                wn_ = d.get("weapon", "-").replace("DA_Weapon_", "")
+                w_ = nh_weapon[WEAPON_ABBR.get(wn_, wn_)]; w_[1] += 1; w_[0] += int(hit_)
+            continue
         if "VeloxKill victim=" in l and "ignored" not in l:
             m = re.search(r"killer=(\S+) suicide=(\d)", l)
+            if live and m and m.group(2) == "0" and m.group(1) in bots:
+                nh[m.group(1)]["kills"] += 1
             vm = re.search(r"victim=(\S+)", l)
             tm = re.search(r"tags=\[([^\]]*)\]", l)
             if vm and tm and "Damage.Environment" in tm.group(1):
@@ -1347,6 +1420,15 @@ if script in ("BotRun", "BotDuel"):
             goals[g] += 1; debug_lines += 1
             im_ = re.search(r"item=(\S+)", body)
             samples_of[name].append((utc(l), g, im_.group(1).replace("DA_Item_", "") if im_ else "-", camp.get(name, 0)))
+            dm_ = re.search(r" difficulty=DA_Bot_(\w+)", l)
+            if dm_: presets[dm_.group(1)] += 1
+            if live:
+                fm_ = re.search(r" fire=(\w+)", body); fv_ = fm_.group(1) if fm_ else "?"
+                q_ = nh[name]; q_["samples"] += 1; q_["camp_samples"] += int(bool(camp.get(name, 0)))
+                if " vis=1" in body:
+                    q_["vis"] += 1
+                    if fv_ in ("fire", "held"): q_["fire"] += 1
+                if fv_ == "held": q_["held"] += 1
             if " supp=1" in l: supp1 += 1
             if "fire=noammo" in body: noammo += 1
             w = re.search(r"wstr=(-?[\d.]+)", body)
@@ -1402,6 +1484,10 @@ if script in ("BotRun", "BotDuel"):
         if "VeloxBotRouteStats " in l:
             route_stats.append(kv(l)); route_stamps.append(utc(l))
 
+    # D50 (4): the preset from the debug lines; a round whose preset is not the script's own (BotRun Medium, BotDuel Hard),
+    # or one run with --bot-difficulty, is a calibration round (no D36/D48/D49 band judged).
+    preset = presets.most_common(1)[0][0] if presets else "?"
+    calibration = os.environ.get("VELOX_BOT_CALIBRATION", "") or (preset if presets and preset != ("Hard" if duel else "Medium") else "")
     bursts = []
     per_bot = collections.defaultdict(list)
     for s_ in stuck:
@@ -1644,6 +1730,10 @@ if script in ("BotRun", "BotDuel"):
         if not mega: fails.append("no DA_Item_Health_Mega pickup by a bot")
         if link_ok < 2: fails.append("VeloxBotLink result=ok %d < 2" % link_ok)
 
+    cal_notes = []
+    if calibration:
+        # D50 (4): a calibration round judges no D36/D48/D49 band; its misses are printed as notes.
+        cal_notes, fails[:] = fails[:], []
     pos_txt = " ".join("%s@(%.0f,%.0f)" % (b_, x_, y_) for b_, _, x_, y_, _, _ in stuck)
     rs_paths = [num(d, "paths_per_s") for d in route_stats]
     detail_lines = [
@@ -1695,6 +1785,15 @@ if script in ("BotRun", "BotDuel"):
         "%s@%s z=%.0f" % left_arena if left_arena else "none", len(world_victims), ",".join(world_victims), fell_out_lines))
     detail_lines.append("camp_lines=%d camp_episodes=%d camp_share_pct=%.1f (of %d goal changes) camp_max_lead_s=%.1f" % (
         camp_lines, camp_episodes, 100.0 * camp_episodes / goal_changes if goal_changes else 0.0, goal_changes, camp_max_lead))
+    # ADR 0005 D50 (4)/(5): near-human quantities (Live), per bot and pooled, with the preset's report-only band.
+    nh_sum = dict((k_, sum(nh[b_][k_] for b_ in bots)) for k_ in NH_KEYS)
+    detail_lines.append("near-human (Live, D50; preset=%s%s): %s acc_by_weapon={%s} camp_time_pct=%s" % (
+        preset, " calibration=%s" % calibration if calibration else "", nh_format(nh_sum, preset),
+        ",".join("%s:%s" % (w_, nh_pct(v_[0], v_[1])) for w_, v_ in sorted(nh_weapon.items())), nh_pct(nh_sum["camp_samples"], nh_sum["samples"])))
+    for b_ in sorted(bots):
+        detail_lines.append("near-human bot %s: %s camp_time_pct=%s (hitscan %d/%d proj %d/%d kills %d vis %d fire %d held %d)" % (
+            b_, nh_format(nh[b_], None), nh_pct(nh[b_]["camp_samples"], nh[b_]["samples"]), nh[b_]["hs_hits"], nh[b_]["hs_shots"],
+            nh[b_]["pj_hits"], nh[b_]["pj_shots"], nh[b_]["kills"], nh[b_]["vis"], nh[b_]["fire"], nh[b_]["held"]))
     for w in windows:
         if w["cls"] != "clean":
             h = w["host"]
@@ -1713,17 +1812,21 @@ if script in ("BotRun", "BotDuel"):
              "p_norm_mean_us": p_norm_mean, "cost_windows": len(cost_w), "cost_judged": cost_judged, "behaviour_fail": bool(behaviour_fails),
              "camp_episodes": camp_episodes, "camp_lines": camp_lines, "goal_changes": goal_changes, "camp_max_lead": camp_max_lead,
              "left_arena": left_arena[0] if left_arena else None, "world_kills": len(world_victims),
-             "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w]}
+             "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w],
+             "preset": preset, "calibration": calibration or None, "nh": nh_sum, "nh_bots": dict((b_, nh[b_]) for b_ in sorted(bots)),
+             "nh_weapon": dict(nh_weapon), "max_fire_us": max([w["fire"] for w in windows] or [0]), "mega_takes": len(mega), "link_max": link_max}
     with open(os.path.join(stats_dir, script + ".stats.json"), "w") as sf:
         json.dump(stats, sf)
     cost_txt = ("n/j" if not cost_judged else ("FAIL" if cost_w or budget_mean > BUDGET_MAX or (p_norm_mean or 0) > BUDGET_MAX or (rr_round or 0) > RR_ROUND_MAX else "PASS"))
-    verdict = "INVALID" if invalid else ("FAIL" if fails else "PASS")
+    verdict = "INVALID" if invalid else ("FAIL" if fails else ("CALIB" if calibration else "PASS"))
     head = "%-18s %s cost=%s kills=%d frags=%d pickups=%d stuck=%d max_dwell_s=%d link_max_dt=%.2f budget_mean_us=%.1f clean=%d/%d P=%d" % (
         script, verdict, cost_txt, kills, frags_total, nbots, len(stuck), max_dwell, link_max, budget_mean, len(clean_w), n_win, len(p_w))
     with open(result_path, "w") as out:
         out.write(head + "\n")
         for fl in fails:
             out.write("    - " + fl + "\n")
+        for fl in cal_notes:
+            out.write("    ~ not judged (calibration=%s): %s\n" % (calibration, fl))
         if not cost_judged and not invalid:
             out.write("    ~ cost not judged: clean %d + process-slow %d of %d windows (needs clean >= %d and clean + P >= 50 %%); only the cost bands need a rerun (D46 1c, D47 c)\n" % (len(clean_w), len(p_w), n_win, MIN_CLEAN_WINDOWS if fo_ref is not None else 0))
         if behaviour_fails and cont_w:
@@ -1844,6 +1947,60 @@ if script == "BotDuel":
         [r.get("camp_episodes", 0) for r in valid], sum(r.get("camp_episodes", 0) for r in valid), [r.get("camp_lines", 0) for r in valid],
         ["%.1f" % (100.0 * r.get("camp_episodes", 0) / r["goal_changes"]) if r.get("goal_changes") else "0.0" for r in valid], ["%.1f" % r.get("camp_max_lead", 0.0) for r in valid]))
 print("  left_arena=[%s] world_kills=[%s]" % (",".join(r.get("left_arena") or "none" for r in runs), ",".join(str(r.get("world_kills", 0)) for r in runs)))
+# ADR 0005 D50 (4)/(5): near-human quantities pooled over the valid rounds (sums of numerators over sums of denominators),
+# with the preset's band and IN/OUT; report-only. Rounds from before D50 have no "nh" key: n/a.
+NH_BANDS = {
+    "Easy":   {"acc_hitscan_pct": (10, 22), "acc_proj_pct": (15, 35), "shots_per_kill": (25, 60), "trigger_share_pct": (50, None), "held_share_pct": (20, 45)},
+    "Medium": {"acc_hitscan_pct": (22, 35), "acc_proj_pct": (30, 50), "shots_per_kill": (12, 30), "trigger_share_pct": (45, None), "held_share_pct": (10, 30)},
+    "Hard":   {"acc_hitscan_pct": (35, 50), "acc_proj_pct": (45, 65), "shots_per_kill": (6, 15), "trigger_share_pct": None, "held_share_pct": (None, 15)},
+    "Expert": {"acc_hitscan_pct": (50, 65), "acc_proj_pct": (60, 80), "shots_per_kill": (4, 9), "trigger_share_pct": None, "held_share_pct": (None, 0)},
+}
+def band_txt(b_, v):
+    if not b_:
+        return ""
+    lo_, hi_ = b_
+    t_ = ("%s-%s" % (lo_, hi_)) if (lo_ is not None and hi_ is not None) else ((">=%s" % lo_) if lo_ is not None else ("<=%s" % hi_))
+    if v is None:
+        return "[%s n/a]" % t_
+    return "[%s %s]" % (t_, "IN" if (lo_ is None or v >= lo_) and (hi_ is None or v <= hi_) else "OUT")
+nh_runs = [r for r in valid if r.get("nh")]
+presets_ = sorted({r.get("preset", "?") for r in nh_runs})
+calib = sorted({r["calibration"] for r in runs if r.get("calibration")})
+if nh_runs:
+    q = {}
+    for r in nh_runs:
+        for k_, v_ in r["nh"].items():
+            q[k_] = q.get(k_, 0) + v_
+    shots = q["hs_shots"] + q["pj_shots"]
+    vals = [("acc_hitscan_pct", 100.0 * q["hs_hits"] / q["hs_shots"] if q["hs_shots"] else None),
+            ("acc_proj_pct", 100.0 * q["pj_hits"] / q["pj_shots"] if q["pj_shots"] else None),
+            ("shots_per_kill", float(shots) / q["kills"] if (q["kills"] and shots) else None),
+            ("trigger_share_pct", 100.0 * q["fire"] / q["vis"] if q["vis"] else None),
+            ("held_share_pct", 100.0 * q["held"] / q["fire"] if q["fire"] else None)]
+    pre = presets_[0] if len(presets_) == 1 else None
+    wsum = {}
+    for r in nh_runs:
+        for w_, (h_, n_) in r.get("nh_weapon", {}).items():
+            a_ = wsum.setdefault(w_, [0, 0]); a_[0] += h_; a_[1] += n_
+    print("  near-human (D50, Live, pooled over %d round(s), preset=%s%s; report-only): %s" % (
+        len(nh_runs), "/".join(presets_), " calibration=%s" % ",".join(calib) if calib else "",
+        " ".join("%s=%s%s" % (k_, ("%.1f" % v_) if v_ is not None else "n/a", band_txt(NH_BANDS.get(pre, {}).get(k_), v_)) for k_, v_ in vals)))
+    print("    acc_by_weapon={%s} camp_time_pct=%s (hitscan %d/%d proj %d/%d kills %d vis %d fire %d held %d samples %d)" % (
+        ",".join("%s:%s" % (w_, ("%.1f" % (100.0 * a_[0] / a_[1])) if a_[1] else "n/a") for w_, a_ in sorted(wsum.items())),
+        ("%.1f" % (100.0 * q["camp_samples"] / q["samples"])) if q["samples"] else "n/a",
+        q["hs_hits"], q["hs_shots"], q["pj_hits"], q["pj_shots"], q["kills"], q["vis"], q["fire"], q["held"], q["samples"]))
+    if script == "BotDuel":
+        ep_ = [r.get("camp_episodes", 0) for r in nh_runs]
+        gc_ = sum(r.get("goal_changes", 0) for r in nh_runs)
+        em_ = float(sum(ep_)) / len(ep_)
+        sh_ = 100.0 * sum(ep_) / gc_ if gc_ else None
+        ct_ = 100.0 * q["camp_samples"] / q["samples"] if q["samples"] else None
+        ml_ = max(r.get("camp_max_lead", 0.0) for r in nh_runs)
+        print("    camp trio (D50 5): episodes_per_round_mean=%.2f%s camp_share_pct=%s%s camp_time_pct=%s%s camp_max_lead_s=%.1f%s" % (
+            em_, band_txt((3, 5), em_), ("%.1f" % sh_) if sh_ is not None else "n/a", band_txt((4, 12), sh_),
+            ("%.1f" % ct_) if ct_ is not None else "n/a", band_txt((3, 8), ct_), ml_, band_txt((None, 23), ml_)))
+else:
+    print("  near-human (D50): n/a (no nh stats: rounds from before D50)")
 if script == "BotDuel":
     print("  mega timed returns (s): %s within_6s=%d within_3s=%d within_4s=%d first_cycle=[%s] later_cycle=[%s] first_after_live_s=%s (reported)" % (
         ",".join("%.1f" % v for v in timed), within6, within3, within4, ",".join("%.1f" % v for v in first_cycle), ",".join("%.1f" % v for v in later_cycle), [("%.1f" % r["first_after_live"]) if r.get("first_after_live") is not None else "-" for r in valid]))
@@ -1855,6 +2012,10 @@ print("  cost (D47): frame_other_ref per round %s (set min %s); mean_ref %s; P w
 print("  cost: windows clean/total per round %s; contended %s; cost windows %s; union of clean windows: %d window(s) mean_us=%.1f max_fire_us=%.0f" % (
     ["%d/%d" % (r.get("clean", 0), r.get("windows", 0)) for r in runs], [r.get("contended", 0) for r in runs], [r.get("cost_windows", 0) for r in runs],
     len(union), sum(union) / len(union) if union else 0.0, max(union_fire or [0])))
+if calib:
+    # D50 (4): calibration rounds are calibrated at another preset than D36/D48/D49's; no band is judged.
+    print("  calibration=%s: no D36/D48/D49 band judged (report only)" % ",".join(calib))
+    sys.exit(0)
 if invalid_rounds:
     print("  INVALID round(s) %s (frame_deficit > 10 %% in more than two windows, D46 1d): excluded from the sums, set not judged, rerun %s" % (
         ",".join(str(k) for k in invalid_rounds), "them" if len(invalid_rounds) > 1 else "it"))
@@ -1924,6 +2085,7 @@ main() {
       --repeat)  [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--repeat needs a positive integer"; REPEAT="$2"; shift 2 ;;
       --keep-going) KEEP_GOING=1; shift ;;
       --reeval)  [[ $# -ge 2 ]] || die "--reeval needs a directory"; REEVAL_DIR="$2"; shift 2 ;;
+      --bot-difficulty) [[ $# -ge 2 && "$2" =~ ^(Easy|Medium|Hard|Expert)$ ]] || die "--bot-difficulty needs Easy|Medium|Hard|Expert"; BOT_DIFFICULTY="$2"; shift 2 ;;
       -h|--help) nettest_usage; exit 0 ;;
       *) nettest_usage >&2; die "unknown option: $1" ;;
     esac

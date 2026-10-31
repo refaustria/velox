@@ -323,6 +323,7 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 	Request.bPenetratePawns = Definition.bPenetratesPawns;
 	Request.MaxPenetrations = Definition.MaxPenetrations;
 	Request.ShotSeq = Shot.ShotSeq;
+	Request.WeaponTag = Definition.WeaponTag;
 	VeloxShotDirs::Build(Definition, Shot.Dir, VeloxShotDirs::MakeSeed(PatternSeq, VeloxHitscanPrivate::PlayerIdOf(CurrentActorInfo)), Request.Dirs);
 	LastServerPatternSeq = PatternSeq;
 	LastServerDirs = Request.Dirs;

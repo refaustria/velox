@@ -16,6 +16,7 @@
 #pragma once
 
 #include "Combat/VeloxHitMath.h"
+#include "GameplayTagContainer.h"
 #include "Subsystems/WorldSubsystem.h"
 
 #include "VeloxLagCompensationSubsystem.generated.h"
@@ -145,6 +146,8 @@ struct FVeloxShotRequest
 	float FireMoveTimeStamp = 0.f;
 	bool bHasFireMoveTimeStamp = false;
 	uint8 ShotSeq = 0;
+	/** The firing weapon's Velox.Weapon.* tag; the VeloxShot line logs its leaf as weapon= (ADR 0005 D50 (4); log only). */
+	FGameplayTag WeaponTag;
 
 	void ApplySettings(const UVeloxCombatSettings* Settings);
 	void ApplyTiming(const FVeloxShotTiming& Timing);
