@@ -1020,7 +1020,8 @@ void AVeloxCharacter::ApplyCharacterSkin()
 	}
 
 	// A corpse keeps the skin it died with (darkened below); it has no PlayerState and no controller any more.
-	if (!bIsCorpse || AppliedSkinSlot == INDEX_NONE)
+	// Without a PlayerState (a corpse, or an unpossessed pawn) the applied slot stays; only the tint is re-applied below.
+	if (AppliedSkinSlot == INDEX_NONE || (!bIsCorpse && VeloxPS))
 	{
 		const UVeloxGameUserSettings& UserSettings = UVeloxGameUserSettings::GetOrDefault();
 		const bool bOwned = IsOwnedByLocalPlayer();

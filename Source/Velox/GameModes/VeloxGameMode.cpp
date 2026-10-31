@@ -107,6 +107,7 @@ void AVeloxGameMode::PlayerDied(AVeloxPlayerState* Victim, AVeloxPlayerState* Ki
 		FVeloxKillFeedEntry FeedEntry;
 		FeedEntry.VictimName = AVeloxPlayerState::VeloxPlayerLabel(Victim);
 		FeedEntry.KillerName = bSuicide ? FeedEntry.VictimName : AVeloxPlayerState::VeloxPlayerLabel(Killer);
+		FeedEntry.KillerPlayerId = bSuicide ? Victim->GetPlayerId() : (Killer ? Killer->GetPlayerId() : INDEX_NONE);
 		FeedEntry.VictimColor = Victim->GetPlayerColorIndex();
 		FeedEntry.KillerColor = bSuicide ? FeedEntry.VictimColor : Killer->GetPlayerColorIndex();
 		FeedEntry.DamageTag = VeloxKillFeed::PickDamageTag(DamageTags);

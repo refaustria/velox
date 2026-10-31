@@ -138,7 +138,7 @@ void UVeloxAnnouncerComponent::OnKillFeedEntry(const FVeloxKillFeedEntry& Entry)
 	const AVeloxGameState* State = BoundState.Get();
 	const APlayerController* Controller = Cast<APlayerController>(GetOwner());
 	const AVeloxPlayerState* Local = Controller ? Controller->GetPlayerState<AVeloxPlayerState>() : nullptr;
-	if (!State || !Local || Entry.bSuicide || Entry.KillerName != Local->GetPlayerName())
+	if (!State || !Local || Entry.bSuicide || Entry.KillerPlayerId != Local->GetPlayerId())
 	{
 		return;
 	}

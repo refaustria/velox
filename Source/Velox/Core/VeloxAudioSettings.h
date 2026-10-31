@@ -16,6 +16,8 @@ class USoundBase;
 class USoundClass;
 class USoundConcurrency;
 class USoundMix;
+class APawn;
+class UObject;
 class UWorld;
 
 VELOX_API DECLARE_LOG_CATEGORY_EXTERN(LogVeloxAudio, Log, All);
@@ -136,6 +138,10 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Jump", Meta = (ClampMin = "0", Units = "cm/s"))
 	float ProxyJumpMaxVz = 600.f;
+
+	/** Empty weapon: the dry-fire click plays at most once per this many seconds (Q3 clicks at the weapon rate; a fixed interval is indistinguishable). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weapons", Meta = (ClampMin = "0", Units = "s"))
+	float DryFireMinInterval = 0.25f;
 
 	/** Movable lights of muzzle flashes and rockets alive at the same time (ADR 0006 section 9). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Lights", Meta = (ClampMin = "0"))
@@ -280,6 +286,16 @@ public:
 
 	/** 2D one-shot (own weapon, own pickups, UI). Own sounds use no concurrency group, so they are never stolen. */
 	static bool Play2D(const UWorld* World, const TSoftObjectPtr<USoundBase>& Sound, const TCHAR* DebugName, float VolumeMultiplier = 1.f);
+
+	/**
+	 * Whether Pawn is the pawn of a local human player: a player controller that is local. APawn::IsLocallyControlled alone is
+	 * true for every AI controller on the authority (AController::IsLocalController), so bots would play "own" 2D sounds
+	 * on a listen server or standalone (review 0006 D1).
+	 */
+	static bool IsLocalPlayerPawn(const APawn* Pawn);
+
+	/** The UI click (menu buttons), 2D. WorldContext is any object in the game world. */
+	static void PlayUIClick(const UObject* WorldContext);
 
 	/** Number of play attempts since startup that reached a loaded sound (tests, logs). */
 	static int32 GetNumPlayed() { return NumPlayed; }

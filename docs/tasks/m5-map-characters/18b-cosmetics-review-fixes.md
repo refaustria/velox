@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 18 (review `docs/adr/reviews/0006-cosmetics-review.md`, defects D1–D3, D5–D7), ADR 0006 E1
 
 ## Goal
@@ -46,3 +46,6 @@ The audio of tasks 10 behaves the same on a dedicated server, a listen server an
 Standard format; list every call site changed for D1; paste the grep of step 2; say whether the kill-feed struct change needed a test update.
 
 ## Notes / outcome
+
+Done 2026-10-31 (dev). D1-D3, D5-D7, nits and the nettest server-log gate implemented. Build green (Editor + Game), 116 tests, 0 failures (new: `Velox.Audio.OwnPawnRule`, world-free: null / uncontrolled / AI-controlled pawn are not the local player). Standalone `L_ItemTest?Bots=2` Verbose: the only `play2d` lines are the local player's (`pain_own`); bot pain/pad/jump/beam are 3D. nettest `FireRun,BotRun,ItemRun` PASS; BotRun client log with `log LogVeloxAudio Verbose`: 197 `land_soft|land_hard` lines (D2), 0 bot `play2d`; server logs: 0 gate lines. Not verifiable headless: dry fire (D3, code reading; check `VeloxAudio play2d dry_fire` on the Mac) and the positive-controller case of `IsLocalPlayerPawn`.
+Deviations: D6 field added in `GameModes/VeloxKillFeed.h` and set in `GameModes/VeloxGameMode.cpp` (the struct and the builder live there, not in `VeloxGameState`); `Character/VeloxViewModelComponent.cpp` touched for the `ApplyToView` nit; the three menus have ten OnClicked handlers (4 + 3 + 3) plus the key-row proxy, all call `PlayUIClick`.
