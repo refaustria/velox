@@ -67,6 +67,7 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 		if (TagName.EndsWith(TEXT(".Fire")))
 		{
 			++NumFireCues;
+			OnFireCue.Broadcast();
 			// ADR 0006 section 4.5 (task 08): one-frame bFiring for the AnimGraph's Fire_Upper slot.
 			const ACharacter* Character = Cast<ACharacter>(GetOwner());
 			if (UVeloxAnimInstance* AnimInstance = Character && Character->GetMesh() ? Cast<UVeloxAnimInstance>(Character->GetMesh()->GetAnimInstance()) : nullptr)

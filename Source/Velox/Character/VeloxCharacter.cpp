@@ -2,6 +2,10 @@
 
 #include "Character/VeloxCharacter.h"
 
+#include "Character/VeloxViewModelComponent.h"
+#include "Core/VeloxWeaponCosmetics.h"
+#include "Weapons/VeloxWeaponDefinition.h"
+
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Camera/CameraTypes.h"
 #include "UI/VeloxGameUserSettings.h"
@@ -128,6 +132,18 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 		PlaceholderBody->SetRelativeScale3D(FVector(VeloxCharacterGeometry::CapsuleRadius * 2.0 / 100.0, VeloxCharacterGeometry::CapsuleRadius * 2.0 / 100.0, VeloxCharacterGeometry::CapsuleHalfHeight * 2.0 / 100.0));
 	}
 	PlayerBodyMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Materials/M_PlayerBody.M_PlayerBody")));
+
+	// ADR 0006 section 4.6: the weapon other players see. Mesh is set per weapon change (empty until the art lands).
+	WeaponWorldMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponWorldMesh"));
+	// On the capsule until a skeletal mesh with the socket exists (RefreshWeaponWorldMesh moves it to weapon_r).
+	WeaponWorldMesh->SetupAttachment(GetCapsuleComponent());
+	WeaponWorldMesh->SetRelativeLocation(WeaponFallbackOffset);
+	WeaponWorldMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WeaponWorldMesh->SetCollisionResponseToChannel(Velox_TraceChannel_Weapon, ECR_Ignore);
+	WeaponWorldMesh->SetGenerateOverlapEvents(false);
+	WeaponWorldMesh->SetCastShadow(false);
+	WeaponWorldMesh->SetOwnerNoSee(true);
+	WeaponWorldMesh->SetVisibility(false);
 
 	// DefaultInputComponentClass stays EnhancedInputComponent (ADR 0001); Velox pawns use the tag-binding subclass.
 	OverrideInputComponentClass = UVeloxInputComponent::StaticClass();
@@ -268,6 +284,10 @@ void AVeloxCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		SettingsAppliedHandle.Reset();
 	}
 	UnbindPowerupMoveTimes();
+	if (UVeloxWeaponInventoryComponent* Inventory = WeaponMeshInventory.Get())
+	{
+		Inventory->OnCurrentWeaponChanged.Remove(WeaponMeshHandle);
+	}
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -320,6 +340,7 @@ void AVeloxCharacter::OnRep_PlayerState()
 void AVeloxCharacter::OnRep_Controller()
 {
 	Super::OnRep_Controller();
+	EnsureViewModel();
 
 	// The ASC caches the player controller in its actor info.
 	if (UVeloxAbilitySystemComponent* ASC = GetVeloxAbilitySystemComponent(); ASC && ASC->GetAvatarActor() == this)
@@ -376,6 +397,86 @@ void AVeloxCharacter::InitAbilityActorInfo()
 			}
 		}
 	}
+
+	BindWeaponWorldMesh();
+	EnsureViewModel();
+}
+
+// ---------------------------------------------------------------- Weapon cosmetics (ADR 0006 section 4.6)
+
+void AVeloxCharacter::EnsureViewModel()
+{
+	if (ViewModel || bIsCorpse || IsNetMode(NM_DedicatedServer) || !IsLocallyControlled() || !Cast<APlayerController>(GetController()))
+	{
+		return;
+	}
+	if (!UVeloxWeaponInventoryComponent::Find(this))
+	{
+		// The PlayerState has not arrived yet: InitAbilityActorInfo calls again.
+		return;
+	}
+	ViewModel = NewObject<UVeloxViewModelComponent>(this, TEXT("ViewModel"));
+	ViewModel->SetupAttachment(GetRootComponent());
+	ViewModel->RegisterComponent();
+	ViewModel->Initialize();
+}
+
+void AVeloxCharacter::BindWeaponWorldMesh()
+{
+	if (IsNetMode(NM_DedicatedServer))
+	{
+		UE_LOG(LogVelox, Verbose, TEXT("%s: dedicated server, no weapon world mesh content"), *GetName());
+		return;
+	}
+	UVeloxWeaponInventoryComponent* Inventory = UVeloxWeaponInventoryComponent::Find(this);
+	if (Inventory && WeaponMeshInventory.Get() != Inventory)
+	{
+		if (UVeloxWeaponInventoryComponent* Old = WeaponMeshInventory.Get())
+		{
+			Old->OnCurrentWeaponChanged.Remove(WeaponMeshHandle);
+		}
+		WeaponMeshInventory = Inventory;
+		WeaponMeshHandle = Inventory->OnCurrentWeaponChanged.AddUObject(this, &ThisClass::OnWeaponIndexChanged);
+	}
+	RefreshWeaponWorldMesh();
+}
+
+void AVeloxCharacter::OnWeaponIndexChanged(int32 OldIndex, int32 NewIndex)
+{
+	RefreshWeaponWorldMesh();
+}
+
+void AVeloxCharacter::RefreshWeaponWorldMesh()
+{
+	if (!WeaponWorldMesh || IsNetMode(NM_DedicatedServer))
+	{
+		return;
+	}
+	const UVeloxWeaponInventoryComponent* Inventory = WeaponMeshInventory.Get();
+	// Remote pawns show the replicated index; the local pawn's predicted index is no concern of its (hidden) world mesh.
+	const UVeloxWeaponDefinition* Definition = (Inventory && !bIsCorpse) ? Inventory->GetDefinition(Inventory->GetAuthoritativeIndex()) : nullptr;
+	const UVeloxWeaponCosmetics* Cosmetics = (Definition && !Definition->Cosmetics.IsNull()) ? Definition->Cosmetics.LoadSynchronous() : nullptr;
+	UStaticMesh* Mesh = (Cosmetics && !Cosmetics->WorldMesh.IsNull()) ? Cosmetics->WorldMesh.LoadSynchronous() : nullptr;
+
+	// weapon_r when the skeletal mesh has it; otherwise the capsule (placeholder body period).
+	const USkeletalMeshComponent* Body = GetMesh();
+	const bool bHasSocket = Body && Body->GetSkeletalMeshAsset() && Body->DoesSocketExist(WeaponSocketName);
+	const USceneComponent* DesiredParent = bHasSocket ? static_cast<const USceneComponent*>(Body) : GetCapsuleComponent();
+	if (WeaponWorldMesh->GetAttachParent() != DesiredParent || (bHasSocket && WeaponWorldMesh->GetAttachSocketName() != WeaponSocketName))
+	{
+		if (bHasSocket)
+		{
+			WeaponWorldMesh->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocketName);
+		}
+		else
+		{
+			WeaponWorldMesh->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+			WeaponWorldMesh->SetRelativeLocationAndRotation(WeaponFallbackOffset, FRotator::ZeroRotator);
+		}
+	}
+	WeaponWorldMesh->SetStaticMesh(Mesh);
+	WeaponWorldMesh->SetVisibility(Mesh != nullptr);
+	UE_LOG(LogVelox, Verbose, TEXT("%s: weapon world mesh weapon=%s mesh=%s attached=%s"), *GetName(), *GetNameSafe(Definition), *GetNameSafe(Mesh), bHasSocket ? TEXT("socket") : TEXT("capsule"));
 }
 
 // ---------------------------------------------------------------- Powerups in the move timeline (ADR 0004 section 3)
@@ -841,6 +942,8 @@ void AVeloxCharacter::SetUpCosmeticMesh()
 	}
 	UE_LOG(LogVelox, Log, TEXT("VeloxCosmetics %s: mesh=%s anim=%s sequencePlayback=%d placeholder=%d"), *GetName(), *SkeletalMesh->GetName(),
 		*GetNameSafe(AnimClass), bSequencePlayback ? 1 : 0, bKeepPlaceholder ? 1 : 0);
+	// Task 09's third-person weapon moves from the capsule fallback to weapon_r now that the skeletal mesh exists.
+	RefreshWeaponWorldMesh();
 }
 
 void AVeloxCharacter::ApplyCosmeticMeshOffset(float OffsetZ, float YawDeg)
@@ -1130,6 +1233,13 @@ void AVeloxCharacter::ApplyCorpseState()
 	{
 		HealthComponent->UninitializeFromAbilitySystem();
 	}
+	// ADR 0006 section 4.6: no weapon on a corpse, and the dying player's view model goes with the life.
+	RefreshWeaponWorldMesh();
+	if (ViewModel)
+	{
+		ViewModel->DestroyComponent();
+		ViewModel = nullptr;
+	}
 	// The owner (controller) is gone or going: the body becomes visible to the dying player's death camera.
 	if (PlaceholderBody)
 	{
@@ -1215,4 +1325,8 @@ void AVeloxCharacter::ApplyViewSettings(FMinimalViewInfo& OutResult) const
 	// The viewer's own setting, also while spectating another pawn: horizontal FOV, whatever the aspect ratio.
 	OutResult.FOV = VeloxSettingsMath::ClampFieldOfView(UVeloxGameUserSettings::GetOrDefault().FieldOfView);
 	OutResult.AspectRatioAxisConstraint = AspectRatio_MaintainXFOV;
+	if (ViewModel)
+	{
+		ViewModel->ApplyToView(OutResult);
+	}
 }

@@ -4,6 +4,7 @@
 
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimSequence.h"
+#include "Core/VeloxViewModelSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxCharacterCosmetics)
 

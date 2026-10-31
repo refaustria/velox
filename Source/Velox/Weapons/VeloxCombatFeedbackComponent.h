@@ -51,6 +51,10 @@ public:
 
 	/** Executed weapon cues seen by this pawn since spawn (tests, logs; ADR 0003 B21: one .Impact per hitscan shot). */
 	int32 GetNumFireCues() const { return NumFireCues; }
+
+	/** Broadcast for every executed Fire cue of this pawn (view model recoil kick; ADR 0006 section 4.6). */
+	DECLARE_MULTICAST_DELEGATE(FOnVeloxFireCue);
+	FOnVeloxFireCue OnFireCue;
 	int32 GetNumImpactCues() const { return NumImpactCues; }
 
 protected:

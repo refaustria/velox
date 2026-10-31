@@ -15,6 +15,7 @@ class UAnimInstance;
 class UAnimSequence;
 class UMaterialInterface;
 class USkeletalMesh;
+class UVeloxViewModelSettings;
 
 /** Leg state of the third-person body (ADR 0006 section 4.5). The AnimGraph state machine (ABP_Velox) mirrors it. */
 UENUM(BlueprintType)
@@ -146,9 +147,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics")
 	bool bUseSequencePlayback = true;
 
-	/** First-person view model tunables (UVeloxViewModelSettings, task 09; typed as UDataAsset until that class exists). */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics", Meta = (AllowedClasses = "/Script/Velox.VeloxViewModelSettings"))
-	TSoftObjectPtr<UDataAsset> ViewModelSettings;
+	/** First-person view model tunables (task 09's DA_ViewModelSettings_Default). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics")
+	TSoftObjectPtr<UVeloxViewModelSettings> ViewModelSettings;
 
 	/** Index of the skin named Name, INDEX_NONE if there is none. */
 	int32 FindSkin(FName Name) const;

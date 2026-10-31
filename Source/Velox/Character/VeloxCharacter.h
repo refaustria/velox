@@ -23,6 +23,8 @@ class UVeloxHealthComponent;
 class UVeloxHitboxComponent;
 class UVeloxMovementComponent;
 class UVeloxScriptedInputComponent;
+class UVeloxViewModelComponent;
+class UVeloxWeaponInventoryComponent;
 class UVeloxPawnData;
 class UVeloxCharacterCosmetics;
 class USkeletalMesh;
@@ -88,6 +90,14 @@ public:
 
 	/** Tints PlaceholderBody with the PlayerState's colour (dark when a corpse). Server and clients; no-op without a body material. */
 	void ApplyPlayerColor();
+
+	/** First-person weapon view model of the local player pawn (ADR 0006 section 4.6); null on everything else. */
+	UFUNCTION(BlueprintPure, Category = "Velox|Character")
+	UVeloxViewModelComponent* GetViewModelComponent() const { return ViewModel; }
+
+	/** The weapon in the pawn's hand as other players see it (socket weapon_r). */
+	UFUNCTION(BlueprintPure, Category = "Velox|Character")
+	UStaticMeshComponent* GetWeaponWorldMesh() const { return WeaponWorldMesh; }
 
 	/** Test hook: the body's current colour parameter value (black when there is no body material). */
 	FLinearColor GetBodyColor() const;
@@ -171,6 +181,14 @@ protected:
 
 	void LogCrouchState(const TCHAR* Event) const;
 
+	/** Creates the view model once this pawn is a local player's and its PlayerState inventory exists (non-dedicated only). */
+	void EnsureViewModel();
+	/** Shows the current weapon's WorldMesh on weapon_r for every client (inventory index is replicated); hidden on corpses. */
+	void RefreshWeaponWorldMesh();
+	/** Binds the PlayerState inventory's weapon change to RefreshWeaponWorldMesh (rebinding when the PlayerState changes). */
+	void BindWeaponWorldMesh();
+	void OnWeaponIndexChanged(int32 OldIndex, int32 NewIndex);
+
 	/** Server: UVeloxHealthComponent::OnOutOfHealth, synchronously inside the killing damage execution (ADR 0003 B8). */
 	void HandleOutOfHealth(const FVeloxDamageEvent& Event);
 	/**
@@ -223,6 +241,22 @@ protected:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Readability")
 	TSoftObjectPtr<UMaterialInterface> PlayerBodyMaterial;
 
+	/** Local player only (EnsureViewModel); owns the first-person weapon mesh. */
+	UPROPERTY(Transient)
+	TObjectPtr<UVeloxViewModelComponent> ViewModel;
+
+	/** Current weapon in the right hand, hidden from the owner (the view model is theirs). Never created content-wise on a dedicated server. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
+	TObjectPtr<UStaticMeshComponent> WeaponWorldMesh;
+
+	/** Socket of the skeletal mesh that carries the weapon. */
+	UPROPERTY(EditDefaultsOnly, Category = "Velox|Weapons")
+	FName WeaponSocketName = TEXT("weapon_r");
+
+	/** Where the weapon sits on the capsule when the mesh has no weapon socket (placeholder body period). */
+	UPROPERTY(EditDefaultsOnly, Category = "Velox|Weapons")
+	FVector WeaponFallbackOffset = FVector(30.0, 25.0, 15.0);
+
 	UPROPERTY(EditDefaultsOnly, Category = "Velox|Readability")
 	FName BodyColorParameter = TEXT("Color");
 
@@ -258,6 +292,9 @@ private:
 	void OnPowerupEffectRemoved(const FGameplayEffectRemovalInfo& Info);
 	/** This pawn is the avatar of ASC on the authority (a corpse's late callbacks are ignored). */
 	bool IsPowerupAvatarOf(const UAbilitySystemComponent* ASC) const;
+
+	TWeakObjectPtr<UVeloxWeaponInventoryComponent> WeaponMeshInventory;
+	FDelegateHandle WeaponMeshHandle;
 
 	TWeakObjectPtr<UAbilitySystemComponent> PowerupWatchedASC;
 	FDelegateHandle PowerupAppliedHandle;

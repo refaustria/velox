@@ -18,6 +18,8 @@ ERRORS = []
 COSMETICS_FOLDER = "/Game/Characters/Velox"
 COSMETICS_NAME = "DA_Cosmetics_Velox"
 PAWN_DATA_PATH = "/Game/Data/DA_PawnData_Default"
+# Created by create_bootstrap_content.py (task 09); only referenced here, never created.
+VIEW_MODEL_SETTINGS_PATH = "/Game/Characters/Velox/DA_ViewModelSettings_Default"
 
 # ---- task 08: character cosmetics
 # Names of the first six palette entries (UVeloxCombatSettings::PlayerColorPalette order). ADR 0006 section 4.3 names an
@@ -84,6 +86,10 @@ def build_character_cosmetics():
     cosmetics.set_editor_property("mesh_offset_z", -70.0)
     cosmetics.set_editor_property("mesh_yaw_deg", -90.0)
     cosmetics.set_editor_property("use_sequence_playback", True)
+    if EAL.does_asset_exist(VIEW_MODEL_SETTINGS_PATH):
+        cosmetics.set_editor_property("view_model_settings", EAL.load_asset(VIEW_MODEL_SETTINGS_PATH))
+    else:
+        fail(f"{VIEW_MODEL_SETTINGS_PATH} missing: run create_bootstrap_content.py first")
     save(cosmetics)
     log(f"{'created' if created else 'updated'} {cosmetics.get_path_name()} with {len(skins)} skins")
 

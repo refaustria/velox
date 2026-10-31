@@ -220,9 +220,10 @@ bool FVeloxCosmeticsSoftRefsTest::RunTest(const FString& Parameters)
 	const FProperty* PawnCosmetics = UVeloxPawnData::StaticClass()->FindPropertyByName(TEXT("Cosmetics"));
 	TestTrue(TEXT("UVeloxPawnData::Cosmetics is soft"), PawnCosmetics && CastField<FSoftObjectProperty>(PawnCosmetics) != nullptr);
 
-	// Every Velox cosmetics data class (UVeloxCharacterCosmetics; UVeloxWeaponCosmetics once task 09 adds it).
+	// Every Velox cosmetics data class (UVeloxCharacterCosmetics, UVeloxWeaponCosmetics, and any later *Cosmetics class).
 	int32 NumClasses = 0;
 	bool bSawCharacter = false;
+	bool bSawWeapon = false;
 	for (TObjectIterator<UClass> It; It; ++It)
 	{
 		const UClass* Class = *It;
@@ -233,6 +234,7 @@ bool FVeloxCosmeticsSoftRefsTest::RunTest(const FString& Parameters)
 		}
 		++NumClasses;
 		bSawCharacter |= Class == UVeloxCharacterCosmetics::StaticClass();
+		bSawWeapon |= Class->GetName() == TEXT("VeloxWeaponCosmetics");
 		for (const FString& Hard : FindHardReferences(Class))
 		{
 			AddError(FString::Printf(TEXT("hard object reference in cosmetics data: %s"), *Hard));
@@ -240,7 +242,7 @@ bool FVeloxCosmeticsSoftRefsTest::RunTest(const FString& Parameters)
 		AddInfo(FString::Printf(TEXT("checked %s"), *Class->GetName()));
 	}
 	TestTrue(TEXT("UVeloxCharacterCosmetics checked"), bSawCharacter);
-	TestTrue(TEXT("at least one cosmetics class"), NumClasses >= 1);
+	TestTrue(TEXT("UVeloxWeaponCosmetics checked"), bSawWeapon);
 	return true;
 }
 
@@ -320,6 +322,8 @@ bool FVeloxCosmeticsContentTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("mesh offset -70"), Cosmetics->MeshOffsetZ, -70.f);
 	TestEqual(TEXT("mesh yaw -90"), Cosmetics->MeshYawDeg, -90.f);
 	TestTrue(TEXT("sequence playback until ABP_Velox exists"), Cosmetics->bUseSequencePlayback);
+	TestEqual(TEXT("view model settings = task 09's default asset"), Cosmetics->ViewModelSettings.ToSoftObjectPath(),
+		FSoftObjectPath(TEXT("/Game/Characters/Velox/DA_ViewModelSettings_Default.DA_ViewModelSettings_Default")));
 	return true;
 }
 

@@ -3,7 +3,7 @@
 **Milestone:** M5 Map + characters
 **Agent:** dev
 **Status:** todo
-**Depends on:** 04 (runner), 05 (blockout), ADR 0006 §7
+**Depends on:** 04 (runner), **04b** (per-instance coverage, link definition — the final sets must run with it), 05 (blockout), ADR 0006 §7 and **E0.3**
 
 ## Goal
 Bots play `L_DM1_Blockout` credibly: the map-independent invariants hold on three report-only sets (BotRun ×3, BotDuel ×3, FFA ×10), every item is taken, no stuck clusters; the numbers are recorded as the evidence base for the architect's band ruling (task 07). Layout defects found by the bots are fixed in the layout table, not in C++.
@@ -20,7 +20,8 @@ Bots play `L_DM1_Blockout` credibly: the map-independent invariants hold on thre
 
 ## Acceptance criteria
 - [ ] Idle host (load < 2, no other UE process), soak lock held, one set at a time: `nettest.sh --map L_DM1_Blockout --scripts "BotRun" --repeat 3`, `… "BotDuel" --repeat 3`, `ffa.sh --map L_DM1_Blockout --repeat 10`.
-- [ ] All invariants PASS on the final set: `left_arena 0`, `world_kill 0`, `no_nav_point 0`, `giveup 0`, Σ stuck ≤ 5, bursts 0, max dwell ≤ 5 s, nav build ≤ 2 s, link success ≥ 90 % per type, item coverage 100 %.
+- [ ] All invariants PASS on the final set: `left_arena 0`, `world_kill 0`, `no_nav_point 0`, `giveup 0`, Σ stuck ≤ 5, bursts 0, max dwell ≤ 5 s, nav build ≤ 2 s, link success ≥ 90 % per type (E0.3 b definition: failed = missed/timeout/noimpulse/tooslow; ≥ 30 attempts per type; E1 expects the *observed* rate ≥ 95 % — record it per type with `aborted=` and any `FLAG`), item coverage 100 % **per instance** (E0.3 c; no exemption exists for DM1 — an untaken item is a layout defect first, E0.3 a). A set whose only FAIL is link success or dwell is re-run once (E0.3 b/d); record both results.
+- [ ] Dwell positions ≥ 4 s recorded with their goal (camp or not) so E1 can judge the camp question (E0.3 d).
 - [ ] Metrics recorded per set in `notes/06-report.md`: BotRun Σ kills and pickups per round, BotDuel Σ frags, camp episodes, Mega return lags (`respawn→take`), RA return lags (add the parse if the runner lacks it — in the runner, not in C++), FFA Σ kills, stuck positions with the `Layout:` tag of the nearest actor.
 - [ ] Every layout change is a commit of its own with the before/after metric that motivated it; the §3 rules re-assert at generation and `navlint.sh` stays at zero clusters.
 - [ ] `DM1Run.json` drives a scripted client along C (west → east), D lower (east → west) and over the three pads; PASS in `nettest.sh` (reaches each marker, Σ strays ≤ 2.5 cm at 100 ms / 2 %).
