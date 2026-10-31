@@ -64,6 +64,7 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 		if (TagName.EndsWith(TEXT(".Fire")))
 		{
 			++NumFireCues;
+			OnFireCue.Broadcast();
 		}
 		else if (TagName.EndsWith(TEXT(".Impact")))
 		{
