@@ -1222,6 +1222,8 @@ if script in ("BotRun", "BotDuel"):
     MAJOR_ALL = ["Health_Mega", "Armor_Red", "Armor_Yellow", "Powerup_BattleSuit", "Powerup_Haste", "Powerup_Quad", "Powerup_Regen"]
     DWELL_RADIUS, DWELL_MAX, LINK_DT_MAX, BUDGET_MAX = 150.0, 8, 8.0, 300.0
     STUCK_MAX, PICKUPS_MIN = 6, 15
+    # ADR 0005 D47 (g): runner constants, not tunables.
+    R_OTHER_SLOW, RR_WINDOW_MAX, RR_ROUND_MAX, REF_BAND, MIN_CLEAN_WINDOWS = 2.0, 2.5, 2.0, 1.6, 6
 
     def utc(line):
         """UTC epoch seconds of the log line's [yyyy.mm.dd-hh.mm.ss:mmm] stamp (UE logs UTC); the host sidecar uses epoch."""
@@ -1432,6 +1434,20 @@ if script in ("BotRun", "BotDuel"):
         out["psi"] = max(psis) if psis else None
         return out
 
+    # Task M4-08 / ADR 0005 D47: per-window cost counters (helpers used by the classifier and the breakdown).
+    COST_KEYS = ["super", "perceive", "traces", "decide", "move", "offmesh", "follow", "segment", "overlay", "act", "apply", "fire"]
+    FRAME_KEYS = ["frame_bots_us", "frame_other_us", "frame_dispatch_us", "frame_actors_us", "frame_flush_us", "calib_alu_us", "calib_mem_us", "calib_alloc_us", "calib_clock_us"]
+    def cost_val(w_, k_):
+        c_ = w_["d"].get("_cost", {})
+        try:
+            if k_ == "frame_other_us" and k_ not in c_ and "frame_us" in c_:
+                return max(0.0, float(c_["frame_us"]) - float(c_["frame_bots_us"]))
+            return float(c_[k_].split("/")[0])
+        except (KeyError, ValueError):
+            return None
+    def cost_mean(ws_, k_):
+        v_ = [x_ for x_ in (cost_val(w_, k_) for w_ in ws_) if x_ is not None]
+        return sum(v_) / len(v_) if v_ else None
     FPS_SERVER = 60.0
     windows = []
     for i_, (d, ts_) in enumerate(zip(budget_windows, budget_stamps)):
@@ -1452,13 +1468,47 @@ if script in ("BotRun", "BotDuel"):
             cls = "contended" if agree else "frames"      # only the frame deficit is off: the server was not at 60 Hz
         windows.append({"i": i_ + 1, "end": ts_, "start": (ts_ - win) if ts_ is not None else None, "d": d, "mean": num(d, "mean_us"),
                         "fire": num(d, "max_fire_us"), "max": num(d, "max_us"), "path": num(d, "max_path_us"), "over_share": osh,
-                        "fdef": fdef, "stalls": int(num(d, "stalls")) if "stalls" in d else None, "host": h, "cls": cls})
+                        "fdef": fdef, "stalls": int(num(d, "stalls")) if "stalls" in d else None, "host": h, "cls": cls, "agree": agree})
     n_win = len(windows)
-    CLS_CHAR = {"clean": ".", "contended": "C", "cost": "X", "unverified": "?", "frames": "F"}
+    # ---- ADR 0005 D47 (a)/(b): reference per round and the process-slow class. Needs >= 5 windows that all carry a
+    # VeloxBotCost line; otherwise the D46 classes above stand unchanged (including unverified).
+    fo_ref = mean_ref = None
+    if n_win >= 5 and all(cost_val(w, "frame_other_us") is not None for w in windows):
+        fo_l = [cost_val(w, "frame_other_us") for w in windows]
+        cand = list(range(1, n_win))
+        min3 = min(sum(fo_l[i_:i_ + 3]) / 3.0 for i_ in cand if i_ + 3 <= n_win)
+        ref_i = [i_ for i_ in cand if fo_l[i_] <= REF_BAND * min3]
+        fo_ref = sum(fo_l[i_] for i_ in ref_i) / len(ref_i)
+        mean_ref = sum(windows[i_]["mean"] for i_ in ref_i) / len(ref_i)
+        for w, fo_ in zip(windows, fo_l):
+            w["fo"] = fo_
+            w["r_other"] = fo_ / fo_ref if fo_ref > 0 else 1.0
+            w["r_bots"] = w["mean"] / mean_ref if mean_ref > 0 else 1.0
+            w["rr"] = w["r_bots"] / w["r_other"] if w["r_other"] > 0 else 0.0
+            if w["over_share"] <= 5.0 and (w["fdef"] or 0.0) > 5.0:
+                w["cls"] = "contended" if w["agree"] else "frames"
+            elif w["over_share"] <= 5.0:
+                w["cls"] = "clean" if w["r_other"] < R_OTHER_SLOW else ("contended" if w["agree"] else "pslow")
+            elif w["agree"]:
+                w["cls"] = "contended"
+            elif w["r_other"] < R_OTHER_SLOW:
+                w["cls"] = "cost"
+            else:
+                w["cls"] = "cost" if w["rr"] > RR_WINDOW_MAX else "pslow"
+    CLS_CHAR = {"clean": ".", "contended": "C", "cost": "X", "unverified": "?", "frames": "F", "pslow": "P"}
     clean_w = [w for w in windows if w["cls"] == "clean"]
     cost_w = [w for w in windows if w["cls"] == "cost"]
     cont_w = [w for w in windows if w["cls"] == "contended"]
-    cost_judged = n_win > 0 and 2 * len(clean_w) >= n_win
+    p_w = [w for w in windows if w["cls"] == "pslow"]
+    if fo_ref is not None:
+        # D47 (c): judged iff >= 6 clean windows and clean + process-slow >= 50 % of the windows.
+        cost_judged = len(clean_w) >= MIN_CLEAN_WINDOWS and 2 * (len(clean_w) + len(p_w)) >= n_win
+    else:
+        cost_judged = n_win > 0 and 2 * len(clean_w) >= n_win
+    p_norm_mean = rr_round = None
+    if len(p_w) >= 3:
+        p_norm_mean = sum(w["mean"] / w["r_other"] for w in p_w) / len(p_w)
+        rr_round = (sum(w["mean"] for w in p_w) / len(p_w) / mean_ref) / (sum(w["fo"] for w in p_w) / len(p_w) / fo_ref)
     deficit_bad = sum(1 for w in windows if w["fdef"] is not None and w["fdef"] > 10.0)
     invalid = deficit_bad > 2
     basis = clean_w if cost_judged else []
@@ -1477,29 +1527,17 @@ if script in ("BotRun", "BotDuel"):
     # ---- Task M4-08 (report-only): per-category bot tick cost and the non-bot frame, clean vs other windows. A ratio of
     # frame_other_us (the server frame minus the bot ticks) close to the bots' own ratio means the whole game thread ran
     # slower, not the bots; flat calib_* means the CPU, memory, allocator and clock did not.
-    COST_KEYS = ["super", "perceive", "traces", "decide", "move", "offmesh", "follow", "segment", "overlay", "act", "apply", "fire"]
-    FRAME_KEYS = ["frame_bots_us", "frame_other_us", "frame_dispatch_us", "frame_actors_us", "frame_flush_us", "calib_alu_us", "calib_mem_us", "calib_alloc_us", "calib_clock_us"]
-    def cost_val(w_, k_):
-        c_ = w_["d"].get("_cost", {})
-        try:
-            if k_ == "frame_other_us" and k_ not in c_ and "frame_us" in c_:
-                return max(0.0, float(c_["frame_us"]) - float(c_["frame_bots_us"]))
-            return float(c_[k_].split("/")[0])
-        except (KeyError, ValueError):
-            return None
-    def cost_mean(ws_, k_):
-        v_ = [x_ for x_ in (cost_val(w_, k_) for w_ in ws_) if x_ is not None]
-        return sum(v_) / len(v_) if v_ else None
-    other_w = [w for w in windows if w["cls"] != "clean"]
+    other_w = [w for w in windows if w["cls"] not in ("clean", "pslow")]
     if any("_cost" in w["d"] for w in windows):
+        def fm(v_):
+            return "%.1f" % v_ if v_ is not None else "-"
         def pair(k_):
-            a_, b_ = cost_mean(clean_w, k_), cost_mean(other_w, k_)
-            return "%s=%s|%s" % (k_, "%.1f" % a_ if a_ is not None else "-", "%.1f" % b_ if b_ is not None else "-")
+            return "%s=%s|%s|%s" % (k_, fm(cost_mean(clean_w, k_)), fm(cost_mean(p_w, k_)), fm(cost_mean(other_w, k_)))
         def ratio(k_):
-            a_, b_ = cost_mean(clean_w, k_), cost_mean(other_w, k_)
+            a_, b_ = cost_mean(clean_w, k_), cost_mean(p_w, k_)
             return ("%.1f" % (b_ / a_)) if (a_ and b_ is not None and a_ > 0) else "-"
-        cost_breakdown = "cost breakdown (us per bot tick / per frame; clean|other windows %d|%d): %s %s; slowdown other/clean: bots=%s frame_other=%s" % (
-            len(clean_w), len(other_w), " ".join(pair(k_) for k_ in COST_KEYS), " ".join(pair(k_) for k_ in FRAME_KEYS), ratio("frame_bots_us"), ratio("frame_other_us"))
+        cost_breakdown = "cost breakdown (us per bot tick / per frame; clean|P|other windows %d|%d|%d): %s %s; slowdown P/clean: bots=%s frame_other=%s" % (
+            len(clean_w), len(p_w), len(other_w), " ".join(pair(k_) for k_ in COST_KEYS), " ".join(pair(k_) for k_ in FRAME_KEYS), ratio("frame_bots_us"), ratio("frame_other_us"))
     else:
         cost_breakdown = "cost breakdown: n/a (no VeloxBotCost lines)"
 
@@ -1558,7 +1596,9 @@ if script in ("BotRun", "BotDuel"):
     if errors: fails.append("%d Error:/ensure line(s) in the server log: %s" % (len(errors), errors[0]))
     # D46 (1c): cost bands on the clean windows; a cost window (bots' wall clock up, host quiet) is a FAIL of its own.
     if cost_judged and budget_mean > BUDGET_MAX: fails.append("VeloxBotBudget mean_us %.1f > %.0f (clean windows)" % (budget_mean, BUDGET_MAX))
-    if cost_w: fails.append("cost window(s) %s: over_share > 5 %% with no host cause (D46 1c; dev-hard profiling per D14)" % ",".join(str(w["i"]) for w in cost_w))
+    if cost_judged and p_norm_mean is not None and p_norm_mean > BUDGET_MAX: fails.append("p_norm_mean_us %.1f > %.0f (process-slow windows divided by R_other, D47 c)" % (p_norm_mean, BUDGET_MAX))
+    if cost_judged and rr_round is not None and rr_round > RR_ROUND_MAX: fails.append("rr_round %.2f > %.1f (bots slowed more than the thread over the process-slow windows, D47 c)" % (rr_round, RR_ROUND_MAX))
+    if cost_w: fails.append("cost window(s) %s: bots slowed, thread did not (or rr > 2.5), no host cause (D46 1c/D47; dev-hard profiling per D14)" % ",".join(str(w["i"]) for w in cost_w))
     if invalid: fails.append("round invalid: frame_deficit > 10 %% in %d windows (server not running the game at 60 Hz, D46 1d)" % deficit_bad)
     if not budget_windows: fails.append("no VeloxBotBudget lines")
     if duel:
@@ -1584,19 +1624,24 @@ if script in ("BotRun", "BotDuel"):
         "max_dwell_s=%d [%s] repaths=%d%s offmesh recovered=%d no_nav_point=%d no_clear_point=%d giveup=%d refused=%d hear=%d dodge=%d camp_route_lines=%d" % (
             max_dwell, max_dwell_at, repaths, " (FLAG > %d)" % int(duration) if repaths > duration else "", recovered, no_nav, no_clear, giveup, refused, hear, dodges, camp_lines),
         "budget %s mean_us=%.1f run_mean_us=%.1f max_us=%.0f max_path_us=%.0f " % (
-            "cost=%s (clean windows %d/%d)" % ("FAIL" if cost_w or (cost_judged and budget_mean > BUDGET_MAX) else "PASS", len(clean_w), n_win) if cost_judged
-            else "cost not judged (contended; clean windows %d/%d)" % (len(clean_w), n_win),
+            "cost=%s (clean windows %d/%d P=%d)" % ("FAIL" if cost_w or (cost_judged and (budget_mean > BUDGET_MAX or (p_norm_mean or 0) > BUDGET_MAX or (rr_round or 0) > RR_ROUND_MAX)) else "PASS", len(clean_w), n_win, len(p_w)) if cost_judged
+            else "cost not judged (contended; clean windows %d/%d P=%d)" % (len(clean_w), n_win, len(p_w)),
             budget_mean, run_mean, max([w["max"] for w in basis] or [0]), max([w["path"] for w in basis] or [0]))
         + (("max_fire_us=%.0f (clean windows over 2000 us: %d/%d%s) paths/s=%.1f max_deferred_frames=%d" % (
             max(fire_windows or [0]), fire_over, len(fire_windows), " FLAG D14" if fire_windows and fire_over * 4 > len(fire_windows) else "",
             sum(num(r_, "paths_per_s") for r_ in rs_basis) / len(rs_basis) if rs_basis else 0.0, int(max([num(r_, "max_deferred_frames") for r_ in rs_basis] or [0]))))
            if cost_judged else "max_fire_us=not judged deferred=not judged")
         + " over_share_pct=[%s]" % ",".join("%.0f" % w["over_share"] for w in windows),
-        "window classes [%s] (. clean, C contended, X cost, ? unverified (no host data), F frames only): clean=%d contended=%d cost=%d unverified=%d frames=%d of %d; stalls=%s frame_deficit_pct=[%s]%s" % (
-            "".join(CLS_CHAR[w["cls"]] for w in windows), len(clean_w), len(cont_w), len(cost_w), sum(1 for w in windows if w["cls"] == "unverified"),
-            sum(1 for w in windows if w["cls"] == "frames"), n_win,
+        "window classes [%s] (. clean, P process-slow, C contended, X cost, ? unverified (no host data, no reference), F frames only): clean=%d/%d P=%d contended=%d cost=%d unverified=%d frames=%d; stalls=%s frame_deficit_pct=[%s]%s" % (
+            "".join(CLS_CHAR[w["cls"]] for w in windows), len(clean_w), n_win, len(p_w), len(cont_w), len(cost_w), sum(1 for w in windows if w["cls"] == "unverified"),
+            sum(1 for w in windows if w["cls"] == "frames"),
             sum(w["stalls"] for w in windows if w["stalls"] is not None) if any(w["stalls"] is not None for w in windows) else "n/a",
             ",".join(("%.0f" % w["fdef"]) if w["fdef"] is not None else "n/a" for w in windows), " INVALID (frame_deficit > 10 %% in %d windows)" % deficit_bad if invalid else ""),
+        ("reference (D47): frame_other_ref=%.0f us mean_ref=%.1f us; process-slow windows: %s" % (fo_ref, mean_ref,
+            ("p_norm_mean_us=%.1f rr_round=%.2f max_fire_us=%.0f max_path_us=%.0f stalls=%d (printed, not judged)" % (
+                p_norm_mean, rr_round, max(w["fire"] for w in p_w), max(w["path"] for w in p_w), sum(w["stalls"] or 0 for w in p_w)))
+            if p_norm_mean is not None else ("%d (< 3: p_norm/rr_round not computed)" % len(p_w))))
+         if fo_ref is not None else "reference (D47): n/a (< 5 windows or no VeloxBotCost lines; D46 classes)",
         cost_breakdown,
         "host sidecar: %s; load_start=%s load_end=%s gate=%s waited_s=%s%s" % (
             "%d samples" % len(host) if host else "n/a (no sidecar)", gate.get("load_start", "n/a"), gate.get("load_end", "n/a"), gate.get("gate", "n/a"),
@@ -1618,29 +1663,31 @@ if script in ("BotRun", "BotDuel"):
         if w["cls"] != "clean":
             h = w["host"]
             hs = "rq_wait_pct=%s steal_pct=%s majflt=%s psi_pct=%s" % tuple(("%.1f" % h[k_]) if (h and h[k_] is not None) else "n/a" for k_ in ("rq", "steal", "majflt", "psi")) if h else "host n/a"
-            detail_lines.append("window %d %s: mean_us=%.0f over_share=%.0f%% frame_deficit=%s stalls=%s %s" % (
-                w["i"], w["cls"].upper(), w["mean"], w["over_share"], "%.0f%%" % w["fdef"] if w["fdef"] is not None else "n/a",
-                w["stalls"] if w["stalls"] is not None else "n/a", hs))
+            rrs = " R_other=%.2f R_bots=%.2f rr=%.2f" % (w["r_other"], w["r_bots"], w["rr"]) if "rr" in w else ""
+            detail_lines.append("window %d %s: mean_us=%.0f over_share=%.0f%% frame_deficit=%s stalls=%s%s %s" % (
+                w["i"], "PROCESS-SLOW" if w["cls"] == "pslow" else w["cls"].upper(), w["mean"], w["over_share"], "%.0f%%" % w["fdef"] if w["fdef"] is not None else "n/a",
+                w["stalls"] if w["stalls"] is not None else "n/a", rrs, hs))
     watch = [l for l in C if "VeloxBotWatch" in l]
     detail_lines.append("client watch lines=%d (feed=%d phase=%d pickup=%d)" % (len(watch), sum(1 for l in watch if " feed " in l), sum(1 for l in watch if " phase=" in l and "old=" in l), sum(1 for l in watch if " pickup " in l)))
-    behaviour_fails = [fl for fl in fails if not (fl.startswith("cost window") or fl.startswith("round invalid") or fl.startswith("VeloxBotBudget mean_us"))]
+    behaviour_fails = [fl for fl in fails if not (fl.startswith("cost window") or fl.startswith("round invalid") or fl.startswith("VeloxBotBudget mean_us") or fl.startswith("p_norm_mean_us") or fl.startswith("rr_round"))]
     stats = {"script": script, "pass": not fails, "stuck": len(stuck), "kills": kills, "frags": frags_total, "pickups": nbots, "major": major_taken,
              "pocket": len(pocket), "bursts": len(bursts), "max_dwell": max_dwell, "repaths": repaths, "mega_fast": mega_fast,
              "timed": timed_lags, "first_after_live": first_after_live, "invalid": invalid, "windows": n_win, "clean": len(clean_w),
-             "contended": len(cont_w), "cost_windows": len(cost_w), "cost_judged": cost_judged, "behaviour_fail": bool(behaviour_fails),
+             "contended": len(cont_w), "p_windows": len(p_w), "frame_other_ref": fo_ref, "mean_ref": mean_ref, "rr_round": rr_round,
+             "p_norm_mean_us": p_norm_mean, "cost_windows": len(cost_w), "cost_judged": cost_judged, "behaviour_fail": bool(behaviour_fails),
              "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w]}
     with open(os.path.join(stats_dir, script + ".stats.json"), "w") as sf:
         json.dump(stats, sf)
-    cost_txt = ("n/j" if not cost_judged else ("FAIL" if cost_w or budget_mean > BUDGET_MAX else "PASS"))
+    cost_txt = ("n/j" if not cost_judged else ("FAIL" if cost_w or budget_mean > BUDGET_MAX or (p_norm_mean or 0) > BUDGET_MAX or (rr_round or 0) > RR_ROUND_MAX else "PASS"))
     verdict = "INVALID" if invalid else ("FAIL" if fails else "PASS")
-    head = "%-18s %s cost=%s kills=%d frags=%d pickups=%d stuck=%d max_dwell_s=%d link_max_dt=%.2f budget_mean_us=%.1f clean=%d/%d" % (
-        script, verdict, cost_txt, kills, frags_total, nbots, len(stuck), max_dwell, link_max, budget_mean, len(clean_w), n_win)
+    head = "%-18s %s cost=%s kills=%d frags=%d pickups=%d stuck=%d max_dwell_s=%d link_max_dt=%.2f budget_mean_us=%.1f clean=%d/%d P=%d" % (
+        script, verdict, cost_txt, kills, frags_total, nbots, len(stuck), max_dwell, link_max, budget_mean, len(clean_w), n_win, len(p_w))
     with open(result_path, "w") as out:
         out.write(head + "\n")
         for fl in fails:
             out.write("    - " + fl + "\n")
         if not cost_judged and not invalid:
-            out.write("    ~ cost not judged (contended): %d of %d windows clean (< 50 %%); only the cost bands need a rerun (D46 1c)\n" % (len(clean_w), n_win))
+            out.write("    ~ cost not judged: clean %d + process-slow %d of %d windows (needs clean >= %d and clean + P >= 50 %%); only the cost bands need a rerun (D46 1c, D47 c)\n" % (len(clean_w), len(p_w), n_win, MIN_CLEAN_WINDOWS if fo_ref is not None else 0))
         if behaviour_fails and cont_w:
             out.write("    ~ behaviour miss on a round with %d contended window(s): reproduce it on a clean round before it counts, unless it has a geometric trail (strikes at one position with a repath/offmesh line) (D46 1d)\n" % len(cont_w))
         for dl in detail_lines:
@@ -1700,6 +1747,7 @@ import json, os, sys
 script, base, rounds = sys.argv[1], sys.argv[2], int(sys.argv[3])
 MAJOR_ALL = ["Health_Mega", "Armor_Red", "Armor_Yellow", "Powerup_BattleSuit", "Powerup_Haste", "Powerup_Quad", "Powerup_Regen"]
 BUDGET_MAX = 300.0
+R_OTHER_SLOW_SET = 2.0   # D47 (d): a round whose frame_other_ref exceeds this x the set's smallest was slow throughout
 runs = []
 for k in range(1, rounds + 1):
     d = os.path.join(base, "round-%d" % k) if rounds > 1 else base
@@ -1728,15 +1776,20 @@ else:
     if within4 < 3: fails.append("Mega timed returns within 4 s: %d < 3" % within4)
     if within3 < 1: fails.append("Mega timed returns within 3 s: none in the set")
 # Cost (D46 1c, 5): per round on its clean windows; a round with < 50 % clean windows is not judged.
-unjudged = [k + 1 for k, r in enumerate(runs) if not r.get("cost_judged") and not r.get("invalid")]
+refs = [r["frame_other_ref"] for r in valid if r.get("frame_other_ref")]
+min_ref = min(refs) if refs else None
+slow_thru = [k + 1 for k, r in enumerate(runs) if not r.get("invalid") and min_ref and r.get("frame_other_ref") and r["frame_other_ref"] > R_OTHER_SLOW_SET * min_ref]
+unjudged = [k + 1 for k, r in enumerate(runs) if (not r.get("cost_judged") or (k + 1) in slow_thru) and not r.get("invalid")]
 for k, r in enumerate(runs):
-    if r.get("invalid"):
+    if r.get("invalid") or (k + 1) in slow_thru:
         continue
     cm = r.get("clean_means", [])
     if r.get("cost_windows", 0): cost_fails.append("round %d: %d cost window(s)" % (k + 1, r["cost_windows"]))
+    if r.get("cost_judged") and r.get("p_norm_mean_us") is not None and r["p_norm_mean_us"] > BUDGET_MAX: cost_fails.append("round %d: p_norm_mean_us %.1f > %.0f" % (k + 1, r["p_norm_mean_us"], BUDGET_MAX))
+    if r.get("cost_judged") and r.get("rr_round") is not None and r["rr_round"] > 2.0: cost_fails.append("round %d: rr_round %.2f > 2.0" % (k + 1, r["rr_round"]))
     if r.get("cost_judged") and cm and sum(cm) / len(cm) > BUDGET_MAX: cost_fails.append("round %d: clean mean_us %.1f > %.0f" % (k + 1, sum(cm) / len(cm), BUDGET_MAX))
-union = [v for r in valid for v in r.get("clean_means", [])]
-union_fire = [v for r in valid for v in r.get("clean_max_fire", [])]
+union = [v for k, r in enumerate(runs) if not r.get("invalid") and (k + 1) not in slow_thru for v in r.get("clean_means", [])]
+union_fire = [v for k, r in enumerate(runs) if not r.get("invalid") and (k + 1) not in slow_thru for v in r.get("clean_max_fire", [])]
 print("=== %s set evaluation over %d round(s) (D36/D46%s) ===" % (script, rounds, "" if judged else "; bands are defined for --repeat 3: reported, not judged"))
 print("  per round: kills=%s frags=%s stuck=%s pickups=%s max_dwell_s=%s repaths=%s" % (
     [r["kills"] for r in valid], [r["frags"] for r in valid], [r["stuck"] for r in valid], [r["pickups"] for r in valid], [r["max_dwell"] for r in valid], [r["repaths"] for r in valid]))
@@ -1746,6 +1799,11 @@ print("  sums: stuck=%d kills=%d frags=%d pocket_strikes=%d%s major_covered=%d/7
 if script == "BotDuel":
     print("  mega timed returns (s): %s within_3s=%d within_4s=%d first_after_live_s=%s (reported)" % (
         ",".join("%.1f" % v for v in timed), within3, within4, [("%.1f" % r["first_after_live"]) if r.get("first_after_live") is not None else "-" for r in valid]))
+print("  cost (D47): frame_other_ref per round %s (set min %s); mean_ref %s; P windows %s; rr_round %s; p_norm_mean_us %s%s" % (
+    [("%.0f" % r["frame_other_ref"]) if r.get("frame_other_ref") else "-" for r in runs], "%.0f" % min_ref if min_ref else "-",
+    [("%.1f" % r["mean_ref"]) if r.get("mean_ref") else "-" for r in runs], [r.get("p_windows", 0) for r in runs],
+    [("%.2f" % r["rr_round"]) if r.get("rr_round") is not None else "-" for r in runs], [("%.1f" % r["p_norm_mean_us"]) if r.get("p_norm_mean_us") is not None else "-" for r in runs],
+    "; round(s) %s slow throughout (frame_other_ref > %.1f x set min: all windows process-slow, cost not judged)" % (",".join(str(k) for k in slow_thru), R_OTHER_SLOW_SET) if slow_thru else ""))
 print("  cost: windows clean/total per round %s; contended %s; cost windows %s; union of clean windows: %d window(s) mean_us=%.1f max_fire_us=%.0f" % (
     ["%d/%d" % (r.get("clean", 0), r.get("windows", 0)) for r in runs], [r.get("contended", 0) for r in runs], [r.get("cost_windows", 0) for r in runs],
     len(union), sum(union) / len(union) if union else 0.0, max(union_fire or [0])))
@@ -1764,9 +1822,9 @@ if cost_nj:
     print("  union fallback (D46 5, the lead's call): %d clean window(s) over the set%s, mean_us=%.1f -> %s" % (
         len(union), "" if len(union) >= 30 else " (< 30: not enough)", sum(union) / len(union) if union else 0.0,
         "would PASS" if len(union) >= 30 and sum(union) / len(union) <= BUDGET_MAX and not cost_fails else "would not pass"))
-    print("  - cost NOT JUDGED: fewer than 50 %% clean windows in round(s) %s (D46 5: rerun this set after acting on the sidecar's cause; if it recurs, judge the union of the clean windows)" % ",".join(str(k) for k in unjudged))
+    print("  - cost NOT JUDGED: round(s) %s not judged (< 6 clean windows, < 50 %% clean + process-slow, or slow throughout; D46 5/D47 d: rerun this set after acting on the sidecar's cause; if it recurs, judge the union of the clean windows)" % ",".join(str(k) for k in unjudged))
 elif unjudged:
-    print("  cost judged on the other rounds; round %s had < 50 %% clean windows (not judged)" % ",".join(str(k) for k in unjudged))
+    print("  cost judged on the other rounds; round %s not judged (clean/process-slow share, or slow throughout)" % ",".join(str(k) for k in unjudged))
 print("  set behaviour %s, cost %s" % ("FAIL" if fails else "PASS", "FAIL" if cost_fails else ("NOT JUDGED" if cost_nj else "PASS")))
 print("  set %s" % ("FAIL" if (fails or cost_fails or cost_nj) else "PASS"))
 sys.exit(1 if (fails or cost_fails or cost_nj) else 0)

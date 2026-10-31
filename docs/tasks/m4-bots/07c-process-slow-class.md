@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 07b (classifier, `--reeval`), 08 (`VeloxBotCost` line with `frame_other_us`), ADR 0005 D46, D47
 
 ## Goal
@@ -68,4 +68,4 @@ Standard dev format: result, what changed (functions touched), verification (com
 rounds' class strings and set lines), open issues. State explicitly if Unreal was not available for step 4.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+Implemented in `infra/ci/nettest.sh` (`analyze_round`: reference, P class, round verdict, output, stats.json; `bot_set_eval`: slow-throughout rule, per-round reference line) and `infra/ci/README.md`. `--reeval` on the D47 fixture reproduces the ruling exactly: cost windows 0; BotDuel clean 10/8/8 of 27, P 17/19/19, clean mean_us 71.4/76.9/85.7, p_norm 89.7/92.3/103.8, rr_round 1.23/1.23/1.37; BotRun clean 9/8/8 of 21, P 12/13/13, 74.0/61.9/66.5, 72.1/66.7/70.0, 1.07/1.07/1.06; set cost PASS both. Fixture with VeloxBotCost lines stripped: classes and verdicts identical to the pre-change runner (only the new P= and reference lines differ). Not run: infra/ci/build.sh and live rounds (no UE by instruction); the D46 1f logs no longer exist. Ambiguities: see report (slow-throughout round keeps its own FAIL on a per-round X window; set ignores it).
