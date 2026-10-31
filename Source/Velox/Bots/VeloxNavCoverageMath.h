@@ -42,6 +42,12 @@ struct FVeloxNavCoverageCluster
 	 * (box tops, wall tops, outside ledges). Report-only classification; the gate counts every cluster (ADR 0006 section 6).
 	 */
 	bool bWalkIn = false;
+	/**
+	 * Edge strip (ADR 0006 E0.2 (e)): one cell wide along its whole length and every cell has a covered 4-neighbour.
+	 * Recast erodes an off-lattice ledge by about four cells, which leaves such a strip 70-76 cm from nav, inside the bots'
+	 * projection radius: not a defect. Report-only kind=edge; the gate does not count it.
+	 */
+	bool bEdge = false;
 };
 
 namespace VeloxNavCoverageMath
@@ -99,11 +105,13 @@ namespace VeloxNavCoverageMath
 			Stack.Add(Seed);
 			Visited[Seed] = true;
 			bool bWalkIn = false;
+			int32 NumWithCoveredNeighbour = 0;
 			while (Stack.Num())
 			{
 				const int32 Index = Stack.Pop(EAllowShrinking::No);
 				Members.Add(Index);
 				const FVeloxNavCoverageCell& Cell = Cells[Index];
+				bool bCellHasCovered = false;
 				for (const FIntPoint& Offset : Offsets)
 				{
 					const TArray<int32, TInlineAllocator<2>>* Column = Columns.Find(FIntPoint(Cell.X + Offset.X, Cell.Y + Offset.Y));
@@ -120,6 +128,7 @@ namespace VeloxNavCoverageMath
 						if (Cells[Other].bCovered)
 						{
 							bWalkIn = true;
+							bCellHasCovered = true;
 						}
 						else if (!Visited[Other])
 						{
@@ -128,6 +137,7 @@ namespace VeloxNavCoverageMath
 						}
 					}
 				}
+				NumWithCoveredNeighbour += bCellHasCovered ? 1 : 0;
 			}
 
 			FVeloxNavCoverageCluster Cluster;
@@ -160,6 +170,7 @@ namespace VeloxNavCoverageMath
 				}
 			}
 			Cluster.Extent = FVector2D((Max.X - Min.X + 1) * GridCm, (Max.Y - Min.Y + 1) * GridCm);
+			Cluster.bEdge = FMath::Min(Max.X - Min.X, Max.Y - Min.Y) == 0 && NumWithCoveredNeighbour == Members.Num();
 			Cluster.Center = FVector(Min.X * GridCm + Cluster.Extent.X * 0.5, Min.Y * GridCm + Cluster.Extent.Y * 0.5, SumZ / Members.Num());
 			Clusters.Add(Cluster);
 		}

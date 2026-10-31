@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Nav-coverage lint (ADR 0006 section 6; task M5-03). Loads a map as a headless dedicated server, runs
 # velox.bots.NavCoverage after the runtime nav build and judges its lines: walkable floor without nav mesh (clusters,
-# D41's class) and nav polys under low clearance (lowclear, D32's class). Gate: clusters = 0 and lowclear polys = 0.
+# D41's class) and nav polys under low clearance (lowclear, D32's class). Gate: clusters - edge = 0 and lowclear polys = 0 (edge strips, ADR 0006 E0.2 (e), are reported, not gated).
 set -uo pipefail
 
 CI_SCRIPT_NAME="infra/ci/navlint.sh"
@@ -27,10 +27,10 @@ Runs
   timeout ${LINT_TIMEOUT} UnrealEditor-Cmd Velox.uproject <Map> -server -nullrhi -unattended -nopause -nosplash -nosound
       -stdout -FullStdOutLogOutput -port=N -ExecCmds="velox.bots.NavCoverage [Grid=CM] [MinClusterM2=M2] [Verbose] Quit"
 parses the VeloxNavCoverage lines and prints
-  [navlint] <Map> walkable_m2=<x> covered_pct=<y> clusters=<n> (walkin=<w> isolated=<i>) lowclear=<p> result=PASS|FAIL|REPORT
+  [navlint] <Map> walkable_m2=<x> covered_pct=<y> clusters=<n> (walkin=<w> isolated=<i> edge=<e>) lowclear=<p> result=PASS|FAIL|REPORT
 followed by one '[navlint]   cluster ...' / '[navlint]   lowclear_poly ...' line per finding.
 
-Exit: 0 PASS (clusters = 0 and lowclear polys = 0) or --report-only; 1 findings; 2 the run produced no summary
+Exit: 0 PASS (clusters - edge = 0 and lowclear polys = 0) or --report-only; 1 findings; 2 the run produced no summary
 (timeout, crash, no nav data). <Map> is a map name or package path (L_ItemTest or /Game/Maps/L_ItemTest).
 
 Options:
@@ -103,16 +103,18 @@ main() {
   covered="$(sed -nE 's/.*covered_pct=([0-9.]+).*/\1/p' <<< "$summary")"
   clusters="$(sed -nE 's/.*clusters=([0-9]+).*/\1/p' <<< "$summary")"
   polys="$(sed -nE 's/.*lowclear polys=([0-9]+).*/\1/p' <<< "$lowclear")"
-  local walkin isolated
+  local walkin isolated edge
+  edge="$(sed -nE 's/.* edge=([0-9]+).*/\1/p' <<< "$summary")"
   walkin="$(sed -nE 's/.* walkin=([0-9]+).*/\1/p' <<< "$summary")"
   isolated="$(sed -nE 's/.* isolated=([0-9]+).*/\1/p' <<< "$summary")"
+  [[ "$edge" =~ ^[0-9]+$ ]] || edge=0
   [[ "$clusters" =~ ^[0-9]+$ && "$polys" =~ ^[0-9]+$ ]] || { echo "[navlint] $map_name result=ERROR (unparsable summary; log: $log)"; exit 2; }
 
   local result
-  if (( clusters == 0 && polys == 0 )); then result=PASS
+  if (( clusters - edge <= 0 && polys == 0 )); then result=PASS
   elif (( REPORT_ONLY )); then result=REPORT
   else result=FAIL; fi
-  echo "[navlint] $map_name walkable_m2=$walkable covered_pct=$covered clusters=$clusters (walkin=${walkin:-?} isolated=${isolated:-?}) lowclear=$polys result=$result"
+  echo "[navlint] $map_name walkable_m2=$walkable covered_pct=$covered clusters=$clusters (walkin=${walkin:-?} isolated=${isolated:-?} edge=$edge) lowclear=$polys result=$result"
   "$GREP" -aoE 'VeloxNavCoverage (cluster|lowclear_poly) .*' "$log" | sed -E 's/^VeloxNavCoverage /[navlint]   /'
   echo "[navlint] log: $log"
   [[ "$result" == FAIL ]] && exit 1

@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done (with one open item: FtOffMesh `ra_strip` / `mega_strip`, see outcome)
 **Depends on:** 02 (library), 03 (lint), ADR 0006 E0.2 (e) and E0.4
 
 ## Goal
@@ -42,3 +42,8 @@ The three test maps are regenerated exactly once from the task-02 library (so th
 Standard format plus: the three lint summary lines before/after, the counts lines, the soak verdict lines with the D51 comparison, and the 45° finding.
 
 ## Notes / outcome
+
+2026-10-31 (dev): Done. Build green, 107 tests, 0 failing (new `NavCoverageClusters` rows). Edge strips implemented (`bEdge`, `kind=edge`, `edge=<n>`, navlint gate on `clusters - edge`). Maps regenerated once and committed; baseline in `notes/03b-report.md`. Item map: lowclear 0, former clusters 5/6 gone; combat lowclear 0; movement lowclear 13 -> 2 (the 45 deg platform junction, not a one-line fix, finding in the report).
+- **FtOffMesh (resolved, lead ruling):** `ra_strip` / `mega_strip` (`VeloxBotFunctionalTest.cpp`) started a bot in the slots E0.2 (e) seals; the two cases are removed (comment cites E0.2 (e)); the D17-room slot A/B cases cover the D45 class. After the rebuild: 107 tests, 0 failing; `fts.sh` **OK 7/7**.
+- Soaks (details and A/B in `notes/03b-report.md`): `ffa.sh --repeat 3` all judged invariants PASS. `nettest.sh --scripts BotRun,BotDuel --repeat 3`: both set evaluations PASS. BotDuel shows a recurring per-round dwell of 6-7 s at Rapidus (goal=item), south-east quadrant; **A/B on the 70c19d3 maps shows the same (6 s at (2570,-1642)), so it is not caused by the seals/fills** (points at the 04 dwell cap 8 -> 5 or bot behaviour, lead/E1).
+- 45 deg platform: not a one-line fix; junction left as baseline (lowclear 2), architect to look.

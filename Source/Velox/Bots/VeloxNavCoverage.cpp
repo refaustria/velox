@@ -318,12 +318,14 @@ FVeloxNavCoverageReport VeloxNavCoverage::RunAndLog(UWorld* World, const FVeloxN
 		return Report;
 	}
 	int32 WalkIn = 0;
+	int32 Edge = 0;
 	for (const FVeloxNavCoverageCluster& C : Report.Clusters)
 	{
-		WalkIn += C.bWalkIn ? 1 : 0;
+		Edge += C.bEdge ? 1 : 0;
+		WalkIn += (C.bWalkIn && !C.bEdge) ? 1 : 0;
 	}
-	UE_LOG(LogVeloxBots, Log, TEXT("VeloxNavCoverage walkable_m2=%.2f covered_pct=%.2f clusters=%d walkin=%d isolated=%d grid=%.0f min_cluster_m2=%.2f samples=%d covered=%d surfaces=%d dropped_headroom=%d dropped_outside=%d dropped_ignored=%d seconds=%.3f"),
-		Report.WalkableM2, Report.CoveredPct, Report.Clusters.Num(), WalkIn, Report.Clusters.Num() - WalkIn, Params.GridCm, Params.MinClusterM2, Report.Samples, Report.Covered,
+	UE_LOG(LogVeloxBots, Log, TEXT("VeloxNavCoverage walkable_m2=%.2f covered_pct=%.2f clusters=%d walkin=%d isolated=%d edge=%d grid=%.0f min_cluster_m2=%.2f samples=%d covered=%d surfaces=%d dropped_headroom=%d dropped_outside=%d dropped_ignored=%d seconds=%.3f"),
+		Report.WalkableM2, Report.CoveredPct, Report.Clusters.Num(), WalkIn, Report.Clusters.Num() - WalkIn - Edge, Edge, Params.GridCm, Params.MinClusterM2, Report.Samples, Report.Covered,
 		Report.Surfaces, Report.DroppedHeadroom, Report.DroppedOutsideBounds, Report.DroppedIgnored, Report.Seconds);
 	for (int32 i = 0; i < Report.Clusters.Num(); ++i)
 	{
@@ -331,7 +333,7 @@ FVeloxNavCoverageReport VeloxNavCoverage::RunAndLog(UWorld* World, const FVeloxN
 		const bool bOwner = Report.OwnerActors.IsValidIndex(C.Owner);
 		UE_LOG(LogVeloxBots, Log, TEXT("VeloxNavCoverage cluster i=%d m2=%.2f center=(%.0f,%.0f,%.0f) extent=(%.0f,%.0f) actor=%s layout=%s cells=%d kind=%s over=%s over_layout=%s"), i, C.AreaM2,
 			C.Center.X, C.Center.Y, C.Center.Z, C.Extent.X, C.Extent.Y, bOwner ? *Report.OwnerActors[C.Owner] : TEXT("none"), bOwner ? *Report.OwnerLayouts[C.Owner] : TEXT("-"), C.NumCells,
-			C.bWalkIn ? TEXT("walkin") : TEXT("isolated"), *Report.ClusterOverActors[i], *Report.ClusterOverLayouts[i]);
+			C.bEdge ? TEXT("edge") : (C.bWalkIn ? TEXT("walkin") : TEXT("isolated")), *Report.ClusterOverActors[i], *Report.ClusterOverLayouts[i]);
 	}
 	UE_LOG(LogVeloxBots, Log, TEXT("VeloxNavCoverage lowclear polys=%d inside=%d nav_polys=%d"), Report.LowClearPolys, Report.LowClearInside, Report.NavPolys);
 	for (const FString& Line : LowClearLines)

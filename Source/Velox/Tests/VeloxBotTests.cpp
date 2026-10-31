@@ -2567,6 +2567,39 @@ bool FVeloxBotsNavCoverageClustersTest::RunTest(const FString& Parameters)
 			TestFalse(TEXT("walk-in: the box top is isolated (covered floor 300 cm below does not count)"), Top.bWalkIn);
 		}
 	}
+
+	{
+		// Edge strips (ADR 0006 E0.2 (e)): one cell wide with a covered neighbour on every cell -> edge; two cells wide
+		// -> walk-in, not edge; one cell wide with no covered neighbour -> isolated, not edge.
+		TArray<FVeloxNavCoverageCell> Cells;
+		AddRect(Cells, 0, 0, 9, 0, true);
+		AddRect(Cells, 1, 1, 8, 1, false);              // 1 x 8 strip along the covered row
+		AddRect(Cells, 0, 20, 9, 23, true);
+		AddRect(Cells, 1, 24, 8, 25, false, 5.f, 1);    // 2 x 8 slot bordering covered cells
+		AddRect(Cells, 1, 40, 8, 40, false, 5.f, 2);    // 1 x 8 strip, no covered neighbour
+		const TArray<FVeloxNavCoverageCluster> Clusters = BuildClusters(Cells, Grid, MaxDZ, 1.0);
+		if (TestEqual(TEXT("edge: three clusters"), Clusters.Num(), 3))
+		{
+			for (const FVeloxNavCoverageCluster& C : Clusters)
+			{
+				if (C.Owner == 0)
+				{
+					TestTrue(TEXT("edge: 1 x 8 strip along a covered row is an edge"), C.bEdge);
+					TestTrue(TEXT("edge: it also touches covered floor"), C.bWalkIn);
+				}
+				else if (C.Owner == 1)
+				{
+					TestFalse(TEXT("edge: a 2 x 8 slot is not an edge"), C.bEdge);
+					TestTrue(TEXT("edge: it is walk-in"), C.bWalkIn);
+				}
+				else
+				{
+					TestFalse(TEXT("edge: a strip with no covered neighbour is not an edge"), C.bEdge);
+					TestFalse(TEXT("edge: it is isolated"), C.bWalkIn);
+				}
+			}
+		}
+	}
 	return true;
 }
 
