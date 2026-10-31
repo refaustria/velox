@@ -504,8 +504,8 @@ bool AVeloxPickup::TryPickup(AVeloxCharacter* Pawn, bool bLogRefusal)
 	LastTakenBy = PlayerState;
 	CommitServerState();
 
-	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickup item=%s by=%s gain=%d powerup_s=%.1f respawn_in=%.2f t=%.3f take=%u"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
-		Gain.Amount, Gain.PowerupSeconds, Respawn, Now, TakeCount);
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickup item=%s by=%s gain=%d powerup_s=%.1f respawn_in=%.2f t=%.3f take=%u at=%s"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
+		Gain.Amount, Gain.PowerupSeconds, Respawn, Now, TakeCount, *GetActorLocation().ToCompactString());
 	if (UVeloxItemRegistrySubsystem* MutableRegistry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
 	{
 		MutableRegistry->OnPickupTaken.Broadcast(this, PlayerState);
@@ -594,7 +594,7 @@ void AVeloxPickup::ServerRespawn()
 	CommitServerState();
 	if (bWasDown)
 	{
-		UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupRespawn item=%s t=%.3f"), *GetNameSafe(Definition), GetServerNow());
+		UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupRespawn item=%s t=%.3f at=%s"), *GetNameSafe(Definition), GetServerNow(), *GetActorLocation().ToCompactString());
 		if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
 		{
 			Registry->OnPickupRespawned.Broadcast(this);
@@ -617,7 +617,7 @@ void AVeloxPickup::Reset()
 	LastTakenBy = nullptr;
 	SetOverlapRecheck(false);
 	ScheduleInitialSpawn();
-	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupReset item=%s available_in=%.2f"), *GetNameSafe(Definition), GetTimeUntilRespawn());
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupReset item=%s available_in=%.2f at=%s"), *GetNameSafe(Definition), GetTimeUntilRespawn(), *GetActorLocation().ToCompactString());
 	if (bWasDown && IsAvailable())
 	{
 		if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))

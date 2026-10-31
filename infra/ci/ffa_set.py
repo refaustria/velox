@@ -4,11 +4,17 @@ ADR 0006 section 7: the sum-of-kills band is per map (BAND_FFA_KILLS_MIN, infra/
 report-only, `band=none`). The map-independent invariants are judged on every map and printed as a table after the SET lines:
 left_arena 0, world_kill 0, no_nav_point 0, giveup 0, sum of stuck strikes <= 5, bursts 0, max dwell <= 5 s, nav build <= 2 s,
 link traversal success >= 90 % per link type, and item coverage (every pickup present at Live start taken at least once over the set).
+Link success (ADR 0006 E0.3 b): ok / (ok + failed) per type pooled over the set; failed = reason missed, timeout, noimpulse, tooslow (and
+unknown reasons, printed); replaced, below_start, ineligible are re-plans, not attempts, printed as aborted=<n>; judged from 30 attempts
+(INV_LINK_MIN_ATTEMPTS); FLAG (report-only) when aborted >= ok. Item coverage (E0.3 c): per instance, keyed (definition, at=) from the
+VeloxPickupReset / VeloxPickup lines, when every run's log has at=; else per definition (old logs). BAND_FFA_COVERAGE_EXEMPT (definitions,
+space separated) is honoured only on L_ItemTest, L_CombatTest and L_MovementTest (E0.3 a); on any other map it is ignored with a warning.
 Exit status 1 on any FAIL."""
 import collections
 import glob
 import json
 import os
+import re
 import sys
 
 SUM_STUCK_MAX = 30    # D36 (kept; the invariant below is stricter)
@@ -18,7 +24,8 @@ INV_STUCK_SUM_MAX = 5   # ADR 0006 section 7
 INV_DWELL_MAX = 5
 INV_NAV_BUILD_MAX_S = 2.0
 INV_LINK_SUCCESS_MIN_PCT = 90.0
-INV_LINK_MIN_ATTEMPTS = 10   # a link type with fewer attempts over the set is printed, not judged
+INV_LINK_MIN_ATTEMPTS = 30   # E0.3 (b): a link type with fewer attempts over the set is printed, not judged
+EXEMPT_MAPS = ("L_ItemTest", "L_CombatTest", "L_MovementTest")   # E0.3 (a): the coverage exemption exists for test maps only
 D51_KILLS_RUNS = 10          # the kills band is defined for the ten-run set
 
 
@@ -67,17 +74,23 @@ inv.append(('max_dwell_s', str(max_dwell), f'<= {INV_DWELL_MAX}', max_dwell <= I
 navs = [r['nav_seconds'] for r in runs if r.get('nav_seconds') is not None]
 inv.append(('nav_build_s', f'{max(navs):.3f}' if navs else 'n/a', f'<= {INV_NAV_BUILD_MAX_S}', not navs or max(navs) <= INV_NAV_BUILD_MAX_S))
 lt = {}
+lu = collections.Counter()
 for r in runs:
-    for t, (ok_, bad_) in (r.get('link_types') or {}).items():
-        a = lt.setdefault(t, [0, 0])
-        a[0] += ok_
-        a[1] += bad_
-for t, (ok_, bad_) in sorted(lt.items()):
+    for t, v in (r.get('link_types') or {}).items():
+        a = lt.setdefault(t, [0, 0, 0])
+        a[0] += v[0]
+        a[1] += v[1]
+        a[2] += v[2] if len(v) > 2 else 0
+    lu.update(r.get('link_unknown') or {})
+link_flags = []
+for t, (ok_, bad_, ab_) in sorted(lt.items()):
     n = ok_ + bad_
     pct = 100.0 * ok_ / n if n else 100.0
     judged = n >= INV_LINK_MIN_ATTEMPTS
-    inv.append((f'link_success[{t}]', f'{pct:.1f} % ({ok_}/{n})' + ('' if judged else ' n<%d, not judged' % INV_LINK_MIN_ATTEMPTS) + ('' if full_set else ' n/j'),
+    inv.append((f'link_success[{t}]', f'{pct:.1f} % ({ok_}/{n}) aborted={ab_}' + ('' if judged else ' n<%d, not judged' % INV_LINK_MIN_ATTEMPTS) + ('' if full_set else ' n/j'),
                 f'>= {INV_LINK_SUCCESS_MIN_PCT:.0f} %', (not judged) or (not full_set) or pct >= INV_LINK_SUCCESS_MIN_PCT))
+    if ab_ > 0 and ab_ >= ok_:
+        link_flags.append(f'FLAG link {t}: aborted {ab_} >= ok {ok_} (re-planned more than traversed; report-only)')
 if not lt:
     inv.append(('link_success', 'n/a (no VeloxBotLink lines)', f'>= {INV_LINK_SUCCESS_MIN_PCT:.0f} %', True))
 
@@ -99,9 +112,38 @@ for r in runs:
 # A band file may list definitions it knowingly leaves untaken (BAND_FFA_COVERAGE_EXEMPT, space separated, printed as exempt): a
 # visible, per-map exception for the test grid L_ItemTest, whose bots never fetch need-less ammo; no other map has one.
 exempt = set(os.environ.get('BAND_FFA_COVERAGE_EXEMPT', '').split())
-untaken_all = sorted(d for d in present if takes[d] == 0)
-untaken = [d for d in untaken_all if d not in exempt]
-if present:
+warnings = []
+if exempt and band_name not in EXEMPT_MAPS:
+    warnings.append(f'exemption ignored on {band_name}: test maps only (ADR 0006 E0.3 a)')
+    exempt = set()
+# Per instance (E0.3 c) when every run's log carries at= on its VeloxPickupReset lines (and a reset exists); else per definition.
+inst_mode = bool(present) and all(r.get('resets_at') is not None and all(at for _, at in r['resets_at']) for r in runs)
+if inst_mode:
+    inst_present = set()
+    for r in runs:
+        inst_present.update((d, at) for d, at in r['resets_at'])
+    inst_takes = collections.Counter()
+    for r in runs:
+        for d, at in r.get('takes_at', []):
+            inst_takes[(d, at)] += 1
+    inst_untaken_all = sorted(i for i in inst_present if inst_takes[i] == 0)
+    inst_untaken = [i for i in inst_untaken_all if i[0] not in exempt]
+    untaken_all = [i[0] for i in inst_untaken_all]
+    untaken = [i[0] for i in inst_untaken]
+else:
+    untaken_all = sorted(d for d in present if takes[d] == 0)
+    untaken = [d for d in untaken_all if d not in exempt]
+
+
+def fmt_at(at):
+    return '(' + ','.join(re.findall(r'=(-?[\d.]+)', at)) + ')'
+
+
+if inst_mode:
+    inv.append(('item_coverage', f'{len(inst_present) - len(inst_untaken_all)}/{len(inst_present)} pickups ({len(present)} definitions)'
+                + (f', {len(inst_untaken_all) - len(inst_untaken)} exempt' if len(inst_untaken_all) != len(inst_untaken) else '') + ('' if full_set else ' n/j'),
+                'all', (not inst_untaken) or (not full_set)))
+elif present:
     inv.append(('item_coverage', f'{len(present) - len(untaken_all)}/{len(present)} item definitions taken ({sum(present.values())} pickups)'
                 + (f', {len(untaken_all) - len(untaken)} exempt' if len(untaken_all) != len(untaken) else '') + ('' if full_set else ' n/j'),
                 'all', (not untaken) or (not full_set)))
@@ -128,8 +170,20 @@ else:
 print('SET invariants (ADR 0006 section 7, every map):')
 for n, v, lim, ok in inv:
     print(f'  {n:<28} {v:<44} limit {lim:<8} {"PASS" if ok else "FAIL"}')
-if untaken:
-    print(('  untaken items (layout or link defect): ' if full_set else '  untaken items (reported; judged for %d runs): ' % D51_KILLS_RUNS) + '; '.join(f"{d} at {' / '.join(locs[d]) or '?'}" for d in untaken))
-if untaken_all != untaken:
-    print(f'  untaken but exempt by the {band_name} band file: ' + '; '.join(f"{d} at {' / '.join(locs[d]) or '?'}" for d in untaken_all if d in exempt))
+if inst_mode:
+    if inst_untaken:
+        print(('  untaken items (layout or link defect): ' if full_set else '  untaken items (reported; judged for %d runs): ' % D51_KILLS_RUNS) + '; '.join(f'{d}@{fmt_at(at)}' for d, at in inst_untaken))
+    if len(inst_untaken_all) != len(inst_untaken):
+        print(f'  untaken but exempt by the {band_name} band file: ' + '; '.join(f'{d}@{fmt_at(at)}' for d, at in inst_untaken_all if d in exempt))
+else:
+    if untaken:
+        print(('  untaken items (layout or link defect): ' if full_set else '  untaken items (reported; judged for %d runs): ' % D51_KILLS_RUNS) + '; '.join(f"{d} at {' / '.join(locs[d]) or '?'}" for d in untaken))
+    if untaken_all != untaken:
+        print(f'  untaken but exempt by the {band_name} band file: ' + '; '.join(f"{d} at {' / '.join(locs[d]) or '?'}" for d in untaken_all if d in exempt))
+for w in warnings:
+    print('  WARNING: ' + w)
+for f_ in link_flags:
+    print('  ' + f_)
+if lu:
+    print('  link unknown reasons (counted failed): ' + ' '.join(f'{k}={v}' for k, v in sorted(lu.items())))
 sys.exit(1 if fails else 0)
