@@ -1,0 +1,15 @@
+[ci] Net soak: scripts=FireRun FireRunControl rounds=1 port=7933 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/f03/acc/out/20261031-142434-3645256/nettest
+[ci] [FireRun] load gate: load1=0.66 at round start (gate 2.0, waited 0s)
+[ci] [FireRun] starting dedicated server (60 Hz), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/f03/acc/out/20261031-142434-3645256/nettest/FireRun-server.log
+[ci] [FireRun] starting client (120 Hz, packet simulation 50 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/f03/acc/out/20261031-142434-3645256/nettest/FireRun-client.log
+Terminated
+[ci] [FireRunControl] load gate: load1=1.08 at round start (gate 2.0, waited 0s)
+[ci] [FireRunControl] starting dedicated server (60 Hz), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/f03/acc/out/20261031-142434-3645256/nettest/FireRunControl-server.log
+[ci] [FireRunControl] starting client (120 Hz, packet simulation 50 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/f03/acc/out/20261031-142434-3645256/nettest/FireRunControl-client.log
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+FireRun            moves=4449  C=0   echoes=0   gaps=10  repaired=28  repaired_extra=7   resent=2257  resent_extra=2257 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=89.0 rails=11 hits=11 stamp=11 rewind_med=119.1 dmean=4.6 aim_max=0.0 delay_med=31.4 mg=40 rejected=0 act_failed=0 confirms=51/52 rl=direct=None/victims=1/sent=1 warmup_shots=0 late_max=150.0 late_gt40=2 rail_confirms=10/10 rl_confirms=1 replays=3 acks_ignored=0 rpcs=2266  non-held shots with late_ms > 40 (a lost RPC resent, RTT + ~80 ms): [('39', 150.0), ('40', 50.0)]
+FireRunControl     moves=4448  C=0   echoes=0   gaps=8   repaired=63  repaired_extra=17  resent=2257  resent_extra=2249 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=89.0 rails=11 hits=0 stamp=0 rewind_med=0.0 dmean=0.0 aim_max=0.0 delay_med=22.5 mg=40 rejected=0 act_failed=0 confirms=4/4 rl=direct=None/victims=1/sent=1 warmup_shots=0 late_max=183.3 late_gt40=2 compensated=11/11 replays=3 acks_ignored=0 rpcs=2265  non-held shots with late_ms > 40 (a lost RPC resent, RTT + ~80 ms): [('21', 183.3), ('22', 83.3)]
+Rounds passed: 1/1 (requested 1)
+Logs: /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/f03/acc/out/20261031-142434-3645256/nettest
+[ci] NET SOAK OK

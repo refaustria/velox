@@ -1,0 +1,2 @@
+load_start=1.94 gate=2.0 gate_waited_s=0 gate_timeout=0
+load_end=1.38
