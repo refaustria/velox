@@ -1,0 +1,97 @@
+[2026.10.31-08.43.38:768][  0]LogTemp: Error test: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.43.38:768][  0]LogTemp: Error with param: UE::UnifiedErrorTest::WithInt: [Error with int -7]
+[2026.10.31-08.43.38:768][  0]LogTemp: Error with context: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.43.38:768][  0]LogTemp: FError that has been invalidated: ::: []
+[2026.10.31-08.43.38:768][  0]LogTemp: FError that has been moved from: ::: []
+[2026.10.31-08.43.38:908][  0]LogConsoleManager: Warning: Setting the console variable 'r.VSync' with 'SetByGameSetting' was ignored as it is lower priority than the previous 'SetByProjectSetting'. Value remains '0'
+[2026.10.31-08.43.38:909][  0]LogVelox: VeloxSettings applied sens=5.000 deg_per_count=0.1100 invert_y=0 fov=105.0 autoswitch=1 crosshair=0/24 name=Player aa=MSAA4 r.AntiAliasingMethod=3 r.MSAACount=4 fps_limit=0 vol master=1.00 effects=1.00 music=1.00
+[2026.10.31-08.43.38:914][  0]LogVelox: UVeloxGameInstance initialised.
+[2026.10.31-08.43.40:559][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'ActorLayersWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:559][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'UObjectLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'FolderCompatibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DiskSizeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataItemTypeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataVirtualPathWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetNameWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:560][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'StaticMeshTrianglesWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:561][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:561][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertHeaderWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:561][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:561][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedHeaderConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:561][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'SocketWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:561][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'TypeInfoWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:561][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'VisibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.43.40:564][  0]LogAssetRegistry: Warning: GetFirstPackageByName is being called in `-game` to resolve partial package name. This may cause a slow scan on disk. Consider using the fully qualified package name for better performance. 
+[2026.10.31-08.43.40:652][  0]LogVeloxMatch: VeloxMatch init mode=VeloxGameMode definition=None rules=0 frag_limit=0 time_limit=0 min_players=2 max_active=0 ready=0 countdown=20.0 overtime=0 post_match=15.0 forfeit=0
+[2026.10.31-08.43.40:655][  0]LogVeloxBots: VeloxBots seed=972101321 (velox.bots.Seed=0)
+[2026.10.31-08.43.40:655][  0]LogVeloxBots: VeloxNav building... navdata=RecastNavMesh-VeloxPawn tiles=0 agents=1 agent0=VeloxPawn class0=RecastNavMesh nav_bounds=1
+[2026.10.31-08.43.42:014][ 42]LogVeloxBots: VeloxNav built tiles=116 seconds=1.394 links=12 relevant_triggers=0 runtime=Dynamic agent_radius=45.0 agent_height=140.0 step=45.0 cell=19.0 cell_height=10.0 slope=45.5 tile_size=1000
+[2026.10.31-08.43.52:670][677]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar None -> VeloxPlayerState_0 (0 abilities)
+[2026.10.31-08.43.52:673][677]LogVeloxCombat: VeloxColor player=VeloxPlayerState_0 index=0 palette=8
+[2026.10.31-08.43.52:673][677]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_8 at V(X=120.00, Z=100.00) starts=5 candidates=5 enemies=0 nearest_enemy_cm=-1 telefrag=0
+[2026.10.31-08.43.52:674][677]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_0 at V(X=-1480.00, Y=7600.00, Z=100.00) starts=5 candidates=5 enemies=0 nearest_enemy_cm=-1 telefrag=0
+[2026.10.31-08.43.52:678][677]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_0 capacity=60 registered=1
+[2026.10.31-08.43.52:679][677]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxPlayerState_0 -> VeloxCharacter_0 (0 abilities)
+[2026.10.31-08.43.52:679][677]LogVeloxCombat: VeloxPlayerState_0: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-08.43.52:679][677]LogVeloxCombat: VeloxPlayerState_0: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-08.43.52:680][677]LogVeloxCombat: VeloxPlayerState_0: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-08.43.53:426][722]LogVeloxNet: VeloxMoveGap ts=0.277522 dt=0.218750
+[2026.10.31-08.43.53:895][750]LogVeloxNet: VeloxMoveRepaired ts=0.710889 dt=0.016668 slot=old
+[2026.10.31-08.43.54:113][763]LogVeloxNet: VeloxMoveRepaired ts=0.927570 dt=0.016669 slot=extra
+[2026.10.31-08.43.54:113][763]LogVeloxNet: VeloxMoveRepaired ts=0.944237 dt=0.016667 slot=old
+[2026.10.31-08.43.54:163][766]LogVeloxNet: VeloxMoveRepaired ts=0.977574 dt=0.016668 slot=extra
+[2026.10.31-08.43.54:164][766]LogVeloxNet: VeloxMoveRepaired ts=0.994241 dt=0.016667 slot=old
+[2026.10.31-08.43.55:491][845]LogVeloxMovement: VeloxJumpPad: pad=VeloxJumpPad_4 role=authority t=14.210 ts=2.329605 src=server applied=1 launch=V(X=1264.91, Z=1264.91)
+[2026.10.31-08.43.55:524][847]LogVeloxNet: VeloxKnockbackConsumed ts_start=2.329605 ts_end=2.337939 grace=0.200000
+[2026.10.31-08.43.56:652][914]LogVeloxNet: VeloxMoveRepaired ts=3.463035 dt=0.008334 slot=extra
+[2026.10.31-08.43.56:653][914]LogVeloxNet: VeloxMoveRepaired ts=3.471368 dt=0.008333 slot=old
+[2026.10.31-08.43.58:098][999]LogVeloxNet: VeloxMoveGap ts=4.926203 dt=0.046373
+[2026.10.31-08.43.58:249][  8]LogVeloxNet: VeloxMoveRepaired ts=5.076211 dt=0.016667 slot=old
+[2026.10.31-08.44.00:375][134]LogVeloxNet: VeloxMoveGap ts=7.201853 dt=0.028715
+[2026.10.31-08.44.00:610][148]LogVeloxNet: VeloxMoveRepaired ts=7.418534 dt=0.016668 slot=old
+[2026.10.31-08.44.02:298][248]LogVeloxNet: VeloxMoveGap ts=9.123126 dt=0.037797
+[2026.10.31-08.44.02:450][257]LogVeloxNet: VeloxMoveGap ts=9.239802 dt=0.033336
+[2026.10.31-08.44.02:450][257]LogVeloxNet: VeloxMoveRepaired ts=9.239802 dt=0.033336 slot=extra
+[2026.10.31-08.44.02:450][257]LogVeloxNet: VeloxMoveRepaired ts=9.256471 dt=0.016668 slot=old
+[2026.10.31-08.44.02:854][281]LogVeloxNet: VeloxMoveRepaired ts=9.656497 dt=0.016667 slot=extra
+[2026.10.31-08.44.02:855][281]LogVeloxNet: VeloxMoveRepaired ts=9.673165 dt=0.016668 slot=old
+[2026.10.31-08.44.02:922][285]LogVeloxNet: VeloxMoveRepaired ts=9.748171 dt=0.016667 slot=extra
+[2026.10.31-08.44.02:922][285]LogVeloxNet: VeloxMoveRepaired ts=9.764839 dt=0.016668 slot=old
+[2026.10.31-08.44.04:038][351]LogVeloxNet: VeloxMoveGap ts=10.876469 dt=0.027698
+[2026.10.31-08.44.04:892][402]LogVeloxMovement: VeloxJumpPad: pad=VeloxJumpPad_3 role=authority t=23.611 ts=11.727296 src=server applied=1 launch=V(X=1014.19, Z=1183.22)
+[2026.10.31-08.44.04:908][403]LogVeloxNet: VeloxKnockbackConsumed ts_start=11.727296 ts_end=11.735630 grace=0.200000
+[2026.10.31-08.44.05:478][437]LogVeloxNet: VeloxMoveRepaired ts=12.302365 dt=0.008333 slot=extra
+[2026.10.31-08.44.05:479][437]LogVeloxNet: VeloxMoveRepaired ts=12.310699 dt=0.008333 slot=old
+[2026.10.31-08.44.06:792][515]LogVeloxNet: VeloxMoveRepaired ts=13.612085 dt=0.016667 slot=extra
+[2026.10.31-08.44.06:792][515]LogVeloxNet: VeloxMoveRepaired ts=13.628754 dt=0.016668 slot=old
+[2026.10.31-08.44.07:429][553]LogVeloxNet: VeloxMoveRepaired ts=14.262133 dt=0.016668 slot=old
+[2026.10.31-08.44.07:665][567]LogVeloxNet: VeloxMoveRepaired ts=14.462147 dt=0.016668 slot=old
+[2026.10.31-08.44.08:772][633]LogVeloxNet: VeloxMoveRepaired ts=15.612224 dt=0.016668 slot=old
+[2026.10.31-08.44.08:961][644]LogVeloxNet: VeloxMoveGap ts=15.790821 dt=0.028586
+[2026.10.31-08.44.10:422][731]LogVeloxNet: VeloxMoveRepaired ts=17.249233 dt=0.016666 slot=old
+[2026.10.31-08.44.11:462][793]LogVeloxNet: VeloxMoveGap ts=18.313435 dt=0.029390
+[2026.10.31-08.44.12:251][840]LogVeloxNet: VeloxMoveRepaired ts=19.047890 dt=0.016666 slot=extra
+[2026.10.31-08.44.12:252][840]LogVeloxNet: VeloxMoveRepaired ts=19.064558 dt=0.016668 slot=old
+[2026.10.31-08.44.12:656][864]LogVeloxNet: VeloxMoveRepaired ts=19.447901 dt=0.016668 slot=old
+[2026.10.31-08.44.12:723][868]LogVeloxNet: VeloxMoveRepaired ts=19.547903 dt=0.016668 slot=old
+[2026.10.31-08.44.13:513][915]LogVeloxNet: VeloxMoveRepaired ts=20.314871 dt=0.016666 slot=extra
+[2026.10.31-08.44.13:514][915]LogVeloxNet: VeloxMoveRepaired ts=20.331539 dt=0.016668 slot=old
+[2026.10.31-08.44.13:798][932]LogVeloxNet: VeloxMoveRepaired ts=20.614885 dt=0.016666 slot=old
+[2026.10.31-08.44.14:476][972]LogVeloxNet: VeloxMoveGap ts=21.302299 dt=0.037390
+[2026.10.31-08.44.14:713][986]LogVeloxMovement: VeloxJumpPad: pad=VeloxJumpPad_5 role=authority t=33.431 ts=21.552311 src=server applied=1 launch=V(Z=1649.24)
+[2026.10.31-08.44.14:713][986]LogVeloxNet: VeloxKnockbackConsumed ts_start=21.552311 ts_end=21.560644 grace=0.200000
+[2026.10.31-08.44.15:603][ 39]LogVeloxNet: VeloxMoveRepaired ts=22.394247 dt=0.008333 slot=extra
+[2026.10.31-08.44.15:603][ 39]LogVeloxNet: VeloxMoveRepaired ts=22.402580 dt=0.008333 slot=old
+[2026.10.31-08.44.16:245][ 77]LogVeloxNet: VeloxMoveGap ts=23.089676 dt=0.028748
+[2026.10.31-08.44.17:619][159]LogNet:  - Result=ControlChannelClose, ErrorContext="ControlChannelClose"
+[2026.10.31-08.44.17:637][160]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxCharacter_0 -> None (2 abilities)
+[2026.10.31-08.44.17:638][160]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_0 registered=0
+[2026.10.31-08.44.17:640][160]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxPlayerState_1 (0 abilities)
+[2026.10.31-08.44.17:640][160]LogVeloxCombat: VeloxColor player=VeloxPlayerState_1 index=1 palette=8
+[2026.10.31-08.44.19:994][302]LogCrowdFollowing: Warning: Unable to find RecastNavMesh instance while trying to create UCrowdManager instance

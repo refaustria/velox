@@ -1,0 +1,126 @@
+[2026.10.31-08.48.40:533][  0]LogTemp: Error test: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.48.40:533][  0]LogTemp: Error with param: UE::UnifiedErrorTest::WithInt: [Error with int -7]
+[2026.10.31-08.48.40:533][  0]LogTemp: Error with context: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.48.40:533][  0]LogTemp: FError that has been invalidated: ::: []
+[2026.10.31-08.48.40:533][  0]LogTemp: FError that has been moved from: ::: []
+[2026.10.31-08.48.40:679][  0]LogConsoleManager: Warning: Setting the console variable 'r.VSync' with 'SetByGameSetting' was ignored as it is lower priority than the previous 'SetByProjectSetting'. Value remains '0'
+[2026.10.31-08.48.40:679][  0]LogVelox: VeloxSettings applied sens=5.000 deg_per_count=0.1100 invert_y=0 fov=105.0 autoswitch=1 crosshair=0/24 name=Player aa=MSAA4 r.AntiAliasingMethod=3 r.MSAACount=4 fps_limit=0 vol master=1.00 effects=1.00 music=1.00
+[2026.10.31-08.48.40:687][  0]LogVelox: UVeloxGameInstance initialised.
+[2026.10.31-08.48.42:292][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'ActorLayersWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:292][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'UObjectLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:292][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'FolderCompatibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:292][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DiskSizeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:292][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataItemTypeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:292][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:292][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataVirtualPathWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:292][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetNameWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:292][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:293][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:293][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:293][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:293][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:293][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'StaticMeshTrianglesWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:293][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:293][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertHeaderWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:294][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:294][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedHeaderConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:294][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'SocketWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:294][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'TypeInfoWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:294][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'VisibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.48.42:297][  0]LogAssetRegistry: Warning: GetFirstPackageByName is being called in `-game` to resolve partial package name. This may cause a slow scan on disk. Consider using the fully qualified package name for better performance. 
+[2026.10.31-08.48.42:374][  0]LogVeloxMatch: VeloxMatch init mode=VeloxGameMode definition=None rules=0 frag_limit=0 time_limit=0 min_players=2 max_active=0 ready=0 countdown=20.0 overtime=0 post_match=15.0 forfeit=0
+[2026.10.31-08.48.42:376][  0]LogVeloxBots: VeloxBots seed=1273821553 (velox.bots.Seed=0)
+[2026.10.31-08.48.42:376][  0]LogVeloxBots: VeloxNav building... navdata=RecastNavMesh-VeloxPawn tiles=0 agents=1 agent0=VeloxPawn class0=RecastNavMesh nav_bounds=1
+[2026.10.31-08.48.42:380][  0]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_0 capacity=60 registered=1
+[2026.10.31-08.48.42:381][  0]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar None -> VeloxPlayerState_0 (0 abilities)
+[2026.10.31-08.48.42:382][  0]LogVeloxCombat: VeloxColor player=VeloxPlayerState_0 index=0 palette=8
+[2026.10.31-08.48.42:382][  0]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxPlayerState_0 -> VeloxCharacter_0 (0 abilities)
+[2026.10.31-08.48.42:383][  0]LogVeloxCombat: VeloxPlayerState_0: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-08.48.42:383][  0]LogVeloxCombat: VeloxPlayerState_0: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-08.48.42:384][  0]LogVeloxCombat: VeloxPlayerState_0: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-08.48.42:384][  0]LogVelox: VeloxDummySpawner_3: spawned dummy VeloxCharacter_0 at V(X=-700.00, Y=-1200.00, Z=72.15).
+[2026.10.31-08.48.42:385][  0]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_1 capacity=60 registered=2
+[2026.10.31-08.48.42:385][  0]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxPlayerState_1 (0 abilities)
+[2026.10.31-08.48.42:385][  0]LogVeloxCombat: VeloxColor player=VeloxPlayerState_1 index=1 palette=8
+[2026.10.31-08.48.42:385][  0]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxPlayerState_1 -> VeloxCharacter_1 (0 abilities)
+[2026.10.31-08.48.42:385][  0]LogVeloxCombat: VeloxPlayerState_1: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-08.48.42:385][  0]LogVeloxCombat: VeloxPlayerState_1: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-08.48.42:385][  0]LogVeloxCombat: VeloxPlayerState_1: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-08.48.42:385][  0]LogVelox: VeloxDummySpawner_4: spawned dummy VeloxCharacter_1 at V(X=300.00, Y=-1200.00, Z=72.15).
+[2026.10.31-08.48.42:386][  0]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_2 capacity=60 registered=3
+[2026.10.31-08.48.42:386][  0]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar None -> VeloxPlayerState_2 (0 abilities)
+[2026.10.31-08.48.42:386][  0]LogVeloxCombat: VeloxColor player=VeloxPlayerState_2 index=2 palette=8
+[2026.10.31-08.48.42:386][  0]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar VeloxPlayerState_2 -> VeloxCharacter_2 (0 abilities)
+[2026.10.31-08.48.42:386][  0]LogVeloxCombat: VeloxPlayerState_2: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-08.48.42:386][  0]LogVeloxCombat: VeloxPlayerState_2: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-08.48.42:386][  0]LogVeloxCombat: VeloxPlayerState_2: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-08.48.42:386][  0]LogVelox: VeloxDummySpawner_5: spawned dummy VeloxCharacter_2 at V(X=1300.00, Y=-1200.00, Z=72.15).
+[2026.10.31-08.48.43:212][  9]LogVeloxBots: VeloxNav built tiles=21 seconds=0.868 links=0 relevant_triggers=0 runtime=Dynamic agent_radius=45.0 agent_height=140.0 step=45.0 cell=19.0 cell_height=10.0 slope=45.5 tile_size=1000
+[2026.10.31-08.48.45:043][118]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1145.62, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-08.48.45:043][118]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1145.62, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-08.48.45:043][118]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1145.62, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-08.48.47:043][237]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1051.40, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-08.48.47:043][237]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1051.40, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-08.48.47:043][237]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1051.40, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-08.48.49:031][355]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-973.64, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-08.48.49:031][355]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-973.64, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-08.48.49:031][355]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-973.64, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-08.48.51:030][474]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-881.97, Z=72.15) velocity V(Y=592.75) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.51:030][474]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-881.97, Z=72.15) velocity V(Y=592.75) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.51:030][474]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-881.97, Z=72.15) velocity V(Y=592.75) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.53:030][593]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-878.78, Z=72.15) velocity V(Y=-387.27) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.53:030][593]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-878.78, Z=72.15) velocity V(Y=-387.27) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.53:030][593]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-878.78, Z=72.15) velocity V(Y=-387.27) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.54:037][653]LogVeloxCombat: VeloxPlayerState_3: ability actor info owner=VeloxPlayerState_3 avatar None -> VeloxPlayerState_3 (0 abilities)
+[2026.10.31-08.48.54:037][653]LogVeloxCombat: VeloxColor player=VeloxPlayerState_3 index=3 palette=8
+[2026.10.31-08.48.54:037][653]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_7 at V(X=1700.00, Y=1200.00, Z=100.00) starts=4 candidates=2 enemies=3 nearest_enemy_cm=2726 telefrag=0
+[2026.10.31-08.48.54:039][653]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_7 at V(X=1700.00, Y=1200.00, Z=100.00) starts=4 candidates=2 enemies=3 nearest_enemy_cm=2726 telefrag=0
+[2026.10.31-08.48.54:039][653]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_3 capacity=60 registered=4
+[2026.10.31-08.48.54:039][653]LogVeloxCombat: VeloxPlayerState_3: ability actor info owner=VeloxPlayerState_3 avatar VeloxPlayerState_3 -> VeloxCharacter_3 (0 abilities)
+[2026.10.31-08.48.54:040][653]LogVeloxCombat: VeloxPlayerState_3: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-08.48.54:040][653]LogVeloxCombat: VeloxPlayerState_3: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-08.48.54:040][653]LogVeloxCombat: VeloxPlayerState_3: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-08.48.54:121][658]LogVeloxCombat: VeloxPlayerState_3: AddWeapon DA_Weapon_MachineGun index=0 new=0 ammo+0 owned=0x0001 current=0
+[2026.10.31-08.48.54:121][658]LogVeloxCombat: VeloxPlayerState_3: AddWeapon DA_Weapon_Shotgun index=1 new=1 ammo+0 owned=0x0003 current=0
+[2026.10.31-08.48.54:121][658]LogVeloxCombat: VeloxPlayerState_3: AddWeapon DA_Weapon_RocketLauncher index=2 new=1 ammo+0 owned=0x0007 current=0
+[2026.10.31-08.48.54:121][658]LogVeloxCombat: VeloxPlayerState_3: AddWeapon DA_Weapon_LightningGun index=3 new=1 ammo+0 owned=0x000f current=0
+[2026.10.31-08.48.54:121][658]LogVeloxCombat: VeloxPlayerState_3: AddWeapon DA_Weapon_Railgun index=4 new=1 ammo+0 owned=0x001f current=0
+[2026.10.31-08.48.54:121][658]LogVeloxCombat: VeloxPlayerState_3: AddWeapon DA_Weapon_PlasmaGun index=5 new=1 ammo+0 owned=0x003f current=0
+[2026.10.31-08.48.54:121][658]LogVeloxCombat: GiveAllWeapons: VeloxPlayerState_3 owns 0x003f
+[2026.10.31-08.48.55:044][713]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-969.08, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.55:044][713]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-969.08, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.55:044][713]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-969.08, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.55:297][728]LogVeloxCombat: VeloxWeaponSwitch DA_Weapon_MachineGun -> DA_Weapon_RocketLauncher wait=0.000 drop=0.20 raise=0.25 role=server
+[2026.10.31-08.48.56:187][781]LogVeloxCombat: VeloxMoveShot seq=1 weapon=DA_Weapon_RocketLauncher fire_ts=1.616785 move_ts=1.625119 move_dt=0.008334 flight_ms=55.6 event_ts=1.672385 splash_origin=V(X=1699.78, Y=1200.00, Z=2.00) rpc_first=1 quad=0
+[2026.10.31-08.48.56:187][781]LogVeloxCombat: VeloxProjectileShot seq=1 weapon=DA_Weapon_RocketLauncher fire_ts=1.616785 client_ts=1.616785 last_ts=1.625119 event_id=1 splash_origin=V(X=1699.78, Y=1200.00, Z=2.00) source=move late_ms=8.3
+[2026.10.31-08.48.56:187][781]LogVeloxCombat: VeloxProjectileSpawn seq=1 weapon=DA_Weapon_RocketLauncher owner=VeloxCharacter_3 origin=V(X=1700.00, Y=1200.00, Z=127.10) fwd_ms=100.0 self_event=1 quad=0
+[2026.10.31-08.48.56:187][781]LogVeloxCombat: VeloxProjectileExplode seq=1 weapon=DA_Weapon_RocketLauncher owner=VeloxCharacter_3 at=V(X=1699.78, Y=1200.00, Z=2.00) age_ms=55.6 direct=None splash=0 self=move_timed confirm_victims=0 confirm_dmg=0 kill=0 confirm_sent=0 quad=0
+[2026.10.31-08.48.56:236][784]LogVeloxCombat: VeloxDamageCalc target=VeloxPlayerState_3 dmg=87 pellets=1 armor=0 self=1 protected=0 noarmor=0 radius=1 suit=0 dead=0 frozen=0 -> health_loss=43 armor_loss=0 knockback=1087.5 cm/s
+[2026.10.31-08.48.56:236][784]LogVeloxCombat: VeloxDamage target=VeloxPlayerState_3 instigator=VeloxPlayerState_3 tags=[Velox.Damage.Rocket, Velox.Damage.Self] health 123->80 armor 0->0 knockback=V(X=1.42, Z=1087.50) (1088 cm/s, AddKnockback(Server) accepted)
+[2026.10.31-08.48.56:236][784]LogVeloxCombat: VeloxSelfSplash role=server reason=move seq=1 ts=1.675123 pos=V(X=1700.00, Y=1200.00, Z=108.12) origin=V(X=1699.78, Y=1200.00, Z=2.00) hit=1 dist=36.13 points=87 quad=0
+[2026.10.31-08.48.56:236][784]LogVeloxNet: VeloxKnockbackConsumed ts_start=1.675123 ts_end=1.683457 grace=0.174000
+[2026.10.31-08.48.56:303][788]LogVeloxNet: VeloxMoveGap ts=1.741794 dt=0.025001
+[2026.10.31-08.48.56:756][815]LogVeloxNet: VeloxMoveGap ts=2.191821 dt=0.025002
+[2026.10.31-08.48.56:756][815]LogVeloxNet: VeloxMoveRepaired ts=2.191821 dt=0.025002 slot=extra
+[2026.10.31-08.48.56:756][815]LogVeloxNet: VeloxMoveRepaired ts=2.200155 dt=0.008334 slot=old
+[2026.10.31-08.48.57:041][832]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1061.80, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.57:041][832]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1061.80, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.57:041][832]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1061.80, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.58:282][906]LogVeloxNet: VeloxMoveGap ts=3.816954 dt=0.050004
+[2026.10.31-08.48.58:282][906]LogVeloxNet: VeloxMoveRepaired ts=3.816954 dt=0.050004 slot=extra
+[2026.10.31-08.48.58:282][906]LogVeloxNet: VeloxMoveRepaired ts=3.833622 dt=0.016668 slot=old
+[2026.10.31-08.48.58:282][906]LogNet:  - Result=ControlChannelClose, ErrorContext="ControlChannelClose"
+[2026.10.31-08.48.58:299][907]LogVeloxCombat: VeloxPlayerState_3: ability actor info owner=VeloxPlayerState_3 avatar VeloxCharacter_3 -> None (7 abilities)
+[2026.10.31-08.48.58:299][907]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_3 registered=3
+[2026.10.31-08.48.58:299][907]LogVeloxCombat: VeloxPlayerState_4: ability actor info owner=VeloxPlayerState_4 avatar None -> VeloxPlayerState_4 (0 abilities)
+[2026.10.31-08.48.58:299][907]LogVeloxCombat: VeloxColor player=VeloxPlayerState_4 index=4 palette=8
+[2026.10.31-08.48.59:038][951]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1154.65, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.59:038][951]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1154.65, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.48.59:038][951]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1154.65, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-08.49.00:413][ 34]LogCrowdFollowing: Warning: Unable to find RecastNavMesh instance while trying to create UCrowdManager instance
+[2026.10.31-08.49.00:414][ 34]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxCharacter_0 -> None (2 abilities)
+[2026.10.31-08.49.00:414][ 34]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_0 registered=2
+[2026.10.31-08.49.00:414][ 34]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_1 -> None (2 abilities)
+[2026.10.31-08.49.00:414][ 34]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_1 registered=1
+[2026.10.31-08.49.00:414][ 34]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar VeloxCharacter_2 -> None (2 abilities)
+[2026.10.31-08.49.00:414][ 34]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_2 registered=0

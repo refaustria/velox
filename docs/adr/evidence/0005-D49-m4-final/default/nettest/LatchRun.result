@@ -1,0 +1,1 @@
+LatchRun           moves=420   C=1   echoes=4   gaps=1   repaired=1   repaired_extra=0   resent=241   resent_extra=241  strays_le_2_5=0  max=5.00   mean=5.00  PASS  Lexp=8.4 midair_corr=1 intended=5.0 cm at +0.24s echoes=4 land1 jumped=1 vz=662 spd 800->800 land2 jumped=0 vz=0 spd 800->800 replays=9 acks_ignored=0 rpcs=252  land2: no friction drop (800.0 -> 800.0)
