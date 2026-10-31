@@ -29,11 +29,6 @@ const UVeloxAudioSettings& UVeloxAudioSettings::Get()
 	return *GetDefault<UVeloxAudioSettings>();
 }
 
-const FVeloxCueSound* UVeloxAudioSettings::FindCueSound(const FGameplayTag& Cue) const
-{
-	return CueSounds.FindByPredicate([&Cue](const FVeloxCueSound& Entry) { return Entry.Cue == Cue; });
-}
-
 TSoftObjectPtr<USoundBase> UVeloxAudioSettings::FindAnnouncerLine(FName Name) const
 {
 	const FVeloxNamedSound* Found = AnnouncerLines.FindByPredicate([Name](const FVeloxNamedSound& Entry) { return Entry.Name == Name; });
@@ -99,10 +94,6 @@ void UVeloxAudioSettings::LoadAll()
 	Add(ConcurrencyFootsteps);
 	Add(ConcurrencyImpacts);
 	Add(AnnouncerMix);
-	for (const FVeloxCueSound& Entry : CueSounds)
-	{
-		Add(Entry.Sound);
-	}
 	for (const FVeloxNamedSound& Entry : AnnouncerLines)
 	{
 		Add(Entry.Sound);
@@ -111,8 +102,6 @@ void UVeloxAudioSettings::LoadAll()
 	{
 		Add(Entry);
 	}
-	Add(BeamStartSound);
-	Add(BeamStopSound);
 	Add(HitConfirmSound);
 	Add(DryFireSound);
 	Add(WeaponSwitchSound);

@@ -24,7 +24,9 @@ struct FVeloxDamageDirection
 class UAbilitySystemComponent;
 class UAudioComponent;
 class UGameplayAbility;
-class UPointLightComponent;
+class UVeloxWeaponCosmetics;
+class UVeloxWeaponDefinition;
+class UVeloxWeaponTable;
 
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxCombatFeedbackComponent : public UActorComponent
@@ -81,8 +83,18 @@ protected:
 private:
 	/** M5 audio (ADR 0006 section 9): the fire / impact one-shots, the Lightning Gun beam loop and the muzzle light. Clients only. */
 	void PlayCueAudio(const FGameplayTag& CueTag, const FString& TagName, const FVector& Start, const FVector& End);
-	void UpdateBeamAudio(bool bStart);
-	void SpawnMuzzleLight(const FVector& Location);
+	void UpdateBeamAudio(const FGameplayTag& CueTag, bool bStart);
+
+	/**
+	 * The weapon definition whose Fire / Impact / Beam cue tag is CueTag, from the owner's inventory table (review 0006 D4);
+	 * null without an inventory or for other tags. The tag map is built once per table. Cosmetics are read with Get() only:
+	 * until the asset manager's resident load completes the cue is silent.
+	 */
+	const UVeloxWeaponDefinition* FindCueDefinition(const FGameplayTag& CueTag);
+	const UVeloxWeaponCosmetics* FindCueCosmetics(const FGameplayTag& CueTag);
+
+	TWeakObjectPtr<const UVeloxWeaponTable> CueTable;
+	TMap<FGameplayTag, TWeakObjectPtr<const UVeloxWeaponDefinition>> CueDefinitions;
 
 	/**
 	 * Dry fire (review 0006 D3): on the local player's pawn, binds AbilityFailedCallbacks of the ASC whose avatar is the owner.

@@ -110,6 +110,22 @@ bool FVeloxWeaponCosmeticsSoftRefsTest::RunTest(const FString& Parameters)
 	}
 	const FProperty* Cosmetics = UVeloxWeaponDefinition::StaticClass()->FindPropertyByName(TEXT("Cosmetics"));
 	TestTrue(TEXT("UVeloxWeaponDefinition::Cosmetics is a soft object reference"), Cosmetics && Cosmetics->IsA<FSoftObjectProperty>());
+
+	// GetSoftReferences (the asset manager's stage 2) names every soft reference of the asset, the sound fields included.
+	UVeloxWeaponCosmetics* Data = NewObject<UVeloxWeaponCosmetics>(GetTransientPackage());
+	int32 NumSoft = 0;
+	for (TFieldIterator<FSoftObjectProperty> It(UVeloxWeaponCosmetics::StaticClass(), EFieldIterationFlags::None); It; ++It)
+	{
+		It->SetPropertyValue_InContainer(Data, FSoftObjectPtr(FSoftObjectPath(FString::Printf(TEXT("/Game/Test/Asset%d.Asset%d"), NumSoft, NumSoft))));
+		++NumSoft;
+	}
+	TArray<FSoftObjectPath> Paths;
+	Data->GetSoftReferences(Paths);
+	TestTrue(TEXT("the cosmetics have soft references"), NumSoft >= 7);
+	TestEqual(TEXT("GetSoftReferences lists every soft property once"), Paths.Num(), NumSoft);
+	TArray<FSoftObjectPath> Empty;
+	NewObject<UVeloxWeaponCosmetics>(GetTransientPackage())->GetSoftReferences(Empty);
+	TestEqual(TEXT("an empty asset lists nothing"), Empty.Num(), 0);
 	return true;
 }
 

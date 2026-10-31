@@ -1,10 +1,11 @@
-// Velox - one weapon's look and sound (ADR 0006 section 4.6 and the audio section). Assets:
+// Velox - one weapon's look and sound: the single source (fire, impact and beam sounds, muzzle light, meshes; review 0006 D4) (ADR 0006 section 4.6 and the audio section). Assets:
 // /Game/Weapons/DA_WeaponCosmetics_<Name>, referenced softly from UVeloxWeaponDefinition::Cosmetics. Every reference is
 // soft: the dedicated server never loads any of it. Meshes and sounds may be empty (the art tasks fill them).
 
 #pragma once
 
 #include "Engine/DataAsset.h"
+#include "Core/VeloxAudioSettings.h"
 #include "Math/Transform.h"
 
 #include "VeloxWeaponCosmetics.generated.h"
@@ -51,11 +52,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Audio")
 	TSoftObjectPtr<USoundBase> BeamStop;
 
+	/** Attenuation of ImpactSound (Impact for bullets, Explosion for the rocket and plasma). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Audio")
-	TSoftObjectPtr<USoundBase> DryFireSound;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Audio")
-	TSoftObjectPtr<USoundBase> SwitchSound;
+	EVeloxAudioAttenuation ImpactAttenuation = EVeloxAudioAttenuation::Impact;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Light")
 	FLinearColor MuzzleLightColor = FLinearColor::White;
@@ -63,4 +62,7 @@ public:
 	/** 0 = no muzzle light. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Light", Meta = (ClampMin = "0"))
 	float MuzzleLightIntensity = 0.f;
+
+	/** Every soft reference of this asset (meshes, sounds), for the asset manager's resident load (UVeloxAssetManager::LoadWeaponCosmetics). */
+	void GetSoftReferences(TArray<FSoftObjectPath>& OutPaths) const;
 };

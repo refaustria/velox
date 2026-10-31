@@ -9,11 +9,11 @@
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxGameplayEffectContext.h"
 #include "Components/AudioComponent.h"
-#include "Components/PointLightComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Core/VeloxAudioSettings.h"
+#include "Core/VeloxWeaponCosmetics.h"
 #include "DrawDebugHelpers.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
@@ -29,7 +29,11 @@
 #include "UI/VeloxAnnouncerComponent.h"
 #include "UI/VeloxHUDFormat.h"
 #include "Weapons/VeloxGameplayAbility_Fire.h"
+#include "Weapons/VeloxMovableLights.h"
 #include "Weapons/VeloxProjectile.h"
+#include "Weapons/VeloxWeaponDefinition.h"
+#include "Weapons/VeloxWeaponInventoryComponent.h"
+#include "Weapons/VeloxWeaponTable.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxCombatFeedbackComponent)
 
@@ -40,12 +44,6 @@ namespace VeloxFeedbackCVars
 		TEXT("Weapon cue debug draws (tracer, impact, beam): 0 off, 1 on. Non-shipping."), ECVF_Default);
 }
 #endif
-
-namespace VeloxFeedbackAudio
-{
-	/** Movable muzzle lights alive on this client (all pawns): pruned lazily, so a destroyed world cannot leak the count. */
-	TArray<TWeakObjectPtr<UPointLightComponent>> ActiveLights;
-}
 
 UVeloxCombatFeedbackComponent::UVeloxCombatFeedbackComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -161,7 +159,7 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 		bBeamActive = EventType != EGameplayCueEvent::Removed;
 		if (bWasActive != bBeamActive)
 		{
-			UpdateBeamAudio(bBeamActive);
+			UpdateBeamAudio(CueTag, bBeamActive);
 		}
 		UE_CLOG(bWasActive != bBeamActive, LogVeloxCombat, Log, TEXT("VeloxCue %s %s on %s"), *TagName, bBeamActive ? TEXT("start") : TEXT("stop"), *GetNameSafe(GetOwner()));
 	}
@@ -232,6 +230,45 @@ void UVeloxCombatFeedbackComponent::OnHitConfirmed(uint8 ShotSeq, uint8 TotalDam
 	UVeloxAudioSettings::Play2D(World, UVeloxAudioSettings::Get().HitConfirmSound, TEXT("hit_confirm"));
 }
 
+const UVeloxWeaponDefinition* UVeloxCombatFeedbackComponent::FindCueDefinition(const FGameplayTag& CueTag)
+{
+	const UVeloxWeaponInventoryComponent* Inventory = UVeloxWeaponInventoryComponent::Find(GetOwner());
+	const UVeloxWeaponTable* Table = Inventory ? Inventory->GetWeaponTable() : nullptr;
+	if (!Table)
+	{
+		return nullptr;
+	}
+	if (CueTable.Get() != Table)
+	{
+		// Built once per table: cue tag -> the weapon that owns it.
+		CueTable = Table;
+		CueDefinitions.Reset();
+		for (int32 Index = 0; Index < Table->Num(); ++Index)
+		{
+			const UVeloxWeaponDefinition* Definition = Table->Get(Index);
+			if (!Definition)
+			{
+				continue;
+			}
+			for (const FGameplayTag& Tag : { Definition->FireCueTag, Definition->ImpactCueTag, Definition->BeamCueTag })
+			{
+				if (Tag.IsValid())
+				{
+					CueDefinitions.Add(Tag, Definition);
+				}
+			}
+		}
+	}
+	const TWeakObjectPtr<const UVeloxWeaponDefinition>* Found = CueDefinitions.Find(CueTag);
+	return Found ? Found->Get() : nullptr;
+}
+
+const UVeloxWeaponCosmetics* UVeloxCombatFeedbackComponent::FindCueCosmetics(const FGameplayTag& CueTag)
+{
+	const UVeloxWeaponDefinition* Definition = FindCueDefinition(CueTag);
+	return Definition ? Definition->Cosmetics.Get() : nullptr;
+}
+
 void UVeloxCombatFeedbackComponent::PlayCueAudio(const FGameplayTag& CueTag, const FString& TagName, const FVector& Start, const FVector& End)
 {
 	const UWorld* World = GetWorld();
@@ -239,31 +276,45 @@ void UVeloxCombatFeedbackComponent::PlayCueAudio(const FGameplayTag& CueTag, con
 	{
 		return;
 	}
-	const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
-	const FVeloxCueSound* Entry = Settings.FindCueSound(CueTag);
-	if (!Entry)
+	const UVeloxWeaponDefinition* Definition = FindCueDefinition(CueTag);
+	const UVeloxWeaponCosmetics* Cosmetics = Definition ? Definition->Cosmetics.Get() : nullptr;
+	if (!Cosmetics)
 	{
 		return;
 	}
 	const APawn* Pawn = Cast<APawn>(GetOwner());
-	const bool bIsFire = TagName.EndsWith(TEXT(".Fire"));
-	if (bIsFire && UVeloxAudioSettings::IsLocalPlayerPawn(Pawn))
+	if (CueTag == Definition->FireCueTag)
 	{
-		// The own weapon plays 2D at full volume, outside the concurrency groups (never stolen).
-		UVeloxAudioSettings::Play2D(World, Entry->Sound, *TagName);
+		// Sounds are played only when resident (the asset manager's load is done): a cue never loads.
+		if (Cosmetics->FireSound.Get())
+		{
+			if (UVeloxAudioSettings::IsLocalPlayerPawn(Pawn))
+			{
+				// The own weapon plays 2D at full volume, outside the concurrency groups (never stolen).
+				UVeloxAudioSettings::Play2D(World, Cosmetics->FireSound, *TagName);
+			}
+			else
+			{
+				// Fire sounds come from the muzzle origin.
+				UVeloxAudioSettings::PlayAt(World, Cosmetics->FireSound, Start, EVeloxAudioAttenuation::WeaponFire, EVeloxAudioConcurrency::Weapons, *TagName);
+			}
+		}
+		// Muzzle light from the weapon's cosmetics; intensity 0 = none.
+		if (Cosmetics->MuzzleLightIntensity > 0.f)
+		{
+			const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
+			VeloxMovableLights::Acquire(GetWorld(), GetOwner(), Start, Cosmetics->MuzzleLightColor, Cosmetics->MuzzleLightIntensity, Settings.MuzzleLightRadius,
+				Settings.MuzzleLightSeconds);
+		}
 	}
-	else
+	else if (CueTag == Definition->ImpactCueTag && Cosmetics->ImpactSound.Get())
 	{
-		// Fire sounds come from the muzzle origin, impacts from the hit point.
-		UVeloxAudioSettings::PlayAt(World, Entry->Sound, bIsFire ? Start : End, Entry->Attenuation, Entry->Concurrency, *TagName);
-	}
-	if (bIsFire)
-	{
-		SpawnMuzzleLight(Start);
+		// Impacts come from the hit point.
+		UVeloxAudioSettings::PlayAt(World, Cosmetics->ImpactSound, End, Cosmetics->ImpactAttenuation, EVeloxAudioConcurrency::Impacts, *TagName);
 	}
 }
 
-void UVeloxCombatFeedbackComponent::UpdateBeamAudio(bool bStart)
+void UVeloxCombatFeedbackComponent::UpdateBeamAudio(const FGameplayTag& CueTag, bool bStart)
 {
 	const UWorld* World = GetWorld();
 	const AActor* Owner = GetOwner();
@@ -271,25 +322,36 @@ void UVeloxCombatFeedbackComponent::UpdateBeamAudio(bool bStart)
 	{
 		return;
 	}
+	const UVeloxWeaponCosmetics* Cosmetics = FindCueCosmetics(CueTag);
+	if (!Cosmetics)
+	{
+		return;
+	}
 	const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
-	const FVeloxCueSound* Loop = Settings.FindCueSound(VeloxGameplayTags::GameplayCue_Weapon_LightningGun_Beam);
-	const APawn* Pawn = Cast<APawn>(Owner);
-	const bool bOwn = UVeloxAudioSettings::IsLocalPlayerPawn(Pawn);
+	const bool bOwn = UVeloxAudioSettings::IsLocalPlayerPawn(Cast<APawn>(Owner));
+	auto PlayOneShot = [&](const TSoftObjectPtr<USoundBase>& Sound, const TCHAR* Name)
+	{
+		if (!Sound.Get())
+		{
+			return;
+		}
+		if (bOwn)
+		{
+			UVeloxAudioSettings::Play2D(World, Sound, Name);
+		}
+		else
+		{
+			UVeloxAudioSettings::PlayAt(World, Sound, Owner->GetActorLocation(), EVeloxAudioAttenuation::WeaponFire, EVeloxAudioConcurrency::Weapons, Name);
+		}
+	};
 	if (bStart)
 	{
 		if (BeamAudio)
 		{
 			return;
 		}
-		if (bOwn)
-		{
-			UVeloxAudioSettings::Play2D(World, Settings.BeamStartSound, TEXT("beam_start"));
-		}
-		else
-		{
-			UVeloxAudioSettings::PlayAt(World, Settings.BeamStartSound, Owner->GetActorLocation(), EVeloxAudioAttenuation::WeaponFire, EVeloxAudioConcurrency::Weapons, TEXT("beam_start"));
-		}
-		USoundBase* LoopSound = Loop ? Loop->Sound.LoadSynchronous() : nullptr;
+		PlayOneShot(Cosmetics->BeamStart, TEXT("beam_start"));
+		USoundBase* LoopSound = Cosmetics->BeamLoop.Get();
 		if (!LoopSound || !Owner->GetRootComponent())
 		{
 			return;
@@ -298,7 +360,7 @@ void UVeloxCombatFeedbackComponent::UpdateBeamAudio(bool bStart)
 		BeamAudio = bOwn
 			? UGameplayStatics::SpawnSound2D(World, LoopSound)
 			: UGameplayStatics::SpawnSoundAttached(LoopSound, Owner->GetRootComponent(), NAME_None, FVector::ZeroVector, EAttachLocation::KeepRelativeOffset, true, 1.f, 1.f, 0.f,
-				Settings.LoadAttenuation(Loop->Attenuation), Settings.LoadConcurrency(Loop->Concurrency));
+				Settings.LoadAttenuation(EVeloxAudioAttenuation::WeaponFire), Settings.LoadConcurrency(EVeloxAudioConcurrency::Weapons));
 		return;
 	}
 	if (BeamAudio)
@@ -307,48 +369,7 @@ void UVeloxCombatFeedbackComponent::UpdateBeamAudio(bool bStart)
 		BeamAudio->Stop();
 		BeamAudio = nullptr;
 	}
-	if (bOwn)
-	{
-		UVeloxAudioSettings::Play2D(World, Settings.BeamStopSound, TEXT("beam_stop"));
-	}
-	else
-	{
-		UVeloxAudioSettings::PlayAt(World, Settings.BeamStopSound, Owner->GetActorLocation(), EVeloxAudioAttenuation::WeaponFire, EVeloxAudioConcurrency::Weapons, TEXT("beam_stop"));
-	}
-}
-
-void UVeloxCombatFeedbackComponent::SpawnMuzzleLight(const FVector& Location)
-{
-	UWorld* World = GetWorld();
-	AActor* Owner = GetOwner();
-	const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
-	if (!World || !Owner || Settings.MaxMovableLights <= 0 || Settings.MuzzleLightSeconds <= 0.f)
-	{
-		return;
-	}
-	VeloxFeedbackAudio::ActiveLights.RemoveAll([](const TWeakObjectPtr<UPointLightComponent>& Light) { return !Light.IsValid(); });
-	if (VeloxFeedbackAudio::ActiveLights.Num() >= Settings.MaxMovableLights)
-	{
-		return;
-	}
-	UPointLightComponent* Light = NewObject<UPointLightComponent>(Owner, NAME_None, RF_Transient);
-	Light->SetMobility(EComponentMobility::Movable);
-	Light->SetCastShadows(false);
-	Light->SetIntensityUnits(ELightUnits::Candelas);
-	Light->SetIntensity(Settings.MuzzleLightIntensity);
-	Light->SetLightColor(Settings.MuzzleLightColor);
-	Light->SetAttenuationRadius(Settings.MuzzleLightRadius);
-	Light->SetWorldLocation(Location);
-	Light->RegisterComponent();
-	VeloxFeedbackAudio::ActiveLights.Add(Light);
-	FTimerHandle Handle;
-	World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateLambda([WeakLight = TWeakObjectPtr<UPointLightComponent>(Light)]()
-	{
-		if (UPointLightComponent* Expired = WeakLight.Get())
-		{
-			Expired->DestroyComponent();
-		}
-	}), Settings.MuzzleLightSeconds, false);
+	PlayOneShot(Cosmetics->BeamStop, TEXT("beam_stop"));
 }
 
 bool UVeloxCombatFeedbackComponent::HandlePowerupCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType)

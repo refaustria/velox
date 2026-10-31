@@ -38,6 +38,9 @@ public:
 	/** The weapon table index currently shown (INDEX_NONE: none). */
 	int32 GetShownIndex() const { return ShownIndex; }
 
+	/** Shows weapon Index (mesh and offset from its cosmetics, resident Get() only); AVeloxCharacter calls it again when the weapon-cosmetics load completes. */
+	void ShowWeapon(int32 Index);
+
 	//~UActorComponent interface
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
@@ -51,7 +54,6 @@ protected:
 private:
 	void OnWeaponChanged(int32 OldIndex, int32 NewIndex);
 	void OnFireCue();
-	void ShowWeapon(int32 Index);
 	/** Current camera transform of the owner pawn (same source as the pawn's camera). */
 	bool GetCameraTransform(FTransform& OutCamera, FRotator& OutViewRotation) const;
 

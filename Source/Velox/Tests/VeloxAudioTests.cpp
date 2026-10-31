@@ -7,6 +7,7 @@
 #include "Character/VeloxFootstepMath.h"
 #include "AIController.h"
 #include "Core/VeloxAudioSettings.h"
+#include "Core/VeloxWeaponCosmetics.h"
 #include "GameFramework/Pawn.h"
 #include "UI/VeloxAnnouncerComponent.h"
 
@@ -167,6 +168,39 @@ bool FVeloxOwnPawnRuleTest::RunTest(const FString& Parameters)
 	Pawn->Controller = NewObject<AAIController>(GetTransientPackage());
 	TestFalse(TEXT("a pawn with an AI controller is not the local player"), UVeloxAudioSettings::IsLocalPlayerPawn(Pawn));
 	Pawn->Controller = nullptr;
+	return true;
+}
+
+// Review 0006 D4: the weapons' sounds live in DA_WeaponCosmetics_* (UVeloxAudioSettings::CueSounds is gone, which the build itself
+// proves). Every committed asset names an ImpactSound and a FireSound; the Lightning Gun (no fire cue) names its beam trio instead.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxWeaponCosmeticsContentTest, "Velox.Audio.WeaponCosmeticsContent",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FVeloxWeaponCosmeticsContentTest::RunTest(const FString& Parameters)
+{
+	const TCHAR* Names[] = { TEXT("MachineGun"), TEXT("Shotgun"), TEXT("PlasmaGun"), TEXT("RocketLauncher"), TEXT("Railgun"), TEXT("LightningGun") };
+	for (const TCHAR* Name : Names)
+	{
+		const FString Path = FString::Printf(TEXT("/Game/Weapons/DA_WeaponCosmetics_%s.DA_WeaponCosmetics_%s"), Name, Name);
+		const UVeloxWeaponCosmetics* Data = LoadObject<UVeloxWeaponCosmetics>(nullptr, *Path);
+		if (!TestNotNull(*FString::Printf(TEXT("%s loads"), *Path), Data))
+		{
+			continue;
+		}
+		const bool bBeam = FCString::Strcmp(Name, TEXT("LightningGun")) == 0;
+		TestFalse(*FString::Printf(TEXT("%s names an ImpactSound"), Name), Data->ImpactSound.IsNull());
+		if (bBeam)
+		{
+			TestFalse(TEXT("LightningGun BeamStart"), Data->BeamStart.IsNull());
+			TestFalse(TEXT("LightningGun BeamLoop"), Data->BeamLoop.IsNull());
+			TestFalse(TEXT("LightningGun BeamStop"), Data->BeamStop.IsNull());
+		}
+		else
+		{
+			TestFalse(*FString::Printf(TEXT("%s names a FireSound"), Name), Data->FireSound.IsNull());
+			TestTrue(*FString::Printf(TEXT("%s has a muzzle light"), Name), Data->MuzzleLightIntensity > 0.f);
+		}
+	}
 	return true;
 }
 

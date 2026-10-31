@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 18b merged (both touch `VeloxCombatFeedbackComponent.cpp`), ADR 0006 E1 (ruling on task 10 deviation 1), review D4; must land before task 13 fills the weapon meshes
 
 ## Goal
@@ -27,13 +27,13 @@
 - Pattern to copy: `UVeloxAssetManager::LoadCharacterCosmetics` (two stages, resident handle, next-tick delegates, `TWeakObjectPtr` capture at the call site)
 
 ## Acceptance criteria
-- [ ] `grep -rn 'CueSounds\|FindCueSound\|BeamStartSound\|BeamStopSound' Source/ Config/ Tools/` returns nothing; `grep -rn 'LoadSynchronous' Source/Velox/Character/VeloxCharacter.cpp Source/Velox/Character/VeloxViewModelComponent.cpp Source/Velox/Weapons/VeloxCombatFeedbackComponent.cpp` returns at most the `SettingsAsset` line.
-- [ ] Every fire/impact/beam cue plays the sound named by that weapon's `DA_WeaponCosmetics_*`; the LG beam loop is one `UAudioComponent` per beam start/stop as before; own fire still 2D (18b's `IsLocalPlayerPawn`), others 3D at the muzzle/hit point with the cosmetics' attenuation.
-- [ ] Muzzle light colour/intensity come from the weapon's cosmetics (`MuzzleLightIntensity 0` = none); the global list in `VeloxMovableLights` enforces `MaxMovableLights`; the settings keep only `MaxMovableLights`, `MuzzleLightSeconds`, `MuzzleLightRadius`.
-- [ ] Dedicated server: `LoadWeaponCosmetics` returns false and logs one Verbose line; the 18b server-log gate stays green.
-- [ ] Client: one `VeloxCosmetics: loading N asset(s) of WeaponCosmetics` line per process (resident), none per weapon swap; `RefreshWeaponWorldMesh` and `ShowWeapon` log `mesh=None` until the batch completes, then the mesh (verify with a temporary test mesh assigned to one `DA_WeaponCosmetics_*` in a local, uncommitted edit, or with the engine's `/Engine/BasicShapes/Cube`).
-- [ ] `create_audio_content.py` is idempotent and `--print-ini` matches the committed ini; `Velox.Audio.WeaponCosmeticsContent` passes on the committed content.
-- [ ] Build green; all tests green; nettest `FireRun BotRun` PASS (the FireRun Verbose audio lines show the same fire/impact sounds as before per weapon).
+- [x] `grep -rn 'CueSounds\|FindCueSound\|BeamStartSound\|BeamStopSound' Source/ Config/ Tools/` returns nothing; `grep -rn 'LoadSynchronous' Source/Velox/Character/VeloxCharacter.cpp Source/Velox/Character/VeloxViewModelComponent.cpp Source/Velox/Weapons/VeloxCombatFeedbackComponent.cpp` returns at most the `SettingsAsset` line.
+- [x] Every fire/impact/beam cue plays the sound named by that weapon's `DA_WeaponCosmetics_*`; the LG beam loop is one `UAudioComponent` per beam start/stop as before; own fire still 2D (18b's `IsLocalPlayerPawn`), others 3D at the muzzle/hit point with the cosmetics' attenuation.
+- [x] Muzzle light colour/intensity come from the weapon's cosmetics (`MuzzleLightIntensity 0` = none); the global list in `VeloxMovableLights` enforces `MaxMovableLights`; the settings keep only `MaxMovableLights`, `MuzzleLightSeconds`, `MuzzleLightRadius`.
+- [x] Dedicated server: `LoadWeaponCosmetics` returns false and logs one Verbose line; the 18b server-log gate stays green.
+- [x] Client: one `VeloxCosmetics: loading N asset(s) of WeaponCosmetics` line per process (resident), none per weapon swap; `RefreshWeaponWorldMesh` and `ShowWeapon` log `mesh=None` until the batch completes, then the mesh (verify with a temporary test mesh assigned to one `DA_WeaponCosmetics_*` in a local, uncommitted edit, or with the engine's `/Engine/BasicShapes/Cube`).
+- [x] `create_audio_content.py` is idempotent and `--print-ini` matches the committed ini; `Velox.Audio.WeaponCosmeticsContent` passes on the committed content.
+- [x] Build green; all tests green; nettest `FireRun BotRun` PASS (the FireRun Verbose audio lines show the same fire/impact sounds as before per weapon).
 
 ## Verification steps
 1. `python3 -I Tools/editor/create_audio_content.py --print-ini` → no weapon rows; run the import script headless; `git status` shows the six `DA_WeaponCosmetics_*` changed and `DefaultGame.ini` shrunk.
@@ -45,3 +45,5 @@
 Standard format; the reverse map build site; the size of the resident weapon-cosmetics set (`LoadWeaponCosmetics` log line); any field you had to add to the cosmetics beyond `ImpactAttenuation`.
 
 ## Notes / outcome
+
+Done (dev, 2026-10-31). `UVeloxWeaponCosmetics` is the single source of weapon sound and muzzle light: `DryFireSound`/`SwitchSound` removed (global ones stay in the settings), `ImpactAttenuation` added (the only new field), `GetSoftReferences` added. `CueSounds`, `FVeloxCueSound`, `FindCueSound`, `BeamStartSound/StopSound` and the settings' `MuzzleLightIntensity/Color` are gone; `create_audio_content.py` writes sounds and the muzzle light (5000 cd, 1/0.7/0.3; LG 0 as before) into the six `DA_WeaponCosmetics_*` (idempotent, byte-identical on a second run), `--print-ini` matches the shrunk ini. `UVeloxAssetManager::LoadWeaponCosmetics` (two stages, one resident handle, waiters while loading, no-op on dedicated). `UVeloxCombatFeedbackComponent` builds the cue-tag -> definition map once per table (`FindCueDefinition`) and plays only sounds that are resident (`Get()`); `VeloxMovableLights::Acquire` enforces `MaxMovableLights`. `AVeloxCharacter::RequestWeaponCosmetics` (once per pawn, retried until the combat settings arrived) -> `OnWeaponCosmeticsLoaded` refreshes the world mesh and `ViewModel->ShowWeapon` (now public). Resident set: 13 assets (5 fire + 5 distinct impact + 3 beam sounds; meshes still empty) + 6 cosmetics assets, one `loading 13 asset(s) of WeaponCosmetics` line per client process. Deviation: `LoadSynchronous` remains in `VeloxCharacter.cpp` for `DefaultPawnData` and `PlayerBodyMaterial` (PostInitializeComponents, not weapon related, needed before the first tick) and in the `SettingsAsset` line; none in the weapon / cue paths.

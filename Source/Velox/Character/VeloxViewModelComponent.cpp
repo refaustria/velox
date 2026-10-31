@@ -136,8 +136,9 @@ void UVeloxViewModelComponent::ShowWeapon(int32 Index)
 	}
 	const UVeloxWeaponInventoryComponent* Inv = Inventory.Get();
 	const UVeloxWeaponDefinition* Definition = Inv ? Inv->GetDefinition(Index) : nullptr;
-	const UVeloxWeaponCosmetics* Cosmetics = (Definition && !Definition->Cosmetics.IsNull()) ? Definition->Cosmetics.LoadSynchronous() : nullptr;
-	UStaticMesh* Mesh = (Cosmetics && !Cosmetics->ViewMesh.IsNull()) ? Cosmetics->ViewMesh.LoadSynchronous() : nullptr;
+	// Resident after UVeloxAssetManager::LoadWeaponCosmetics; Get() only (None until the batch completes, then AVeloxCharacter calls again).
+	const UVeloxWeaponCosmetics* Cosmetics = Definition ? Definition->Cosmetics.Get() : nullptr;
+	UStaticMesh* Mesh = Cosmetics ? Cosmetics->ViewMesh.Get() : nullptr;
 
 	ShownOffset = FTransform::Identity;
 	if (Cosmetics)
