@@ -33,7 +33,7 @@ STRAFE_SPEED_SCALE = 1.0
 
 ERRORS = []
 COUNTS = {}
-EXPECTED = {"ground": 1, "wall": 4, "cover": 8, "marker": 3, "dummyspawner": 3, "playerstart": 4, "light": 2, "navbounds": 1}
+EXPECTED = {"ground": 1, "wall": 4, "clip": 5, "cover": 8, "marker": 3, "dummyspawner": 3, "playerstart": 4, "light": 2, "navbounds": 1}
 
 # (x, y, size x, size y, size z): all clear of the dummy lane y -1500..-900 and of the PlayerStarts.
 COVER = [
@@ -161,6 +161,46 @@ def nav_bounds(label, center, size):
     return v
 
 
+KILL_Z = -1000.0       # lowest walkable floor is Z=0; anything below this has left the map and dies via FellOutOfWorld
+CLIP_H = 1800.0        # invisible clip walls / ceiling top (above any knockback apex: 1875 cm/s at 2000 cm/s^2 is about 880 cm)
+
+
+def clip_box(label, center, size):
+    """Invisible BlockAll volume, no navigation influence (M4-07f): seals the open-top arena against knockback."""
+    a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*center))
+    a.set_actor_label(label)
+    a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
+    c = a.static_mesh_component
+    c.set_editor_property("static_mesh", mesh(CUBE))
+    c.set_mobility(STATIC)
+    c.set_collision_profile_name("BlockAll")
+    c.set_editor_property("can_ever_affect_navigation", False)
+    c.set_editor_property("fill_collision_underneath_for_navmesh", False)
+    a.set_actor_hidden_in_game(True)
+    a.set_folder_path("Clip")
+    count("clip")
+    return a
+
+
+def build_clip(hx, hy, wall_t):
+    """Four clip walls coinciding with the visible perimeter walls (inner face at +-hx/+-hy), 1800 cm high, plus a ceiling."""
+    h = CLIP_H
+    clip_box("Clip_N", (0, hy + wall_t / 2, h / 2), (2 * hx + 2 * wall_t, wall_t, h))
+    clip_box("Clip_S", (0, -hy - wall_t / 2, h / 2), (2 * hx + 2 * wall_t, wall_t, h))
+    clip_box("Clip_E", (hx + wall_t / 2, 0, h / 2), (wall_t, 2 * hy, h))
+    clip_box("Clip_W", (-hx - wall_t / 2, 0, h / 2), (wall_t, 2 * hy, h))
+    clip_box("Clip_Ceiling", (0, 0, h + wall_t / 2), (2 * hx + 2 * wall_t, 2 * hy + 2 * wall_t, wall_t))
+
+
+def set_kill_z():
+    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
+    settings.set_editor_property("kill_z", KILL_Z)
+    got = settings.get_editor_property("kill_z")
+    log(f"WorldSettings.KillZ = {got}")
+    if abs(got - KILL_Z) > 0.01:
+        fail("could not set WorldSettings.KillZ")
+
+
 def build_map():
     global EAS
     les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -180,6 +220,8 @@ def build_map():
 
     build_arena()
     build_starts_dummies_lights()
+    build_clip(HALF, HALF, 100.0)
+    set_kill_z()
     # Arena plus walls, floor slab to above the highest cover block (300 cm).
     nav_bounds("NavMeshBounds", (0.0, 0.0, 300.0), (2 * HALF + 400, 2 * HALF + 400, 1000.0))
 
@@ -190,7 +232,7 @@ def build_map():
     n_sm = sum(1 for a in actors if isinstance(a, unreal.StaticMeshActor))
     n_ps = sum(1 for a in actors if isinstance(a, unreal.PlayerStart))
     n_sp = sum(1 for a in actors if isinstance(a, unreal.VeloxDummySpawner))
-    exp_sm = EXPECTED["ground"] + EXPECTED["wall"] + EXPECTED["cover"] + EXPECTED["marker"]
+    exp_sm = EXPECTED["ground"] + EXPECTED["wall"] + EXPECTED["clip"] + EXPECTED["cover"] + EXPECTED["marker"]
     log(f"StaticMeshActors={n_sm} (expected {exp_sm}) PlayerStarts={n_ps} (expected 4) DummySpawners={n_sp} (expected 3)")
     if n_sm != exp_sm or n_ps != 4 or n_sp != 3:
         fail("level actor class counts mismatch")

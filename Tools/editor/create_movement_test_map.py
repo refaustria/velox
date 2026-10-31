@@ -402,6 +402,18 @@ EXPECTED = {
 }
 
 
+KILL_Z = -1000.0       # lowest floor is the gap pit at Z=-200 (pit slab centre -150, 100 thick, top -100); below this the pawn has left the map
+
+
+def set_kill_z():
+    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
+    settings.set_editor_property("kill_z", KILL_Z)
+    got = settings.get_editor_property("kill_z")
+    log(f"WorldSettings.KillZ = {got}")
+    if abs(got - KILL_Z) > 0.01:
+        fail("could not set WorldSettings.KillZ")
+
+
 def build_map():
     global EAS
     les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -430,6 +442,7 @@ def build_map():
     build_lighting_and_starts()
     # Everything: ground slab, gap runways (x to -4910), pit and gap lanes (y to 9900), ramp tops (z to ~1230).
     nav_bounds("NavMeshBounds", (500.0, 2850.0, 600.0), (11200.0, 14500.0, 1800.0))
+    set_kill_z()
     check_pads()
 
     log("spawned: " + ", ".join(f"{k}={v}" for k, v in sorted(COUNTS.items())))
