@@ -68,6 +68,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Fire", Meta = (ClampMin = "0", Units = "cm"))
 	float DirectHitRadiusCm = 60.f;
 
+	/**
+	 * ADR 0005 D51 (2)(a): a weapon whose UVeloxWeaponDefinition::GetSafeFireInterval() is at most this counts as automatic
+	 * (MG 0.1, LG 0.05, PG 0.1); only automatic weapons get the D50 spray fields (DirectHitRadiusScale,
+	 * FireReleaseConeScale, FireHoldAfterLostSeconds). Single-shot weapons (SG 1.0, RL 0.8, RG 1.5) run D14's rule unscaled.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Bot|Combat", Meta = (ClampMin = "0", Units = "s"))
+	float SprayMaxFireInterval = 0.15f;
+
 	/** Splash weapons aim this far below the target's capsule centre (at the feet: Q3 bots ground their rockets), cm. */
 	UPROPERTY(Config, EditAnywhere, Category = "Fire", Meta = (ClampMin = "0", Units = "cm"))
 	float SplashAimDropCm = 50.f;
@@ -198,8 +206,16 @@ struct FVeloxFireInput
 	float MaxRangeCm = 0.f;
 	float SelfSplashMarginCm = 50.f;
 	float SplashHitFraction = 0.8f;
-	/** Direct-hit weapons: the aim ray must pass within this of DesiredPoint (0 = cone only; the glue scales it per preset, D50). */
+	/**
+	 * Direct-hit weapons: the aim ray must pass within this of DesiredPoint (0 = cone only). The unscaled
+	 * UVeloxBotCombatSettings::DirectHitRadiusCm; EvaluateFire applies DirectHitRadiusScale for automatic weapons (D51).
+	 */
 	float DirectHitRadiusCm = 0.f;
+	/**
+	 * ADR 0005 D51 (2)(a): FireInterval <= UVeloxBotCombatSettings::SprayMaxFireInterval. Only automatic weapons get the D50
+	 * spray fields (scaled gate, release cone, hold-after-lost); single-shot weapons run the full rule every tick.
+	 */
+	bool bAutomaticWeapon = false;
 	/** ADR 0005 D50: last tick's fire-rule verdict was Fire or FireHeld (the trigger is down). */
 	bool bTriggerHeld = false;
 	/** D50: 0 while the target is visible, Now - LastSeenTime otherwise (TargetCentre is then the last seen location). */
@@ -254,6 +270,8 @@ namespace VeloxBotCombat
 	 * is held (In.bTriggerHeld) and the full rule says OffTarget, the aim test is angle <= FireConeDeg x FireReleaseConeScale
 	 * without the direct-hit gate (FireHeld; FireReleaseConeScale <= 1 = no hysteresis); a held trigger stays down
 	 * FireHoldAfterLostSeconds after the target left sight (FireHeld, no aim test; range to the last seen location).
+	 * D51: the gate radius is In.DirectHitRadiusCm x DirectHitRadiusScale for automatic weapons (x 1 otherwise), and both
+	 * FireHeld branches require In.bAutomaticWeapon.
 	 * NoWeapon, NotReady, NoAmmo, OutOfRange and SelfSplash are never relaxed.
 	 */
 	VELOX_API EVeloxFireVerdict EvaluateFire(const FVeloxFireInput& In, const FVeloxBotDifficultyParams& Difficulty);
