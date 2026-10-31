@@ -142,3 +142,20 @@ L_MovementTest walkable_m2=9004.75 covered_pct=96.74 clusters=38 (walkin=20 isol
   lowclear_poly i=0 center=(1226,3144,1075) headroom=0 inside=1 actor=RampPlatform_45deg layout=RampPlatform_45deg
   lowclear_poly i=1 center=(1226,2916,1075) headroom=0 inside=1 actor=RampPlatform_45deg layout=RampPlatform_45deg
 ```
+
+## Soak results and the dwell A/B (2026-10-31)
+
+- `fts.sh`: first run 6/7 (`FtOffMesh` cases `ra_strip` / `mega_strip` started inside the sealed slots, `no_clear_point` x6, `giveup`). Lead ruling: both cases removed from `VeloxBotFunctionalTest.cpp`. Rerun after rebuild (107 tests, 0 failing): **`[fts] OK 7/7`**.
+- `ffa.sh --repeat 3`: every judged invariant PASS (kills 12/16/12, pickups 59/70/73, sum_stuck 0, max dwell 4 s, JumpPad 97.2 % (35/36), Drop 100 % (36/36), coverage 21/23 with Ammo.Rockets exempt, untaken Health_Small at (-2550,-1700)).
+- `nettest.sh --scripts BotRun,BotDuel --repeat 3 --keep-going`, bands=L_ItemTest: BotRun rounds kills 8/8/14, pickups 49/47/46, max dwell 5/2/3 s, set PASS. BotDuel rounds kills 8/11/10, pickups 47/36/46, max dwell 6/3/3 s (round 1: 6 s at Rapidus (2539,-1715) goal=item), set PASS.
+- BotDuel rerun on head (`--scripts BotDuel --repeat 3`, E0.3 (b) rule): kills 7/10/11, pickups 41/46/44, max dwell 5/**7**/3 s (7 s at Rapidus (2259,-1699) goal=item), set FAIL (behaviour).
+
+### A/B: old test maps (70c19d3) vs the regenerated maps, same code (head), `BotDuel --repeat 3 --keep-going`
+Only the three `.umap`s differ. Host: no other UE processes at the start or end of either set (pgrep 0); loadavg (1/5/15 min) at start / end.
+
+| Set | maps | load start | load end | kills | pickups | max dwell per round (position, goal) | verdict |
+|---|---|---|---|---|---|---|---|
+| A | 70c19d3 | 3.60 2.91 2.21 | 1.57 1.54 1.75 | 10/12/11 | 46/50/38 | 3 (2060,1200 none) / **6 (2570,-1642 item)** / 4 (2086,1137 none) | set FAIL (round 2 dwell 6) |
+| B | head | 1.57 1.54 1.75 | 1.11 1.35 1.58 | 8/14/8 | 46/42/53 | 3 (1091,-1635 fight) / **6 (475,-8 item)** / 4 (2082,1225 item) | set PASS (round 2 dwell 6) |
+
+Finding: the old maps show the same 6 s Rapidus item dwell in the south-east quadrant (2570,-1642), so the dwell excursions are **not caused by the seals / fills**. They occur on both map versions, about one BotDuel round in three (3 of 9 rounds on head over the three sets with a value >= 6: 6, 7, 6; old maps 1 of 3, plus 0 of 6 earlier D51 rounds at <= 4). This points at the 04 dwell cap (8 -> 5) or bot behaviour, not at 03b; lead / E1 decide whether to redefine the measure (E0.3 (d)). Host load was moderate (load1 1.1-3.6), no foreign UE process during either set.
