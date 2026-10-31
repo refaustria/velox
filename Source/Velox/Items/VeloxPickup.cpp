@@ -19,6 +19,8 @@
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
+#include "GameModes/VeloxGameModeDefinition.h"
+#include "GameModes/VeloxGameState.h"
 #include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameplayEffect.h"
@@ -179,6 +181,21 @@ void AVeloxPickup::BeginPlay()
 	if (!Definition)
 	{
 		UE_LOG(LogVeloxItems, Warning, TEXT("%s: no item definition; the pickup does nothing."), *GetName());
+	}
+
+	// ADR 0006 section 3 (DisabledInModes): the server removes a pickup its running mode does not use before the registry sees
+	// it (bots never route to it). A startup actor destroyed on the server is also destroyed on every client that joins
+	// (UNetDriver::DestroyedStartupOrDormantObjects), so no client keeps a stale copy.
+	if (HasAuthority() && Definition && !Definition->DisabledInModes.IsEmpty())
+	{
+		const AVeloxGameState* VeloxGameState = GetWorld() ? GetWorld()->GetGameState<AVeloxGameState>() : nullptr;
+		const UVeloxGameModeDefinition* ModeDefinition = VeloxGameState ? VeloxGameState->GetGameModeDefinition() : nullptr;
+		if (ModeDefinition && Definition->IsDisabledInMode(ModeDefinition->ModeTag))
+		{
+			UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupDisabled item=%s at=%s mode=%s"), *GetNameSafe(Definition), *GetActorLocation().ToCompactString(), *ModeDefinition->ModeTag.ToString());
+			Destroy();
+			return;
+		}
 	}
 
 	if (!IsNetMode(NM_DedicatedServer))
