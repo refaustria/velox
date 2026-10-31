@@ -4,8 +4,8 @@ Run headless after create_bootstrap_content.py (it needs DA_PawnData_Default):
   UnrealEditor-Cmd Velox.uproject -run=pythonscript -script=$PWD/Tools/editor/create_cosmetics_content.py \
       -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput
 
-Idempotent: an existing asset is loaded and its properties re-applied. The soft references (SK_Velox, ABP_Velox,
-MI_Skin_*, A_Velox_*) stay empty until the art tasks (11, 12) import them; the pawn then keeps its PlaceholderBody.
+Idempotent: an existing asset is loaded and its properties re-applied. SK_Velox and MI_Skin_* are linked when task 11's import_art.py has
+imported them; ABP_Velox and A_Velox_* stay empty until task 12; the pawn then keeps its PlaceholderBody.
 Skins are in the old PlayerColorPalette order (UVeloxCombatSettings), so SkinIndex still names the HUD colour; their
 BodyColor is that palette entry converted to linear. Fails (exception) if anything could not be created or saved.
 """
@@ -79,10 +79,19 @@ def build_character_cosmetics():
         return None
     skins = []
     for index, name in enumerate(SKIN_NAMES):
-        # Struct members are set through the constructor (Tools/editor/README.md); Material stays empty until task 11.
-        skins.append(unreal.VeloxSkin(name=name, body_color=to_linear(palette[index])))
+        # Struct members are set through the constructor (Tools/editor/README.md).
+        # MI_Skin_<name> (task 11, import_art.py) is linked when it exists.
+        mi_path = f"{COSMETICS_FOLDER}/MI_Skin_{name}"
+        material = EAL.load_asset(mi_path) if EAL.does_asset_exist(mi_path) else None
+        if material is not None:
+            skins.append(unreal.VeloxSkin(name=name, material=material, body_color=to_linear(palette[index])))
+        else:
+            skins.append(unreal.VeloxSkin(name=name, body_color=to_linear(palette[index])))
     cosmetics.set_editor_property("skins", skins)
     cosmetics.set_editor_property("body_color_parameter", "BodyColor")
+    mesh_path = f"{COSMETICS_FOLDER}/SK_Velox"
+    if EAL.does_asset_exist(mesh_path):
+        cosmetics.set_editor_property("skeletal_mesh", EAL.load_asset(mesh_path))
     cosmetics.set_editor_property("mesh_offset_z", -70.0)
     cosmetics.set_editor_property("mesh_yaw_deg", -90.0)
     cosmetics.set_editor_property("use_sequence_playback", True)
