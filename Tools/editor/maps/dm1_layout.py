@@ -149,7 +149,7 @@ RAMPS = [
 PADS = [
     Pad("PadA", -2600, -450, (-2100, -450, 420), (-1954, -450, 320)),   # lower A -> ledge
     Pad("PadB", 2600, 0, (2100, 0, 420), (1954, 0, 320)),                # lower B -> balcony
-    Pad("PadD", -150, -950, (0, -250, 740), (32, -98, 640)),              # lower D -> E top (the RG pad), over the south gate; off the x = 0 RL line and the lane centre (task 06)
+    Pad("PadD", 0, -950, (0, -250, 740), (0, -98, 640)),                 # lower D -> E top (the RG pad), over the south gate; off the x = 0 RL line and the lane centre (task 06)
 ]
 
 # ---------------------------------------------------------------- items
@@ -200,10 +200,10 @@ ITEMS = [
     _it("C_H5_3", "Health.Small", -3100, 900),
     _it("C_H5_4", "Health.Small", -3100, 1300),
     # D South Hall
-    _it("RL", "Weapon.RocketLauncher", 0, -1500),
+    _it("RL", "Weapon.RocketLauncher", 450, -1500),
     _it("YA_S", "Armor.Yellow", 0, -2000, 320),
-    _it("RocketsAmmo", "Ammo.Rockets", -900, -1500),
-    _it("D_H50", "Health.Large", 900, -1500),
+    _it("RocketsAmmo", "Ammo.Rockets", 1250, -1500),
+    _it("D_H50", "Health.Large", -900, -1500),
     _it("D_H5_1", "Health.Small", -900, -2000, 320),
     _it("D_H5_2", "Health.Small", -450, -2000, 320),
     _it("D_H5_3", "Health.Small", 450, -2000, 320),
@@ -225,7 +225,7 @@ SPAWNS = [
     Spawn("S2_LGW", -750, 1350, 0),      # LG
     Spawn("S3_LGE", 750, 1350, 180),     # LG
     Spawn("S4_CE", 3000, 1100, 180),     # SG, north door of B
-    Spawn("S5_RLW", -700, -1500, 0),     # RL
+    Spawn("S5_RLW", -330, -1500, 0),     # RL
     Spawn("S6_RLE", 700, -1500, 180),    # RL
     Spawn("S7_E1", -400, -400, 45),      # RG (ground of E)
     Spawn("S8_E2", 400, 400, 225),       # RG
