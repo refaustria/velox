@@ -7,6 +7,7 @@
 #include "Components/CapsuleComponent.h"
 #include "CollisionQueryParams.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/VeloxAudioSettings.h"
 #include "Core/VeloxCollisionChannels.h"
 #include "Core/VeloxLog.h"
 #include "Engine/HitResult.h"
@@ -36,7 +37,9 @@ AVeloxJumpPad::AVeloxJumpPad(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	PrimaryActorTick.bCanEverTick = false;
-	SetReplicates(false);
+	// Replicated only so the audio multicast reaches the clients; the pad has no replicated state (the launch is predicted).
+	bReplicates = true;
+	SetNetUpdateFrequency(1.f);
 
 	Trigger = CreateDefaultSubobject<UBoxComponent>(TEXT("Trigger"));
 	Trigger->InitBoxExtent(VeloxJumpPadDefaults::TriggerExtent);
@@ -72,6 +75,21 @@ void AVeloxJumpPad::PostInitializeComponents()
 	Super::PostInitializeComponents();
 
 	Trigger->OnComponentBeginOverlap.AddDynamic(this, &ThisClass::OnTriggerBeginOverlap);
+}
+
+void AVeloxJumpPad::MulticastLaunchCue_Implementation(FVector_NetQuantize Location, AActor* Launched)
+{
+	const APawn* Pawn = Cast<APawn>(Launched);
+	if (Pawn && Pawn->IsLocallyControlled())
+	{
+		// A remote owning client played it at its predicted launch; only a listen server's / standalone own pawn has not.
+		if (GetNetMode() == NM_ListenServer || GetNetMode() == NM_Standalone)
+		{
+			UVeloxAudioSettings::Play2D(GetWorld(), UVeloxAudioSettings::Get().JumpPadSound, TEXT("jumppad_own"));
+		}
+		return;
+	}
+	UVeloxAudioSettings::PlayAt(GetWorld(), UVeloxAudioSettings::Get().JumpPadSound, Location, EVeloxAudioAttenuation::World, EVeloxAudioConcurrency::None, TEXT("jumppad"));
 }
 
 FVector AVeloxJumpPad::GetLaunchOrigin() const
@@ -210,6 +228,18 @@ void AVeloxJumpPad::OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedCompone
 
 	UE_LOG(LogVeloxMovement, Verbose, TEXT("%s: launch %s (%s) %s"), *GetName(), *Launch.ToString(), bOverrideVelocity ? TEXT("set") : TEXT("add"), *GetNameSafe(Character));
 	const bool bApplied = MoveComp->AddKnockback(Launch, bOverrideVelocity);
+	if (bApplied)
+	{
+		if (Character->GetLocalRole() == ROLE_Authority)
+		{
+			MulticastLaunchCue(GetLaunchOrigin(), const_cast<ACharacter*>(Character));
+		}
+		else if (FCString::Strcmp(MoveComp->GetMoveSourceName(), TEXT("live")) == 0)
+		{
+			// The owning client's predicted launch: 2D at once, no waiting for the server (a replay or correction stays silent).
+			UVeloxAudioSettings::Play2D(GetWorld(), UVeloxAudioSettings::Get().JumpPadSound, TEXT("jumppad_predicted"));
+		}
+	}
 #if !UE_BUILD_SHIPPING
 	// One line per overlap (A28(iii)); infra/ci/nettest.sh matches the client's live launch and the server's launch by the
 	// move time stamp ts (same move on both ends). src: live | replay | teleport (A19, applied=0) | server.

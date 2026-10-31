@@ -12,6 +12,7 @@
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/VeloxAudioSettings.h"
 #include "Core/VeloxCollisionChannels.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/StaticMesh.h"
@@ -503,8 +504,8 @@ bool AVeloxPickup::TryPickup(AVeloxCharacter* Pawn, bool bLogRefusal)
 	LastTakenBy = PlayerState;
 	CommitServerState();
 
-	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickup item=%s by=%s gain=%d powerup_s=%.1f respawn_in=%.2f t=%.3f take=%u"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
-		Gain.Amount, Gain.PowerupSeconds, Respawn, Now, TakeCount);
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickup item=%s by=%s gain=%d powerup_s=%.1f respawn_in=%.2f t=%.3f take=%u at=%s"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
+		Gain.Amount, Gain.PowerupSeconds, Respawn, Now, TakeCount, *GetActorLocation().ToCompactString());
 	if (UVeloxItemRegistrySubsystem* MutableRegistry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
 	{
 		MutableRegistry->OnPickupTaken.Broadcast(this, PlayerState);
@@ -593,7 +594,7 @@ void AVeloxPickup::ServerRespawn()
 	CommitServerState();
 	if (bWasDown)
 	{
-		UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupRespawn item=%s t=%.3f"), *GetNameSafe(Definition), GetServerNow());
+		UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupRespawn item=%s t=%.3f at=%s"), *GetNameSafe(Definition), GetServerNow(), *GetActorLocation().ToCompactString());
 		if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
 		{
 			Registry->OnPickupRespawned.Broadcast(this);
@@ -616,7 +617,7 @@ void AVeloxPickup::Reset()
 	LastTakenBy = nullptr;
 	SetOverlapRecheck(false);
 	ScheduleInitialSpawn();
-	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupReset item=%s available_in=%.2f"), *GetNameSafe(Definition), GetTimeUntilRespawn());
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupReset item=%s available_in=%.2f at=%s"), *GetNameSafe(Definition), GetTimeUntilRespawn(), *GetActorLocation().ToCompactString());
 	if (bWasDown && IsAvailable())
 	{
 		if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
@@ -677,7 +678,8 @@ bool AVeloxPickup::TryPredictTake(AVeloxCharacter* Pawn)
 	}
 	World->GetTimerManager().SetTimer(PredictionTimerHandle, FTimerDelegate::CreateUObject(this, &ThisClass::OnPredictionTimeout), FMath::Max(static_cast<float>(Until - Now), UE_KINDA_SMALL_NUMBER), false);
 	UpdatePlaceholder();
-	// M5 plays the pickup sound here (bGlobalPickupSound items play for everyone from the replicated take instead).
+	// Own take: 2D at prediction time (ADR 0006 section 9); the replicated take then skips it (bWasPredicted).
+	UVeloxAudioSettings::Play2D(World, Definition->PickupSound, TEXT("pickup_predicted"));
 	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupPredict item=%s t=%.3f take=%u"), *GetNameSafe(Definition), Now, TakeCount);
 	return true;
 }
@@ -749,6 +751,7 @@ void AVeloxPickup::HandleReplicatedState()
 		SeenTakeCount = TakeCount;
 		const APlayerController* LocalController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
 		const bool bTakenByMe = LastTakenBy && LocalController && LastTakenBy == LocalController->PlayerState;
+		const bool bWasPredicted = bPredictionPending;
 		if (bPredictionPending)
 		{
 			if (bTakenByMe)
@@ -773,6 +776,18 @@ void AVeloxPickup::HandleReplicatedState()
 		const double RespawnSeconds = Definition ? VeloxPickupRules::RespawnSecondsFor(Definition->Type, Definition->RespawnSeconds, Rules) : 0.0;
 		const bool bStale = VeloxPickupRules::IsStaleTake(GetServerNow(), RespawnServerTime, RespawnSeconds, Settings.GetPickupTakeEventMaxAgeSeconds());
 		UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupTaken item=%s by=%s take=%u stale=%d"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(LastTakenBy), TakeCount, bStale ? 1 : 0);
+		if (Definition && !bStale && !(bTakenByMe && bWasPredicted))
+		{
+			// ADR 0006 section 9: own takes and global ones (powerups) are 2D, the rest 3D at the item with SA_Pickup.
+			if (bTakenByMe || Definition->bGlobalPickupSound)
+			{
+				UVeloxAudioSettings::Play2D(GetWorld(), Definition->PickupSound, TEXT("pickup"));
+			}
+			else
+			{
+				UVeloxAudioSettings::PlayAt(GetWorld(), Definition->PickupSound, GetActorLocation(), EVeloxAudioAttenuation::Pickup, EVeloxAudioConcurrency::None, TEXT("pickup_other"));
+			}
+		}
 		if (Registry && !bStale)
 		{
 			Registry->OnPickupTaken.Broadcast(this, LastTakenBy);
@@ -785,6 +800,11 @@ void AVeloxPickup::HandleReplicatedState()
 		if (bRespawned)
 		{
 			UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupRespawned item=%s"), *GetNameSafe(Definition));
+			if (Definition)
+			{
+				const TSoftObjectPtr<USoundBase>& Sound = Definition->RespawnSound.IsNull() ? UVeloxAudioSettings::Get().ItemRespawnSound : Definition->RespawnSound;
+				UVeloxAudioSettings::PlayAt(GetWorld(), Sound, GetActorLocation(), EVeloxAudioAttenuation::World, EVeloxAudioConcurrency::None, TEXT("item_respawn"));
+			}
 			if (Registry)
 			{
 				Registry->OnPickupRespawned.Broadcast(this);

@@ -20,6 +20,7 @@ class UVeloxCombatSettings;
 class UVeloxAbilitySystemComponent;
 class UVeloxCombatFeedbackComponent;
 class UVeloxHealthComponent;
+class UVeloxFootstepComponent;
 class UVeloxHitboxComponent;
 class UVeloxMovementComponent;
 class UVeloxScriptedInputComponent;
@@ -148,6 +149,9 @@ public:
 	/** Logs `VeloxCrouch: start|end` with half height and eye height (server, owning client and proxies). */
 	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	/** Audio (ADR 0006 section 9): land and jump sounds through UVeloxFootstepComponent. */
+	virtual void Landed(const FHitResult& Hit) override;
+	virtual void OnJumped_Implementation() override;
 	//~End of ACharacter interface
 
 	//~AActor interface
@@ -232,6 +236,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
 	TObjectPtr<UVeloxCombatFeedbackComponent> CombatFeedbackComponent;
+
+	/** Footsteps, jump, landing, pain and death sounds (client audio only; ADR 0006 section 9). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
+	TObjectPtr<UVeloxFootstepComponent> FootstepComponent;
 
 	/** Bright capsule-sized mesh attached to the skeletal mesh (so it gets the smoothing offset), coloured per player (ADR 0003 section 10). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
