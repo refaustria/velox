@@ -59,7 +59,10 @@ namespace VeloxBotCombat
 		{
 			return EVeloxFireVerdict::NoAmmo;
 		}
-		if (!In.bTargetVisible)
+		// D50: a held trigger stays down FireHoldAfterLostSeconds after the target left sight (TargetCentre = last seen).
+		const bool bHeldLost = !In.bTargetVisible && In.bTriggerHeld && Difficulty.FireHoldAfterLostSeconds > 0.f
+			&& In.SecondsSinceTargetSeen <= Difficulty.FireHoldAfterLostSeconds;
+		if (!In.bTargetVisible && !bHeldLost)
 		{
 			return EVeloxFireVerdict::NoTarget;
 		}
@@ -78,10 +81,16 @@ namespace VeloxBotCombat
 				return EVeloxFireVerdict::SelfSplash;
 			}
 		}
+		if (bHeldLost)
+		{
+			// Firing through the corner just left: no aim test (the aim model turns toward the last seen location).
+			return EVeloxFireVerdict::FireHeld;
+		}
 		const FVector ToDesired = (In.DesiredPoint - In.Eye).GetSafeNormal();
 		const FVector Aim = In.AimDir.GetSafeNormal();
 		const double CosAngle = FMath::Clamp(FVector::DotProduct(ToDesired, Aim), -1.0, 1.0);
-		bool bInCone = !ToDesired.IsZero() && FMath::RadiansToDegrees(FMath::Acos(CosAngle)) <= Difficulty.FireConeDeg;
+		const double AngleDeg = FMath::RadiansToDegrees(FMath::Acos(CosAngle));
+		bool bInCone = !ToDesired.IsZero() && AngleDeg <= Difficulty.FireConeDeg;
 		if (bInCone && !bSplash && In.DirectHitRadiusCm > 0.f)
 		{
 			// Q3 BotCheckAttack: the shot would actually hit (the ray passes the desired point within the hit radius).
@@ -90,12 +99,22 @@ namespace VeloxBotCombat
 			bInCone = Along > 0.0 && (ToPoint - Aim * Along).Size() <= In.DirectHitRadiusCm;
 		}
 		const bool bGroundHit = bSplash && In.bAimHit && FVector::Dist(In.AimHitPoint, In.TargetCentre) <= In.SplashRadiusCm * In.SplashHitFraction;
-		return (bInCone || bGroundHit) ? EVeloxFireVerdict::Fire : EVeloxFireVerdict::OffTarget;
+		if (bInCone || bGroundHit)
+		{
+			return EVeloxFireVerdict::Fire;
+		}
+		// D50 trigger hysteresis: a held trigger sweeps across the target inside the release cone, without the gate.
+		if (In.bTriggerHeld && Difficulty.FireReleaseConeScale > 1.f && !ToDesired.IsZero() && AngleDeg <= Difficulty.FireConeDeg * Difficulty.FireReleaseConeScale)
+		{
+			return EVeloxFireVerdict::FireHeld;
+		}
+		return EVeloxFireVerdict::OffTarget;
 	}
 
 	bool ShouldFire(const FVeloxFireInput& In, const FVeloxBotDifficultyParams& Difficulty)
 	{
-		return EvaluateFire(In, Difficulty) == EVeloxFireVerdict::Fire;
+		const EVeloxFireVerdict Verdict = EvaluateFire(In, Difficulty);
+		return Verdict == EVeloxFireVerdict::Fire || Verdict == EVeloxFireVerdict::FireHeld;
 	}
 
 	bool InFov(const FVector& ViewDir, const FVector& Eye, const FVector& Target, float FovDeg)
@@ -771,19 +790,25 @@ namespace VeloxBotCombatGlue
 		Fire.Eye = Eye;
 		Fire.AimDir = Pending.View.Vector();
 		Fire.DesiredPoint = Combat.DesiredPoint;
-		Fire.TargetCentre = bVisible ? TargetPawn->GetActorLocation() : FVector::ZeroVector;
+		// D50: while the target is out of sight (remembered, not a corpse) the range and the splash tests use the last seen
+		// location; a dead or forgotten target gives no hold-after-lost.
+		const bool bLostAlive = !bVisible && Target && TargetPawn && !TargetPawn->IsCorpse();
+		Fire.TargetCentre = bVisible ? TargetPawn->GetActorLocation() : (bLostAlive ? Target->LastSeenLocation : FVector::ZeroVector);
+		Fire.bTriggerHeld = Combat.bRuleTriggerHeld;
+		Fire.SecondsSinceTargetSeen = bVisible ? 0.f : (bLostAlive ? static_cast<float>(Now - Target->LastSeenTime) : TNumericLimits<float>::Max());
 		Fire.SplashRadiusCm = Current ? Current->SplashRadiusCm : 0.f;
 		Fire.SelfSplashMarginCm = Settings.SelfSplashMarginCm;
 		Fire.SplashHitFraction = Settings.SplashHitFraction;
-		Fire.DirectHitRadiusCm = Settings.DirectHitRadiusCm;
+		Fire.DirectHitRadiusCm = Settings.DirectHitRadiusCm * FMath::Max(Params.DirectHitRadiusScale, 0.f);
 		if (const FVeloxBotWeaponPreference* Pref = VeloxBotCombatGlueImpl::FindPreference(Params, Current))
 		{
 			Fire.MinRangeCm = Pref->MinRange;
 			Fire.MaxRangeCm = Pref->MaxRange;
 		}
-		if (bVisible && Fire.SplashRadiusCm > 0.f)
+		if ((bVisible || (bLostAlive && Combat.bRuleTriggerHeld)) && Fire.SplashRadiusCm > 0.f)
 		{
-			// The aim ray's world hit (wall in the face, ground rockets): one trace while a splash weapon has a target.
+			// The aim ray's world hit (wall in the face, ground rockets): one trace while a splash weapon has a target, and
+			// while the trigger is held after the target left sight (D50: self-splash is never relaxed).
 			const float Length = static_cast<float>(FVector::Dist(Eye, Fire.TargetCentre)) + Fire.SplashRadiusCm;
 			FHitResult Hit;
 			FCollisionQueryParams Query(SCENE_QUERY_STAT(VeloxBotAimRay), false, Self);
@@ -796,7 +821,7 @@ namespace VeloxBotCombatGlue
 			}
 		}
 		Combat.LastVerdict = VeloxBotCombat::EvaluateFire(Fire, Params);
-		Pending.bFireHeld = Combat.LastVerdict == EVeloxFireVerdict::Fire;
+		Pending.bFireHeld = Combat.LastVerdict == EVeloxFireVerdict::Fire || Combat.LastVerdict == EVeloxFireVerdict::FireHeld;
 
 		// --- Maneuver view requests on top (rocket jump: face the end, the one-tick pitch, the jump's rocket, the launcher) ---
 		if (Nav.bWantRocketLauncher)
@@ -821,6 +846,8 @@ namespace VeloxBotCombatGlue
 				}
 			}
 		}
+		// D50: the hysteresis remembers the rule's own trigger (a rocket-jump suppression releases it; maneuver fire does not hold it).
+		Combat.bRuleTriggerHeld = Pending.bFireHeld;
 		const bool bOverride = Nav.bFaceEnd || Nav.bForcePitch;
 		if (Nav.bFaceEnd)
 		{

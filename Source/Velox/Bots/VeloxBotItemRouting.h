@@ -275,9 +275,12 @@ public:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0"))
 	float DuelMinItemScore = 3.f;
 
-	/** Duel (ADR 0005 D39): a major coming up within DuelCampMaxLeadSeconds beats any item scoring below this. 0 = camp only when no item is choosable. */
+	/**
+	 * Duel (ADR 0005 D39): a major coming up within DuelCampMaxLeadSeconds beats any item scoring below this. 0 = camp only
+	 * when no item is choosable. D50 (3): 7 -> 10 (duellers camp more; a needed Mega still wins).
+	 */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0"))
-	float DuelCampOverScore = 7.f;
+	float DuelCampOverScore = 10.f;
 
 	/** Duel (D39): camp candidates are majors with TimeUntilRespawn - TravelSeconds <= this. 0 = any lead. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
