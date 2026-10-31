@@ -10,6 +10,7 @@
 #include "VeloxWeaponDefinition.generated.h"
 
 class AVeloxProjectile;
+class UVeloxWeaponCosmetics;
 class UVeloxGameplayAbility_Fire;
 
 UCLASS(BlueprintType, Const, Meta = (DisplayName = "Velox Weapon Definition"))
@@ -108,6 +109,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cues", Meta = (Categories = "GameplayCue"))
 	FGameplayTag ImpactCueTag;
+
+	/** Look and sound (ADR 0006 section 4.6): soft, never loaded by the dedicated server. May be empty. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics")
+	TSoftObjectPtr<UVeloxWeaponCosmetics> Cosmetics;
 
 	/** Looping cue while the beam is held (LG only); empty for other weapons. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cues", Meta = (Categories = "GameplayCue"))

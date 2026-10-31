@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 08 (cosmetics loading pattern, `UVeloxCharacterCosmetics::ViewModelSettings`), ADR 0006 §4.6
 
 ## Goal
@@ -35,3 +35,7 @@ Each weapon has a `UVeloxWeaponCosmetics` data asset (soft refs; meshes may stil
 Standard format; include the exact 5.8 first-person API names you found (file + line) or the fallback you used.
 
 ## Notes / outcome
+
+Done (dev). 5.8 first-person API found: `EFirstPersonPrimitiveType` (None/FirstPerson/WorldSpaceRepresentation) at `Engine/Classes/Components/PrimitiveComponent.h:153`, `UPrimitiveComponent::FirstPersonPrimitiveType` (:730) and `SetFirstPersonPrimitiveType` (:2120); camera side is `FMinimalViewInfo::bUseFirstPersonParameters` (`Camera/CameraTypes.h:109`), `FirstPersonFOV` (:58, not "FirstPersonFieldOfView") and `FirstPersonScale` (:62). No fallback needed. The pawn has no camera component (the engine eye point is the camera), so the view model is a world-space-tracking scene component ticked in `TG_PostUpdateWork` from `GetActorEyesViewPoint`, and `AVeloxCharacter::ApplyViewSettings` writes the three camera fields.
+Deviations: tests are in `Tests/VeloxViewModelTests.cpp` (not `VeloxCharacterTests.cpp`, owned by task 08 in parallel) and also hold `Velox.Core.WeaponCosmeticsSoftRefs`; the weapon cosmetics assets and `DA_ViewModelSettings_Default` are created in `create_bootstrap_content.py` (the weapon definitions need them there) instead of `create_cosmetics_content.py`; `UVeloxCombatFeedbackComponent` gained an `OnFireCue` delegate for the recoil kick. Task 08 should extend the soft-ref test to `UVeloxCharacterCosmetics`.
+Verification: build.sh (Editor + Game) OK, 109 automation tests pass incl. `Velox.Character.ViewModelBob`, nettest `FireRun` PASS twice (switch timing unchanged).
