@@ -2,7 +2,7 @@
 
 Imports the WAVs of ArtSource/Audio/placeholders (Tools/audio/synth_placeholders.py) into /Game/Audio/SFX/<Group>/SW_<name>,
 creates the attenuation assets SA_*, the concurrency groups SCon_*, the sound classes SC_Announcer / SC_UI, the announcer duck
-mix SM_Announcer, and fills PickupSound / RespawnSound of the DA_Item_* definitions. UVeloxAudioSettings (Config/DefaultGame.ini
+mix SM_Announcer, fills PickupSound / RespawnSound of the DA_Item_* definitions and the fire / impact / beam sounds and muzzle light of the DA_WeaponCosmetics_* assets (the single source of a weapon's sound, review 0006 D4). UVeloxAudioSettings (Config/DefaultGame.ini
 [/Script/Velox.VeloxAudioSettings]) names the assets by path; this script verifies the ini block matches its table. Run headless:
   UnrealEditor-Cmd Velox.uproject -run=pythonscript -script=<abs path>/Tools/editor/create_audio_content.py \
       -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput
@@ -80,22 +80,17 @@ def sound_ref(stem):
     return "%s.%s" % (p, p.rsplit("/", 1)[1])
 
 
-# Weapon cue -> (wav, attenuation, concurrency). Cue tags of Core/VeloxGameplayTags.cpp.
-W = "GameplayCue.Weapon."
-CUE_SOUNDS = [
-    (W + "MachineGun.Fire", "wpn_machinegun_fire", "WeaponFire", "Weapons"),
-    (W + "MachineGun.Impact", "imp_bullet", "Impact", "Impacts"),
-    (W + "Shotgun.Fire", "wpn_shotgun_fire", "WeaponFire", "Weapons"),
-    (W + "Shotgun.Impact", "imp_bullet", "Impact", "Impacts"),
-    (W + "PlasmaGun.Fire", "wpn_plasmagun_fire", "WeaponFire", "Weapons"),
-    (W + "PlasmaGun.Impact", "imp_plasma", "Explosion", "Impacts"),
-    (W + "RocketLauncher.Fire", "wpn_rocketlauncher_fire", "WeaponFire", "Weapons"),
-    (W + "RocketLauncher.Impact", "imp_rocket_explosion", "Explosion", "Impacts"),
-    (W + "Railgun.Fire", "wpn_railgun_fire", "WeaponFire", "Weapons"),
-    (W + "Railgun.Impact", "imp_rail_hit", "Impact", "Impacts"),
-    (W + "LightningGun.Impact", "imp_lightning_hit", "Impact", "Impacts"),
-    (W + "LightningGun.Beam", "wpn_lightninggun_loop", "WeaponFire", "Weapons"),
-]
+# Weapon sounds live in the DA_WeaponCosmetics_<Name> assets (review 0006 D4), not in the ini:
+# name -> (fire wav, impact wav, impact attenuation, (beam start, loop, stop) wavs or None, muzzle light intensity; colour below).
+MUZZLE_LIGHT_COLOR = (1.0, 0.7, 0.3)
+WEAPON_COSMETICS = {
+    "MachineGun": ("wpn_machinegun_fire", "imp_bullet", "IMPACT", None, 5000.0),
+    "Shotgun": ("wpn_shotgun_fire", "imp_bullet", "IMPACT", None, 5000.0),
+    "PlasmaGun": ("wpn_plasmagun_fire", "imp_plasma", "EXPLOSION", None, 5000.0),
+    "RocketLauncher": ("wpn_rocketlauncher_fire", "imp_rocket_explosion", "EXPLOSION", None, 5000.0),
+    "Railgun": ("wpn_railgun_fire", "imp_rail_hit", "IMPACT", None, 5000.0),
+    "LightningGun": (None, "imp_lightning_hit", "IMPACT", ("wpn_lightninggun_start", "wpn_lightninggun_loop", "wpn_lightninggun_stop"), 0.0),
+}
 
 ANNOUNCER_LINES = ["three", "two", "one", "fight", "quad_damage", "excellent", "impressive", "lead_taken", "lead_lost", "lead_tied", "one_minute",
                    "overtime", "match_over"]
@@ -103,8 +98,6 @@ FOOTSTEPS = ["ply_step_1", "ply_step_2", "ply_step_3", "ply_step_4"]
 
 # UVeloxAudioSettings property -> wav (ini key = the C++ property name).
 GENERIC = {
-    "BeamStartSound": "wpn_lightninggun_start",
-    "BeamStopSound": "wpn_lightninggun_stop",
     "HitConfirmSound": "hit_confirm",
     "DryFireSound": "wpn_dryfire",
     "WeaponSwitchSound": "wpn_switch",
@@ -144,6 +137,14 @@ ATTEN_PROPS = {
 CONC_PROPS = {"ConcurrencyWeapons": "SCon_Weapons", "ConcurrencyFootsteps": "SCon_Footsteps", "ConcurrencyImpacts": "SCon_Impacts"}
 
 
+def weapon_wavs():
+    """Every wav the weapon cosmetics name."""
+    out = []
+    for fire, impact, _atten, beam, _light in WEAPON_COSMETICS.values():
+        out += [w for w in (fire, impact) if w] + list(beam or ())
+    return out
+
+
 def asset_ref(folder, name):
     return "%s/%s.%s" % (folder, name, name)
 
@@ -156,8 +157,6 @@ def ini_lines():
     for prop, name in CONC_PROPS.items():
         out.append('%s="%s"' % (prop, asset_ref(CONC_DIR, name)))
     out.append('AnnouncerMix="%s"' % asset_ref(AUDIO_DIR, "SM_Announcer"))
-    for cue, wav, atten, conc in CUE_SOUNDS:
-        out.append('+CueSounds=(Cue=(TagName="%s"),Sound="%s",Attenuation=%s,Concurrency=%s)' % (cue, sound_ref(wav), atten, conc))
     for prop, wav in GENERIC.items():
         out.append('%s="%s"' % (prop, sound_ref(wav)))
     for wav in FOOTSTEPS:
@@ -200,7 +199,7 @@ def set_props(obj, values):
 def import_sounds(src_dir):
     reimport = os.environ.get("VELOX_AUDIO_REIMPORT") == "1"
     stems = sorted(f[:-4] for f in os.listdir(src_dir) if f.endswith(".wav"))
-    expected = {w for _, w, _, _ in CUE_SOUNDS} | set(GENERIC.values()) | set(FOOTSTEPS) | {"ann_" + l for l in ANNOUNCER_LINES} | set(ITEM_PICKUPS.values())
+    expected = set(weapon_wavs()) | set(GENERIC.values()) | set(FOOTSTEPS) | {"ann_" + l for l in ANNOUNCER_LINES} | set(ITEM_PICKUPS.values())
     missing = sorted(expected - set(stems))
     if missing:
         fail("missing WAVs in %s: %s" % (src_dir, ", ".join(missing)))
@@ -319,6 +318,50 @@ def fill_items():
         save(item)
 
 
+def cosmetics_values(name):
+    """DA_WeaponCosmetics_<name> property -> asset (None = empty), from the table."""
+    fire, impact, atten, beam, light = WEAPON_COSMETICS[name]
+
+    def wave(stem):
+        return unreal.EditorAssetLibrary.load_asset(sound_path(stem)) if stem else None
+
+    return {
+        "fire_sound": wave(fire),
+        "impact_sound": wave(impact),
+        "impact_attenuation": getattr(unreal.VeloxAudioAttenuation, atten),
+        "beam_start": wave(beam[0]) if beam else None,
+        "beam_loop": wave(beam[1]) if beam else None,
+        "beam_stop": wave(beam[2]) if beam else None,
+        "muzzle_light_color": unreal.LinearColor(*MUZZLE_LIGHT_COLOR, 1.0),
+        "muzzle_light_intensity": light,
+    }
+
+
+def fill_weapon_cosmetics():
+    for name in WEAPON_COSMETICS:
+        path = "/Game/Weapons/DA_WeaponCosmetics_" + name
+        da = unreal.EditorAssetLibrary.load_asset(path)
+        if da is None:
+            fail("missing %s (run create_bootstrap_content.py)" % path)
+            continue
+        set_props(da, cosmetics_values(name))
+        save(da)
+
+
+def verify_weapon_cosmetics():
+    for name, (fire, impact, _atten, beam, _light) in WEAPON_COSMETICS.items():
+        da = unreal.EditorAssetLibrary.load_asset("/Game/Weapons/DA_WeaponCosmetics_" + name)
+        if da is None:
+            fail("verify: DA_WeaponCosmetics_" + name)
+            continue
+        if da.get_editor_property("impact_sound") is None:
+            fail("verify: %s names no ImpactSound" % name)
+        if fire and da.get_editor_property("fire_sound") is None:
+            fail("verify: %s names no FireSound" % name)
+        if beam and any(da.get_editor_property(p) is None for p in ("beam_start", "beam_loop", "beam_stop")):
+            fail("verify: %s names no beam sounds" % name)
+
+
 def verify(stems):
     for stem in stems:
         if not unreal.EditorAssetLibrary.does_asset_exist(sound_path(stem)):
@@ -355,6 +398,7 @@ def verify(stems):
         item = unreal.EditorAssetLibrary.load_asset("/Game/Items/DA_Item_" + suffix)
         if item is None or item.get_editor_property("pickup_sound") is None:
             fail("verify: pickup sound of " + suffix)
+    verify_weapon_cosmetics()
 
 
 def main():
@@ -369,6 +413,7 @@ def main():
     build_concurrency()
     configure_waves(stems, classes)
     fill_items()
+    fill_weapon_cosmetics()
     verify(stems)
     log("done: %d sounds, %d errors" % (len(stems), len(ERRORS)))
     if ERRORS:

@@ -46,25 +46,6 @@ enum class EVeloxAudioConcurrency : uint8
 	Impacts,
 };
 
-/** A weapon sound by gameplay cue tag (GameplayCue.Weapon.<Name>.Fire / .Impact / .Beam). */
-USTRUCT(BlueprintType)
-struct VELOX_API FVeloxCueSound
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio", Meta = (Categories = "GameplayCue"))
-	FGameplayTag Cue;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
-	TSoftObjectPtr<USoundBase> Sound;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
-	EVeloxAudioAttenuation Attenuation = EVeloxAudioAttenuation::WeaponFire;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
-	EVeloxAudioConcurrency Concurrency = EVeloxAudioConcurrency::Weapons;
-};
-
 /** A sound under a short name (announcer lines: "three", "fight", ...). */
 USTRUCT(BlueprintType)
 struct VELOX_API FVeloxNamedSound
@@ -143,7 +124,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weapons", Meta = (ClampMin = "0", Units = "s"))
 	float DryFireMinInterval = 0.25f;
 
-	/** Movable lights of muzzle flashes and rockets alive at the same time (ADR 0006 section 9). */
+	/** Movable lights of muzzle flashes and rockets alive at the same time (ADR 0006 section 9); colour and intensity come from UVeloxWeaponCosmetics. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Lights", Meta = (ClampMin = "0"))
 	int32 MaxMovableLights = 2;
 
@@ -152,12 +133,6 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Lights", Meta = (ClampMin = "0", Units = "cm"))
 	float MuzzleLightRadius = 600.f;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Lights")
-	float MuzzleLightIntensity = 5000.f;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Lights")
-	FLinearColor MuzzleLightColor = FLinearColor(1.f, 0.7f, 0.3f, 1.f);
 
 	// ---- Announcer ----
 
@@ -217,18 +192,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Concurrency")
 	TSoftObjectPtr<USoundConcurrency> ConcurrencyImpacts;
 
-	/** Weapon sounds by cue tag (Fire, Impact, and the Lightning Gun Beam loop). */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weapons")
-	TArray<FVeloxCueSound> CueSounds;
-
-	/** Lightning Gun beam: the one-shots around the loop (the loop itself is the CueSounds entry of ...LightningGun.Beam). */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weapons")
-	TSoftObjectPtr<USoundBase> BeamStartSound;
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weapons")
-	TSoftObjectPtr<USoundBase> BeamStopSound;
-
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weapons")
 	TSoftObjectPtr<USoundBase> HitConfirmSound;
+	/** The one global dry-fire click and weapon-switch click (Q3 parity). The weapons' own sounds live in UVeloxWeaponCosmetics (review 0006 D4). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weapons")
 	TSoftObjectPtr<USoundBase> DryFireSound;
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Weapons")
@@ -262,8 +228,6 @@ public:
 
 	// ---- Lookups ----
 
-	/** The cue's entry; null when the tag has none. */
-	const FVeloxCueSound* FindCueSound(const FGameplayTag& Cue) const;
 	/** The announcer line by short name (soft pointer, may be null). */
 	TSoftObjectPtr<USoundBase> FindAnnouncerLine(FName Name) const;
 	USoundAttenuation* LoadAttenuation(EVeloxAudioAttenuation Kind) const;

@@ -50,6 +50,7 @@
 #include "Movement/VeloxScriptedInputComponent.h"
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
+#include "Weapons/VeloxWeaponTable.h"
 
 #include "Animation/AnimSequence.h"
 #include "DisplayDebugHelpers.h"
@@ -400,6 +401,7 @@ void AVeloxCharacter::InitAbilityActorInfo()
 		}
 	}
 
+	RequestWeaponCosmetics(VeloxPS->GetWeaponInventory());
 	BindWeaponWorldMesh();
 	EnsureViewModel();
 }
@@ -443,6 +445,53 @@ void AVeloxCharacter::BindWeaponWorldMesh()
 	RefreshWeaponWorldMesh();
 }
 
+void AVeloxCharacter::RequestWeaponCosmetics(const UVeloxWeaponInventoryComponent* Inventory)
+{
+	if (bWeaponCosmeticsRequested)
+	{
+		return;
+	}
+	if (UVeloxAssetManager::IsCosmeticsFreeWorld(GetWorld()))
+	{
+		// Dedicated server: nothing is loaded (logs one Verbose line per process).
+		bWeaponCosmeticsRequested = true;
+		UVeloxAssetManager::LoadWeaponCosmetics(GetWorld(), {}, []() {});
+		return;
+	}
+	const UVeloxWeaponTable* Table = Inventory ? Inventory->GetWeaponTable() : nullptr;
+	if (!Table)
+	{
+		// The combat settings have not arrived yet: the next InitAbilityActorInfo asks again.
+		return;
+	}
+	bWeaponCosmeticsRequested = true;
+	TArray<const UVeloxWeaponDefinition*> Definitions;
+	for (int32 Index = 0; Index < Table->Num(); ++Index)
+	{
+		Definitions.Add(Table->Get(Index));
+	}
+	const TWeakObjectPtr<AVeloxCharacter> WeakThis(this);
+	UVeloxAssetManager::LoadWeaponCosmetics(GetWorld(), Definitions, [WeakThis]()
+	{
+		if (AVeloxCharacter* Character = WeakThis.Get())
+		{
+			Character->OnWeaponCosmeticsLoaded();
+		}
+	});
+}
+
+void AVeloxCharacter::OnWeaponCosmeticsLoaded()
+{
+	RefreshWeaponWorldMesh();
+	if (ViewModel)
+	{
+		if (const UVeloxWeaponInventoryComponent* Inventory = UVeloxWeaponInventoryComponent::Find(this))
+		{
+			ViewModel->ShowWeapon(Inventory->GetCurrentIndex());
+		}
+	}
+}
+
 void AVeloxCharacter::OnWeaponIndexChanged(int32 OldIndex, int32 NewIndex)
 {
 	RefreshWeaponWorldMesh();
@@ -457,8 +506,9 @@ void AVeloxCharacter::RefreshWeaponWorldMesh()
 	const UVeloxWeaponInventoryComponent* Inventory = WeaponMeshInventory.Get();
 	// Remote pawns show the replicated index; the local pawn's predicted index is no concern of its (hidden) world mesh.
 	const UVeloxWeaponDefinition* Definition = (Inventory && !bIsCorpse) ? Inventory->GetDefinition(Inventory->GetAuthoritativeIndex()) : nullptr;
-	const UVeloxWeaponCosmetics* Cosmetics = (Definition && !Definition->Cosmetics.IsNull()) ? Definition->Cosmetics.LoadSynchronous() : nullptr;
-	UStaticMesh* Mesh = (Cosmetics && !Cosmetics->WorldMesh.IsNull()) ? Cosmetics->WorldMesh.LoadSynchronous() : nullptr;
+	// Resident after UVeloxAssetManager::LoadWeaponCosmetics; Get() only, so the mesh is None until that batch completes.
+	const UVeloxWeaponCosmetics* Cosmetics = Definition ? Definition->Cosmetics.Get() : nullptr;
+	UStaticMesh* Mesh = Cosmetics ? Cosmetics->WorldMesh.Get() : nullptr;
 
 	// weapon_r when the skeletal mesh has it; otherwise the capsule (placeholder body period).
 	const USkeletalMeshComponent* Body = GetMesh();

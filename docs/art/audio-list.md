@@ -18,11 +18,11 @@ Placeholders are synthesised by `Tools/audio/synth_placeholders.py` (22.05 kHz m
 | `ann_three.wav` | 0.78 s | Announcer line `three` | 2D, SC_Announcer, SM_Announcer duck |
 | `ann_two.wav` | 0.76 s | Announcer line `two` | 2D, SC_Announcer, SM_Announcer duck |
 | `hit_confirm.wav` | 0.12 s | ClientConfirmHit (2D) | 2D |
-| `imp_bullet.wav` | 0.06 s | Cue `GameplayCue.Weapon.Shotgun.Impact` | SA_Impact |
-| `imp_lightning_hit.wav` | 0.14 s | Cue `GameplayCue.Weapon.LightningGun.Impact` | SA_Impact |
-| `imp_plasma.wav` | 0.18 s | Cue `GameplayCue.Weapon.PlasmaGun.Impact` | SA_Explosion |
-| `imp_rail_hit.wav` | 0.45 s | Cue `GameplayCue.Weapon.Railgun.Impact` | SA_Impact |
-| `imp_rocket_explosion.wav` | 0.90 s | Cue `GameplayCue.Weapon.RocketLauncher.Impact` | SA_Explosion |
+| `imp_bullet.wav` | 0.06 s | `DA_WeaponCosmetics_Shotgun.ImpactSound` (also MachineGun) | SA_Impact |
+| `imp_lightning_hit.wav` | 0.14 s | `DA_WeaponCosmetics_LightningGun.ImpactSound` | SA_Impact |
+| `imp_plasma.wav` | 0.18 s | `DA_WeaponCosmetics_PlasmaGun.ImpactSound` | SA_Explosion |
+| `imp_rail_hit.wav` | 0.45 s | `DA_WeaponCosmetics_Railgun.ImpactSound` | SA_Impact |
+| `imp_rocket_explosion.wav` | 0.90 s | `DA_WeaponCosmetics_RocketLauncher.ImpactSound` | SA_Explosion |
 | `pickup_ammo.wav` | 0.12 s | `PickupSound` of the items using it (own take 2D at prediction, global items 2D for everyone) | SA_Pickup |
 | `pickup_armor.wav` | 0.20 s | `PickupSound` of the items using it (own take 2D at prediction, global items 2D for everyone) | SA_Pickup |
 | `pickup_armor_shard.wav` | 0.12 s | `PickupSound` of the items using it (own take 2D at prediction, global items 2D for everyone) | SA_Pickup |
@@ -46,16 +46,16 @@ Placeholders are synthesised by `Tools/audio/synth_placeholders.py` (22.05 kHz m
 | `ui_click.wav` | 0.04 s | (in the settings only; no menu hook yet) | 2D |
 | `world_item_respawn.wav` | 0.45 s | Pickup respawn (replicated) | SA_World |
 | `world_jumppad.wav` | 0.28 s | AVeloxJumpPad launch (own: predicted, 2D) | SA_World (own 2D) |
-| `wpn_dryfire.wav` | 0.03 s | (not hooked: needs the fire ability, outside the task scope) | 2D |
-| `wpn_lightninggun_loop.wav` | 0.51 s | Cue `GameplayCue.Weapon.LightningGun.Beam` | SA_WeaponFire |
-| `wpn_lightninggun_start.wav` | 0.12 s | Beam cue start (own: 2D) | SA_WeaponFire (own 2D) |
-| `wpn_lightninggun_stop.wav` | 0.20 s | Beam cue stop | SA_WeaponFire |
-| `wpn_machinegun_fire.wav` | 0.09 s | Cue `GameplayCue.Weapon.MachineGun.Fire` | SA_WeaponFire (own fire 2D) |
-| `wpn_plasmagun_fire.wav` | 0.14 s | Cue `GameplayCue.Weapon.PlasmaGun.Fire` | SA_WeaponFire (own fire 2D) |
-| `wpn_railgun_fire.wav` | 0.50 s | Cue `GameplayCue.Weapon.Railgun.Fire` | SA_WeaponFire (own fire 2D) |
-| `wpn_rocketlauncher_fire.wav` | 0.45 s | Cue `GameplayCue.Weapon.RocketLauncher.Fire` | SA_WeaponFire (own fire 2D) |
-| `wpn_shotgun_fire.wav` | 0.35 s | Cue `GameplayCue.Weapon.Shotgun.Fire` | SA_WeaponFire (own fire 2D) |
-| `wpn_switch.wav` | 0.10 s | Local inventory current-weapon change (2D) | 2D |
+| `wpn_dryfire.wav` | 0.03 s | Empty weapon, local player (`UVeloxAudioSettings::DryFireSound`, one global click) | 2D |
+| `wpn_lightninggun_loop.wav` | 0.51 s | `DA_WeaponCosmetics_LightningGun.BeamLoop` (beam cue) | SA_WeaponFire |
+| `wpn_lightninggun_start.wav` | 0.12 s | `DA_WeaponCosmetics_LightningGun.BeamStart` (own: 2D) | SA_WeaponFire (own 2D) |
+| `wpn_lightninggun_stop.wav` | 0.20 s | `DA_WeaponCosmetics_LightningGun.BeamStop` | SA_WeaponFire |
+| `wpn_machinegun_fire.wav` | 0.09 s | `DA_WeaponCosmetics_MachineGun.FireSound` (cue `...MachineGun.Fire`) | SA_WeaponFire (own fire 2D) |
+| `wpn_plasmagun_fire.wav` | 0.14 s | `DA_WeaponCosmetics_PlasmaGun.FireSound` (cue `...PlasmaGun.Fire`) | SA_WeaponFire (own fire 2D) |
+| `wpn_railgun_fire.wav` | 0.50 s | `DA_WeaponCosmetics_Railgun.FireSound` (cue `...Railgun.Fire`) | SA_WeaponFire (own fire 2D) |
+| `wpn_rocketlauncher_fire.wav` | 0.45 s | `DA_WeaponCosmetics_RocketLauncher.FireSound` (cue `...RocketLauncher.Fire`) | SA_WeaponFire (own fire 2D) |
+| `wpn_shotgun_fire.wav` | 0.35 s | `DA_WeaponCosmetics_Shotgun.FireSound` (cue `...Shotgun.Fire`) | SA_WeaponFire (own fire 2D) |
+| `wpn_switch.wav` | 0.10 s | Local inventory current-weapon change (`UVeloxAudioSettings::WeaponSwitchSound`, one global click, 2D) | 2D |
 
 Total: 52 files, 1.11 MB.
 

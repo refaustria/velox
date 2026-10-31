@@ -189,6 +189,9 @@ protected:
 	void EnsureViewModel();
 	/** Shows the current weapon's WorldMesh on weapon_r for every client (inventory index is replicated); hidden on corpses. */
 	void RefreshWeaponWorldMesh();
+	/** Once per pawn (clients and listen hosts): asks the asset manager for the resident weapon-cosmetics set, then refreshes the world and view meshes. */
+	void RequestWeaponCosmetics(const UVeloxWeaponInventoryComponent* Inventory);
+	void OnWeaponCosmeticsLoaded();
 	/** Binds the PlayerState inventory's weapon change to RefreshWeaponWorldMesh (rebinding when the PlayerState changes). */
 	void BindWeaponWorldMesh();
 	void OnWeaponIndexChanged(int32 OldIndex, int32 NewIndex);
@@ -328,6 +331,7 @@ private:
 	TObjectPtr<UMaterialInstanceDynamic> SkinMaterial;
 
 	bool bCosmeticsRequested = false;
+	bool bWeaponCosmeticsRequested = false;
 	bool bSequencePlayback = false;
 	int32 AppliedSkinSlot = INDEX_NONE;
 	FLinearColor AppliedSkinColor = FLinearColor::White;
