@@ -33,3 +33,5 @@ Standard format plus the counts lines of the three maps before and after.
 
 ## Notes / outcome
 Done. `Tools/editor/veloxmap.py` added (all listed helpers plus `spawn`, `tag_actor`, `drop_links`, `check_pads`, `raise_if_errors`, `configure`); the three generators import it. Regenerated headless: asserted counts unchanged (movement 12 navlinks / 115 static mesh actors / 5 starts / 3 pads; combat 21 SMA / 4 starts / 3 spawners; item 23 pickups / 15 navlinks 2 JumpPad+12 Drop+1 RocketJump / 2 navbounds). `fts.sh` OK 7/7; `nettest.sh --scripts PadRun,StrafeRun,BotRun` PASS (1 round, port 8012). Regenerated `.umap`/`M_Greybox_*` differ only by the new `Layout:` tags and re-saved bytes, so nothing under `Content/` is committed (checked out again). Deviations: helper signatures put `kind` after `material` as in the task; the item script keeps three thin local adapters (`box`, `text`, `place_item`) to its historical argument order; `rebuild_map` also resets counts.
+
+**Lead/architect note (ADR 0006 E0.4):** the regenerated, `Layout:`-tagged `.umap`s are committed by task **03b** together with the E0.2 (e) seals and fills — one content change, one soak verification.

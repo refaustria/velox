@@ -20,6 +20,7 @@ The DM1 bands exist and are justified: from the task-06 evidence, set bands for 
 - [ ] `bands/L_DM1.sh` contains only the values E1 states; `nettest.sh --map L_DM1_Blockout --scripts "BotRun"` prints `bands=L_DM1`.
 - [ ] E1 also rules whether the DM1 Mega/RA return bands count the Live reset (D42) and whether the camp band applies to a map with two YAs (`DuelCampOverScore` behaviour on DM1).
 - [ ] Any bot defect reported by task 06 receives a ruling (fix now in a dev-hard task, or defer with reason).
+- [ ] E1 closes the E0.3 follow-ups: the observed link-success rate per type against the ≥ 95 % expectation (E0.3 b); whether dwell is redefined to exclude camp episodes (E0.3 d — the number stays 5 s); whether any untaken ammo item was a layout or a scoring question (E0.3 a); whether `aborted ≥ ok` (`FLAG`) deserves a band. `bands/L_DM1.sh` contains no `BAND_FFA_COVERAGE_EXEMPT`.
 
 ## Verification steps
 1. Read-only; one confirmation run by the lead after the file lands: `nettest.sh --map L_DM1_Blockout --scripts "BotRun BotDuel"` PASS on an idle host.
