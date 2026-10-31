@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (2026-10-31, dev-hard)
 **Depends on:** ADR 0006 §6; ADR 0005 D17, D32, D41, D44/D45 (projection semantics)
 
 ## Goal
@@ -19,12 +19,12 @@ The lint owed since M4: a server console command that finds walkable floor witho
 - `Tools/editor/README.md` "Bot navigation in the map scripts" (what exports to nav)
 
 ## Acceptance criteria
-- [ ] `velox.bots.NavCoverage [Grid=50] [MinClusterM2=1]` runs on a server/standalone world after `VeloxNav built`, logs `VeloxNavCoverage walkable_m2=<x> covered_pct=<y> clusters=<n>` then one `VeloxNavCoverage cluster i=<k> m2=<a> center=(x,y,z) extent=(dx,dy) actor=<name> layout=<tag>` line per cluster, and `VeloxNavCoverage lowclear polys=<n>` for the D32 pass. Exemption: actors tagged `NavLintIgnore`.
-- [ ] Samples use the D41 vertical extent (`UVeloxBotSettings::OnMeshHalfHeightCm`, `AirborneProjectRadiusCm`) and count a point as covered only when the projected point lies within `AgentRadius` horizontally and within step height vertically of the sample (so a ramp poly above a void does not count — D41's exact failure).
-- [ ] Unit test `Velox.Bots.NavCoverageClusters`: grid points → clusters (4-connectivity), area in m², centre/extent; includes the "two clusters separated by one covered row" and "cluster below MinClusterM2 dropped" cases.
-- [ ] `infra/ci/navlint.sh <Map> [--report-only]` runs `UnrealEditor-Cmd "$VELOX_PROJECT" <Map> -server -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput -ExecCmds="velox.bots.NavCoverage"` with `timeout 120`, parses the lines, prints a summary and exits non-zero when `clusters > 0` or `lowclear polys > 0` (unless `--report-only`); kills its own child on timeout.
-- [ ] Report-only run on `L_MovementTest`, `L_CombatTest`, `L_ItemTest` saved to `notes/03-report.md` with an interpretation per cluster (known D17 bed slot north of the YA ramp = expected; anything else = a finding for the lead, not fixed in this task).
-- [ ] Build green (all tests), `fts.sh` 7/7.
+- [x] `velox.bots.NavCoverage [Grid=50] [MinClusterM2=1]` runs on a server/standalone world after `VeloxNav built`, logs `VeloxNavCoverage walkable_m2=<x> covered_pct=<y> clusters=<n>` then one `VeloxNavCoverage cluster i=<k> m2=<a> center=(x,y,z) extent=(dx,dy) actor=<name> layout=<tag>` line per cluster, and `VeloxNavCoverage lowclear polys=<n>` for the D32 pass. Exemption: actors tagged `NavLintIgnore`.
+- [x] Samples use the D41 vertical extent (`UVeloxBotSettings::OnMeshHalfHeightCm`, `AirborneProjectRadiusCm`) and count a point as covered only when the projected point lies within `AgentRadius` horizontally and within step height vertically of the sample (so a ramp poly above a void does not count — D41's exact failure).
+- [x] Unit test `Velox.Bots.NavCoverageClusters`: grid points → clusters (4-connectivity), area in m², centre/extent; includes the "two clusters separated by one covered row" and "cluster below MinClusterM2 dropped" cases.
+- [x] `infra/ci/navlint.sh <Map> [--report-only]` runs `UnrealEditor-Cmd "$VELOX_PROJECT" <Map> -server -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput -ExecCmds="velox.bots.NavCoverage"` with `timeout 120`, parses the lines, prints a summary and exits non-zero when `clusters > 0` or `lowclear polys > 0` (unless `--report-only`); kills its own child on timeout.
+- [x] Report-only run on `L_MovementTest`, `L_CombatTest`, `L_ItemTest` saved to `notes/03-report.md` with an interpretation per cluster (known D17 bed slot north of the YA ramp = expected; anything else = a finding for the lead, not fixed in this task).
+- [x] Build green (all tests), `fts.sh` 7/7.
 
 ## Verification steps
 1. `infra/ci/build.sh` → new test listed and passing.
@@ -36,3 +36,8 @@ The lint owed since M4: a server console command that finds walkable floor witho
 Standard format plus the three summaries and the synthetic-positive line.
 
 ## Notes / outcome
+**Done 2026-10-31 (dev-hard).** `Source/Velox/Bots/VeloxNavCoverage.{h,cpp}` (lint + `velox.bots.NavCoverage [Grid=50] [MinClusterM2=1] [Verbose] [Quit]`, registered in its own file), `VeloxNavCoverageMath.h` (world-free clustering), `Velox.Bots.NavCoverageClusters`, `infra/ci/navlint.sh`. Build green (Editor + Game; Server/Client skipped on the installed engine), 106/106 automation tests, `fts.sh` OK 7/7. Report and per-cluster interpretation: `notes/03-report.md`.
+
+Results (report-only): `L_ItemTest` 11 clusters / lowclear 0, `L_CombatTest` 3 / 6, `L_MovementTest` 19 / 13; without `--report-only` exit 1. Synthetic slab (scratch map, not committed): top 165 (underside 145) → one 9 m² walk-in cluster `over=Synth_Slab over_layout=synth_slab`; top 170 (underside 150) → none, Recast meshes the floor under 150 cm (correct); `NavLintIgnore` marker removes it.
+
+Deviations, for architect: (1) coverage tolerance is `AgentRadius + Grid/2` and the fit capsule radius is `PawnRadius − Grid/2` (each sample stands for its cell); with exactly `AgentRadius` every off-lattice wall face and ledge produced one-cell strips (Recast erodes ledges ≈ 4 cells), and the full pawn-radius capsule hid 100 cm slots entirely. (2) Extra report-only fields: `kind=walkin|isolated`, `over=`, `cells=`, `inside=` on lowclear lines. (3) The command takes `Quit` so navlint does not wait for its timeout. (4) The known YA-ramp D17 slot is no longer reported (D41's slab continues the ramp); the same 100 cm slots north of the Mega and RA platforms are. Gate as in ADR 0006 §6 (every cluster counts).
