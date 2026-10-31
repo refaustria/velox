@@ -793,9 +793,11 @@ elif script in ("FireRun", "FireRunControl", "FireRunHold"):
     # ADR 0003 B42 (task m4-followups/02): the switch-retarget phase. Every client retarget (a weapon key during its own
     # drop) must reach the server as a retarget (mode=pending, or mode=late within the resend tolerance; mode=fresh =
     # outside it), and no predicted weapon may be contradicted by the server (VeloxWeaponSwitchCorrection on the client).
-    corrections = [l for l in C if "VeloxWeaponSwitchCorrection" in l]
+    # B44: reason=dead lines (the old life's switch at a respawn, Verbose) are not prediction errors; server lines with
+    # mode=local are the server's own shooters (a bot, a listen host), not the client's retargets.
+    corrections = [l for l in C if "VeloxWeaponSwitchCorrection" in l and "reason=dead" not in l]
     retarget_c = [l for l in C if "VeloxWeaponSwitch retarget" in l]
-    retarget_s = [kv(l) for l in S if "VeloxWeaponSwitch retarget" in l]
+    retarget_s = [d for d in (kv(l) for l in S if "VeloxWeaponSwitch retarget" in l) if d.get("mode") != "local"]
     modes = collections.Counter(d.get("mode", "?") for d in retarget_s)
     detail.append("retarget client=%d server=%d modes=%s switch_corrections=%d" % (len(retarget_c), len(retarget_s),
         ",".join("%s:%d" % kvp for kvp in sorted(modes.items())) or "-", len(corrections)))
