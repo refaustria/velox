@@ -101,3 +101,72 @@ lines, the `diff` summary of step 3); open issues. State explicitly if Unreal wa
 Implemented in `infra/ci/nettest.sh` as specified (constants `ARENA_FLOOR_Z = 0.0`, `LEFT_ARENA_DZ = 1500.0`; 07f's KillZ not checked, not landed on this branch).
 `--reeval` results: D48 botduel/botrun/default unchanged except the new lines, `left_arena=none`, `world_kills=0`; a07d48 round 1 PASS + camp FLAG, round 3 FAIL with `left_arena=Celer@07.48.16 z=-4572` first, exit 1; a07final round 2 FAIL `left_arena=Celer@20.48.07 z=-3568`; D47 fixture: cost numbers unchanged, camp FAIL replaced by FLAG, set FAIL by the new episodes band (sum 0).
 Deviation: the task's expected `camp_episodes` sets (D48 [3,3,2] sum 8; a07d48 [0,1,2]; a07final [3,2,3]) differ from what the existing, unchanged episode counter prints ([3,4,2] sum 9; [0,2,2] sum 4; [3,3,7] sum 13; a07acc [1,2,3] sum 6 matches). The counter was not touched; all bands pass regardless.
+**Resolution (architect, ADR 0005 D49 (4)):** the task's numbers are right; the counter counts the 20 s warm-up because the
+`VeloxBotRoute` branch of `analyze_round` is not gated on `live`. Fixed by **07g-2** below; the band and its rates are unchanged.
+
+---
+
+## 07g-2 — Gate the camp counters on the Live phase (ADR 0005 D49 (4))
+
+**Agent:** dev · **Status:** open · **Depends on:** 07g (merged, 930a6fd) · **Tier:** dev; no UE run.
+
+### Goal
+`camp_lines`, `camp_episodes`, `camp_max_lead` and `goal_changes` count only Live-phase `VeloxBotRoute` lines. Today they
+include the warm-up (both bots spawn beside YA/RA and camp them for up to 20 s), which inflated 07g's `--reeval` sets
+(Σ 9 / 4 / 13 instead of D49's 8 / 3 / 8) and makes the D49 band looser than calibrated. The episode definition does not
+change: inside the Live phase, a bot's `camp=1` lines for one item are one episode; a `camp=0` line of that bot in between
+does not split it; another item or the other bot starts a new one (D49 (4)).
+
+### Scope
+- `infra/ci/nettest.sh`, `analyze_round`, the `VeloxBotRoute bot=` branch only (l. ≈ 1369–1385). Nothing else.
+- `infra/ci/README.md`: the "Camp (D46 4)" sentence gains "Live phase only".
+- This file (status), `docs/tasks/m4-bots/README.md` (status cell).
+
+### The change
+In the `VeloxBotRoute` branch, the five camp/goal counters update only while `live` is true; everything else in the branch
+(`refused`, the `camp[bot]` dwell label, the Mega `lead` list, the `candidates=` parse) stays as it is:
+
+```python
+        m = re.search(r"VeloxBotRoute bot=(\S+) (.*)", l)
+        if m:
+            if " refused " in l: refused += 1
+            elif live and re.search(r"VeloxBotRoute bot=\S+ goal=", l): goal_changes += 1   # D49 (4): Live phase only
+            cm = re.search(r" camp=(\d)", l)
+            if cm:
+                camp[m.group(1)] = int(cm.group(1))                    # dwell label: all phases, unchanged
+                if live:                                                # D49 (4): the warm-up is not evidence (D46 1d)
+                    camp_lines += int(cm.group(1))
+                    imr = re.search(r" item=(\S+)", l); itr = imr.group(1) if imr else "?"
+                    if int(cm.group(1)):
+                        if camp_open.get(m.group(1)) != itr:
+                            camp_episodes += 1; camp_open[m.group(1)] = itr
+                        lm = re.search(r" lead=(-?[\d.]+)", l)
+                        if lm: camp_max_lead = max(camp_max_lead, float(lm.group(1)))
+```
+`live` is the flag set by `VeloxMatch phase=Live` (l. ≈ 1285) that the dwell block already uses. No new constant, no new
+field, no change to `bot_set_eval`, the FLAG text or the band threshold (Σ `camp_episodes` ≥ 2 stays).
+
+### Acceptance criteria (`VELOX_OUT=<scratch> infra/ci/nettest.sh --reeval <dir>`; the scratchpad paths as in 07g)
+Per round `camp_lines / camp_episodes / goal_changes / camp_share_pct / camp_max_lead_s`, then the set line:
+- [ ] `docs/adr/evidence/0005-D48-a07d47/botduel`: r1 `7 / 3 / 72 / 4.2 / 15.8`, r2 `7 / 3 / 64 / 4.7 / 15.5`,
+      r3 `4 / 2 / 61 / 3.3 / 11.9`; set `camp: episodes=[3, 3, 2] sum=8 lines=[7, 7, 4] share_pct=['4.2', '4.7', '3.3']
+      max_lead_s=['15.8', '15.5', '11.9']`. (Today: `[3, 4, 2] sum=9 lines=[7, 10, 4]`.)
+- [ ] `a07d48/20261031-084210-3063489`: r1 `0 / 0 / 46 / 0.0 / 0.0` (FLAG stays), r2 `1 / 1 / 59 / 1.7 / 5.9`,
+      r3 `5 / 2 / 36 / 5.6 / 15.0`; set `episodes=[0, 1, 2] sum=3 lines=[0, 1, 5]`, band PASS; r3 still FAILs on
+      `left_arena=Celer@07.48.16 z=-4572` first; exit code 1. (Today: `[0, 2, 2] sum=4`, r2 `max_lead_s` 14.5.)
+- [ ] `a07final/20261030-214422-2129972`: r1 `3 / 3 / 64 / 4.7 / 8.8`, r2 `5 / 2 / 39 / 5.1 / 18.2`,
+      r3 `4 / 3 / 56 / 5.4 / 18.8`; set `episodes=[3, 2, 3] sum=8 lines=[3, 5, 4]`; r2 still FAILs on `left_arena`.
+      (Today: `[3, 3, 7] sum=13 lines=[3, 6, 8]`.)
+- [ ] `a07acc/logs/20261030-143204-1266558`: r1 `1 / 1 / 59 / 1.7 / 7.8`, r2 `4 / 2 / 59 / 3.4 / 10.7`,
+      r3 `4 / 3 / 49 / 6.1 / 16.7`; set `episodes=[1, 2, 3] sum=6 lines=[1, 4, 4]`. (Today: episodes equal, shares differ.)
+- [ ] No new FLAG anywhere (no round other than a07d48 r1 has zero Live episodes); every round verdict, every `- ` label,
+      `left_arena`/`world_kills`, `within_6s`/`within_3s`, cost classes and `rr_round` identical to the 07g output.
+- [ ] `docs/adr/evidence/0005-D48-a07d47/botrun` and `/default`, and the D47 fixture (`--scripts BotRun,BotDuel`): verdicts
+      and cost numbers unchanged; the only permitted diff is a lower `camp_route_lines=`/`camp_lines`/`camp_episodes`/
+      `goal_changes` in BotRun/default detail lines (warm-up lines dropped). The fixture has no route lines: identical output.
+- [ ] `diff` of the full `--reeval` output before/after on all seven directories touches only the fields named above.
+- [ ] `bash -n infra/ci/nettest.sh` clean; `infra/ci/build.sh` → `[ci] CI OK`.
+
+### Report back
+The four set lines before and after, the per-round camp detail lines of a07d48 and a07final, the diff summary, and the
+D47 fixture cost lines. State explicitly if Unreal was unavailable for `build.sh`.
