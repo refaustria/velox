@@ -1369,19 +1369,20 @@ if script in ("BotRun", "BotDuel"):
         m = re.search(r"VeloxBotRoute bot=(\S+) (.*)", l)
         if m:
             if " refused " in l: refused += 1
-            elif re.search(r"VeloxBotRoute bot=\S+ goal=", l): goal_changes += 1
+            elif live and re.search(r"VeloxBotRoute bot=\S+ goal=", l): goal_changes += 1   # D49 (4): Live phase only
             cm = re.search(r" camp=(\d)", l)
             if cm:
-                camp[m.group(1)] = int(cm.group(1))
-                camp_lines += int(cm.group(1))
-                imr = re.search(r" item=(\S+)", l); itr = imr.group(1) if imr else "?"
-                if int(cm.group(1)):
-                    # D46 (4): the episode is the run of consecutive camp=1 lines of one bot for one item (a camp=0 line in
-                    # between, e.g. a fight, does not end it; another camp item does).
-                    if camp_open.get(m.group(1)) != itr:
-                        camp_episodes += 1; camp_open[m.group(1)] = itr
-                    lm = re.search(r" lead=(-?[\d.]+)", l)
-                    if lm: camp_max_lead = max(camp_max_lead, float(lm.group(1)))
+                camp[m.group(1)] = int(cm.group(1))                    # dwell label: all phases, unchanged
+                if live:                                                # D49 (4): the warm-up is not evidence (D46 1d)
+                    camp_lines += int(cm.group(1))
+                    imr = re.search(r" item=(\S+)", l); itr = imr.group(1) if imr else "?"
+                    if int(cm.group(1)):
+                        # D46 (4): the episode is the run of camp=1 lines of one bot for one item (a camp=0 line in
+                        # between, e.g. a fight, does not end it; another camp item does).
+                        if camp_open.get(m.group(1)) != itr:
+                            camp_episodes += 1; camp_open[m.group(1)] = itr
+                        lm = re.search(r" lead=(-?[\d.]+)", l)
+                        if lm: camp_max_lead = max(camp_max_lead, float(lm.group(1)))
             if " item=Health.Mega " in l:
                 lm = re.search(r" lead=(-?[\d.]+)", l)
                 if lm: mega_lead[m.group(1)].append((utc(l), float(lm.group(1))))

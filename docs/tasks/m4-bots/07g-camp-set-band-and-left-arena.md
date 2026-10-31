@@ -108,7 +108,7 @@ Deviation: the task's expected `camp_episodes` sets (D48 [3,3,2] sum 8; a07d48 [
 
 ## 07g-2 — Gate the camp counters on the Live phase (ADR 0005 D49 (4))
 
-**Agent:** dev · **Status:** open · **Depends on:** 07g (merged, 930a6fd) · **Tier:** dev; no UE run.
+**Agent:** dev · **Status:** done (--reeval matches all four directories; fields named in the spec only) · **Depends on:** 07g (merged, 930a6fd) · **Tier:** dev; no UE run.
 
 ### Goal
 `camp_lines`, `camp_episodes`, `camp_max_lead` and `goal_changes` count only Live-phase `VeloxBotRoute` lines. Today they
@@ -148,25 +148,28 @@ field, no change to `bot_set_eval`, the FLAG text or the band threshold (Σ `cam
 
 ### Acceptance criteria (`VELOX_OUT=<scratch> infra/ci/nettest.sh --reeval <dir>`; the scratchpad paths as in 07g)
 Per round `camp_lines / camp_episodes / goal_changes / camp_share_pct / camp_max_lead_s`, then the set line:
-- [ ] `docs/adr/evidence/0005-D48-a07d47/botduel`: r1 `7 / 3 / 72 / 4.2 / 15.8`, r2 `7 / 3 / 64 / 4.7 / 15.5`,
+- [x] `docs/adr/evidence/0005-D48-a07d47/botduel`: r1 `7 / 3 / 72 / 4.2 / 15.8`, r2 `7 / 3 / 64 / 4.7 / 15.5`,
       r3 `4 / 2 / 61 / 3.3 / 11.9`; set `camp: episodes=[3, 3, 2] sum=8 lines=[7, 7, 4] share_pct=['4.2', '4.7', '3.3']
       max_lead_s=['15.8', '15.5', '11.9']`. (Today: `[3, 4, 2] sum=9 lines=[7, 10, 4]`.)
-- [ ] `a07d48/20261031-084210-3063489`: r1 `0 / 0 / 46 / 0.0 / 0.0` (FLAG stays), r2 `1 / 1 / 59 / 1.7 / 5.9`,
+- [x] `a07d48/20261031-084210-3063489`: r1 `0 / 0 / 46 / 0.0 / 0.0` (FLAG stays), r2 `1 / 1 / 59 / 1.7 / 5.9`,
       r3 `5 / 2 / 36 / 5.6 / 15.0`; set `episodes=[0, 1, 2] sum=3 lines=[0, 1, 5]`, band PASS; r3 still FAILs on
       `left_arena=Celer@07.48.16 z=-4572` first; exit code 1. (Today: `[0, 2, 2] sum=4`, r2 `max_lead_s` 14.5.)
-- [ ] `a07final/20261030-214422-2129972`: r1 `3 / 3 / 64 / 4.7 / 8.8`, r2 `5 / 2 / 39 / 5.1 / 18.2`,
+- [x] `a07final/20261030-214422-2129972`: r1 `3 / 3 / 64 / 4.7 / 8.8`, r2 `5 / 2 / 39 / 5.1 / 18.2`,
       r3 `4 / 3 / 56 / 5.4 / 18.8`; set `episodes=[3, 2, 3] sum=8 lines=[3, 5, 4]`; r2 still FAILs on `left_arena`.
       (Today: `[3, 3, 7] sum=13 lines=[3, 6, 8]`.)
-- [ ] `a07acc/logs/20261030-143204-1266558`: r1 `1 / 1 / 59 / 1.7 / 7.8`, r2 `4 / 2 / 59 / 3.4 / 10.7`,
+- [x] `a07acc/logs/20261030-143204-1266558`: r1 `1 / 1 / 59 / 1.7 / 7.8`, r2 `4 / 2 / 59 / 3.4 / 10.7`,
       r3 `4 / 3 / 49 / 6.1 / 16.7`; set `episodes=[1, 2, 3] sum=6 lines=[1, 4, 4]`. (Today: episodes equal, shares differ.)
-- [ ] No new FLAG anywhere (no round other than a07d48 r1 has zero Live episodes); every round verdict, every `- ` label,
+- [x] No new FLAG anywhere (no round other than a07d48 r1 has zero Live episodes); every round verdict, every `- ` label,
       `left_arena`/`world_kills`, `within_6s`/`within_3s`, cost classes and `rr_round` identical to the 07g output.
-- [ ] `docs/adr/evidence/0005-D48-a07d47/botrun` and `/default`, and the D47 fixture (`--scripts BotRun,BotDuel`): verdicts
+- [x] `docs/adr/evidence/0005-D48-a07d47/botrun` and `/default`, and the D47 fixture (`--scripts BotRun,BotDuel`): verdicts
       and cost numbers unchanged; the only permitted diff is a lower `camp_route_lines=`/`camp_lines`/`camp_episodes`/
       `goal_changes` in BotRun/default detail lines (warm-up lines dropped). The fixture has no route lines: identical output.
-- [ ] `diff` of the full `--reeval` output before/after on all seven directories touches only the fields named above.
-- [ ] `bash -n infra/ci/nettest.sh` clean; `infra/ci/build.sh` → `[ci] CI OK`.
+- [x] `diff` of the full `--reeval` output before/after on all seven directories touches only the fields named above.
+- [x] `bash -n infra/ci/nettest.sh` clean; `infra/ci/build.sh` → `[ci] CI OK`.
 
 ### Report back
 The four set lines before and after, the per-round camp detail lines of a07d48 and a07final, the diff summary, and the
 D47 fixture cost lines. State explicitly if Unreal was unavailable for `build.sh`.
+
+### Outcome (07g-2)
+`analyze_round` counts `camp_lines`/`camp_episodes`/`camp_max_lead`/`goal_changes` in the Live phase only. `--reeval` on the seven stored directories: the four named sets print exactly the listed per-round and set lines (a07d47 botduel [3,3,2] sum 8; a07d48 [0,1,2] sum 3; a07final [3,2,3] sum 8; a07acc [1,2,3] sum 6); botrun/default differ only in lower camp/goal_changes figures; the diff of the full output touches no other field. `bash -n` clean.
