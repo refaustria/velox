@@ -1,0 +1,1 @@
+KnockbackRun       moves=300   C=1   echoes=3   gaps=0   repaired=2   repaired_extra=1   resent=182   resent_extra=182  strays_le_2_5=0  max=22.99  mean=22.99 PASS  Lexp=6.0 intended=23.0 cm at +0.21s echoes=3 response_grace=0.183 air=1 consumed=[1.741790,1.758458] want_grace=0.1833 speed+0.15s=1250 replays=9 acks_ignored=0 rpcs=196  

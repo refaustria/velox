@@ -1,0 +1,60 @@
+[2026.10.31-08.49.43:310][  0]LogTemp: Error test: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.49.43:310][  0]LogTemp: Error with param: UE::UnifiedErrorTest::WithInt: [Error with int -7]
+[2026.10.31-08.49.43:310][  0]LogTemp: Error with context: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.49.43:310][  0]LogTemp: FError that has been invalidated: ::: []
+[2026.10.31-08.49.43:310][  0]LogTemp: FError that has been moved from: ::: []
+[2026.10.31-08.49.43:455][  0]LogConsoleManager: Warning: Setting the console variable 'r.VSync' with 'SetByGameSetting' was ignored as it is lower priority than the previous 'SetByProjectSetting'. Value remains '0'
+[2026.10.31-08.49.43:456][  0]LogVelox: VeloxSettings applied sens=5.000 deg_per_count=0.1100 invert_y=0 fov=105.0 autoswitch=1 crosshair=0/24 name=Player aa=MSAA4 r.AntiAliasingMethod=3 r.MSAACount=4 fps_limit=0 vol master=1.00 effects=1.00 music=1.00
+[2026.10.31-08.49.43:463][  0]LogVelox: UVeloxGameInstance initialised.
+[2026.10.31-08.49.45:046][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'ActorLayersWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'UObjectLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'FolderCompatibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DiskSizeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataItemTypeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataVirtualPathWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetNameWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:047][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'StaticMeshTrianglesWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:048][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:048][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertHeaderWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:048][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:048][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedHeaderConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:048][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'SocketWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:048][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'TypeInfoWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:048][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'VisibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-08.49.45:052][  0]LogAssetRegistry: Warning: GetFirstPackageByName is being called in `-game` to resolve partial package name. This may cause a slow scan on disk. Consider using the fully qualified package name for better performance. 
+[2026.10.31-08.49.45:143][  0]LogVeloxMatch: VeloxMatch init mode=VeloxGameMode definition=None rules=0 frag_limit=0 time_limit=0 min_players=2 max_active=0 ready=0 countdown=20.0 overtime=0 post_match=15.0 forfeit=0
+[2026.10.31-08.49.45:145][  0]LogVeloxBots: VeloxBots seed=1336591188 (velox.bots.Seed=0)
+[2026.10.31-08.49.45:145][  0]LogVeloxBots: VeloxNav building... navdata=RecastNavMesh-VeloxPawn tiles=0 agents=1 agent0=VeloxPawn class0=RecastNavMesh nav_bounds=1
+[2026.10.31-08.49.46:531][ 42]LogVeloxBots: VeloxNav built tiles=116 seconds=1.422 links=12 relevant_triggers=0 runtime=Dynamic agent_radius=45.0 agent_height=140.0 step=45.0 cell=19.0 cell_height=10.0 slope=45.5 tile_size=1000
+[2026.10.31-08.49.57:032][667]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar None -> VeloxPlayerState_0 (0 abilities)
+[2026.10.31-08.49.57:035][667]LogVeloxCombat: VeloxColor player=VeloxPlayerState_0 index=0 palette=8
+[2026.10.31-08.49.57:035][667]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_9 at V(X=-300.00, Y=-2500.00, Z=100.00) starts=5 candidates=5 enemies=0 nearest_enemy_cm=-1 telefrag=0
+[2026.10.31-08.49.57:037][667]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_9 at V(X=-300.00, Y=-2500.00, Z=100.00) starts=5 candidates=5 enemies=0 nearest_enemy_cm=-1 telefrag=0
+[2026.10.31-08.49.57:041][667]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_0 capacity=60 registered=1
+[2026.10.31-08.49.57:041][667]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxPlayerState_0 -> VeloxCharacter_0 (0 abilities)
+[2026.10.31-08.49.57:042][667]LogVeloxCombat: VeloxPlayerState_0: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-08.49.57:042][667]LogVeloxCombat: VeloxPlayerState_0: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-08.49.57:043][667]LogVeloxCombat: VeloxPlayerState_0: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-08.49.59:180][795]LogVeloxNet: VeloxMoveRepaired ts=1.616779 dt=0.016667 slot=extra
+[2026.10.31-08.49.59:181][795]LogVeloxNet: VeloxMoveRepaired ts=1.633450 dt=0.016670 slot=old
+[2026.10.31-08.49.59:803][832]LogVeloxMovement: VeloxPowerupMoveTime powerup=haste pawn=VeloxCharacter_0 t=14.013 clock=2.266827 remaining=2.500 end=4.766827
+[2026.10.31-08.49.59:803][832]LogVeloxCombat: VeloxPowerup grant=apply effect=VeloxGE_Powerup_Haste owner=VeloxPlayerState_0 remaining 2.50
+[2026.10.31-08.49.59:803][832]LogVeloxNet: VeloxNetSoak event=haste_server t=14.013 pawn=VeloxCharacter_0 seconds=2.500 grant=1 clock=2.266827 haste_end=4.766827
+[2026.10.31-08.49.59:803][832]LogVeloxNet: VeloxHasteState role=server t=14.013 ts=2.283494 dt=0.016667 active=1 speed2d=800.0 peak2d=0.0 end=4.766827 scale=1.300
+[2026.10.31-08.50.02:271][979]LogVeloxNet: VeloxHasteState role=server t=16.482 ts=4.775377 dt=0.016667 active=0 speed2d=1040.0 peak2d=1273.7 end=4.766827 scale=1.000
+[2026.10.31-08.50.03:095][ 28]LogVeloxNet: VeloxMoveRepaired ts=5.558766 dt=0.016668 slot=old
+[2026.10.31-08.50.03:280][ 39]LogVeloxNet: VeloxMoveGap ts=5.725442 dt=0.033335
+[2026.10.31-08.50.03:280][ 39]LogVeloxNet: VeloxMoveRepaired ts=5.725442 dt=0.033335 slot=extra
+[2026.10.31-08.50.03:280][ 39]LogVeloxNet: VeloxMoveRepaired ts=5.742111 dt=0.016668 slot=old
+[2026.10.31-08.50.04:272][ 98]LogNet:  - Result=ControlChannelClose, ErrorContext="ControlChannelClose"
+[2026.10.31-08.50.04:288][ 99]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxCharacter_0 -> None (2 abilities)
+[2026.10.31-08.50.04:289][ 99]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_0 registered=0
+[2026.10.31-08.50.04:289][ 99]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxPlayerState_1 (0 abilities)
+[2026.10.31-08.50.04:289][ 99]LogVeloxCombat: VeloxColor player=VeloxPlayerState_1 index=1 palette=8
+[2026.10.31-08.50.06:044][205]LogCrowdFollowing: Warning: Unable to find RecastNavMesh instance while trying to create UCrowdManager instance
