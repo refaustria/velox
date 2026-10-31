@@ -15,6 +15,7 @@ MAJOR = re.compile(r'item=DA_Item_(Health_Mega|Armor_Red|Armor_Yellow|Powerup_[A
 TS = re.compile(r'^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]')
 POS = re.compile(r"VeloxBot name=(\S+) (.*?) pos=V\(X=([-\d.]+), Y=([-\d.]+), Z=([-\d.]+)\)")
 RADIUS = 150.0
+RUN_STUCK_MAX = 7  # D36/D51 (7): per-run stuck ceiling
 
 
 def ts(line):
@@ -173,7 +174,7 @@ budget = sum(budget_means) / len(budget_means) if budget_means else 0.0
 repath_total = sum(repaths.values())
 fails = []
 # D36 per-run caps (the set sums are judged by set.py).
-for cond, name in ((stuck > 7, 'stuck>7'), (len(bursts) > 0, 'bursts'), (max_dwell > 8, 'dwell>8'), (link_max_dt > 8.0, 'link_dt>8'),
+for cond, name in ((stuck > RUN_STUCK_MAX, f'stuck>{RUN_STUCK_MAX}'), (len(bursts) > 0, 'bursts'), (max_dwell > 8, 'dwell>8'), (link_max_dt > 8.0, 'link_dt>8'),
                    (kills < 2, 'kills<2'), (pickups < 20, 'pickups<20'), (len(mega_times) < 1, 'mega<1'), (refused > 0, 'refused'),
                    (giveup > 0, 'giveup'), (errors > 0, 'errors'), (budget > 300, 'budget>300'), (allun.get('air', 0) > 0, 'allunreach_air'),
                    (len(long_not_timeout) > 0, 'long_links_not_timeout')):

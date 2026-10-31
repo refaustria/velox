@@ -1,0 +1,1 @@
+The FFA soak scripts moved to infra/ci/ffa.sh, ffa_summary.py and ffa_set.py (task m4-followups/03b, ADR 0005 D51 (7)). The logs, .json and ffa.out in this directory are the evidence.
