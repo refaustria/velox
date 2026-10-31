@@ -21,6 +21,10 @@
 //   Velox.Combat.RemoteSwitchTimeline B37 on the server for a remote shooter: six bunched MG shots -> refire wait
 //                                    <= one interval, rail wait 1.1 s at T + 0.4, the switch gate at 0.55 / 0.35 s left
 //                                    with the 0.5 s resend tolerance, the completing rail clears the drop timer.
+//   Velox.Combat.SwitchPrediction    B42/B44 owning-client switch prediction (world-free): the replicated-index
+//                                    classification (confirm, echo of an older step, rep / timeout correction), the
+//                                    bounded chain, the rejection rollback (restore the replaced retarget target);
+//                                    ResetLocalSwitchState in a private world.
 //   Velox.Combat.HitscanDummy        RG / MG / SG / LG FireTest at a dummy (AVeloxDummyController) 10 m away: the
 //                                    Q3 damage reaches its health and armor through TraceShot and GE_Damage; one fire
 //                                    and one impact cue per shot on the shooter's feedback component; the server pattern
@@ -64,6 +68,7 @@
 #include "Weapons/VeloxGameplayAbility_WeaponSwitch.h"
 #include "Weapons/VeloxShotTargetData.h"
 #include "Weapons/VeloxShotValidation.h"
+#include "Weapons/VeloxSwitchPrediction.h"
 #include "Weapons/VeloxWeaponCheats.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
@@ -1425,6 +1430,109 @@ bool FVeloxCombatSwitchRetargetRulesTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("event: 32 rejected"), Switch::DecodeSwitchEvent(32.f, Index, bRetarget));
 	TestFalse(TEXT("event: NaN rejected"), Switch::DecodeSwitchEvent(std::numeric_limits<float>::quiet_NaN(), Index, bRetarget));
 	TestFalse(TEXT("event: inf rejected"), Switch::DecodeSwitchEvent(std::numeric_limits<float>::infinity(), Index, bRetarget));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxCombatSwitchPredictionTest, "Velox.Combat.SwitchPrediction", VeloxWeaponTest::Flags)
+
+bool FVeloxCombatSwitchPredictionTest::RunTest(const FString& Parameters)
+{
+	// ADR 0003 B42/B44 (review of B42, D1/D2/D4): the owning client's switch prediction decisions, world-free.
+	using namespace VeloxSwitchPrediction;
+	constexpr int32 A = 0, B = 1, C = 2, D = 3, E = 4, F = 5;
+	auto Kind = [](const FReplicatedIndexResult& R) { return R.Kind; };
+
+	// --- ClassifyReplicatedIndex ---
+	{
+		const FChain Empty;
+		TestTrue(TEXT("rep: no prediction -> confirm"), Kind(ClassifyReplicatedIndex(INDEX_NONE, false, B, Empty)) == EReplicatedIndex::Confirm);
+		TestTrue(TEXT("rep: live prediction = replicated -> confirm"), Kind(ClassifyReplicatedIndex(B, true, B, Empty)) == EReplicatedIndex::Confirm);
+		FChain Chain;
+		Chain.Add(B);
+		Chain.Add(C);
+		TestTrue(TEXT("rep: predicted == replicated while a chain is live -> confirm (no log)"), Kind(ClassifyReplicatedIndex(D, true, D, Chain)) == EReplicatedIndex::Confirm);
+		const FReplicatedIndexResult EchoB = ClassifyReplicatedIndex(D, true, B, Chain);
+		TestTrue(TEXT("rep: echo of the oldest step -> stands"), EchoB.Kind == EReplicatedIndex::EchoOfOlderStep && EchoB.TrimCount == 1);
+		const FReplicatedIndexResult EchoC = ClassifyReplicatedIndex(D, true, C, Chain);
+		TestTrue(TEXT("rep: echo of the newer step -> stands, trims up to it (coalesced skip of B)"), EchoC.Kind == EReplicatedIndex::EchoOfOlderStep && EchoC.TrimCount == 2);
+		TestTrue(TEXT("rep: value not in the chain while live -> rep correction"), Kind(ClassifyReplicatedIndex(D, true, E, Chain)) == EReplicatedIndex::CorrectionRep);
+		TestTrue(TEXT("rep: live, empty chain, different value -> rep correction"), Kind(ClassifyReplicatedIndex(D, true, A, Empty)) == EReplicatedIndex::CorrectionRep);
+		TestTrue(TEXT("rep: expired prediction contradicted -> timeout"), Kind(ClassifyReplicatedIndex(D, false, E, Empty)) == EReplicatedIndex::CorrectionTimeout);
+		TestTrue(TEXT("rep: expired prediction, value in the chain -> timeout (no echo after expiry)"), Kind(ClassifyReplicatedIndex(D, false, B, Chain)) == EReplicatedIndex::CorrectionTimeout);
+		TestTrue(TEXT("rep: expired prediction = replicated -> confirm"), Kind(ClassifyReplicatedIndex(D, false, D, Chain)) == EReplicatedIndex::Confirm);
+	}
+
+	// --- AdvanceChain (PredictCurrentIndex) ---
+	{
+		FChain Chain;
+		TestFalse(TEXT("chain: no live prediction, the replicated value -> no prediction"), AdvanceChain(Chain, INDEX_NONE, false, A, A));
+		TestTrue(TEXT("chain: first prediction -> predicted, chain empty"), AdvanceChain(Chain, INDEX_NONE, false, B, A) && Chain.Num() == 0);
+		TestTrue(TEXT("chain: B -> C live -> chain [B]"), AdvanceChain(Chain, B, true, C, A) && Chain.Num() == 1 && Chain[0] == B);
+		TestTrue(TEXT("chain: quick switch back to the replicated A while live stays a prediction"), AdvanceChain(Chain, C, true, A, A) && Chain.Num() == 2 && Chain[1] == C);
+		TestTrue(TEXT("chain: the same index again adds nothing"), AdvanceChain(Chain, A, true, A, A) && Chain.Num() == 2);
+		AdvanceChain(Chain, A, true, D, A); // [B, C, A]
+		AdvanceChain(Chain, D, true, E, A); // [B, C, A, D]
+		TestTrue(TEXT("chain: four steps kept"), Chain.Num() == MaxChain && Chain[0] == B && Chain[3] == D);
+		AdvanceChain(Chain, E, true, F, A); // [C, A, D, E]
+		TestTrue(TEXT("chain: bounded at 4, the oldest evicted"), Chain.Num() == MaxChain && Chain[0] == C && Chain[3] == E);
+		TestTrue(TEXT("chain: the evicted step's echo is a correction now"), Kind(ClassifyReplicatedIndex(F, true, B, Chain)) == EReplicatedIndex::CorrectionRep);
+		TestTrue(TEXT("chain: an expired prediction restarts the chain"), AdvanceChain(Chain, F, false, B, A) && Chain.Num() == 0);
+	}
+
+	// --- ClassifyLocalRejection (D1) ---
+	{
+		constexpr int16 K1 = 11, K2 = 12;
+		TestTrue(TEXT("reject: not the latest key -> nothing rolled back"), ClassifyLocalRejection(K1, K2, C, B, C, INDEX_NONE) == ELocalRejection::NotLatest);
+		TestTrue(TEXT("reject: retarget B -> C refused, still pending C -> restore B pending"), ClassifyLocalRejection(K2, K2, C, B, C, INDEX_NONE) == ELocalRejection::RestorePending);
+		TestTrue(TEXT("reject: retarget refused after the local drop landed on C -> restore B predicted"), ClassifyLocalRejection(K2, K2, C, B, INDEX_NONE, C) == ELocalRejection::RestoreLanded);
+		TestTrue(TEXT("reject: retarget refused, local result gone (prediction expired) -> full rollback"), ClassifyLocalRejection(K2, K2, C, B, INDEX_NONE, INDEX_NONE) == ELocalRejection::FullRollback);
+		TestTrue(TEXT("reject: retarget back to the weapon being lowered (A) refused -> restore B pending"), ClassifyLocalRejection(K2, K2, A, B, A, INDEX_NONE) == ELocalRejection::RestorePending);
+		TestTrue(TEXT("reject: a non-retarget switch refused while pending -> full rollback"), ClassifyLocalRejection(K1, K1, B, INDEX_NONE, B, INDEX_NONE) == ELocalRejection::FullRollback);
+		TestTrue(TEXT("reject: a non-retarget switch refused after its drop -> full rollback"), ClassifyLocalRejection(K1, K1, B, INDEX_NONE, INDEX_NONE, B) == ELocalRejection::FullRollback);
+		TestTrue(TEXT("reject: consumed record (latest key 0) -> nothing rolled back"), ClassifyLocalRejection(K2, 0, INDEX_NONE, INDEX_NONE, INDEX_NONE, INDEX_NONE) == ELocalRejection::NotLatest);
+	}
+
+	// --- ResetLocalSwitchState (D2), private world ---
+	{
+		using namespace VeloxWeaponTest;
+		FWeaponWorld W;
+		AVeloxCharacter* Pawn = W.Spawn(FVector(0, 0, 100), AAIController::StaticClass());
+		AVeloxPlayerState* PlayerState = PS(Pawn);
+		UVeloxWeaponInventoryComponent* Inventory = PlayerState ? PlayerState->GetWeaponInventory() : nullptr;
+		const UVeloxWeaponTable* Table = Inventory ? Inventory->GetWeaponTable() : nullptr;
+		if (!TestNotNull(TEXT("reset: inventory"), Inventory) || !TestNotNull(TEXT("reset: table"), Table))
+		{
+			return false;
+		}
+		const int32 MG = Table->FindBySlot(2);
+		const int32 RL = Table->FindBySlot(5);
+		const int32 RG = Table->FindBySlot(7);
+		Inventory->AddWeapon(Table->Get(RL), 5);
+		Inventory->AddWeapon(Table->Get(RG), 5);
+		W.Advance(0.1f);
+		const double Now = W.World->GetTimeSeconds();
+		Inventory->PredictCurrentIndex(RL);
+		Inventory->PredictCurrentIndex(RG); // a live chain [RL]
+		Inventory->SetSwitchEndTime(Now + 0.45);
+		Inventory->SetPendingIndex(RL, 0.2f);
+		Inventory->RetargetPendingIndex(MG);
+		Inventory->NoteLocalSwitch(7);
+		TestTrue(TEXT("reset: a pending switch, its drop timer, a switch end and a predicted index are set up"), Inventory->GetPendingIndex() == MG && Inventory->IsPendingDropTimerActive()
+			&& Inventory->GetSwitchEndTime() > Now && Inventory->GetCurrentIndex() == RG);
+		Inventory->ResetLocalSwitchState();
+		TestEqual(TEXT("reset: no pending index"), Inventory->GetPendingIndex(), static_cast<int32>(INDEX_NONE));
+		TestFalse(TEXT("reset: no drop timer"), Inventory->IsPendingDropTimerActive());
+		TestEqual(TEXT("reset: no switch end"), Inventory->GetSwitchEndTime(), 0.0);
+		TestEqual(TEXT("reset: no predicted index (the replicated MG shows)"), Inventory->GetCurrentIndex(), MG);
+		Inventory->PredictCurrentIndex(MG);
+		TestEqual(TEXT("reset: no chain survives (predicting the replicated value is no prediction)"), Inventory->GetCurrentIndex(), MG);
+		Inventory->PredictCurrentIndex(RL);
+		TestEqual(TEXT("reset: a new prediction after the reset works"), Inventory->GetCurrentIndex(), RL);
+		Inventory->ResetLocalSwitchState();
+		W.Advance(0.5f);
+		TestEqual(TEXT("reset: the old life's drop never lands"), Inventory->GetCurrentIndex(), MG);
+		TestEqual(TEXT("reset: authoritative index untouched"), Inventory->GetAuthoritativeIndex(), MG);
+	}
 	return true;
 }
 

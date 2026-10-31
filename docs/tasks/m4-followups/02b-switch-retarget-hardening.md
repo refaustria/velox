@@ -2,7 +2,7 @@
 
 **Milestone:** M4 follow-ups
 **Agent:** dev-hard (items 1–2), dev (items 3–4)
-**Status:** todo
+**Status:** done (dev-hard, 2026-10-31; items 1–4)
 **Depends on:** task 02 merged (dc3115f), ADR 0003 B42, `docs/adr/reviews/0003-B42-review.md`
 
 ## Goal
@@ -23,11 +23,11 @@ Close the four defects of the B42 review without changing the B42 rule: the clie
 - `docs/adr/reviews/0003-B42-review.md` D1–D4
 
 ## Acceptance criteria
-- [ ] **1 (D4).** `OnRep_CurrentIndex`'s decision is a world-free function (e.g. `VeloxSwitchPrediction::ClassifyReplicatedIndex(Predicted, bLive, Auth, Stale) -> Confirm | EchoOfOlderStep | Correction(rep) | Correction(timeout)`), the OnRep only applies the result; `Velox.Combat.SwitchPrediction` tests: confirm; echo of an older step stands and trims the chain up to that step; a replicated value not in the chain while live → rep correction; expired → timeout; predicted == replicated while a chain is live → confirm, no log; chain bounded at 4 (oldest evicted). A report-only `nettest.sh --scripts FireRun --lag 125 --repeat 1` run is attached to the report (corrections reported, not asserted).
-- [ ] **2 (D1).** A server-rejected retarget (`ClientRejectSwitch` or the rejected delegate for a retarget key) restores the previous pending target when the switch is still pending (drop timer and `SwitchEndTime` untouched); a rejected non-retarget switch still rolls back fully. Unit row: the decision is world-free or driven through a test seam; the `Inventory` D4 rows and `SwitchRetargetLocal/Remote` stay green.
-- [ ] **3 (D2).** `UVeloxWeaponInventoryComponent::ResetLocalSwitchState()` clears pending index, drop timer, `SwitchEndTime`, predicted index + chain and `LocalSwitchKey`; called from `AVeloxCharacter::InitAbilityActorInfo` on the owning client's first init of a new pawn (next to `ResetShotSeq`). `VeloxWeaponSwitchCorrection` is logged at Verbose with `reason=dead` while the ASC has `State_Dead`. Unit row: a pending client switch + predicted index survive nothing across `ResetLocalSwitchState()`.
-- [ ] **4 (D3).** `nettest.sh` counts server retargets with `mode != local` only; FireRun/FireRunControl detail line unchanged otherwise.
-- [ ] `infra/ci/build.sh` CI OK, `infra/ci/fts.sh` 7/7, `infra/ci/nettest.sh --scripts FireRun,FireRunControl --repeat 2` PASS with `switch_corrections=0`, `--scripts BotDuel --repeat 1` PASS.
+- [x] **1 (D4).** `OnRep_CurrentIndex`'s decision is a world-free function (e.g. `VeloxSwitchPrediction::ClassifyReplicatedIndex(Predicted, bLive, Auth, Stale) -> Confirm | EchoOfOlderStep | Correction(rep) | Correction(timeout)`), the OnRep only applies the result; `Velox.Combat.SwitchPrediction` tests: confirm; echo of an older step stands and trims the chain up to that step; a replicated value not in the chain while live → rep correction; expired → timeout; predicted == replicated while a chain is live → confirm, no log; chain bounded at 4 (oldest evicted). A report-only `nettest.sh --scripts FireRun --lag 125 --repeat 1` run is attached to the report (corrections reported, not asserted).
+- [x] **2 (D1).** A server-rejected retarget (`ClientRejectSwitch` or the rejected delegate for a retarget key) restores the previous pending target when the switch is still pending (drop timer and `SwitchEndTime` untouched); a rejected non-retarget switch still rolls back fully. Unit row: the decision is world-free or driven through a test seam; the `Inventory` D4 rows and `SwitchRetargetLocal/Remote` stay green.
+- [x] **3 (D2).** `UVeloxWeaponInventoryComponent::ResetLocalSwitchState()` clears pending index, drop timer, `SwitchEndTime`, predicted index + chain and `LocalSwitchKey`; called from `AVeloxCharacter::InitAbilityActorInfo` on the owning client's first init of a new pawn (next to `ResetShotSeq`). `VeloxWeaponSwitchCorrection` is logged at Verbose with `reason=dead` while the ASC has `State_Dead`. Unit row: a pending client switch + predicted index survive nothing across `ResetLocalSwitchState()`.
+- [x] **4 (D3).** `nettest.sh` counts server retargets with `mode != local` only; FireRun/FireRunControl detail line unchanged otherwise.
+- [x] `infra/ci/build.sh` CI OK, `infra/ci/fts.sh` 7/7, `infra/ci/nettest.sh --scripts FireRun,FireRunControl --repeat 2` PASS with `switch_corrections=0`, `--scripts BotDuel --repeat 1` PASS.
 
 ## Verification steps
 1. `infra/ci/build.sh` (new tests listed in the output)
@@ -39,3 +39,9 @@ Close the four defects of the B42 review without changing the B42 rule: the clie
 Standard format. State for item 1 whether the `--lag 125` run actually reached the echo path (`VeloxWeaponSwitch rep … is an older step` lines on the client).
 
 ## Notes / outcome
+Done 2026-10-31 by dev-hard, all four items (amendment numbered **B44**: B43 was already taken by the death-camera note).
+- 1: `Weapons/VeloxSwitchPrediction.h` (`ClassifyReplicatedIndex`, `AdvanceChain`, `ClassifyLocalRejection`); `OnRep_CurrentIndex` / `PredictCurrentIndex` apply them; `OldEffective` no longer uses an expired prediction (review nit).
+- 2: the inventory records `{key, target, replaced target}` (RetargetPendingIndex -> NoteLocalSwitch; no ability change needed); a refused retarget restores the replaced target (pending: `RetargetPendingIndex`, landed: predicted); rejection lines carry `applied=0/1 action=...` (review nit).
+- 3: `ResetLocalSwitchState()` from `AVeloxCharacter::InitAbilityActorInfo` on every client at a new pawn's first init; corrections while `State_Dead` are Verbose `reason=dead` and not counted by nettest.
+- 4: nettest server retargets filtered `mode != local`.
+- Verification: build.sh CI OK 101/101 (new `Velox.Combat.SwitchPrediction`), fts.sh 7/7, nettest FireRun,FireRunControl x2 PASS (`retarget client=4 server=4 modes=pending:4 switch_corrections=0` in all four), BotDuel x1 PASS. Report-only `FireRun --lag 125` (LogVeloxCombat Verbose): `retarget client=4 server=4 modes=pending:4 switch_corrections=0`, `raise_switches=2`, **0 "is an older step" lines**: FireRun.json does not reach the echo path at 250 ms RTT. The round FAILs only on the rail `rewind_ms` band, which is written for 100 ms one way.

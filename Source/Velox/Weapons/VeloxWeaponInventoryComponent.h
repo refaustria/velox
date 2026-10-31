@@ -9,6 +9,7 @@
 #include "GameplayAbilitySpecHandle.h"
 #include "GameplayTagContainer.h"
 #include "Engine/TimerHandle.h"
+#include "Weapons/VeloxSwitchPrediction.h"
 
 #include "VeloxWeaponInventoryComponent.generated.h"
 
@@ -192,15 +193,26 @@ public:
 	double GetPendingDropRemaining() const;
 	/** Server (B42): world time of the last drop completion (timer, shot or supersede); < 0 = none this life. */
 	double GetLastDropEndTime() const { return LastDropEndTime; }
-	/** Owning client (B42): the latest local switch activation (switch or retarget) has this prediction key. */
-	void NoteLocalSwitch(int16 PredictionKey) { LocalSwitchKey = PredictionKey; }
 	/**
-	 * Owning client (B42): the server refused the switch activation with PredictionKey (ClientRejectSwitch, or the key's
-	 * rejected delegate after ClientActivateAbilityFailed). Logs VeloxWeaponSwitchCorrection reason=rejected; if it is
-	 * still the latest local switch, the pending switch, the switch end and the predicted index are dropped (the
-	 * replicated index stands).
+	 * Owning client (B42, B44): the latest local switch activation (switch or retarget) has this prediction key. Called
+	 * right after SetPendingIndex / RetargetPendingIndex; records its target and, for a retarget, the target it replaced.
+	 */
+	void NoteLocalSwitch(int16 PredictionKey);
+	/**
+	 * Owning client (B42, B44): the server refused the switch activation with PredictionKey (ClientRejectSwitch, or the
+	 * key's rejected delegate after ClientActivateAbilityFailed). Logs VeloxWeaponSwitchCorrection reason=rejected
+	 * applied=0/1 and applies VeloxSwitchPrediction::ClassifyLocalRejection: a refused retarget restores the previous
+	 * target (still pending: RetargetPendingIndex, drop end and switch end stay; already landed: predicted instead); a
+	 * refused switch drops the pending switch, the switch end and the predicted index (the replicated index stands).
 	 */
 	void CancelLocalSwitch(int16 PredictionKey);
+	/**
+	 * Owning client (B44, review D2): a new life starts without local switch state: pending index, drop timer,
+	 * SwitchEndTime, predicted index and chain, and the latest local switch record are cleared (the server's counterpart
+	 * is ResetToLoadout). AVeloxCharacter::InitAbilityActorInfo calls it at the first init of each new pawn, with
+	 * ResetShotSeq. No authority guard (tests call it on the authority).
+	 */
+	void ResetLocalSwitchState();
 	/**
 	 * Server -> owning client (B42): a switch activation GAS confirmed but ActivateAbility refused (not owned, B33
 	 * supersede, ...). The instance ends at activation, so a replicated EndAbility no longer reaches a running client
@@ -342,8 +354,13 @@ private:
 	void ClearPendingDropTimer();
 	/** Owning client: drops the predicted index (and its chain); broadcasts if the effective index changes. */
 	void ClearPrediction();
-	/** Owning client: logs VeloxWeaponSwitchCorrection (a predicted weapon the server did not confirm). */
-	void NoteSwitchCorrection(const TCHAR* Reason, int32 Predicted, int32 Server) const;
+	/**
+	 * Owning client: logs VeloxWeaponSwitchCorrection (a predicted weapon the server did not confirm); while the ASC has
+	 * State_Dead at Verbose as reason=dead cause=<Reason> (B44: the old life's switch, not a prediction error).
+	 */
+	void NoteSwitchCorrection(const TCHAR* Reason, int32 Predicted, int32 Server, const TCHAR* Extra = TEXT("")) const;
+	/** Owning client: the unexpired predicted index, INDEX_NONE if none. */
+	int32 GetLivePredictedIndex() const;
 
 	/** Bit i = weapon table index i is owned. Owner only. */
 	UPROPERTY(ReplicatedUsing = OnRep_OwnedMask)
@@ -368,8 +385,7 @@ private:
 	int32 PredictedIndex = INDEX_NONE;
 	double PredictionExpireTime = 0.0;
 	/** Owning client (B42): earlier predictions of the current unconfirmed chain, oldest first (their echoes are stale). */
-	static constexpr int32 MaxStalePredictions = 4;
-	TArray<int32, TInlineAllocator<MaxStalePredictions>> StalePredictions;
+	VeloxSwitchPrediction::FChain StalePredictions;
 
 	/** Owning client: weapons owned by a predicted pickup and the local world time each prediction expires. */
 	uint16 PredictedOwnedMask = 0;
@@ -384,8 +400,13 @@ private:
 
 	/** Server (B42): see GetLastDropEndTime. */
 	double LastDropEndTime = -1.0;
-	/** Owning client (B42): prediction key of the latest local switch activation. */
+	/** Owning client (B42): prediction key of the latest local switch activation (0 = none). */
 	int16 LocalSwitchKey = 0;
+	/** Owning client (B44): that activation's target, and for a retarget the target it replaced (INDEX_NONE otherwise). */
+	int32 LocalSwitchTarget = INDEX_NONE;
+	int32 LocalRetargetFrom = INDEX_NONE;
+	/** B44: the pending target the last RetargetPendingIndex replaced (INDEX_NONE after SetPendingIndex); NoteLocalSwitch takes it. */
+	int32 PreRetargetPending = INDEX_NONE;
 
 	double RejectLogWindowStart = -1.0;
 	int32 RejectLogCount = 0;

@@ -394,6 +394,7 @@ void UVeloxWeaponInventoryComponent::SetCurrentIndex(int32 Index)
 void UVeloxWeaponInventoryComponent::SetPendingIndex(int32 Index, float DropEndSeconds)
 {
 	PendingIndex = (Index >= 0 && Index < UVeloxWeaponTable::MaxWeapons) ? static_cast<uint8>(Index) : NoWeapon;
+	PreRetargetPending = INDEX_NONE;
 	ClearPendingDropTimer();
 	if (PendingIndex == NoWeapon || !GetOwner())
 	{
@@ -415,15 +416,46 @@ bool UVeloxWeaponInventoryComponent::RetargetPendingIndex(int32 Index)
 	{
 		return false;
 	}
-	if (PendingIndex == static_cast<uint8>(Index))
+	const int32 Previous = GetPendingIndex();
+	if (Previous == Index)
 	{
+		PreRetargetPending = Previous;
 		return true;
 	}
 	// The drop end stays: re-arm the timer with its remaining time for the new target (its payload is the target).
 	const bool bTimer = IsPendingDropTimerActive();
 	const double Remaining = GetPendingDropRemaining();
 	SetPendingIndex(Index, bTimer ? static_cast<float>(FMath::Max(Remaining, static_cast<double>(UE_KINDA_SMALL_NUMBER))) : 0.f);
+	// B44: the replaced target, for the owning client's rollback of a refused retarget (NoteLocalSwitch takes it).
+	PreRetargetPending = Previous;
 	return true;
+}
+
+void UVeloxWeaponInventoryComponent::NoteLocalSwitch(int16 PredictionKey)
+{
+	LocalSwitchKey = PredictionKey;
+	// The activation's local result: the pending target, or (drop end 0) the predicted index it landed on at once.
+	LocalSwitchTarget = PendingIndex != NoWeapon ? GetPendingIndex() : GetLivePredictedIndex();
+	LocalRetargetFrom = PreRetargetPending;
+	PreRetargetPending = INDEX_NONE;
+}
+
+int32 UVeloxWeaponInventoryComponent::GetLivePredictedIndex() const
+{
+	const UWorld* World = GetWorld();
+	return PredictedIndex != INDEX_NONE && World && World->GetTimeSeconds() < PredictionExpireTime ? PredictedIndex : INDEX_NONE;
+}
+
+void UVeloxWeaponInventoryComponent::ResetLocalSwitchState()
+{
+	PendingIndex = NoWeapon;
+	ClearPendingDropTimer();
+	SwitchEndTime = 0.0;
+	ClearPrediction();
+	LocalSwitchKey = 0;
+	LocalSwitchTarget = INDEX_NONE;
+	LocalRetargetFrom = INDEX_NONE;
+	PreRetargetPending = INDEX_NONE;
 }
 
 double UVeloxWeaponInventoryComponent::GetPendingDropRemaining() const
@@ -447,22 +479,62 @@ void UVeloxWeaponInventoryComponent::CancelLocalSwitch(int16 PredictionKey)
 	{
 		return;
 	}
-	NoteSwitchCorrection(TEXT("rejected"), PendingIndex != NoWeapon ? GetPendingIndex() : GetCurrentIndex(), GetAuthoritativeIndex());
-	if (PredictionKey != LocalSwitchKey)
+	using namespace VeloxSwitchPrediction;
+	const int32 Shown = PendingIndex != NoWeapon ? GetPendingIndex() : GetCurrentIndex();
+	const ELocalRejection Action = ClassifyLocalRejection(PredictionKey, LocalSwitchKey, LocalSwitchTarget, LocalRetargetFrom, GetPendingIndex(), GetLivePredictedIndex());
+	const TCHAR* ActionName = Action == ELocalRejection::NotLatest ? TEXT("applied=0 action=none")
+		: Action == ELocalRejection::RestorePending ? TEXT("applied=1 action=restore_pending")
+		: Action == ELocalRejection::RestoreLanded ? TEXT("applied=1 action=restore_landed")
+		: TEXT("applied=1 action=rollback");
+	NoteSwitchCorrection(TEXT("rejected"), Shown, GetAuthoritativeIndex(), ActionName);
+	switch (Action)
 	{
+	case ELocalRejection::NotLatest:
 		return;
+	case ELocalRejection::RestorePending:
+		// B44 (review D1): the server still runs the switch onto the replaced target; drop timer and SwitchEndTime stay.
+		RetargetPendingIndex(LocalRetargetFrom);
+		break;
+	case ELocalRejection::RestoreLanded:
+		// The local drop already landed on the refused target: the server's drop lands (or landed) on the replaced one.
+		if (LocalRetargetFrom == GetAuthoritativeIndex())
+		{
+			ClearPrediction();
+		}
+		else
+		{
+			PredictCurrentIndex(LocalRetargetFrom);
+		}
+		break;
+	case ELocalRejection::FullRollback:
+	default:
+		PendingIndex = NoWeapon;
+		ClearPendingDropTimer();
+		SwitchEndTime = 0.0;
+		ClearPrediction();
+		break;
 	}
-	PendingIndex = NoWeapon;
-	ClearPendingDropTimer();
-	SwitchEndTime = 0.0;
-	ClearPrediction();
+	// Consumed: rejections arrive in key order, so no earlier activation can be refused after this one.
+	LocalSwitchKey = 0;
+	LocalSwitchTarget = INDEX_NONE;
+	LocalRetargetFrom = INDEX_NONE;
+	PreRetargetPending = INDEX_NONE;
 }
 
-void UVeloxWeaponInventoryComponent::NoteSwitchCorrection(const TCHAR* Reason, int32 Predicted, int32 Server) const
+void UVeloxWeaponInventoryComponent::NoteSwitchCorrection(const TCHAR* Reason, int32 Predicted, int32 Server, const TCHAR* Extra) const
 {
 	const UWorld* World = GetWorld();
-	UE_LOG(LogVeloxCombat, Log, TEXT("%s: VeloxWeaponSwitchCorrection reason=%s predicted=%s server=%s t=%.3f"), *GetNameSafe(GetOwner()), Reason, *GetNameSafe(GetDefinition(Predicted)),
-		*GetNameSafe(GetDefinition(Server)), World ? World->GetTimeSeconds() : 0.0);
+	const double Now = World ? World->GetTimeSeconds() : 0.0;
+	const UVeloxAbilitySystemComponent* ASC = GetVeloxASC();
+	if (ASC && ASC->HasMatchingGameplayTag(VeloxGameplayTags::State_Dead))
+	{
+		// B44: the old life's switch meeting the server's ResetToLoadout, not a prediction error (keeps the metric clean).
+		UE_LOG(LogVeloxCombat, Verbose, TEXT("%s: VeloxWeaponSwitchCorrection reason=dead cause=%s predicted=%s server=%s t=%.3f %s"), *GetNameSafe(GetOwner()), Reason,
+			*GetNameSafe(GetDefinition(Predicted)), *GetNameSafe(GetDefinition(Server)), Now, Extra);
+		return;
+	}
+	UE_LOG(LogVeloxCombat, Log, TEXT("%s: VeloxWeaponSwitchCorrection reason=%s predicted=%s server=%s t=%.3f %s"), *GetNameSafe(GetOwner()), Reason, *GetNameSafe(GetDefinition(Predicted)),
+		*GetNameSafe(GetDefinition(Server)), Now, Extra);
 }
 
 bool UVeloxWeaponInventoryComponent::IsPendingDropTimerActive() const
@@ -565,30 +637,16 @@ void UVeloxWeaponInventoryComponent::PredictCurrentIndex(int32 Index)
 	}
 	const int32 Old = GetCurrentIndex();
 	const bool bLive = PredictedIndex != INDEX_NONE && World->GetTimeSeconds() < PredictionExpireTime;
-	if (!bLive && Index == GetAuthoritativeIndex())
+	// B42: a newer prediction while an older one is still unconfirmed (rapid switching, retargets at high RTT): the older
+	// one's replicated value may still arrive and must not override this one (OnRep_CurrentIndex).
+	if (VeloxSwitchPrediction::AdvanceChain(StalePredictions, PredictedIndex, bLive, Index, GetAuthoritativeIndex()))
 	{
-		PredictedIndex = INDEX_NONE;
-		StalePredictions.Reset();
+		PredictedIndex = Index;
+		PredictionExpireTime = World->GetTimeSeconds() + PredictionTimeout;
 	}
 	else
 	{
-		// B42: a newer prediction while an older one is still unconfirmed (rapid switching, retargets at high RTT): the
-		// older one's replicated value may still arrive and must not override this one (OnRep_CurrentIndex). Kept even
-		// when Index equals the (possibly stale) replicated value, so a quick switch back is not flipped by that echo.
-		if (!bLive)
-		{
-			StalePredictions.Reset();
-		}
-		else if (PredictedIndex != Index)
-		{
-			if (StalePredictions.Num() >= MaxStalePredictions)
-			{
-				StalePredictions.RemoveAt(0);
-			}
-			StalePredictions.Add(PredictedIndex);
-		}
-		PredictedIndex = Index;
-		PredictionExpireTime = World->GetTimeSeconds() + PredictionTimeout;
+		PredictedIndex = INDEX_NONE;
 	}
 	if (Old != GetCurrentIndex())
 	{
@@ -609,24 +667,31 @@ void UVeloxWeaponInventoryComponent::ClearPrediction()
 
 void UVeloxWeaponInventoryComponent::OnRep_CurrentIndex(uint8 OldIndex)
 {
-	const int32 OldEffective = PredictedIndex != INDEX_NONE ? PredictedIndex : (OldIndex == NoWeapon ? INDEX_NONE : static_cast<int32>(OldIndex));
-	const UWorld* World = GetWorld();
-	const bool bLive = PredictedIndex != INDEX_NONE && World && World->GetTimeSeconds() < PredictionExpireTime;
-	// B42: the echo of an older, superseded prediction of this chain (the server is one step behind): the newer
-	// prediction stands until its own value arrives or it times out.
+	using namespace VeloxSwitchPrediction;
+	const int32 Live = GetLivePredictedIndex();
+	// The effective index before this update (an expired prediction no longer showed).
+	const int32 OldEffective = Live != INDEX_NONE ? Live : (OldIndex == NoWeapon ? INDEX_NONE : static_cast<int32>(OldIndex));
 	const int32 Auth = GetAuthoritativeIndex();
-	const int32 StaleAt = bLive && PredictedIndex != Auth ? StalePredictions.Find(Auth) : INDEX_NONE;
-	if (StaleAt != INDEX_NONE)
+	const FReplicatedIndexResult Result = ClassifyReplicatedIndex(PredictedIndex, Live != INDEX_NONE, Auth, StalePredictions);
+	switch (Result.Kind)
 	{
-		StalePredictions.RemoveAt(0, StaleAt + 1);
+	case EReplicatedIndex::EchoOfOlderStep:
+		// B42: the echo of an older, superseded prediction of this chain (the server is one step behind): the newer
+		// prediction stands until its own value arrives or it times out.
+		StalePredictions.RemoveAt(0, FMath::Min(Result.TrimCount, StalePredictions.Num()));
 		UE_LOG(LogVeloxCombat, Verbose, TEXT("%s: VeloxWeaponSwitch rep %s is an older step, prediction %s stands"), *GetNameSafe(GetOwner()), *GetNameSafe(GetDefinition(Auth)),
 			*GetNameSafe(GetDefinition(PredictedIndex)));
 		return;
-	}
-	// B42 metric: a prediction the replicated value contradicts is a visible correction on the owner.
-	if (PredictedIndex != INDEX_NONE && PredictedIndex != Auth)
-	{
-		NoteSwitchCorrection(bLive ? TEXT("rep") : TEXT("timeout"), PredictedIndex, Auth);
+	case EReplicatedIndex::CorrectionRep:
+		// B42 metric: a prediction the replicated value contradicts is a visible correction on the owner.
+		NoteSwitchCorrection(TEXT("rep"), PredictedIndex, Auth);
+		break;
+	case EReplicatedIndex::CorrectionTimeout:
+		NoteSwitchCorrection(TEXT("timeout"), PredictedIndex, Auth);
+		break;
+	case EReplicatedIndex::Confirm:
+	default:
+		break;
 	}
 	// The server confirmed (or overrode) the prediction.
 	PredictedIndex = INDEX_NONE;
