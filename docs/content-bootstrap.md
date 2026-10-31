@@ -80,3 +80,34 @@ Idempotent: values are compared and an asset is only re-saved when something cha
 - Run on the Mac: `infra/ci/build-mac.sh --bake /Game/Maps/<Map> <Preview|Medium|High|Production>` (Metal, same `ResavePackages -BuildLighting` commandlet as `infra/ci/bake.sh`; needs `UE_ROOT`/`VELOX_PROJECT` in `infra/.env`). Not runnable on the VM.
 - Commit the baked `.umap` (and its `_BuiltData` package) through Git LFS. The VM only verifies: `Velox.Maps.LightingBuilt` fails for any map in `MapsToCook` (other than `L_Empty`, `L_MovementTest`, `L_CombatTest`, `L_ItemTest`, `L_MainMenu`, `*_Blockout`) without a `UMapBuildDataRegistry`.
 - `infra/ci/bake.sh` stays in the repo for hosts with a real GPU or a Vulkan device that passes UE's SM5 profile check; on this VM it exits non-zero (see `docs/tasks/m5-map-characters/01-headless-lighting-probe.md`).
+
+### What the human runs on the Apple Silicon Mac (task 16 part B)
+
+```
+git fetch && git checkout m5-map-characters && git pull
+git lfs pull
+infra/ci/build-mac.sh --bake /Game/Maps/DM1/L_DM1 Production      # expect 1-3 h; leave the Mac awake
+```
+
+Check before pushing (the same figures `Velox.Maps.LightingBuilt` asserts; needs `UE_ROOT`/`VELOX_PROJECT` in `infra/.env`):
+
+```
+"$UE_ROOT/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor-Cmd" "$VELOX_PROJECT" -run=pythonscript \
+  -script="$PWD/Tools/editor/audit_map.py /Game/Maps/DM1/L_DM1 --lighting" -unattended -nopause -nosplash -stdout -FullStdOutLogOutput
+```
+
+Expected: a `lighting` line and `LIGHTING PASS`. The figures come from the C++ test (Python cannot read lightmap data), run by the audit in a child editor with `-VeloxLightingMap=<map>`; it prints `lightmapped=<n>/<m>` (static mesh components with a lightmap / static mesh components in the persistent level).
+
+Then commit exactly two files with Git LFS, `Content/Maps/DM1/L_DM1.umap` and `Content/Maps/DM1/L_DM1_BuiltData.uasset`, push, and note the wall time and the `LogLightmassSolver` completion line in `docs/tasks/m5-map-characters/notes/16-report.md`.
+
+Why the VM cannot do it (ADR 0006 E0.1): the Vulkan RHI rejects llvmpipe at the `VP_UE_Vulkan_SM5` profile check, `-FeatureLevelES31` is refused, and `-nullrhi` reaches `Running Lightmass` and then asserts in `CreateRenderTarget` before `UnrealLightmass` starts; the Intel Mac cannot render UE 5.8 at all, so only the Apple Silicon Mac can run the commandlet.
+
+## Map audit (`Tools/editor/audit_map.py`)
+
+```
+"$UE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$VELOX_PROJECT" -run=pythonscript \
+  -script="$PWD/Tools/editor/audit_map.py /Game/Maps/DM1/L_DM1 --protrusion --lighting --diff-collision /Game/Maps/DM1/L_DM1_Blockout /Game/Maps/DM1/L_DM1" \
+  -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput | grep -a VeloxAudit
+```
+
+`audit_map.py <Map> [--diff-collision A B] [--protrusion] [--lighting] [--json out]` prints the ADR 0006 section 8 figures against their budgets (draw-call estimate = material slots of visible static mesh components, total LOD0 triangles, lightmap MB, texture MB, components with lightmap resolution above 64, kit mesh count and materials per kit mesh, translucent materials, LFS total), writes `Saved/Audit/<Map>.json` (read by `Velox.Maps.DM1Budget`) and ends with `[VeloxAudit] RESULT PASS|FAIL`; read the RESULT line, not the commandlet exit code. `--diff-collision` compares pawn-blocking boxes (class, mesh, world bounds) and gameplay actors (class, location) within 1 cm; `--protrusion` flags kit instances whose bounds stand more than 5 cm into walkable air below 250 cm above a clip surface (conservative: it uses the mesh bounding box). `infra/ci/build.sh` runs the audit after a green build for `L_DM1_Blockout` and, when it exists, `L_DM1`; a failure is a warning until `L_DM1` is in `MapsToCook`, fatal afterwards. The pure helpers have a self-test: `python3 -I Tools/editor/audit_map.py --selftest`.
