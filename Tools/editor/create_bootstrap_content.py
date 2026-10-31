@@ -384,7 +384,7 @@ def build_combat_settings(table, defs):
         "switch_waits_for_refire": True,
         "beam_keep_alive_seconds": 0.25,  # B23
         "pickup_take_event_max_age_seconds": 1.0,  # ADR 0004 C10
-        "max_rewind_seconds": 0.30,  # ADR 0003 B34
+        "max_rewind_seconds": 0.35,  # ADR 0003 B34
         "history_window_seconds": 1.0,
         "max_origin_error_cm": 75.0,
         "hitbox_teleport_distance_cm": 150.0,

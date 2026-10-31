@@ -136,10 +136,10 @@ public:
 	// Lag compensation (task 03).
 	/**
 	 * Oldest server pose a shot may rewind to (s), also the B25 projectile fire-stamp window. ADR 0003 B34: a hinted shot
-	 * needs RTT + 20-40 ms of rewind, so 0.30 compensates the full 250 ms RTT limit (0.25 covered only ~210 ms).
+	 * needs RTT + 20-40 ms of rewind, so 0.35 compensates the 250 ms RTT limit with jitter headroom (0.25 covered ~210 ms, 0.30 ~260 ms).
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation", Meta = (ClampMin = "0", Units = "s"))
-	float MaxRewindSeconds = 0.30f;
+	float MaxRewindSeconds = 0.35f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
 	float HistoryWindowSeconds = 1.0f;
