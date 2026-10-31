@@ -2,7 +2,7 @@
 
 **Milestone:** M4 follow-ups (human decision q16, 2026-10-30; an M3 game-loop feature)
 **Agent:** dev-hard
-**Status:** todo
+**Status:** blocked (engine fact (c) differs; awaiting architect ruling)
 **Depends on:** ADR 0004 C11 (this task's ruling), ADR 0003 §8 / B8 / B28 / B42, STATUS question 16
 
 ## Goal
@@ -47,4 +47,15 @@ A dead human free-flies through the arena until the respawn instead of watching 
 Standard format plus the verified engine facts, the final settings values, and a one-paragraph description of what a dead player can see (for the human's Duel decision in C11). Note explicitly if Unreal was not available to compile.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+**2026-10-31, dev-hard: engine-fact check (UE 5.8.4, `/opt/UnrealEngine-5.8/Engine/Source/Runtime/Engine`); stopped before writing any code because (c) differs.**
+
+- (a) TRUE, with a correction. `Private/PlayerController.cpp:5853` `if ((GetSpectatorPawn() == nullptr) && IsLocalController())` ("Only spawned for the local player"). `:5865` `SpawnedSpectator->SetReplicates(false); // Client-side only`. Correction: `ASpectatorPawn`'s constructor does **not** set `bReplicates = false` (`Private/SpectatorPawn.cpp:20` has `//bReplicates = true;` commented out, and `APawn` sets `bReplicates = true` at `Private/Pawn.cpp:86`). The pawn is unreplicated only because `SpawnSpectatorPawn` turns replication off, so the conclusion still holds.
+- (b) TRUE. `:1003-1007` `if (IsInState(NAME_Spectating) && HasAuthority() && !IsLocalController()) { out_Location = LastSpectatorSyncLocation; out_Rotation = LastSpectatorSyncRotation; }`.
+- (c) **DIFFERS.** The RPC is unreliable (`Classes/GameFramework/PlayerController.h:1498-1500` `UFUNCTION(unreliable, server, WithValidation)`), and the 2 s `ClientGotoState(GetStateName())` self-heal is real (`:3040-3043`). But the client does **not** send it every tick. `PlayerTick` (`:2353-2357`) calls `SafeServerUpdateSpectatorState()`, which throttles: `:3018` `if (World->TimeSince(LastSpectatorStateSynchTime) > RetryServerCheckSpectatorThrottleTime)`, with `:170` `const float RetryServerCheckSpectatorThrottleTime = 0.25f;`. The real rate is about 4 Hz, one send every 0.25 s plus up to one frame. Two side effects: the same `LastSpectatorStateSynchTime` field is also written by the server's 2 s self-heal, and on the client it only gates the throttle.
+  - What this breaks: the C11 (2) nettest pass rule `syncs ≥ 60` cannot be met. With `ForceRespawnDelay=4` the dead player gets about 15-16 syncs. The server-side relevance view point (fact b) is also up to about 0.25 s stale. The `ClampViewPoint` speed step uses the measured `Dt` between syncs, so it still works at 4 Hz.
+  - What the architect needs to rule: one of (i) keep the engine rate and change the pass rule (for example `syncs ≥ 12` for a 4 s spectate, that is ≥ 3 Hz); (ii) override `SafeServerUpdateSpectatorState`, which is not virtual (`PlayerController.h:1503` `ENGINE_API void SafeServerUpdateSpectatorState();`), so this would mean sending our own call from `PlayerTick`; (iii) lengthen the soak spectate.
+- (d) TRUE. `OnPossess`: `:918` `ClientRestart(GetPawn());`, `:920` `ChangeState( NAME_Playing );`. `ChangeState` `:5943-5945`: when leaving `NAME_Spectating` it calls `EndSpectatingState()`, and `:5985` `DestroySpectatorPawn();`. `ClientRestart_Implementation` `:861-863`: `if (GetLocalRole() < ROLE_Authority) { ChangeState( NAME_Playing ); ...`. Note: `EndSpectatingState` also calls `PlayerState->SetIsSpectator(false)` (`:5981`), and logs a warning only for `IsOnlyASpectator()`.
+- (e) TRUE. `BeginSpectatingState` `:5807-5810` runs `UnPossess()` on the authority; `GetPawnOrSpectator` `:5910-5912` `return GetPawn() ? GetPawn() : GetSpectatorPawn();`. The spectator pawn is kept in `SpectatorPawn`, not `Pawn`.
+- (f) TRUE. The UHT output `Intermediate/Build/Linux/UnrealEditor/Inc/Engine/UHT/PlayerController.generated.h:113` has `ENGINE_API virtual void ServerSetSpectatorLocation_Implementation(FVector NewLoc, FRotator NewRot);`.
+
+Human decision relayed by the lead, 2026-10-31, to include when the task resumes: Duel keeps `FreeSpectate`, but its `CombatSettingsOverride` sets `ForceRespawnDelay = 5`. FFA keeps 20. Add a test row that Duel resolves 5, and one line in ADR 0004 C11. Not implemented yet, because the task stopped at the fact check.
