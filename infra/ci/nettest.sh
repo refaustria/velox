@@ -25,7 +25,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 GREP=/usr/bin/grep   # the interactive shell's grep is a ugrep wrapper; use the real one
 PORT=7777
-SCRIPTS_ARG="StrafeRun,PadRun,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun,BotRun,BotDuel,DeathSpectateRun"
+SCRIPTS_ARG="StrafeRun,PadRun,DM1Run,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun,BotRun,BotDuel,DeathSpectateRun"
 REPEAT=1
 KEEP_GOING=0
 CLIENT_TIMEOUT="${VELOX_NETTEST_TIMEOUT:-120}"
@@ -43,6 +43,8 @@ PKT_ARGS=()
 COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun RocketJumpRunHold PlasmaRun "
 # Scripts on L_ItemTest (M3 task 04); the client runs velox.items.Watch.
 ITEM_SCRIPTS=" ItemRun "
+# Scripts on L_DM1_Blockout (M5 task 06, ADR 0006 section 7): the scripted map regression, judged like PadRun.
+DM1_SCRIPTS=" DM1Run "
 # Bot soaks (M4 task 07, ADR 0005 section 14 / D36), both on L_ItemTest with the server options in the map URL.
 BOT_SCRIPTS=" BotRun BotDuel "
 BOT_RUN_SECONDS=90      # BotWatch.json
@@ -240,6 +242,7 @@ run_one() {
   PKT_ARGS=(-PktLag="$lag" -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=$((lag - 20)) -PktIncomingLagMax=$((lag + 20)) -PktIncomingLoss=2)
   if [[ "$script" == LatchRun ]]; then cexec="velox.move.Preset Q3, $cexec"; sexec="velox.move.Preset Q3"; fi
   if [[ "$COMBAT_SCRIPTS" == *" $script "* ]]; then map="L_CombatTest"; fi
+  if [[ "$DM1_SCRIPTS" == *" $script "* ]]; then map="L_DM1_Blockout"; fi
   local connect_url="127.0.0.1:$PORT" client_timeout="$CLIENT_TIMEOUT"
   case "$script" in
     BotRun)
@@ -635,7 +638,7 @@ if script == "StrafeRun":
     if bad:
         fails.append("correction > 5 cm within 0.5 s after the speed peak: %s" % fmt(bad))
 
-elif script == "PadRun":
+elif script in ("PadRun", "DM1Run"):
     # ADR 0002 A28(iii)/A30(iii): per pad exactly one client line src=live applied=1 and exactly one server line, with equal
     # move time stamps ts (the launch is queued at the end of the same move on both ends). src=replay applied=1 lines (a
     # replay re-entering the trigger) are allowed once per pad and replay and must carry the server's ts; applied=0 lines
@@ -711,8 +714,12 @@ elif script == "PadRun":
         for d in ds:
             t = num(d, "t")
             stray_only(t, t + 0.6, "pad %s launch" % pad)
-    if final and "checks=3/3" not in final:
-        fails.append("landing checkpoints: %s" % kv(final).get("checks"))
+    if final:
+        # PadRun: 3 landing checkpoints; DM1Run (task m5-06): every marker of the script (the count is in the line itself).
+        m_chk = re.search(r"checks=(\d+)/(\d+)", final)
+        want_chk = 3 if script == "PadRun" else 7
+        if not m_chk or m_chk.group(1) != m_chk.group(2) or int(m_chk.group(2)) != want_chk:
+            fails.append("landing checkpoints: %s (want %d/%d)" % (kv(final).get("checks"), want_chk, want_chk))
 
 elif script == "KnockbackRun":
     knockback_checks(airborne=True)
