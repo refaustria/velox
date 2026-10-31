@@ -1,6 +1,9 @@
 """04g (copy of post04f/summary.py): D36 per-run caps, pocket strikes, VeloxBotRepath count, strike list; ramp.py dropped;
 writes <log>.json for set.py (set-level sums). Original: 04f FFA soak summary of one server log: the D20 bands, the D34 dwell band, the 04f link / strike bands and the
 report-only diagnostics. Copy of a04d/summary.py + the stall.py dwell scan + ramp.py max_dwell_s.
+ADR 0006 section 7: per-map bands come from BAND_FFA_* environment variables (infra/ci/bands/<Map>.sh via lib.sh ci_load_bands; unset =
+report-only), the map-independent invariants are fixed here: left_arena, world_kill, no_nav_point, giveup, bursts, max dwell <= 5 s, nav
+build <= 2 s; the json also carries the item and link figures for ffa_set.py (item coverage, link success per type).
 Usage: summary.py <log> [label]"""
 import collections
 import datetime
@@ -16,6 +19,15 @@ TS = re.compile(r'^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]')
 POS = re.compile(r"VeloxBot name=(\S+) (.*?) pos=V\(X=([-\d.]+), Y=([-\d.]+), Z=([-\d.]+)\)")
 RADIUS = 150.0
 RUN_STUCK_MAX = 7  # D36/D51 (7): per-run stuck ceiling
+DWELL_MAX = 5      # ADR 0006 section 7 (was 8, D34)
+NAV_BUILD_MAX_S = 2.0
+ARENA_FLOOR_Z = float(os.environ.get('VELOX_ARENA_FLOOR_Z', '0'))
+LEFT_ARENA_DZ = 1500.0
+
+
+def band(key):
+    v = os.environ.get('BAND_' + key, '')
+    return int(v) if v.strip() else None
 
 
 def ts(line):
@@ -46,6 +58,13 @@ camp = {}
 dwell = {}
 max_dwell, max_dwell_at = 0, '-'
 pocket = 0
+nav_secs = []
+no_nav = world_kills = 0
+left_arena = None
+link_types = collections.defaultdict(lambda: [0, 0])   # type -> [ok, failed]; "aborted" (replaced, below_start) is a re-plan, not an attempt
+resets = []
+spawns = []
+taken = collections.Counter()
 strike_list = []
 repaths = collections.Counter()
 repath_targets = collections.defaultdict(list)
@@ -60,9 +79,23 @@ with open(path, 'rb') as f:
             live = True
             dwell.clear()
             continue
+        m = re.search(r'VeloxNav built .*?seconds=([\d.]+)', line)
+        if m:
+            nav_secs.append(float(m.group(1)))
+            continue
+        m = re.search(r'VeloxPickupReset item=(\S+)', line)
+        if m:
+            resets.append(m.group(1))
+            continue
+        m = re.search(r'VeloxPickupSpawn item=(\S+) at=(V\(.*?\))', line)
+        if m:
+            spawns.append([m.group(1), m.group(2)])
+            continue
         if 'VeloxPickup item=' in line:
             m = re.search(r'by=(\S+)', line)
             if m and m.group(1) not in ('-', 'none'):
+                im = re.search(r'item=(\S+)', line)
+                taken[im.group(1)] += 1
                 pickups += 1
                 if 'item=DA_Item_Weapon_' in line:
                     weapon_pickups += 1
@@ -71,6 +104,8 @@ with open(path, 'rb') as f:
                     mega_times.append(f"{t.group(1) if t else '?'}:{m.group(1)}")
             continue
         if 'VeloxKill victim=' in line and 'ignored' not in line:
+            if re.search(r'tags=\[[^\]]*Damage\.Environment', line):
+                world_kills += 1
             deaths += 1
             if 'suicide=0' in line:
                 kills += 1
@@ -98,10 +133,18 @@ with open(path, 'rb') as f:
             repaths[m.group(1)] += 1
             repath_targets[m.group(1)].append((m.group(3), m.group(4)))
             continue
+        if 'result=no_nav_point' in line:
+            no_nav += 1
         if 'giveup' in line and 'LogVeloxBots' in line:
             giveup += 1
         m = re.search(r'VeloxBotLink bot=(\S+) .*result=(\S+) reason=(\S+) dt=([\d.]+) link=(\S+)', line)
         if m:
+            tm = re.search(r' type=(\S+)', line)
+            lt = tm.group(1) if tm else '?'
+            if m.group(2) == 'ok':
+                link_types[lt][0] += 1
+            elif m.group(2) != 'aborted':
+                link_types[lt][1] += 1
             if m.group(2) != 'ok':
                 reasons[m.group(3)] += 1
             dt = float(m.group(4))
@@ -114,6 +157,8 @@ with open(path, 'rb') as f:
         if m:
             name, body = m.group(1), m.group(2)
             x, y, z = float(m.group(3)), float(m.group(4)), float(m.group(5))
+            if left_arena is None and z < ARENA_FLOOR_Z - LEFT_ARENA_DZ:
+                left_arena = name
             gm = re.search(r'goal=(\S+)', body)
             g = gm.group(1).lower() if gm else '?'
             goals[g] += 1
@@ -174,8 +219,13 @@ budget = sum(budget_means) / len(budget_means) if budget_means else 0.0
 repath_total = sum(repaths.values())
 fails = []
 # D36 per-run caps (the set sums are judged by set.py).
-for cond, name in ((stuck > RUN_STUCK_MAX, f'stuck>{RUN_STUCK_MAX}'), (len(bursts) > 0, 'bursts'), (max_dwell > 8, 'dwell>8'), (link_max_dt > 8.0, 'link_dt>8'),
-                   (kills < 2, 'kills<2'), (pickups < 20, 'pickups<20'), (len(mega_times) < 1, 'mega<1'), (refused > 0, 'refused'),
+# Per-map bands (BAND_FFA_RUN_*): judged only when the map's band file has them, else report-only.
+rk, rp_, rm = band('FFA_RUN_KILLS_MIN'), band('FFA_RUN_PICKUPS_MIN'), band('FFA_RUN_MEGA_MIN')
+for cond, name in ((stuck > RUN_STUCK_MAX, f'stuck>{RUN_STUCK_MAX}'), (len(bursts) > 0, 'bursts'), (max_dwell > DWELL_MAX, f'dwell>{DWELL_MAX}'), (link_max_dt > 8.0, 'link_dt>8'),
+                   (left_arena is not None, 'left_arena'), (world_kills > 0, 'world_kill'), (no_nav > 0, 'no_nav_point'),
+                   (bool(nav_secs) and max(nav_secs) > NAV_BUILD_MAX_S, f'nav>{NAV_BUILD_MAX_S}s'),
+                   (rk is not None and kills < rk, f'kills<{rk}'), (rp_ is not None and pickups < rp_, f'pickups<{rp_}'),
+                   (rm is not None and len(mega_times) < rm, f'mega<{rm}'), (refused > 0, 'refused'),
                    (giveup > 0, 'giveup'), (errors > 0, 'errors'), (budget > 300, 'budget>300'), (allun.get('air', 0) > 0, 'allunreach_air'),
                    (len(long_not_timeout) > 0, 'long_links_not_timeout')):
     if cond:
@@ -187,7 +237,7 @@ print(f"{label}: {'PASS' if not fails else 'FAIL(' + ','.join(fails) + ')'} stuc
       f"long_links_not_timeout=[{','.join(long_not_timeout)}] bursts=[{','.join(bursts)}] pickups={pickups} mega={len(mega_times)} kills={kills} "
       f"suicides={suicides} refused={refused} giveup={giveup} errors={errors} supp1={supp_share:.1f}% fight_share={fight_share:.1f}% "
       f"armed_fight_share={armed_share:.1f}% ({vis_armed_fight}/{vis_armed}) allunreach_air={allun.get('air', 0)} allunreach_ground={allun.get('ground', 0)} "
-      f"budget_mean_us={budget:.1f} run_mean_us={run_mean}")
+      f"budget_mean_us={budget:.1f} run_mean_us={run_mean} nav_s={max(nav_secs) if nav_secs else 'n/a'} world_kills={world_kills} no_nav_point={no_nav} left_arena={left_arena or 'none'}")
 print(f"  strikes: {' '.join(strike_list) if strike_list else '-'}")
 for bot, n in repaths.items():
     if n > 120:
@@ -196,4 +246,6 @@ for bot, n in repaths.items():
 with open(path + '.json', 'w') as jf:
     json.dump({'label': label, 'stuck': stuck, 'pocket': pocket, 'bursts': len(bursts), 'max_dwell': max_dwell, 'link_max_dt': link_max_dt,
                'kills': kills, 'pickups': pickups, 'mega': len(mega_times), 'repaths': repath_total, 'fails': fails,
-               'rules': dict(rules), 'speed_strikes': [x for x in strike_list if ':speed' in x]}, jf)
+               'rules': dict(rules), 'speed_strikes': [x for x in strike_list if ':speed' in x],
+               'nav_seconds': max(nav_secs) if nav_secs else None, 'world_kills': world_kills, 'left_arena': left_arena, 'no_nav_point': no_nav,
+               'giveup': giveup, 'link_types': dict(link_types), 'resets': resets, 'spawns': spawns, 'taken': dict(taken)}, jf)
