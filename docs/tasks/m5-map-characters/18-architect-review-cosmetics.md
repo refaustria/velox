@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** architect
-**Status:** todo
+**Status:** done
 **Depends on:** 08, 09, 10 merged to the M5 branch
 
 ## Goal
@@ -27,3 +27,5 @@ One review pass over the code that touched the replicated pawn, the PlayerState,
 Defects ranked (severity, file/function, fix), E-amendments written, tasks recommended (title + acceptance criterion each).
 
 ## Notes / outcome
+
+Done (architect, 2026-10-31, reading review of be73053). **Verdict: APPROVE WITH FOLLOW-UPS** — `docs/adr/reviews/0006-cosmetics-review.md`; rulings recorded as ADR 0006 **E1**. Checklist: no cosmetic load reachable on the dedicated server (path by path); `SkinIndex` replication/order/colours/corpses correct; anim instance clean (no allocations, one-frame `bFiring`, no sequence restart); view model local-only, destroyed on death, camera transform untouched; pickup-sound prediction per ADR 0004 §1; jump-pad dedupe and bandwidth fine; shared files merged semantically; tests test rules. Defects: **D1 High** — every "own pawn" audio test uses `IsLocallyControlled()`, true for bots on a listen server/standalone (bot fire/pain/death/pad play 2D in the host's ears); **D2 Medium** — simulated proxies never fire `Landed`, so other players' landings are silent on clients; **D3 Medium** — dry fire unhooked (`AbilityFailedCallbacks` + `ActivateFailCostTag` is the hook); **D4 Medium** — weapon sounds duplicated between `UVeloxAudioSettings::CueSounds` and `UVeloxWeaponCosmetics`, weapon meshes `LoadSynchronous` at swaps; D5–D7 Low (corpse-skin guard, announcer name matching, settings rows + UI click). Follow-ups: `18b-cosmetics-review-fixes.md` (D1–D3, D5–D7, dev; before the Mac playtest) and `18c-weapon-cosmetics-consolidation.md` (D4, dev; before task 13). Rocket light deferred to task 13.
