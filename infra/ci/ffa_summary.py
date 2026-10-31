@@ -8,6 +8,9 @@ Link outcomes are judged by reason= (ADR 0006 E0.3 b): failed = missed, timeout,
 ffa_set.py); not an attempt = replaced, below_start, ineligible (counted as aborted per type). link_types[type] = [ok, failed, aborted].
 Pickup lines carry a trailing at=<X,Y,Z> (E0.3 c): resets_at / takes_at list [definition, at] pairs so ffa_set.py can judge every pickup
 instance; a log without at= leaves at = null and ffa_set.py falls back to per definition.
+Dwell (ADR 0006 section 7, E2): the 5 s run rule excludes camp=1 samples and timed-wait samples (a bot standing at the spawn point of an
+unavailable item it chose as an Item goal, ADR 0005 section 7 item timing); the run line prints timed_waits / wait_samples / wait_max_s /
+wait_capped and three FLAG lines, the json carries the same keys. Same definition and constants as infra/ci/nettest.sh; infra/ci/dwellwhy.py triages.
 Usage: summary.py <log> [label]"""
 import collections
 import datetime
@@ -24,6 +27,10 @@ POS = re.compile(r"VeloxBot name=(\S+) (.*?) pos=V\(X=([-\d.]+), Y=([-\d.]+), Z=
 RADIUS = 150.0
 RUN_STUCK_MAX = 7  # D36/D51 (7): per-run stuck ceiling
 DWELL_MAX = 5      # ADR 0006 section 7 (was 8, D34)
+WAIT_RADIUS = 300.0      # E2: a sample counts as "at the item" within this 2-D distance of the VeloxPickupSpawn position
+WAIT_MAX_S = 20.0        # E2: an episode never lasts longer than min(respawn_in, this) + WAIT_SLACK_S (the D39 camp horizon)
+WAIT_SLACK_S = 1.0       # E2: slack on the episode end, and the tolerance of the "capped" count (respawn later than R + this)
+WAIT_LEAD_FLAG_S = 16.0  # E2: FLAG when a route line's lead exceeds the router gate (ADR 0005 section 7 / D16: 8 + 8)
 NAV_BUILD_MAX_S = 2.0
 ARENA_FLOOR_Z = float(os.environ.get('VELOX_ARENA_FLOOR_Z', '0'))
 LEFT_ARENA_DZ = 1500.0
@@ -78,6 +85,32 @@ taken = collections.Counter()
 strike_list = []
 repaths = collections.Counter()
 repath_targets = collections.defaultdict(list)
+# ADR 0006 E2 (b): wait_ep[bot] = open episode {X: DA name, t0, R, lead, samples}
+wait_ep = {}
+wait_spawn = {}
+wait_eps_done = []
+wait_samples = wait_capped = avail0_routes = 0
+wait_max = (0.0, '-')
+wait_lead_flags = []
+wait_nopos = set()
+easy_seen = False
+
+
+def vec2(txt):
+    """(X, Y) of a ToCompactString vector body; zero components are omitted (V(X=500.00) is (500, 0, 0))."""
+    d = dict(re.findall(r'([XYZ])=([-\d.]+)', txt))
+    return float(d.get('X', 0)), float(d.get('Y', 0))
+
+
+def wait_close(name, now, respawn):
+    """Closes the bot's episode; returns 1 when closed by a respawn line later than R + WAIT_SLACK_S after t0 (capped)."""
+    w = wait_ep.pop(name, None)
+    if not w:
+        return 0
+    wait_eps_done.append(w['samples'])
+    return int(bool(respawn and now is not None and w['t0'] is not None and now - w['t0'] > w['R'] + WAIT_SLACK_S))
+
+
 STUCK_AT = re.compile(r'VeloxBotStuck bot=(\S+) at=V\(X=([-\d.]+), Y=([-\d.]+), Z=([-\d.]+)\)')
 
 with open(path, 'rb') as f:
@@ -88,6 +121,12 @@ with open(path, 'rb') as f:
         if 'VeloxMatch phase=Live' in line:
             live = True
             dwell.clear()
+            continue
+        m = re.search(r'VeloxPickupRespawn item=(\S+)', line)
+        if m:                                       # E2 (b): closes the episodes of that item
+            for n_, w_ in list(wait_ep.items()):
+                if w_['X'] == m.group(1):
+                    wait_capped += wait_close(n_, ts(line), True)
             continue
         m = re.search(r'VeloxNav built .*?seconds=([\d.]+)', line)
         if m:
@@ -102,6 +141,7 @@ with open(path, 'rb') as f:
         m = re.search(r'VeloxPickupSpawn item=(\S+) at=(V\(.*?\))', line)
         if m:
             spawns.append([m.group(1), m.group(2)])
+            wait_spawn[m.group(1)] = vec2(m.group(2))
             continue
         if 'VeloxPickup item=' in line:
             m = re.search(r'by=(\S+)', line)
@@ -189,9 +229,28 @@ with open(path, 'rb') as f:
                 vis_armed += 1
                 if g == 'fight':
                     vis_armed_fight += 1
+            if 'difficulty=DA_Bot_Easy' in line:
+                easy_seen = True
             if live:
-                # D34: consecutive samples within 150 cm (2-D) of the run's first sample; camp=1 samples excluded.
-                if camp.get(name, 0):
+                # D34: consecutive samples within 150 cm (2-D) of the run's first sample; camp=1 and E2 timed-wait samples excluded.
+                excl = bool(camp.get(name, 0))
+                w = wait_ep.get(name)
+                t = ts(line)
+                if w and not excl and t is not None and w['t0'] is not None:        # E2 (b): timed-wait sample
+                    if t - w['t0'] > min(w['R'], WAIT_MAX_S) + WAIT_SLACK_S:
+                        wait_close(name, t, False)
+                    else:
+                        wim = re.search(r' goal=item .*?item=(\S+)', line)
+                        at = wait_spawn.get(w['X'])
+                        if at is None:
+                            wait_nopos.add(w['X'])
+                        if wim and wim.group(1) == w['X'] and (at is None or ((x - at[0]) ** 2 + (y - at[1]) ** 2) ** 0.5 <= WAIT_RADIUS):
+                            excl = True
+                            wait_samples += 1
+                            w['samples'] += 1
+                            if t - w['t0'] > wait_max[0]:
+                                wait_max = (t - w['t0'], f"{name}:{w['X'].replace('DA_Item_', '')}:R={w['R']:.1f},lead={w['lead']:.1f}")
+                if excl:
                     dwell.pop(name, None)
                 else:
                     d = dwell.get(name)
@@ -206,6 +265,17 @@ with open(path, 'rb') as f:
         if m:
             if 'refused' in line:
                 refused += 1
+            if re.search(r'VeloxBotRoute bot=\S+ goal=', line):          # E2 (b): any goal= line closes the episode, an Item one may open one
+                wait_capped += wait_close(m.group(1), ts(line), False)
+                if ' goal=Item ' in line and ' available=0 ' in line:
+                    wi, wr, wl = (re.search(q, line) for q in (r' item=(\S+)', r' respawn_in=(-?[\d.]+)', r' lead=(-?[\d.]+)'))
+                    if wi and wr:
+                        avail0_routes += 1
+                        lead = float(wl.group(1)) if wl else 0.0
+                        wait_ep[m.group(1)] = {'X': 'DA_Item_' + wi.group(1).replace('.', '_'), 't0': ts(line), 'R': float(wr.group(1)),
+                                               'lead': lead, 'samples': 0}
+                        if lead > WAIT_LEAD_FLAG_S:
+                            wait_lead_flags.append(f'{m.group(1)}:{wi.group(1)}:lead={lead:.1f}')
             cm = re.search(r' camp=(\d)', line)
             if cm:
                 camp[m.group(1)] = int(cm.group(1))
@@ -221,6 +291,18 @@ with open(path, 'rb') as f:
         if m:
             budget_means.append(float(m.group(1)))
             run_mean = float(m.group(2))
+
+wait_eps_done += [w_['samples'] for w_ in wait_ep.values()]
+timed_waits = sum(1 for e_ in wait_eps_done if e_ > 0)
+wait_flags = []
+if avail0_routes and wait_samples == 0 and not easy_seen:
+    wait_flags.append(f'FLAG no timed-wait sample although {avail0_routes} Item routes had available=0 (log-format drift? ADR 0006 E2)')
+for f_ in wait_lead_flags:
+    wait_flags.append(f'FLAG timed wait beyond the gate {f_} > {int(WAIT_LEAD_FLAG_S)} s (router gate ADR 0005 section 7/D16)')
+if wait_capped:
+    wait_flags.append(f'FLAG timed wait capped x{wait_capped}')
+wait_txt = (f"timed_waits={timed_waits}{' (Easy)' if (avail0_routes and wait_samples == 0 and easy_seen) else ''} wait_samples={wait_samples} "
+            f"wait_max_s={wait_max[0]:.1f} [{wait_max[1]}] wait_capped={wait_capped}" + (' wait_pos=n/a' if (not wait_spawn or wait_nopos) else ''))
 
 bursts = []
 for bot, times in strike_times.items():
@@ -251,19 +333,22 @@ for cond, name in ((stuck > RUN_STUCK_MAX, f'stuck>{RUN_STUCK_MAX}'), (len(burst
         fails.append(name)
 print(f"{label}: {'PASS' if not fails else 'FAIL(' + ','.join(fails) + ')'} stuck={stuck} pocket={pocket} "
       f"repaths={repath_total}{'(FLAG>120)' if repath_total > 120 else ''} [{' '.join(f'{k}={v}' for k, v in sorted(repaths.items()))}] "
-      f"rules=[{' '.join(f'{k}={v}' for k, v in sorted(rules.items()))}] max_dwell_s={max_dwell} [{max_dwell_at}] "
+      f"rules=[{' '.join(f'{k}={v}' for k, v in sorted(rules.items()))}] max_dwell_s={max_dwell} [{max_dwell_at}] {wait_txt} "
       f"link_max_dt={link_max_dt:.2f} [{link_max_desc}] link_fail_reasons=[{' '.join(f'{k}={v}' for k, v in sorted(reasons.items()))}] "
       f"long_links_not_timeout=[{','.join(long_not_timeout)}] bursts=[{','.join(bursts)}] pickups={pickups} mega={len(mega_times)} kills={kills} "
       f"suicides={suicides} refused={refused} giveup={giveup} errors={errors} supp1={supp_share:.1f}% fight_share={fight_share:.1f}% "
       f"armed_fight_share={armed_share:.1f}% ({vis_armed_fight}/{vis_armed}) allunreach_air={allun.get('air', 0)} allunreach_ground={allun.get('ground', 0)} "
       f"budget_mean_us={budget:.1f} run_mean_us={run_mean} nav_s={max(nav_secs) if nav_secs else 'n/a'} world_kills={world_kills} no_nav_point={no_nav} left_arena={left_arena or 'none'}")
 print(f"  strikes: {' '.join(strike_list) if strike_list else '-'}")
+for fl_ in wait_flags:
+    print('  ' + fl_)
 for bot, n in repaths.items():
     if n > 120:
         tg = collections.Counter(t for _, t in repath_targets[bot]).most_common(4)
         print(f"  REPATH FLAG {bot}: {n} repaths, top targets {tg}, last at {repath_targets[bot][-1][0]}")
 with open(path + '.json', 'w') as jf:
-    json.dump({'label': label, 'stuck': stuck, 'pocket': pocket, 'bursts': len(bursts), 'max_dwell': max_dwell, 'link_max_dt': link_max_dt,
+    json.dump({'label': label, 'stuck': stuck, 'pocket': pocket, 'bursts': len(bursts), 'max_dwell': max_dwell, 'timed_waits': timed_waits, 'wait_samples': wait_samples,
+               'wait_max_s': round(wait_max[0], 1), 'wait_capped': wait_capped, 'wait_flags': len(wait_flags), 'link_max_dt': link_max_dt,
                'kills': kills, 'pickups': pickups, 'mega': len(mega_times), 'repaths': repath_total, 'fails': fails,
                'rules': dict(rules), 'speed_strikes': [x for x in strike_list if ':speed' in x],
                'nav_seconds': max(nav_secs) if nav_secs else None, 'world_kills': world_kills, 'left_arena': left_arena, 'no_nav_point': no_nav,

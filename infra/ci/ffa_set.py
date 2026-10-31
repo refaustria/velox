@@ -9,6 +9,7 @@ unknown reasons, printed); replaced, below_start, ineligible are re-plans, not a
 (INV_LINK_MIN_ATTEMPTS); FLAG (report-only) when aborted >= ok. Item coverage (E0.3 c): per instance, keyed (definition, at=) from the
 VeloxPickupReset / VeloxPickup lines, when every run's log has at=; else per definition (old logs). BAND_FFA_COVERAGE_EXEMPT (definitions,
 space separated) is honoured only on L_ItemTest, L_CombatTest and L_MovementTest (E0.3 a); on any other map it is ignored with a warning.
+Dwell (ADR 0006 E2): the per-run max_dwell excludes camp=1 and timed-wait samples (ffa_summary.py); the SET line adds wait_max_s (report-only).
 Exit status 1 on any FAIL."""
 import collections
 import glob
@@ -45,6 +46,7 @@ d6 = sum(1 for r in runs if r['max_dwell'] >= 6)
 rp = sum(r['repaths'] for r in runs)
 bursts = sum(r['bursts'] for r in runs)
 max_dwell = max((r['max_dwell'] for r in runs), default=0)
+max_wait = max((r.get('wait_max_s', 0.0) for r in runs), default=0.0)   # ADR 0006 E2: report-only
 kills_judged = SUM_KILLS_MIN is not None and len(runs) == D51_KILLS_RUNS
 # Sample-size invariants (link success per type, item coverage) are defined for the ten-run set: with fewer runs they are printed
 # as "n/j" (not judged), because three runs take 3/10 of the items and a handful of link attempts.
@@ -158,7 +160,7 @@ for r in runs:
     for k, v in r['rules'].items():
         rules[k] = rules.get(k, 0) + v
 print(f"SET runs={len(runs)} {'PASS' if not fails else 'FAIL(' + ';'.join(fails) + ')'} sum_stuck={st} max_run_stuck={max((r['stuck'] for r in runs), default=0)} "
-      f"bursts={bursts} pocket={pk} dwell_ge6_runs={d6} max_dwell={max_dwell} "
+      f"bursts={bursts} pocket={pk} dwell_ge6_runs={d6} max_dwell={max_dwell} wait_max_s={max_wait:.1f} "
       f"max_link_dt={max((r['link_max_dt'] for r in runs), default=0):.2f} sum_kills={ki} min_kills={min((r['kills'] for r in runs), default=0)} "
       f"sum_repaths={rp} max_run_repaths={max((r['repaths'] for r in runs), default=0)} rules={rules}")
 sp = [s for r in runs for s in r['speed_strikes']]

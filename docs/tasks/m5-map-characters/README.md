@@ -10,7 +10,7 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 | 03b | [test-maps-lint-baseline-and-regen](03b-test-maps-lint-baseline-and-regen.md) | dev | 2–3 h | 02, 03, E0.2 (e), E0.4 | 0b (parallel with 05) | todo |
 | 04 | [soak-runner-map-override-and-bands](04-soak-runner-map-override-and-bands.md) | dev | 2–3 h | ADR §7 | 0 | done (findings ruled, E0.3) |
 | 04b | [runner-per-instance-coverage-and-link-definition](04b-runner-per-instance-coverage-and-link-definition.md) | dev | 1–2 h | 04, E0.3 | 0b (before 06's final sets) | done |
-| 04c | [runner-dwell-timed-wait-exclusion](04c-runner-dwell-timed-wait-exclusion.md) | dev | 2 h | 04b, E2, `notes/dwell-report.md` | 0b (before 06's final sets) | todo |
+| 04c | [runner-dwell-timed-wait-exclusion](04c-runner-dwell-timed-wait-exclusion.md) | dev | 2 h | 04b, E2, `notes/dwell-report.md` | 0b (before 06's final sets) | done |
 | 05 | [dm1-blockout](05-dm1-blockout.md) | dev | 3 h (may split: layout+map / FT+gating) | 02, 03, E0.2/E0.5 (final lint with 03b) | 1 | todo |
 | 06 | [dm1-bot-iteration](06-dm1-bot-iteration.md) | dev | 3 h (+ soak time) | 04, 04b, 05 | 1 | todo |
 | 07 | [dm1-band-ruling](07-dm1-band-ruling.md) | architect | 1 h | 06, E2 | 1 | todo |
