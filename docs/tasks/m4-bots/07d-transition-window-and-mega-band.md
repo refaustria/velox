@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 07c (D47 classifier, `--reeval`), the final M4 acceptance run on 046dabb (lead's scratchpad `a07d47/`), ADR 0005 D46 (3), D47, D48
 
 ## Goal

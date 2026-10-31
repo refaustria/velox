@@ -1,0 +1,761 @@
+[2026.10.31-07.09.22:717][  0]LogTemp: Error test: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-07.09.22:717][  0]LogTemp: Error with param: UE::UnifiedErrorTest::WithInt: [Error with int -7]
+[2026.10.31-07.09.22:717][  0]LogTemp: Error with context: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-07.09.22:717][  0]LogTemp: FError that has been invalidated: ::: []
+[2026.10.31-07.09.22:717][  0]LogTemp: FError that has been moved from: ::: []
+[2026.10.31-07.09.22:858][  0]LogConsoleManager: Warning: Setting the console variable 'r.VSync' with 'SetByGameSetting' was ignored as it is lower priority than the previous 'SetByProjectSetting'. Value remains '0'
+[2026.10.31-07.09.22:858][  0]LogVelox: VeloxSettings applied sens=5.000 deg_per_count=0.1100 invert_y=0 fov=105.0 autoswitch=1 crosshair=0/24 name=Player aa=MSAA4 r.AntiAliasingMethod=3 r.MSAACount=4 fps_limit=0 vol master=1.00 effects=1.00 music=1.00
+[2026.10.31-07.09.22:863][  0]LogVelox: UVeloxGameInstance initialised.
+[2026.10.31-07.09.24:391][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'ActorLayersWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:391][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'UObjectLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'FolderCompatibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DiskSizeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataItemTypeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataVirtualPathWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetNameWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:392][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'StaticMeshTrianglesWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:393][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:393][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertHeaderWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:393][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:393][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedHeaderConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:393][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'SocketWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:393][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'TypeInfoWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:393][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'VisibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.09.24:396][  0]LogAssetRegistry: Warning: GetFirstPackageByName is being called in `-game` to resolve partial package name. This may cause a slow scan on disk. Consider using the fully qualified package name for better performance. 
+[2026.10.31-07.09.24:466][  0]LogVeloxMatch: VeloxMatch init mode=VeloxGameMode definition=None rules=0 frag_limit=0 time_limit=0 min_players=2 max_active=0 ready=0 countdown=20.0 overtime=0 post_match=15.0 forfeit=0
+[2026.10.31-07.09.24:468][  0]LogVeloxBots: VeloxBots seed=-389118871 (velox.bots.Seed=0)
+[2026.10.31-07.09.24:468][  0]LogVeloxBots: VeloxNav building... navdata=RecastNavMesh-VeloxPawn tiles=0 agents=1 agent0=VeloxPawn class0=RecastNavMesh nav_bounds=1
+[2026.10.31-07.09.24:472][  0]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_0 capacity=60 registered=1
+[2026.10.31-07.09.24:472][  0]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar None -> VeloxPlayerState_0 (0 abilities)
+[2026.10.31-07.09.24:474][  0]LogVeloxCombat: VeloxColor player=VeloxPlayerState_0 index=0 palette=8
+[2026.10.31-07.09.24:474][  0]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxPlayerState_0 -> VeloxCharacter_0 (0 abilities)
+[2026.10.31-07.09.24:474][  0]LogVeloxCombat: VeloxPlayerState_0: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-07.09.24:475][  0]LogVeloxCombat: VeloxPlayerState_0: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-07.09.24:475][  0]LogVeloxCombat: VeloxPlayerState_0: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-07.09.24:476][  0]LogVelox: VeloxDummySpawner_0: spawned dummy VeloxCharacter_0 at V(X=-700.00, Y=-1200.00, Z=72.15).
+[2026.10.31-07.09.24:476][  0]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_1 capacity=60 registered=2
+[2026.10.31-07.09.24:476][  0]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxPlayerState_1 (0 abilities)
+[2026.10.31-07.09.24:476][  0]LogVeloxCombat: VeloxColor player=VeloxPlayerState_1 index=1 palette=8
+[2026.10.31-07.09.24:476][  0]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxPlayerState_1 -> VeloxCharacter_1 (0 abilities)
+[2026.10.31-07.09.24:476][  0]LogVeloxCombat: VeloxPlayerState_1: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-07.09.24:476][  0]LogVeloxCombat: VeloxPlayerState_1: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-07.09.24:477][  0]LogVeloxCombat: VeloxPlayerState_1: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-07.09.24:477][  0]LogVelox: VeloxDummySpawner_1: spawned dummy VeloxCharacter_1 at V(X=300.00, Y=-1200.00, Z=72.15).
+[2026.10.31-07.09.24:477][  0]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_2 capacity=60 registered=3
+[2026.10.31-07.09.24:477][  0]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar None -> VeloxPlayerState_2 (0 abilities)
+[2026.10.31-07.09.24:477][  0]LogVeloxCombat: VeloxColor player=VeloxPlayerState_2 index=2 palette=8
+[2026.10.31-07.09.24:477][  0]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar VeloxPlayerState_2 -> VeloxCharacter_2 (0 abilities)
+[2026.10.31-07.09.24:477][  0]LogVeloxCombat: VeloxPlayerState_2: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-07.09.24:477][  0]LogVeloxCombat: VeloxPlayerState_2: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-07.09.24:477][  0]LogVeloxCombat: VeloxPlayerState_2: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-07.09.24:478][  0]LogVelox: VeloxDummySpawner_2: spawned dummy VeloxCharacter_2 at V(X=1300.00, Y=-1200.00, Z=72.15).
+[2026.10.31-07.09.25:150][  0]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_3 capacity=60 registered=4
+[2026.10.31-07.09.25:150][  0]LogVeloxCombat: VeloxPlayerState_3: ability actor info owner=VeloxPlayerState_3 avatar None -> VeloxPlayerState_3 (0 abilities)
+[2026.10.31-07.09.25:150][  0]LogVeloxCombat: VeloxColor player=VeloxPlayerState_3 index=3 palette=8
+[2026.10.31-07.09.25:150][  0]LogVeloxCombat: VeloxPlayerState_3: ability actor info owner=VeloxPlayerState_3 avatar VeloxPlayerState_3 -> VeloxCharacter_3 (0 abilities)
+[2026.10.31-07.09.25:150][  0]LogVeloxCombat: VeloxPlayerState_3: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-07.09.25:150][  0]LogVeloxCombat: VeloxPlayerState_3: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-07.09.25:150][  0]LogVeloxCombat: VeloxPlayerState_3: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-07.09.25:151][  0]LogVelox: VeloxDummySpawner_3: spawned dummy VeloxCharacter_3 at V(X=-700.00, Z=72.15).
+[2026.10.31-07.09.25:151][  0]LogVeloxCombat: SpawnDummy: VeloxCharacter_3 at V(X=-700.00, Z=110.00) invulnerable=1
+[2026.10.31-07.09.25:154][  1]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=0.068 stamp=0.068 n=1 span_ms=0 loc=(-700.0,8.8,72.2) hh=70.0
+[2026.10.31-07.09.25:154][  1]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=0.068 stamp=0.068 n=2 span_ms=51 loc=(1300.0,-1191.2,72.2) hh=70.0
+[2026.10.31-07.09.25:154][  1]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=0.068 stamp=0.068 n=2 span_ms=51 loc=(300.0,-1191.2,72.2) hh=70.0
+[2026.10.31-07.09.25:154][  1]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=0.068 stamp=0.068 n=2 span_ms=51 loc=(-700.0,-1191.2,72.2) hh=70.0
+[2026.10.31-07.09.25:286][  9]LogVeloxBots: VeloxNav built tiles=21 seconds=0.849 links=0 relevant_triggers=0 runtime=Dynamic agent_radius=45.0 agent_height=140.0 step=45.0 cell=19.0 cell_height=10.0 slope=45.5 tile_size=1000
+[2026.10.31-07.09.26:160][ 61]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=1.075 stamp=1.075 n=60 span_ms=991 loc=(-700.0,-32.0,72.2) hh=70.0
+[2026.10.31-07.09.26:160][ 61]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=1.075 stamp=1.075 n=60 span_ms=991 loc=(1300.0,-1232.0,72.2) hh=70.0
+[2026.10.31-07.09.26:160][ 61]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=1.075 stamp=1.075 n=60 span_ms=991 loc=(300.0,-1232.0,72.2) hh=70.0
+[2026.10.31-07.09.26:160][ 61]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=1.075 stamp=1.075 n=60 span_ms=991 loc=(-700.0,-1232.0,72.2) hh=70.0
+[2026.10.31-07.09.27:118][118]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=55.14, Z=72.15) velocity V(Y=800.00) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.09.27:118][118]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1144.86, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.27:118][118]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1144.86, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.27:118][118]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1144.86, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.27:168][121]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=2.083 stamp=2.083 n=60 span_ms=992 loc=(-700.0,95.4,72.2) hh=70.0
+[2026.10.31-07.09.27:168][121]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=2.083 stamp=2.083 n=60 span_ms=992 loc=(1300.0,-1104.6,72.2) hh=70.0
+[2026.10.31-07.09.27:168][121]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=2.083 stamp=2.083 n=60 span_ms=992 loc=(300.0,-1104.6,72.2) hh=70.0
+[2026.10.31-07.09.27:168][121]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=2.083 stamp=2.083 n=60 span_ms=992 loc=(-700.0,-1104.6,72.2) hh=70.0
+[2026.10.31-07.09.28:177][181]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=3.092 stamp=3.092 n=60 span_ms=992 loc=(-700.0,-140.0,72.2) hh=70.0
+[2026.10.31-07.09.28:177][181]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=3.092 stamp=3.092 n=60 span_ms=992 loc=(1300.0,-1340.0,72.2) hh=70.0
+[2026.10.31-07.09.28:177][181]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=3.092 stamp=3.092 n=60 span_ms=992 loc=(300.0,-1340.0,72.2) hh=70.0
+[2026.10.31-07.09.28:177][181]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=3.092 stamp=3.092 n=60 span_ms=992 loc=(-700.0,-1340.0,72.2) hh=70.0
+[2026.10.31-07.09.29:102][236]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1064.20, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.29:102][236]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=135.80, Z=72.15) velocity V(Y=800.00) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.09.29:103][236]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1064.20, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.29:103][236]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1064.20, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.29:186][241]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=4.101 stamp=4.101 n=60 span_ms=992 loc=(-700.0,203.1,72.2) hh=70.0
+[2026.10.31-07.09.29:186][241]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=4.101 stamp=4.101 n=60 span_ms=992 loc=(1300.0,-996.9,72.2) hh=70.0
+[2026.10.31-07.09.29:186][241]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=4.101 stamp=4.101 n=60 span_ms=992 loc=(300.0,-996.9,72.2) hh=70.0
+[2026.10.31-07.09.29:186][241]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=4.101 stamp=4.101 n=60 span_ms=992 loc=(-700.0,-996.9,72.2) hh=70.0
+[2026.10.31-07.09.30:195][301]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=5.111 stamp=5.111 n=60 span_ms=992 loc=(-700.0,-247.3,72.2) hh=70.0
+[2026.10.31-07.09.30:195][301]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=5.111 stamp=5.111 n=60 span_ms=992 loc=(1300.0,-1447.3,72.2) hh=70.0
+[2026.10.31-07.09.30:195][301]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=5.111 stamp=5.111 n=60 span_ms=992 loc=(300.0,-1447.3,72.2) hh=70.0
+[2026.10.31-07.09.30:195][301]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=5.111 stamp=5.111 n=60 span_ms=992 loc=(-700.0,-1447.3,72.2) hh=70.0
+[2026.10.31-07.09.31:118][356]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-957.62, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.31:118][356]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-957.62, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.31:118][356]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-957.62, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.31:118][356]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=242.38, Z=72.15) velocity V(Y=800.00) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.09.31:203][361]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=6.118 stamp=6.118 n=60 span_ms=990 loc=(-700.0,309.6,72.2) hh=70.0
+[2026.10.31-07.09.31:203][361]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=6.118 stamp=6.118 n=60 span_ms=990 loc=(1300.0,-890.4,72.2) hh=70.0
+[2026.10.31-07.09.31:203][361]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=6.118 stamp=6.118 n=60 span_ms=990 loc=(300.0,-890.4,72.2) hh=70.0
+[2026.10.31-07.09.31:203][361]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=6.118 stamp=6.118 n=60 span_ms=990 loc=(-700.0,-890.4,72.2) hh=70.0
+[2026.10.31-07.09.32:211][421]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=7.126 stamp=7.126 n=60 span_ms=992 loc=(-700.0,-330.3,72.2) hh=70.0
+[2026.10.31-07.09.32:211][421]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=7.126 stamp=7.126 n=60 span_ms=992 loc=(1300.0,-1530.3,72.2) hh=70.0
+[2026.10.31-07.09.32:211][421]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=7.126 stamp=7.126 n=60 span_ms=992 loc=(300.0,-1530.3,72.2) hh=70.0
+[2026.10.31-07.09.32:211][421]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=7.126 stamp=7.126 n=60 span_ms=992 loc=(-700.0,-1530.3,72.2) hh=70.0
+[2026.10.31-07.09.33:102][474]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=321.04, Z=72.15) velocity V(Y=591.75) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.09.33:102][474]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-878.96, Z=72.15) velocity V(Y=591.75) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.33:103][474]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-878.96, Z=72.15) velocity V(Y=591.75) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.33:103][474]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-878.96, Z=72.15) velocity V(Y=591.75) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.33:220][481]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=8.135 stamp=8.135 n=60 span_ms=992 loc=(-700.0,325.6,72.2) hh=70.0
+[2026.10.31-07.09.33:220][481]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=8.135 stamp=8.135 n=60 span_ms=992 loc=(1300.0,-874.4,72.2) hh=70.0
+[2026.10.31-07.09.33:220][481]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=8.135 stamp=8.135 n=60 span_ms=992 loc=(300.0,-874.4,72.2) hh=70.0
+[2026.10.31-07.09.33:220][481]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=8.135 stamp=8.135 n=60 span_ms=992 loc=(-700.0,-874.4,72.2) hh=70.0
+[2026.10.31-07.09.34:229][541]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=9.144 stamp=9.144 n=60 span_ms=993 loc=(-700.0,-281.7,72.2) hh=70.0
+[2026.10.31-07.09.34:229][541]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=9.144 stamp=9.144 n=60 span_ms=993 loc=(1300.0,-1481.7,72.2) hh=70.0
+[2026.10.31-07.09.34:229][541]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=9.144 stamp=9.144 n=60 span_ms=993 loc=(300.0,-1481.7,72.2) hh=70.0
+[2026.10.31-07.09.34:229][541]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=9.144 stamp=9.144 n=60 span_ms=993 loc=(-700.0,-1481.7,72.2) hh=70.0
+[2026.10.31-07.09.35:118][594]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-883.30, Z=72.15) velocity V(Y=-478.23) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.35:118][594]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-883.30, Z=72.15) velocity V(Y=-478.23) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.35:118][594]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=316.70, Z=72.15) velocity V(Y=-478.23) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.09.35:118][594]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-883.30, Z=72.15) velocity V(Y=-478.23) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.35:235][601]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=10.151 stamp=10.151 n=60 span_ms=990 loc=(-700.0,234.2,72.2) hh=70.0
+[2026.10.31-07.09.35:235][601]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=10.151 stamp=10.151 n=60 span_ms=990 loc=(1300.0,-965.8,72.2) hh=70.0
+[2026.10.31-07.09.35:235][601]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=10.151 stamp=10.151 n=60 span_ms=990 loc=(300.0,-965.8,72.2) hh=70.0
+[2026.10.31-07.09.35:235][601]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=10.151 stamp=10.151 n=60 span_ms=990 loc=(-700.0,-965.8,72.2) hh=70.0
+[2026.10.31-07.09.35:806][635]LogVeloxCombat: VeloxPlayerState_4: ability actor info owner=VeloxPlayerState_4 avatar None -> VeloxPlayerState_4 (0 abilities)
+[2026.10.31-07.09.35:806][635]LogVeloxCombat: VeloxColor player=VeloxPlayerState_4 index=4 palette=8
+[2026.10.31-07.09.35:806][635]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_3 at V(X=1700.00, Y=1200.00, Z=100.00) starts=4 candidates=2 enemies=4 nearest_enemy_cm=2639 telefrag=0
+[2026.10.31-07.09.35:808][635]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_2 at V(X=-1700.00, Y=1200.00, Z=100.00) starts=4 candidates=2 enemies=4 nearest_enemy_cm=1728 telefrag=0
+[2026.10.31-07.09.35:808][635]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_4 capacity=60 registered=5
+[2026.10.31-07.09.35:808][635]LogVeloxCombat: VeloxPlayerState_4: ability actor info owner=VeloxPlayerState_4 avatar VeloxPlayerState_4 -> VeloxCharacter_4 (0 abilities)
+[2026.10.31-07.09.35:808][635]LogVeloxCombat: VeloxPlayerState_4: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-07.09.35:808][635]LogVeloxCombat: VeloxPlayerState_4: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-07.09.35:809][635]LogVeloxCombat: VeloxPlayerState_4: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-07.09.35:810][635]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=10.721 stamp=0.000 n=1 span_ms=0 loc=(-1700.0,1200.0,72.1) hh=70.0
+[2026.10.31-07.09.35:890][640]LogVeloxCombat: VeloxPlayerState_4: AddWeapon DA_Weapon_MachineGun index=0 new=0 ammo+0 owned=0x0001 current=0
+[2026.10.31-07.09.35:890][640]LogVeloxCombat: VeloxPlayerState_4: AddWeapon DA_Weapon_Shotgun index=1 new=1 ammo+0 owned=0x0003 current=0
+[2026.10.31-07.09.35:890][640]LogVeloxCombat: VeloxPlayerState_4: AddWeapon DA_Weapon_RocketLauncher index=2 new=1 ammo+0 owned=0x0007 current=0
+[2026.10.31-07.09.35:890][640]LogVeloxCombat: VeloxPlayerState_4: AddWeapon DA_Weapon_LightningGun index=3 new=1 ammo+0 owned=0x000f current=0
+[2026.10.31-07.09.35:890][640]LogVeloxCombat: VeloxPlayerState_4: AddWeapon DA_Weapon_Railgun index=4 new=1 ammo+0 owned=0x001f current=0
+[2026.10.31-07.09.35:890][640]LogVeloxCombat: VeloxPlayerState_4: AddWeapon DA_Weapon_PlasmaGun index=5 new=1 ammo+0 owned=0x003f current=0
+[2026.10.31-07.09.35:890][640]LogVeloxCombat: GiveAllWeapons: VeloxPlayerState_4 owns 0x003f
+[2026.10.31-07.09.36:242][661]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=11.158 stamp=11.158 n=60 span_ms=990 loc=(-700.0,-175.6,72.2) hh=70.0
+[2026.10.31-07.09.36:242][661]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=11.158 stamp=11.158 n=60 span_ms=990 loc=(1300.0,-1375.6,72.2) hh=70.0
+[2026.10.31-07.09.36:242][661]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=11.158 stamp=11.158 n=60 span_ms=990 loc=(300.0,-1375.6,72.2) hh=70.0
+[2026.10.31-07.09.36:242][661]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=11.158 stamp=11.158 n=60 span_ms=990 loc=(-700.0,-1375.6,72.2) hh=70.0
+[2026.10.31-07.09.36:812][695]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=11.727 stamp=0.252 n=60 span_ms=989 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.37:114][713]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-966.52, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.37:114][713]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-966.52, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.37:114][713]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=233.48, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.09.37:114][713]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-966.52, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.37:249][721]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=12.164 stamp=12.164 n=60 span_ms=990 loc=(-700.0,125.9,72.2) hh=70.0
+[2026.10.31-07.09.37:249][721]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=12.164 stamp=12.164 n=60 span_ms=990 loc=(1300.0,-1074.1,72.2) hh=70.0
+[2026.10.31-07.09.37:249][721]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=12.164 stamp=12.164 n=60 span_ms=990 loc=(300.0,-1074.1,72.2) hh=70.0
+[2026.10.31-07.09.37:249][721]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=12.164 stamp=12.164 n=60 span_ms=990 loc=(-700.0,-1074.1,72.2) hh=70.0
+[2026.10.31-07.09.37:820][755]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=12.735 stamp=1.692 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.38:255][781]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=13.171 stamp=13.171 n=60 span_ms=990 loc=(-700.0,-69.8,72.2) hh=70.0
+[2026.10.31-07.09.38:255][781]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=13.171 stamp=13.171 n=60 span_ms=990 loc=(1300.0,-1269.8,72.2) hh=70.0
+[2026.10.31-07.09.38:255][781]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=13.171 stamp=13.171 n=60 span_ms=990 loc=(300.0,-1269.8,72.2) hh=70.0
+[2026.10.31-07.09.38:256][781]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=13.171 stamp=13.171 n=60 span_ms=990 loc=(-700.0,-1269.8,72.2) hh=70.0
+[2026.10.31-07.09.38:827][815]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=13.742 stamp=2.709 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.39:111][832]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=139.57, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.09.39:112][832]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1060.43, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.39:112][832]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1060.43, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.39:112][832]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1060.43, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.39:262][841]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=14.177 stamp=14.177 n=60 span_ms=990 loc=(-700.0,18.9,72.2) hh=70.0
+[2026.10.31-07.09.39:262][841]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=14.177 stamp=14.177 n=60 span_ms=990 loc=(1300.0,-1181.1,72.2) hh=70.0
+[2026.10.31-07.09.39:262][841]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=14.177 stamp=14.177 n=60 span_ms=990 loc=(300.0,-1181.1,72.2) hh=70.0
+[2026.10.31-07.09.39:262][841]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=14.177 stamp=14.177 n=60 span_ms=990 loc=(-700.0,-1181.1,72.2) hh=70.0
+[2026.10.31-07.09.39:832][875]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=14.748 stamp=3.725 n=60 span_ms=989 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.40:185][896]LogVeloxNet: VeloxMoveRepaired ts=4.075316 dt=0.016668 slot=old
+[2026.10.31-07.09.40:269][901]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=15.184 stamp=15.184 n=60 span_ms=990 loc=(-700.0,39.6,72.2) hh=70.0
+[2026.10.31-07.09.40:269][901]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=15.184 stamp=15.184 n=60 span_ms=990 loc=(1300.0,-1160.4,72.2) hh=70.0
+[2026.10.31-07.09.40:269][901]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=15.184 stamp=15.184 n=60 span_ms=990 loc=(300.0,-1160.4,72.2) hh=70.0
+[2026.10.31-07.09.40:269][901]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=15.184 stamp=15.184 n=60 span_ms=990 loc=(-700.0,-1160.4,72.2) hh=70.0
+[2026.10.31-07.09.40:840][935]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=15.755 stamp=4.742 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.41:109][951]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1153.94, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.41:109][951]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=46.06, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.09.41:109][951]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1153.94, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.41:110][951]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1153.94, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.41:277][961]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=16.192 stamp=16.192 n=60 span_ms=991 loc=(-700.0,-88.2,72.2) hh=70.0
+[2026.10.31-07.09.41:277][961]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=16.192 stamp=16.192 n=60 span_ms=991 loc=(1300.0,-1288.2,72.2) hh=70.0
+[2026.10.31-07.09.41:277][961]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=16.192 stamp=16.192 n=60 span_ms=991 loc=(300.0,-1288.2,72.2) hh=70.0
+[2026.10.31-07.09.41:277][961]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=16.192 stamp=16.192 n=60 span_ms=991 loc=(-700.0,-1288.2,72.2) hh=70.0
+[2026.10.31-07.09.41:848][995]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=16.763 stamp=5.725 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.41:882][997]LogVeloxCombat: VeloxWeaponSwitch DA_Weapon_MachineGun -> DA_Weapon_Railgun wait=0.000 drop=0.20 raise=0.25 role=server
+[2026.10.31-07.09.41:898][998]LogVeloxNet: VeloxMoveGap ts=5.775459 dt=0.025002
+[2026.10.31-07.09.42:285][ 21]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=17.201 stamp=17.201 n=60 span_ms=992 loc=(-700.0,147.4,72.2) hh=70.0
+[2026.10.31-07.09.42:285][ 21]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=17.201 stamp=17.201 n=60 span_ms=992 loc=(1300.0,-1052.6,72.2) hh=70.0
+[2026.10.31-07.09.42:285][ 21]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=17.201 stamp=17.201 n=60 span_ms=992 loc=(300.0,-1052.6,72.2) hh=70.0
+[2026.10.31-07.09.42:285][ 21]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=17.201 stamp=17.201 n=60 span_ms=992 loc=(-700.0,-1052.6,72.2) hh=70.0
+[2026.10.31-07.09.42:303][ 22]LogVeloxNet: VeloxLagCompRewind seq=1 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=17.102 live_stamp=17.201 samples=60
+[2026.10.31-07.09.42:303][ 22]LogVeloxNet: VeloxLagCompRewind seq=1 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=17.102 live_stamp=17.201 samples=60
+[2026.10.31-07.09.42:303][ 22]LogVeloxNet: VeloxLagCompRewind seq=1 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=17.102 live_stamp=17.201 samples=60
+[2026.10.31-07.09.42:303][ 22]LogVeloxNet: VeloxLagCompRewind seq=1 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=17.102 live_stamp=17.201 samples=60
+[2026.10.31-07.09.42:303][ 22]LogVeloxCombat: VeloxShot seq=1 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2107.0 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.09.42:352][ 25]LogVeloxNet: VeloxMoveGap ts=6.225490 dt=0.025001
+[2026.10.31-07.09.42:486][ 33]LogVeloxNet: VeloxMoveRepaired ts=6.375500 dt=0.016668 slot=old
+[2026.10.31-07.09.42:856][ 55]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=17.772 stamp=6.742 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.43:109][ 70]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1247.36, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.43:109][ 70]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1247.36, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.43:109][ 70]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1247.36, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.43:109][ 70]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=-47.36, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.09.43:293][ 81]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=18.209 stamp=18.209 n=60 span_ms=991 loc=(-700.0,-195.1,72.2) hh=70.0
+[2026.10.31-07.09.43:293][ 81]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=18.209 stamp=18.209 n=60 span_ms=991 loc=(1300.0,-1395.1,72.2) hh=70.0
+[2026.10.31-07.09.43:293][ 81]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=18.209 stamp=18.209 n=60 span_ms=991 loc=(300.0,-1395.1,72.2) hh=70.0
+[2026.10.31-07.09.43:293][ 81]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=18.209 stamp=18.209 n=60 span_ms=991 loc=(-700.0,-1395.1,72.2) hh=70.0
+[2026.10.31-07.09.43:696][105]LogVeloxNet: VeloxMoveRepaired ts=7.558919 dt=0.016667 slot=extra
+[2026.10.31-07.09.43:696][105]LogVeloxNet: VeloxMoveRepaired ts=7.575588 dt=0.016668 slot=old
+[2026.10.31-07.09.43:864][115]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=18.780 stamp=7.759 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.43:982][122]LogVeloxNet: VeloxLagCompRewind seq=2 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=18.777 live_stamp=18.880 samples=60
+[2026.10.31-07.09.43:983][122]LogVeloxNet: VeloxLagCompRewind seq=2 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=18.777 live_stamp=18.880 samples=60
+[2026.10.31-07.09.43:983][122]LogVeloxNet: VeloxLagCompRewind seq=2 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=18.777 live_stamp=18.880 samples=60
+[2026.10.31-07.09.43:983][122]LogVeloxNet: VeloxLagCompRewind seq=2 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=18.777 live_stamp=18.880 samples=60
+[2026.10.31-07.09.43:983][122]LogVeloxCombat: VeloxShot seq=2 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1761.9 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.09.44:015][124]LogVeloxNet: VeloxMoveGap ts=7.908943 dt=0.025002
+[2026.10.31-07.09.44:301][141]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=19.216 stamp=19.216 n=60 span_ms=991 loc=(-700.0,254.6,72.2) hh=70.0
+[2026.10.31-07.09.44:301][141]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=19.216 stamp=19.216 n=60 span_ms=991 loc=(1300.0,-945.4,72.2) hh=70.0
+[2026.10.31-07.09.44:301][141]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=19.216 stamp=19.216 n=60 span_ms=991 loc=(300.0,-945.4,72.2) hh=70.0
+[2026.10.31-07.09.44:301][141]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=19.216 stamp=19.216 n=60 span_ms=991 loc=(-700.0,-945.4,72.2) hh=70.0
+[2026.10.31-07.09.44:871][175]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=19.786 stamp=8.776 n=60 span_ms=989 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.45:105][189]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=-139.93, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.09.45:105][189]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1339.93, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.45:105][189]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1339.93, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.45:105][189]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1339.93, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.45:306][201]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=20.222 stamp=20.222 n=60 span_ms=989 loc=(-700.0,-300.9,72.2) hh=70.0
+[2026.10.31-07.09.45:306][201]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=20.222 stamp=20.222 n=60 span_ms=989 loc=(1300.0,-1500.9,72.2) hh=70.0
+[2026.10.31-07.09.45:306][201]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=20.222 stamp=20.222 n=60 span_ms=989 loc=(300.0,-1500.9,72.2) hh=70.0
+[2026.10.31-07.09.45:306][201]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=20.222 stamp=20.222 n=60 span_ms=989 loc=(-700.0,-1500.9,72.2) hh=70.0
+[2026.10.31-07.09.45:843][233]LogVeloxNet: VeloxLagCompRewind seq=3 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=20.616 live_stamp=20.742 samples=60
+[2026.10.31-07.09.45:843][233]LogVeloxNet: VeloxLagCompRewind seq=3 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=20.616 live_stamp=20.742 samples=60
+[2026.10.31-07.09.45:843][233]LogVeloxNet: VeloxLagCompRewind seq=3 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=20.616 live_stamp=20.742 samples=60
+[2026.10.31-07.09.45:843][233]LogVeloxNet: VeloxLagCompRewind seq=3 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=20.616 live_stamp=20.742 samples=60
+[2026.10.31-07.09.45:843][233]LogVeloxCombat: VeloxShot seq=3 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1766.2 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.09.45:860][234]LogVeloxNet: VeloxMoveGap ts=9.759095 dt=0.025002
+[2026.10.31-07.09.45:877][235]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=20.792 stamp=9.759 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.46:313][261]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=21.228 stamp=21.228 n=60 span_ms=989 loc=(-700.0,336.9,72.2) hh=70.0
+[2026.10.31-07.09.46:313][261]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=21.228 stamp=21.228 n=60 span_ms=989 loc=(1300.0,-863.1,72.2) hh=70.0
+[2026.10.31-07.09.46:313][261]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=21.228 stamp=21.228 n=60 span_ms=989 loc=(300.0,-863.1,72.2) hh=70.0
+[2026.10.31-07.09.46:313][261]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=21.228 stamp=21.228 n=60 span_ms=989 loc=(-700.0,-863.1,72.2) hh=70.0
+[2026.10.31-07.09.46:329][262]LogVeloxNet: VeloxMoveRepaired ts=10.209129 dt=0.016668 slot=old
+[2026.10.31-07.09.46:883][295]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=21.799 stamp=10.759 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.47:101][308]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1434.58, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.47:102][308]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1434.58, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.47:102][308]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=-234.58, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.09.47:102][308]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1434.58, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.09.47:320][321]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=22.235 stamp=22.235 n=60 span_ms=990 loc=(-700.0,-318.0,72.2) hh=70.0
+[2026.10.31-07.09.47:320][321]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=22.235 stamp=22.235 n=60 span_ms=990 loc=(1300.0,-1518.0,72.2) hh=70.0
+[2026.10.31-07.09.47:320][321]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=22.235 stamp=22.235 n=60 span_ms=990 loc=(300.0,-1518.0,72.2) hh=70.0
+[2026.10.31-07.09.47:320][321]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=22.235 stamp=22.235 n=60 span_ms=990 loc=(-700.0,-1518.0,72.2) hh=70.0
+[2026.10.31-07.09.47:336][322]LogVeloxNet: VeloxMoveRepaired ts=11.225864 dt=0.016669 slot=old
+[2026.10.31-07.09.47:890][355]LogVeloxNet: VeloxLagCompRewind seq=4 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=22.653 live_stamp=22.789 samples=60
+[2026.10.31-07.09.47:890][355]LogVeloxNet: VeloxLagCompRewind seq=4 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=22.653 live_stamp=22.789 samples=60
+[2026.10.31-07.09.47:890][355]LogVeloxNet: VeloxLagCompRewind seq=4 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=22.653 live_stamp=22.789 samples=60
+[2026.10.31-07.09.47:890][355]LogVeloxNet: VeloxLagCompRewind seq=4 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=22.653 live_stamp=22.789 samples=60
+[2026.10.31-07.09.47:890][355]LogVeloxCombat: VeloxShot seq=4 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1752.7 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.09.47:891][355]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=22.806 stamp=11.793 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.48:075][366]LogVeloxNet: VeloxMoveRepaired ts=11.959247 dt=0.016667 slot=old
+[2026.10.31-07.09.48:327][381]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=23.242 stamp=23.242 n=60 span_ms=990 loc=(-700.0,287.8,72.2) hh=70.0
+[2026.10.31-07.09.48:327][381]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=23.242 stamp=23.242 n=60 span_ms=990 loc=(1300.0,-912.2,72.2) hh=70.0
+[2026.10.31-07.09.48:327][381]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=23.242 stamp=23.242 n=60 span_ms=990 loc=(300.0,-912.2,72.2) hh=70.0
+[2026.10.31-07.09.48:327][381]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=23.242 stamp=23.242 n=60 span_ms=990 loc=(-700.0,-912.2,72.2) hh=70.0
+[2026.10.31-07.09.48:899][415]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=23.814 stamp=12.793 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.49:117][428]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1527.64, Z=72.15) velocity V(Y=-236.15) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.49:117][428]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1527.64, Z=72.15) velocity V(Y=-236.15) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.49:117][428]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=-327.64, Z=72.15) velocity V(Y=-236.15) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.09.49:117][428]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1527.64, Z=72.15) velocity V(Y=-236.15) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.49:335][441]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=24.250 stamp=24.250 n=60 span_ms=991 loc=(-700.0,-228.7,72.2) hh=70.0
+[2026.10.31-07.09.49:335][441]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=24.250 stamp=24.250 n=60 span_ms=991 loc=(1300.0,-1428.7,72.2) hh=70.0
+[2026.10.31-07.09.49:335][441]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=24.250 stamp=24.250 n=60 span_ms=991 loc=(300.0,-1428.7,72.2) hh=70.0
+[2026.10.31-07.09.49:335][441]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=24.250 stamp=24.250 n=60 span_ms=991 loc=(-700.0,-1428.7,72.2) hh=70.0
+[2026.10.31-07.09.49:906][475]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=24.822 stamp=13.826 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.50:057][484]LogVeloxNet: VeloxLagCompRewind seq=5 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=24.827 live_stamp=24.956 samples=60
+[2026.10.31-07.09.50:057][484]LogVeloxNet: VeloxLagCompRewind seq=5 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=24.827 live_stamp=24.956 samples=60
+[2026.10.31-07.09.50:057][484]LogVeloxNet: VeloxLagCompRewind seq=5 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=24.827 live_stamp=24.956 samples=60
+[2026.10.31-07.09.50:057][484]LogVeloxNet: VeloxLagCompRewind seq=5 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=24.827 live_stamp=24.956 samples=60
+[2026.10.31-07.09.50:057][484]LogVeloxCombat: VeloxShot seq=5 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2158.6 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.09.50:058][484]LogVeloxNet: VeloxMoveGap ts=13.976072 dt=0.025011
+[2026.10.31-07.09.50:343][501]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=25.259 stamp=25.259 n=60 span_ms=992 loc=(-700.0,181.4,72.2) hh=70.0
+[2026.10.31-07.09.50:344][501]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=25.259 stamp=25.259 n=60 span_ms=992 loc=(1300.0,-1018.6,72.2) hh=70.0
+[2026.10.31-07.09.50:344][501]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=25.259 stamp=25.259 n=60 span_ms=992 loc=(300.0,-1018.6,72.2) hh=70.0
+[2026.10.31-07.09.50:344][501]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=25.259 stamp=25.259 n=60 span_ms=992 loc=(-700.0,-1018.6,72.2) hh=70.0
+[2026.10.31-07.09.50:914][535]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=25.829 stamp=14.776 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.51:115][547]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=-302.13, Z=72.15) velocity V(Y=562.38) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.09.51:115][547]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1502.13, Z=72.15) velocity V(Y=562.38) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.51:115][547]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1502.13, Z=72.15) velocity V(Y=562.38) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.51:115][547]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1502.13, Z=72.15) velocity V(Y=562.38) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.51:351][561]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=26.265 stamp=26.265 n=60 span_ms=990 loc=(-700.0,-120.9,72.2) hh=70.0
+[2026.10.31-07.09.51:351][561]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=26.265 stamp=26.265 n=60 span_ms=990 loc=(1300.0,-1320.9,72.2) hh=70.0
+[2026.10.31-07.09.51:351][561]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=26.265 stamp=26.265 n=60 span_ms=990 loc=(300.0,-1320.9,72.2) hh=70.0
+[2026.10.31-07.09.51:351][561]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=26.265 stamp=26.265 n=60 span_ms=990 loc=(-700.0,-1320.9,72.2) hh=70.0
+[2026.10.31-07.09.51:753][585]LogVeloxNet: VeloxMoveRepaired ts=15.626193 dt=0.016668 slot=old
+[2026.10.31-07.09.51:922][595]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=26.837 stamp=15.810 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.52:358][621]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=27.274 stamp=27.274 n=60 span_ms=992 loc=(-700.0,74.3,72.2) hh=70.0
+[2026.10.31-07.09.52:358][621]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=27.274 stamp=27.274 n=60 span_ms=992 loc=(1300.0,-1125.7,72.2) hh=70.0
+[2026.10.31-07.09.52:358][621]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=27.274 stamp=27.274 n=60 span_ms=992 loc=(300.0,-1125.7,72.2) hh=70.0
+[2026.10.31-07.09.52:358][621]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=27.274 stamp=27.274 n=60 span_ms=992 loc=(-700.0,-1125.7,72.2) hh=70.0
+[2026.10.31-07.09.52:426][625]LogVeloxNet: VeloxLagCompRewind seq=6 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=27.200 live_stamp=27.324 samples=60
+[2026.10.31-07.09.52:426][625]LogVeloxNet: VeloxLagCompRewind seq=6 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=27.200 live_stamp=27.324 samples=60
+[2026.10.31-07.09.52:427][625]LogVeloxNet: VeloxLagCompRewind seq=6 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=27.200 live_stamp=27.324 samples=60
+[2026.10.31-07.09.52:427][625]LogVeloxNet: VeloxLagCompRewind seq=6 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=27.200 live_stamp=27.324 samples=60
+[2026.10.31-07.09.52:427][625]LogVeloxCombat: VeloxShot seq=6 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2124.2 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.09.52:711][642]LogVeloxNet: VeloxMoveRepaired ts=16.576220 dt=0.016666 slot=old
+[2026.10.31-07.09.52:930][655]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=27.845 stamp=16.843 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.53:114][666]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1416.08, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.53:114][666]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1416.08, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.53:114][666]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=-216.08, Z=72.15) velocity V(Y=800.00) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.09.53:114][666]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1416.08, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.53:366][681]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=28.281 stamp=28.281 n=60 span_ms=990 loc=(-700.0,-14.6,72.2) hh=70.0
+[2026.10.31-07.09.53:366][681]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=28.281 stamp=28.281 n=60 span_ms=990 loc=(1300.0,-1214.6,72.2) hh=70.0
+[2026.10.31-07.09.53:366][681]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=28.281 stamp=28.281 n=60 span_ms=990 loc=(300.0,-1214.6,72.2) hh=70.0
+[2026.10.31-07.09.53:366][681]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=28.281 stamp=28.281 n=60 span_ms=990 loc=(-700.0,-1214.6,72.2) hh=70.0
+[2026.10.31-07.09.53:601][695]LogVeloxNet: VeloxMoveRepaired ts=17.476257 dt=0.016668 slot=old
+[2026.10.31-07.09.53:936][715]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=28.852 stamp=17.810 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.53:953][716]LogVeloxNet: VeloxMoveRepaired ts=17.826284 dt=0.016670 slot=extra
+[2026.10.31-07.09.53:953][716]LogVeloxNet: VeloxMoveRepaired ts=17.842951 dt=0.016666 slot=old
+[2026.10.31-07.09.54:204][731]LogVeloxNet: VeloxMoveRepaired ts=18.076286 dt=0.016666 slot=old
+[2026.10.31-07.09.54:372][741]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=29.287 stamp=29.287 n=60 span_ms=989 loc=(-700.0,-33.0,72.2) hh=70.0
+[2026.10.31-07.09.54:372][741]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=29.287 stamp=29.287 n=60 span_ms=989 loc=(1300.0,-1233.0,72.2) hh=70.0
+[2026.10.31-07.09.54:372][741]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=29.287 stamp=29.287 n=60 span_ms=989 loc=(300.0,-1233.0,72.2) hh=70.0
+[2026.10.31-07.09.54:372][741]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=29.287 stamp=29.287 n=60 span_ms=989 loc=(-700.0,-1233.0,72.2) hh=70.0
+[2026.10.31-07.09.54:943][775]LogVeloxNet: VeloxLagCompRewind seq=7 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=29.721 live_stamp=29.842 samples=60
+[2026.10.31-07.09.54:944][775]LogVeloxNet: VeloxLagCompRewind seq=7 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=29.721 live_stamp=29.842 samples=60
+[2026.10.31-07.09.54:944][775]LogVeloxNet: VeloxLagCompRewind seq=7 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=29.721 live_stamp=29.842 samples=60
+[2026.10.31-07.09.54:944][775]LogVeloxNet: VeloxLagCompRewind seq=7 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=29.721 live_stamp=29.842 samples=60
+[2026.10.31-07.09.54:944][775]LogVeloxCombat: VeloxShot seq=7 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2437.9 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.09.54:944][775]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=29.859 stamp=18.843 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.55:111][785]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1320.89, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.55:112][785]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=-120.89, Z=72.15) velocity V(Y=800.00) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.09.55:112][785]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1320.89, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.55:112][785]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1320.89, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.55:381][801]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=30.296 stamp=30.296 n=60 span_ms=992 loc=(-700.0,94.2,72.2) hh=70.0
+[2026.10.31-07.09.55:381][801]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=30.296 stamp=30.296 n=60 span_ms=992 loc=(1300.0,-1105.8,72.2) hh=70.0
+[2026.10.31-07.09.55:381][801]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=30.296 stamp=30.296 n=60 span_ms=992 loc=(300.0,-1105.8,72.2) hh=70.0
+[2026.10.31-07.09.55:381][801]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=30.296 stamp=30.296 n=60 span_ms=992 loc=(-700.0,-1105.8,72.2) hh=70.0
+[2026.10.31-07.09.55:951][835]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=30.867 stamp=19.826 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.56:119][845]LogVeloxNet: VeloxMoveRepaired ts=19.993050 dt=0.016672 slot=old
+[2026.10.31-07.09.56:388][861]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=31.303 stamp=31.303 n=60 span_ms=991 loc=(-700.0,-140.2,72.2) hh=70.0
+[2026.10.31-07.09.56:388][861]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=31.303 stamp=31.303 n=60 span_ms=991 loc=(1300.0,-1340.2,72.2) hh=70.0
+[2026.10.31-07.09.56:388][861]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=31.303 stamp=31.303 n=60 span_ms=991 loc=(300.0,-1340.2,72.2) hh=70.0
+[2026.10.31-07.09.56:388][861]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=31.303 stamp=31.303 n=60 span_ms=991 loc=(-700.0,-1340.2,72.2) hh=70.0
+[2026.10.31-07.09.56:723][881]LogVeloxNet: VeloxMoveRepaired ts=20.609749 dt=0.016666 slot=old
+[2026.10.31-07.09.56:958][895]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=31.873 stamp=20.860 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.57:109][904]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1227.03, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.57:109][904]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1227.03, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.57:109][904]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1227.03, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.57:109][904]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=-27.03, Z=72.15) velocity V(Y=800.00) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.09.57:378][920]LogVeloxNet: VeloxMoveRepaired ts=21.226433 dt=0.016666 slot=old
+[2026.10.31-07.09.57:395][921]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=32.310 stamp=32.310 n=60 span_ms=990 loc=(-700.0,201.7,72.2) hh=70.0
+[2026.10.31-07.09.57:395][921]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=32.310 stamp=32.310 n=60 span_ms=990 loc=(1300.0,-998.3,72.2) hh=70.0
+[2026.10.31-07.09.57:395][921]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=32.310 stamp=32.310 n=60 span_ms=990 loc=(300.0,-998.3,72.2) hh=70.0
+[2026.10.31-07.09.57:395][921]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=32.310 stamp=32.310 n=60 span_ms=990 loc=(-700.0,-998.3,72.2) hh=70.0
+[2026.10.31-07.09.57:411][922]LogVeloxNet: VeloxMoveRepaired ts=21.276432 dt=0.016666 slot=old
+[2026.10.31-07.09.57:680][938]LogVeloxNet: VeloxLagCompRewind seq=8 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=32.438 live_stamp=32.579 samples=60
+[2026.10.31-07.09.57:680][938]LogVeloxNet: VeloxLagCompRewind seq=8 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=32.438 live_stamp=32.579 samples=60
+[2026.10.31-07.09.57:680][938]LogVeloxNet: VeloxLagCompRewind seq=8 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=32.438 live_stamp=32.579 samples=60
+[2026.10.31-07.09.57:680][938]LogVeloxNet: VeloxLagCompRewind seq=8 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=32.438 live_stamp=32.579 samples=60
+[2026.10.31-07.09.57:680][938]LogVeloxCombat: VeloxShot seq=8 shooter=VeloxCharacter_4 hit=VeloxCharacter_3 rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1030.1 hits=1 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.09.57:681][938]LogVeloxCombat: VeloxDamageCalc target=VeloxPlayerState_3 dmg=100 pellets=1 armor=0 self=0 protected=1 noarmor=0 radius=0 suit=0 dead=0 frozen=0 -> health_loss=0 armor_loss=0 knockback=0.0 cm/s
+[2026.10.31-07.09.57:681][938]LogVeloxCombat: VeloxDamage target=VeloxPlayerState_3 instigator=VeloxPlayerState_4 tags=[Velox.Damage.Rail] health 100->100 armor 0->0 knockback=V(0) (0 cm/s, AddKnockback(Server) none)
+[2026.10.31-07.09.57:681][938]LogVeloxCombat: VeloxShotDamage seq=8 shooter=VeloxCharacter_4 weapon=DA_Weapon_Railgun base=100 scale=1.00 hit_dmg=100 hits=1 total=0
+[2026.10.31-07.09.57:865][949]LogVeloxNet: VeloxMoveRepaired ts=21.726440 dt=0.016666 slot=old
+[2026.10.31-07.09.57:966][955]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=32.881 stamp=21.876 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.58:184][968]LogVeloxNet: VeloxMoveRepaired ts=22.043118 dt=0.016670 slot=old
+[2026.10.31-07.09.58:402][981]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=33.318 stamp=33.318 n=60 span_ms=991 loc=(-700.0,-247.9,72.2) hh=70.0
+[2026.10.31-07.09.58:402][981]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=33.318 stamp=33.318 n=60 span_ms=991 loc=(1300.0,-1447.9,72.2) hh=70.0
+[2026.10.31-07.09.58:402][981]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=33.318 stamp=33.318 n=60 span_ms=991 loc=(300.0,-1447.9,72.2) hh=70.0
+[2026.10.31-07.09.58:402][981]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=33.318 stamp=33.318 n=60 span_ms=991 loc=(-700.0,-1447.9,72.2) hh=70.0
+[2026.10.31-07.09.58:587][992]LogVeloxNet: VeloxMoveRepaired ts=22.443140 dt=0.016666 slot=old
+[2026.10.31-07.09.58:972][ 15]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=33.888 stamp=22.843 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.09.59:107][ 23]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1133.11, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.59:107][ 23]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=66.89, Z=72.15) velocity V(Y=800.00) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.09.59:107][ 23]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1133.11, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.59:107][ 23]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1133.11, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.09.59:325][ 36]LogVeloxNet: VeloxMoveRepaired ts=23.209843 dt=0.016668 slot=old
+[2026.10.31-07.09.59:410][ 41]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=34.325 stamp=34.325 n=60 span_ms=991 loc=(-700.0,309.0,72.2) hh=70.0
+[2026.10.31-07.09.59:410][ 41]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=34.325 stamp=34.325 n=60 span_ms=991 loc=(1300.0,-891.0,72.2) hh=70.0
+[2026.10.31-07.09.59:410][ 41]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=34.325 stamp=34.325 n=60 span_ms=991 loc=(300.0,-891.0,72.2) hh=70.0
+[2026.10.31-07.09.59:410][ 41]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=34.325 stamp=34.325 n=60 span_ms=991 loc=(-700.0,-891.0,72.2) hh=70.0
+[2026.10.31-07.09.59:981][ 75]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=34.896 stamp=23.893 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.00:417][101]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=35.332 stamp=35.332 n=60 span_ms=991 loc=(-700.0,-329.9,72.2) hh=70.0
+[2026.10.31-07.10.00:417][101]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=35.332 stamp=35.332 n=60 span_ms=991 loc=(1300.0,-1529.9,72.2) hh=70.0
+[2026.10.31-07.10.00:417][101]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=35.332 stamp=35.332 n=60 span_ms=991 loc=(300.0,-1529.9,72.2) hh=70.0
+[2026.10.31-07.10.00:417][101]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=35.332 stamp=35.332 n=60 span_ms=991 loc=(-700.0,-1529.9,72.2) hh=70.0
+[2026.10.31-07.10.00:535][108]LogVeloxNet: VeloxLagCompRewind seq=9 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=35.305 live_stamp=35.433 samples=60
+[2026.10.31-07.10.00:535][108]LogVeloxNet: VeloxLagCompRewind seq=9 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=35.305 live_stamp=35.433 samples=60
+[2026.10.31-07.10.00:535][108]LogVeloxNet: VeloxLagCompRewind seq=9 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=35.305 live_stamp=35.433 samples=60
+[2026.10.31-07.10.00:535][108]LogVeloxNet: VeloxLagCompRewind seq=9 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=35.305 live_stamp=35.433 samples=60
+[2026.10.31-07.10.00:535][108]LogVeloxCombat: VeloxShot seq=9 shooter=VeloxCharacter_4 hit=VeloxCharacter_3 rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1012.0 hits=1 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.00:535][108]LogVeloxCombat: VeloxDamageCalc target=VeloxPlayerState_3 dmg=100 pellets=1 armor=0 self=0 protected=1 noarmor=0 radius=0 suit=0 dead=0 frozen=0 -> health_loss=0 armor_loss=0 knockback=0.0 cm/s
+[2026.10.31-07.10.00:535][108]LogVeloxCombat: VeloxDamage target=VeloxPlayerState_3 instigator=VeloxPlayerState_4 tags=[Velox.Damage.Rail] health 100->100 armor 0->0 knockback=V(0) (0 cm/s, AddKnockback(Server) none)
+[2026.10.31-07.10.00:535][108]LogVeloxCombat: VeloxShotDamage seq=9 shooter=VeloxCharacter_4 weapon=DA_Weapon_Railgun base=100 scale=1.00 hit_dmg=100 hits=1 total=0
+[2026.10.31-07.10.00:551][109]LogVeloxNet: VeloxMoveGap ts=24.443222 dt=0.025002
+[2026.10.31-07.10.00:989][135]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=35.904 stamp=24.893 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.01:107][142]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1038.10, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.10.01:107][142]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1038.10, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.10.01:107][142]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1038.10, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.10.01:107][142]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=161.90, Z=72.15) velocity V(Y=800.00) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.10.01:426][161]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=36.341 stamp=36.341 n=60 span_ms=991 loc=(-700.0,326.2,72.2) hh=70.0
+[2026.10.31-07.10.01:426][161]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=36.341 stamp=36.341 n=60 span_ms=991 loc=(1300.0,-873.8,72.2) hh=70.0
+[2026.10.31-07.10.01:426][161]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=36.341 stamp=36.341 n=60 span_ms=991 loc=(300.0,-873.8,72.2) hh=70.0
+[2026.10.31-07.10.01:426][161]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=36.341 stamp=36.341 n=60 span_ms=991 loc=(-700.0,-873.8,72.2) hh=70.0
+[2026.10.31-07.10.01:997][195]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=36.912 stamp=25.893 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.02:433][221]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=37.348 stamp=37.348 n=60 span_ms=991 loc=(-700.0,-280.3,72.2) hh=70.0
+[2026.10.31-07.10.02:433][221]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=37.348 stamp=37.348 n=60 span_ms=991 loc=(1300.0,-1480.3,72.2) hh=70.0
+[2026.10.31-07.10.02:433][221]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=37.348 stamp=37.348 n=60 span_ms=991 loc=(300.0,-1480.3,72.2) hh=70.0
+[2026.10.31-07.10.02:433][221]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=37.348 stamp=37.348 n=60 span_ms=991 loc=(-700.0,-1480.3,72.2) hh=70.0
+[2026.10.31-07.10.03:004][255]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=37.919 stamp=26.877 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.03:104][261]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-944.78, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.10.03:104][261]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-944.78, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.10.03:104][261]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=255.22, Z=72.15) velocity V(Y=800.00) (origin Y 0, half width 300, dir +1)
+[2026.10.31-07.10.03:104][261]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-944.78, Z=72.15) velocity V(Y=800.00) (origin Y -1200, half width 300, dir +1)
+[2026.10.31-07.10.03:440][281]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=38.355 stamp=38.355 n=60 span_ms=990 loc=(-700.0,235.4,72.2) hh=70.0
+[2026.10.31-07.10.03:440][281]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=38.355 stamp=38.355 n=60 span_ms=990 loc=(1300.0,-964.6,72.2) hh=70.0
+[2026.10.31-07.10.03:440][281]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=38.355 stamp=38.355 n=60 span_ms=990 loc=(300.0,-964.6,72.2) hh=70.0
+[2026.10.31-07.10.03:440][281]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=38.355 stamp=38.355 n=60 span_ms=990 loc=(-700.0,-964.6,72.2) hh=70.0
+[2026.10.31-07.10.03:557][288]LogVeloxNet: VeloxLagCompRewind seq=10 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=38.336 live_stamp=38.456 samples=60
+[2026.10.31-07.10.03:557][288]LogVeloxNet: VeloxLagCompRewind seq=10 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=38.336 live_stamp=38.456 samples=60
+[2026.10.31-07.10.03:557][288]LogVeloxNet: VeloxLagCompRewind seq=10 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=38.336 live_stamp=38.456 samples=60
+[2026.10.31-07.10.03:557][288]LogVeloxNet: VeloxLagCompRewind seq=10 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=38.336 live_stamp=38.456 samples=60
+[2026.10.31-07.10.03:557][288]LogVeloxCombat: VeloxShot seq=10 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2391.7 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.03:558][288]LogVeloxCombat: VeloxWeaponSwitch DA_Weapon_Railgun -> DA_Weapon_MachineGun wait=1.500 drop=0.20 raise=0.25 role=server
+[2026.10.31-07.10.03:607][291]LogVeloxNet: VeloxMoveGap ts=27.493340 dt=0.025000
+[2026.10.31-07.10.03:909][309]LogVeloxNet: VeloxMoveRepaired ts=27.793348 dt=0.016666 slot=old
+[2026.10.31-07.10.04:011][315]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=38.926 stamp=27.877 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.04:447][341]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=39.362 stamp=39.362 n=60 span_ms=990 loc=(-700.0,-174.6,72.2) hh=70.0
+[2026.10.31-07.10.04:447][341]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=39.362 stamp=39.362 n=60 span_ms=990 loc=(1300.0,-1374.6,72.2) hh=70.0
+[2026.10.31-07.10.04:447][341]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=39.362 stamp=39.362 n=60 span_ms=990 loc=(300.0,-1374.6,72.2) hh=70.0
+[2026.10.31-07.10.04:447][341]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=39.362 stamp=39.362 n=60 span_ms=990 loc=(-700.0,-1374.6,72.2) hh=70.0
+[2026.10.31-07.10.05:017][375]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=39.933 stamp=28.910 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.05:118][381]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=336.50, Z=72.15) velocity V(Y=77.67) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.10.05:118][381]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-863.50, Z=72.15) velocity V(Y=77.67) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.05:118][381]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-863.50, Z=72.15) velocity V(Y=77.67) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.05:118][381]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-863.50, Z=72.15) velocity V(Y=77.67) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.05:453][401]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=40.369 stamp=40.369 n=60 span_ms=990 loc=(-700.0,128.0,72.2) hh=70.0
+[2026.10.31-07.10.05:453][401]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=40.369 stamp=40.369 n=60 span_ms=990 loc=(1300.0,-1072.0,72.2) hh=70.0
+[2026.10.31-07.10.05:453][401]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=40.369 stamp=40.369 n=60 span_ms=990 loc=(300.0,-1072.0,72.2) hh=70.0
+[2026.10.31-07.10.05:454][401]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=40.369 stamp=40.369 n=60 span_ms=990 loc=(-700.0,-1072.0,72.2) hh=70.0
+[2026.10.31-07.10.05:520][405]LogVeloxNet: VeloxLagCompRewind seq=11 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.308 live_stamp=40.419 samples=60
+[2026.10.31-07.10.05:520][405]LogVeloxNet: VeloxLagCompRewind seq=11 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.308 live_stamp=40.419 samples=60
+[2026.10.31-07.10.05:520][405]LogVeloxNet: VeloxLagCompRewind seq=11 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.308 live_stamp=40.419 samples=60
+[2026.10.31-07.10.05:520][405]LogVeloxNet: VeloxLagCompRewind seq=11 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=40.308 live_stamp=40.419 samples=60
+[2026.10.31-07.10.05:521][405]LogVeloxCombat: VeloxShot seq=11 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2139.7 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.05:621][411]LogVeloxNet: VeloxLagCompRewind seq=12 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.398 live_stamp=40.520 samples=60
+[2026.10.31-07.10.05:621][411]LogVeloxNet: VeloxLagCompRewind seq=12 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.398 live_stamp=40.520 samples=60
+[2026.10.31-07.10.05:621][411]LogVeloxNet: VeloxLagCompRewind seq=12 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.398 live_stamp=40.520 samples=60
+[2026.10.31-07.10.05:621][411]LogVeloxNet: VeloxLagCompRewind seq=12 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=40.398 live_stamp=40.520 samples=60
+[2026.10.31-07.10.05:621][411]LogVeloxCombat: VeloxShot seq=12 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2116.6 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.05:738][418]LogVeloxNet: VeloxLagCompRewind seq=13 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.503 live_stamp=40.637 samples=60
+[2026.10.31-07.10.05:739][418]LogVeloxNet: VeloxLagCompRewind seq=13 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.503 live_stamp=40.637 samples=60
+[2026.10.31-07.10.05:739][418]LogVeloxNet: VeloxLagCompRewind seq=13 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.503 live_stamp=40.637 samples=60
+[2026.10.31-07.10.05:739][418]LogVeloxNet: VeloxLagCompRewind seq=13 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=40.503 live_stamp=40.637 samples=60
+[2026.10.31-07.10.05:739][418]LogVeloxCombat: VeloxShot seq=13 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1752.9 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.05:839][424]LogVeloxNet: VeloxLagCompRewind seq=14 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.596 live_stamp=40.738 samples=60
+[2026.10.31-07.10.05:839][424]LogVeloxNet: VeloxLagCompRewind seq=14 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.596 live_stamp=40.738 samples=60
+[2026.10.31-07.10.05:839][424]LogVeloxNet: VeloxLagCompRewind seq=14 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.596 live_stamp=40.738 samples=60
+[2026.10.31-07.10.05:839][424]LogVeloxNet: VeloxLagCompRewind seq=14 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=40.596 live_stamp=40.738 samples=60
+[2026.10.31-07.10.05:839][424]LogVeloxCombat: VeloxShot seq=14 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1756.1 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.05:940][430]LogVeloxNet: VeloxLagCompRewind seq=15 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.691 live_stamp=40.838 samples=60
+[2026.10.31-07.10.05:940][430]LogVeloxNet: VeloxLagCompRewind seq=15 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.691 live_stamp=40.838 samples=60
+[2026.10.31-07.10.05:940][430]LogVeloxNet: VeloxLagCompRewind seq=15 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.691 live_stamp=40.838 samples=60
+[2026.10.31-07.10.05:940][430]LogVeloxNet: VeloxLagCompRewind seq=15 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=40.691 live_stamp=40.838 samples=60
+[2026.10.31-07.10.05:940][430]LogVeloxCombat: VeloxShot seq=15 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1770.2 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:023][435]LogVeloxNet: VeloxLagCompRewind seq=16 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.804 live_stamp=40.922 samples=60
+[2026.10.31-07.10.06:023][435]LogVeloxNet: VeloxLagCompRewind seq=16 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.804 live_stamp=40.922 samples=60
+[2026.10.31-07.10.06:023][435]LogVeloxNet: VeloxLagCompRewind seq=16 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.804 live_stamp=40.922 samples=60
+[2026.10.31-07.10.06:023][435]LogVeloxNet: VeloxLagCompRewind seq=16 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=40.804 live_stamp=40.922 samples=60
+[2026.10.31-07.10.06:024][435]LogVeloxCombat: VeloxShot seq=16 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2799.4 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:024][435]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=40.939 stamp=29.927 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.06:108][440]LogVeloxNet: VeloxLagCompRewind seq=17 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.903 live_stamp=41.006 samples=60
+[2026.10.31-07.10.06:108][440]LogVeloxNet: VeloxLagCompRewind seq=17 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.903 live_stamp=41.006 samples=60
+[2026.10.31-07.10.06:108][440]LogVeloxNet: VeloxLagCompRewind seq=17 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.903 live_stamp=41.006 samples=60
+[2026.10.31-07.10.06:108][440]LogVeloxNet: VeloxLagCompRewind seq=17 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=40.903 live_stamp=41.006 samples=60
+[2026.10.31-07.10.06:108][440]LogVeloxCombat: VeloxShot seq=17 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1699.9 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:208][446]LogVeloxNet: VeloxLagCompRewind seq=18 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.989 live_stamp=41.107 samples=60
+[2026.10.31-07.10.06:208][446]LogVeloxNet: VeloxLagCompRewind seq=18 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.989 live_stamp=41.107 samples=60
+[2026.10.31-07.10.06:208][446]LogVeloxNet: VeloxLagCompRewind seq=18 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=40.989 live_stamp=41.107 samples=60
+[2026.10.31-07.10.06:208][446]LogVeloxNet: VeloxLagCompRewind seq=18 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=40.989 live_stamp=41.107 samples=60
+[2026.10.31-07.10.06:208][446]LogVeloxCombat: VeloxShot seq=18 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2067.9 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:326][453]LogVeloxNet: VeloxLagCompRewind seq=19 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.103 live_stamp=41.224 samples=60
+[2026.10.31-07.10.06:326][453]LogVeloxNet: VeloxLagCompRewind seq=19 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.103 live_stamp=41.224 samples=60
+[2026.10.31-07.10.06:326][453]LogVeloxNet: VeloxLagCompRewind seq=19 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.103 live_stamp=41.224 samples=60
+[2026.10.31-07.10.06:326][453]LogVeloxNet: VeloxLagCompRewind seq=19 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.103 live_stamp=41.224 samples=60
+[2026.10.31-07.10.06:326][453]LogVeloxCombat: VeloxShot seq=19 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2659.8 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:410][458]LogVeloxNet: VeloxLagCompRewind seq=20 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.193 live_stamp=41.308 samples=60
+[2026.10.31-07.10.06:410][458]LogVeloxNet: VeloxLagCompRewind seq=20 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.193 live_stamp=41.308 samples=60
+[2026.10.31-07.10.06:410][458]LogVeloxNet: VeloxLagCompRewind seq=20 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.193 live_stamp=41.308 samples=60
+[2026.10.31-07.10.06:410][458]LogVeloxNet: VeloxLagCompRewind seq=20 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.193 live_stamp=41.308 samples=60
+[2026.10.31-07.10.06:410][458]LogVeloxCombat: VeloxShot seq=20 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=3487.0 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:460][461]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=41.375 stamp=41.375 n=60 span_ms=990 loc=(-700.0,-66.9,72.2) hh=70.0
+[2026.10.31-07.10.06:460][461]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=41.375 stamp=41.375 n=60 span_ms=990 loc=(1300.0,-1266.9,72.2) hh=70.0
+[2026.10.31-07.10.06:460][461]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=41.375 stamp=41.375 n=60 span_ms=990 loc=(300.0,-1266.9,72.2) hh=70.0
+[2026.10.31-07.10.06:460][461]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=41.375 stamp=41.375 n=60 span_ms=990 loc=(-700.0,-1266.9,72.2) hh=70.0
+[2026.10.31-07.10.06:544][466]LogVeloxNet: VeloxLagCompRewind seq=21 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.298 live_stamp=41.443 samples=60
+[2026.10.31-07.10.06:544][466]LogVeloxNet: VeloxLagCompRewind seq=21 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.298 live_stamp=41.443 samples=60
+[2026.10.31-07.10.06:544][466]LogVeloxNet: VeloxLagCompRewind seq=21 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.298 live_stamp=41.443 samples=60
+[2026.10.31-07.10.06:544][466]LogVeloxNet: VeloxLagCompRewind seq=21 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.298 live_stamp=41.443 samples=60
+[2026.10.31-07.10.06:544][466]LogVeloxCombat: VeloxShot seq=21 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1768.7 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:611][470]LogVeloxNet: VeloxMoveRepaired ts=30.476807 dt=0.016666 slot=extra
+[2026.10.31-07.10.06:611][470]LogVeloxNet: VeloxMoveRepaired ts=30.493475 dt=0.016668 slot=old
+[2026.10.31-07.10.06:611][470]LogVeloxNet: VeloxLagCompRewind seq=22 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.403 live_stamp=41.510 samples=60
+[2026.10.31-07.10.06:611][470]LogVeloxNet: VeloxLagCompRewind seq=22 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.403 live_stamp=41.510 samples=60
+[2026.10.31-07.10.06:611][470]LogVeloxNet: VeloxLagCompRewind seq=22 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.403 live_stamp=41.510 samples=60
+[2026.10.31-07.10.06:611][470]LogVeloxNet: VeloxLagCompRewind seq=22 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.403 live_stamp=41.510 samples=60
+[2026.10.31-07.10.06:611][470]LogVeloxCombat: VeloxShot seq=22 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1754.7 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:728][477]LogVeloxNet: VeloxLagCompRewind seq=23 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.492 live_stamp=41.627 samples=60
+[2026.10.31-07.10.06:728][477]LogVeloxNet: VeloxLagCompRewind seq=23 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.492 live_stamp=41.627 samples=60
+[2026.10.31-07.10.06:728][477]LogVeloxNet: VeloxLagCompRewind seq=23 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.492 live_stamp=41.627 samples=60
+[2026.10.31-07.10.06:729][477]LogVeloxNet: VeloxLagCompRewind seq=23 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.492 live_stamp=41.627 samples=60
+[2026.10.31-07.10.06:729][477]LogVeloxCombat: VeloxShot seq=23 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2455.8 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:846][484]LogVeloxNet: VeloxLagCompRewind seq=24 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.601 live_stamp=41.745 samples=60
+[2026.10.31-07.10.06:846][484]LogVeloxNet: VeloxLagCompRewind seq=24 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.601 live_stamp=41.745 samples=60
+[2026.10.31-07.10.06:846][484]LogVeloxNet: VeloxLagCompRewind seq=24 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.601 live_stamp=41.745 samples=60
+[2026.10.31-07.10.06:846][484]LogVeloxNet: VeloxLagCompRewind seq=24 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.601 live_stamp=41.745 samples=60
+[2026.10.31-07.10.06:846][484]LogVeloxCombat: VeloxShot seq=24 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2118.1 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.06:947][490]LogVeloxNet: VeloxLagCompRewind seq=25 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.692 live_stamp=41.845 samples=60
+[2026.10.31-07.10.06:947][490]LogVeloxNet: VeloxLagCompRewind seq=25 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.692 live_stamp=41.845 samples=60
+[2026.10.31-07.10.06:947][490]LogVeloxNet: VeloxLagCompRewind seq=25 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.692 live_stamp=41.845 samples=60
+[2026.10.31-07.10.06:947][490]LogVeloxNet: VeloxLagCompRewind seq=25 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.692 live_stamp=41.845 samples=60
+[2026.10.31-07.10.06:947][490]LogVeloxCombat: VeloxShot seq=25 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2144.5 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:031][495]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=41.946 stamp=30.910 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.07:047][496]LogVeloxNet: VeloxLagCompRewind seq=26 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.789 live_stamp=41.946 samples=60
+[2026.10.31-07.10.07:047][496]LogVeloxNet: VeloxLagCompRewind seq=26 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.789 live_stamp=41.946 samples=60
+[2026.10.31-07.10.07:047][496]LogVeloxNet: VeloxLagCompRewind seq=26 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.789 live_stamp=41.946 samples=60
+[2026.10.31-07.10.07:048][496]LogVeloxNet: VeloxLagCompRewind seq=26 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.789 live_stamp=41.946 samples=60
+[2026.10.31-07.10.07:048][496]LogVeloxCombat: VeloxShot seq=26 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2161.5 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:115][500]LogVeloxNet: VeloxLagCompRewind seq=27 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.911 live_stamp=42.013 samples=60
+[2026.10.31-07.10.07:115][500]LogVeloxNet: VeloxLagCompRewind seq=27 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.911 live_stamp=42.013 samples=60
+[2026.10.31-07.10.07:115][500]LogVeloxNet: VeloxLagCompRewind seq=27 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.911 live_stamp=42.013 samples=60
+[2026.10.31-07.10.07:115][500]LogVeloxNet: VeloxLagCompRewind seq=27 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.911 live_stamp=42.013 samples=60
+[2026.10.31-07.10.07:115][500]LogVeloxCombat: VeloxShot seq=27 shooter=VeloxCharacter_4 hit=VeloxCharacter_3 rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1017.8 hits=1 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:115][500]LogVeloxCombat: VeloxDamageCalc target=VeloxPlayerState_3 dmg=7 pellets=1 armor=0 self=0 protected=1 noarmor=0 radius=0 suit=0 dead=0 frozen=0 -> health_loss=0 armor_loss=0 knockback=0.0 cm/s
+[2026.10.31-07.10.07:115][500]LogVeloxCombat: VeloxDamage target=VeloxPlayerState_3 instigator=VeloxPlayerState_4 tags=[Velox.Damage.MachineGun] health 100->100 armor 0->0 knockback=V(0) (0 cm/s, AddKnockback(Server) none)
+[2026.10.31-07.10.07:115][500]LogVeloxCombat: VeloxShotDamage seq=27 shooter=VeloxCharacter_4 weapon=DA_Weapon_MachineGun base=7 scale=1.00 hit_dmg=7 hits=1 total=0
+[2026.10.31-07.10.07:116][500]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-900.54, Z=72.15) velocity V(Y=-636.84) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.07:116][500]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-900.54, Z=72.15) velocity V(Y=-636.84) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.07:116][500]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-900.54, Z=72.15) velocity V(Y=-636.84) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.07:116][500]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=299.46, Z=72.15) velocity V(Y=-636.84) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.10.07:232][507]LogVeloxNet: VeloxLagCompRewind seq=28 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.947 live_stamp=42.131 samples=60
+[2026.10.31-07.10.07:232][507]LogVeloxNet: VeloxLagCompRewind seq=28 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.947 live_stamp=42.131 samples=60
+[2026.10.31-07.10.07:232][507]LogVeloxNet: VeloxLagCompRewind seq=28 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=41.947 live_stamp=42.131 samples=60
+[2026.10.31-07.10.07:232][507]LogVeloxNet: VeloxLagCompRewind seq=28 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=41.947 live_stamp=42.131 samples=60
+[2026.10.31-07.10.07:232][507]LogVeloxCombat: VeloxShot seq=28 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2956.7 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:266][509]LogVeloxNet: VeloxMoveRepaired ts=31.126854 dt=0.016668 slot=old
+[2026.10.31-07.10.07:316][512]LogVeloxNet: VeloxLagCompRewind seq=29 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.089 live_stamp=42.215 samples=60
+[2026.10.31-07.10.07:316][512]LogVeloxNet: VeloxLagCompRewind seq=29 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.089 live_stamp=42.215 samples=60
+[2026.10.31-07.10.07:316][512]LogVeloxNet: VeloxLagCompRewind seq=29 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.089 live_stamp=42.215 samples=60
+[2026.10.31-07.10.07:316][512]LogVeloxNet: VeloxLagCompRewind seq=29 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.089 live_stamp=42.215 samples=60
+[2026.10.31-07.10.07:317][512]LogVeloxCombat: VeloxShot seq=29 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2274.2 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:417][518]LogVeloxNet: VeloxLagCompRewind seq=30 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.197 live_stamp=42.316 samples=60
+[2026.10.31-07.10.07:417][518]LogVeloxNet: VeloxLagCompRewind seq=30 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.197 live_stamp=42.316 samples=60
+[2026.10.31-07.10.07:417][518]LogVeloxNet: VeloxLagCompRewind seq=30 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.197 live_stamp=42.316 samples=60
+[2026.10.31-07.10.07:417][518]LogVeloxNet: VeloxLagCompRewind seq=30 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.197 live_stamp=42.316 samples=60
+[2026.10.31-07.10.07:417][518]LogVeloxCombat: VeloxShot seq=30 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1793.4 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:467][521]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=42.383 stamp=42.383 n=60 span_ms=991 loc=(-700.0,20.5,72.2) hh=70.0
+[2026.10.31-07.10.07:467][521]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=42.383 stamp=42.383 n=60 span_ms=991 loc=(1300.0,-1179.5,72.2) hh=70.0
+[2026.10.31-07.10.07:468][521]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=42.383 stamp=42.383 n=60 span_ms=991 loc=(300.0,-1179.5,72.2) hh=70.0
+[2026.10.31-07.10.07:468][521]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=42.383 stamp=42.383 n=60 span_ms=991 loc=(-700.0,-1179.5,72.2) hh=70.0
+[2026.10.31-07.10.07:501][523]LogVeloxNet: VeloxLagCompRewind seq=31 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.303 live_stamp=42.400 samples=60
+[2026.10.31-07.10.07:501][523]LogVeloxNet: VeloxLagCompRewind seq=31 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.303 live_stamp=42.400 samples=60
+[2026.10.31-07.10.07:501][523]LogVeloxNet: VeloxLagCompRewind seq=31 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.303 live_stamp=42.400 samples=60
+[2026.10.31-07.10.07:501][523]LogVeloxNet: VeloxLagCompRewind seq=31 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.303 live_stamp=42.400 samples=60
+[2026.10.31-07.10.07:501][523]LogVeloxCombat: VeloxShot seq=31 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2110.0 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:618][530]LogVeloxNet: VeloxMoveRepaired ts=31.476873 dt=0.016666 slot=old
+[2026.10.31-07.10.07:635][531]LogVeloxNet: VeloxLagCompRewind seq=32 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.400 live_stamp=42.534 samples=60
+[2026.10.31-07.10.07:635][531]LogVeloxNet: VeloxLagCompRewind seq=32 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.400 live_stamp=42.534 samples=60
+[2026.10.31-07.10.07:635][531]LogVeloxNet: VeloxLagCompRewind seq=32 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.400 live_stamp=42.534 samples=60
+[2026.10.31-07.10.07:635][531]LogVeloxNet: VeloxLagCompRewind seq=32 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.400 live_stamp=42.534 samples=60
+[2026.10.31-07.10.07:635][531]LogVeloxCombat: VeloxShot seq=32 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1752.5 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:719][536]LogVeloxNet: VeloxLagCompRewind seq=33 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.506 live_stamp=42.618 samples=60
+[2026.10.31-07.10.07:719][536]LogVeloxNet: VeloxLagCompRewind seq=33 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.506 live_stamp=42.618 samples=60
+[2026.10.31-07.10.07:719][536]LogVeloxNet: VeloxLagCompRewind seq=33 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.506 live_stamp=42.618 samples=60
+[2026.10.31-07.10.07:719][536]LogVeloxNet: VeloxLagCompRewind seq=33 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.506 live_stamp=42.618 samples=60
+[2026.10.31-07.10.07:719][536]LogVeloxCombat: VeloxShot seq=33 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1759.3 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:837][543]LogVeloxNet: VeloxLagCompRewind seq=34 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.611 live_stamp=42.736 samples=60
+[2026.10.31-07.10.07:837][543]LogVeloxNet: VeloxLagCompRewind seq=34 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.611 live_stamp=42.736 samples=60
+[2026.10.31-07.10.07:837][543]LogVeloxNet: VeloxLagCompRewind seq=34 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.611 live_stamp=42.736 samples=60
+[2026.10.31-07.10.07:837][543]LogVeloxNet: VeloxLagCompRewind seq=34 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.611 live_stamp=42.736 samples=60
+[2026.10.31-07.10.07:837][543]LogVeloxCombat: VeloxShot seq=34 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2566.4 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.07:938][549]LogVeloxNet: VeloxLagCompRewind seq=35 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.710 live_stamp=42.837 samples=60
+[2026.10.31-07.10.07:938][549]LogVeloxNet: VeloxLagCompRewind seq=35 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.710 live_stamp=42.837 samples=60
+[2026.10.31-07.10.07:938][549]LogVeloxNet: VeloxLagCompRewind seq=35 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.710 live_stamp=42.837 samples=60
+[2026.10.31-07.10.07:938][549]LogVeloxNet: VeloxLagCompRewind seq=35 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.710 live_stamp=42.837 samples=60
+[2026.10.31-07.10.07:938][549]LogVeloxCombat: VeloxShot seq=35 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2348.8 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:022][554]LogVeloxNet: VeloxLagCompRewind seq=36 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.803 live_stamp=42.921 samples=60
+[2026.10.31-07.10.08:022][554]LogVeloxNet: VeloxLagCompRewind seq=36 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.803 live_stamp=42.921 samples=60
+[2026.10.31-07.10.08:022][554]LogVeloxNet: VeloxLagCompRewind seq=36 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.803 live_stamp=42.921 samples=60
+[2026.10.31-07.10.08:022][554]LogVeloxNet: VeloxLagCompRewind seq=36 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.803 live_stamp=42.921 samples=60
+[2026.10.31-07.10.08:022][554]LogVeloxCombat: VeloxShot seq=36 shooter=VeloxCharacter_4 hit=VeloxCharacter_3 rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1017.6 hits=1 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:022][554]LogVeloxCombat: VeloxDamageCalc target=VeloxPlayerState_3 dmg=7 pellets=1 armor=0 self=0 protected=1 noarmor=0 radius=0 suit=0 dead=0 frozen=0 -> health_loss=0 armor_loss=0 knockback=0.0 cm/s
+[2026.10.31-07.10.08:022][554]LogVeloxCombat: VeloxDamage target=VeloxPlayerState_3 instigator=VeloxPlayerState_4 tags=[Velox.Damage.MachineGun] health 100->100 armor 0->0 knockback=V(0) (0 cm/s, AddKnockback(Server) none)
+[2026.10.31-07.10.08:022][554]LogVeloxCombat: VeloxShotDamage seq=36 shooter=VeloxCharacter_4 weapon=DA_Weapon_MachineGun base=7 scale=1.00 hit_dmg=7 hits=1 total=0
+[2026.10.31-07.10.08:039][555]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=42.954 stamp=31.944 n=60 span_ms=992 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.08:123][560]LogVeloxNet: VeloxLagCompRewind seq=37 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.839 live_stamp=43.022 samples=60
+[2026.10.31-07.10.08:123][560]LogVeloxNet: VeloxLagCompRewind seq=37 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.839 live_stamp=43.022 samples=60
+[2026.10.31-07.10.08:123][560]LogVeloxNet: VeloxLagCompRewind seq=37 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.839 live_stamp=43.022 samples=60
+[2026.10.31-07.10.08:123][560]LogVeloxNet: VeloxLagCompRewind seq=37 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.839 live_stamp=43.022 samples=60
+[2026.10.31-07.10.08:123][560]LogVeloxCombat: VeloxShot seq=37 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=3218.5 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:240][567]LogVeloxNet: VeloxLagCompRewind seq=38 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.981 live_stamp=43.139 samples=60
+[2026.10.31-07.10.08:240][567]LogVeloxNet: VeloxLagCompRewind seq=38 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.981 live_stamp=43.139 samples=60
+[2026.10.31-07.10.08:240][567]LogVeloxNet: VeloxLagCompRewind seq=38 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=42.981 live_stamp=43.139 samples=60
+[2026.10.31-07.10.08:241][567]LogVeloxNet: VeloxLagCompRewind seq=38 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=42.981 live_stamp=43.139 samples=60
+[2026.10.31-07.10.08:241][567]LogVeloxCombat: VeloxShot seq=38 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1985.9 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:324][572]LogVeloxNet: VeloxLagCompRewind seq=39 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.098 live_stamp=43.223 samples=60
+[2026.10.31-07.10.08:324][572]LogVeloxNet: VeloxLagCompRewind seq=39 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.098 live_stamp=43.223 samples=60
+[2026.10.31-07.10.08:324][572]LogVeloxNet: VeloxLagCompRewind seq=39 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.098 live_stamp=43.223 samples=60
+[2026.10.31-07.10.08:324][572]LogVeloxNet: VeloxLagCompRewind seq=39 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.098 live_stamp=43.223 samples=60
+[2026.10.31-07.10.08:324][572]LogVeloxCombat: VeloxShot seq=39 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2381.9 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:458][580]LogVeloxNet: VeloxLagCompRewind seq=40 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.188 live_stamp=43.357 samples=60
+[2026.10.31-07.10.08:458][580]LogVeloxNet: VeloxLagCompRewind seq=40 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.188 live_stamp=43.357 samples=60
+[2026.10.31-07.10.08:458][580]LogVeloxNet: VeloxLagCompRewind seq=40 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.188 live_stamp=43.357 samples=60
+[2026.10.31-07.10.08:458][580]LogVeloxNet: VeloxLagCompRewind seq=40 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.188 live_stamp=43.357 samples=60
+[2026.10.31-07.10.08:458][580]LogVeloxCombat: VeloxShot seq=40 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1766.5 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:475][581]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=43.391 stamp=43.391 n=60 span_ms=991 loc=(-700.0,39.9,72.2) hh=70.0
+[2026.10.31-07.10.08:475][581]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=43.391 stamp=43.391 n=60 span_ms=991 loc=(1300.0,-1160.1,72.2) hh=70.0
+[2026.10.31-07.10.08:475][581]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=43.391 stamp=43.391 n=60 span_ms=991 loc=(300.0,-1160.1,72.2) hh=70.0
+[2026.10.31-07.10.08:475][581]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=43.391 stamp=43.391 n=60 span_ms=991 loc=(-700.0,-1160.1,72.2) hh=70.0
+[2026.10.31-07.10.08:509][583]LogVeloxNet: VeloxLagCompRewind seq=41 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.305 live_stamp=43.407 samples=60
+[2026.10.31-07.10.08:509][583]LogVeloxNet: VeloxLagCompRewind seq=41 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.305 live_stamp=43.407 samples=60
+[2026.10.31-07.10.08:509][583]LogVeloxNet: VeloxLagCompRewind seq=41 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.305 live_stamp=43.407 samples=60
+[2026.10.31-07.10.08:509][583]LogVeloxNet: VeloxLagCompRewind seq=41 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.305 live_stamp=43.407 samples=60
+[2026.10.31-07.10.08:509][583]LogVeloxCombat: VeloxShot seq=41 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1722.4 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:626][590]LogVeloxNet: VeloxLagCompRewind seq=42 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.392 live_stamp=43.525 samples=60
+[2026.10.31-07.10.08:626][590]LogVeloxNet: VeloxLagCompRewind seq=42 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.392 live_stamp=43.525 samples=60
+[2026.10.31-07.10.08:626][590]LogVeloxNet: VeloxLagCompRewind seq=42 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.392 live_stamp=43.525 samples=60
+[2026.10.31-07.10.08:626][590]LogVeloxNet: VeloxLagCompRewind seq=42 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.392 live_stamp=43.525 samples=60
+[2026.10.31-07.10.08:626][590]LogVeloxCombat: VeloxShot seq=42 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2126.1 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:727][596]LogVeloxNet: VeloxLagCompRewind seq=43 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.512 live_stamp=43.626 samples=60
+[2026.10.31-07.10.08:727][596]LogVeloxNet: VeloxLagCompRewind seq=43 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.512 live_stamp=43.626 samples=60
+[2026.10.31-07.10.08:727][596]LogVeloxNet: VeloxLagCompRewind seq=43 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.512 live_stamp=43.626 samples=60
+[2026.10.31-07.10.08:727][596]LogVeloxNet: VeloxLagCompRewind seq=43 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.512 live_stamp=43.626 samples=60
+[2026.10.31-07.10.08:727][596]LogVeloxCombat: VeloxShot seq=43 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2124.0 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:845][603]LogVeloxNet: VeloxLagCompRewind seq=44 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.604 live_stamp=43.743 samples=60
+[2026.10.31-07.10.08:845][603]LogVeloxNet: VeloxLagCompRewind seq=44 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.604 live_stamp=43.743 samples=60
+[2026.10.31-07.10.08:845][603]LogVeloxNet: VeloxLagCompRewind seq=44 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.604 live_stamp=43.743 samples=60
+[2026.10.31-07.10.08:845][603]LogVeloxNet: VeloxLagCompRewind seq=44 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.604 live_stamp=43.743 samples=60
+[2026.10.31-07.10.08:845][603]LogVeloxCombat: VeloxShot seq=44 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2136.6 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:945][609]LogVeloxNet: VeloxLagCompRewind seq=45 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.710 live_stamp=43.844 samples=60
+[2026.10.31-07.10.08:945][609]LogVeloxNet: VeloxLagCompRewind seq=45 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.710 live_stamp=43.844 samples=60
+[2026.10.31-07.10.08:946][609]LogVeloxNet: VeloxLagCompRewind seq=45 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.710 live_stamp=43.844 samples=60
+[2026.10.31-07.10.08:946][609]LogVeloxNet: VeloxLagCompRewind seq=45 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.710 live_stamp=43.844 samples=60
+[2026.10.31-07.10.08:946][609]LogVeloxCombat: VeloxShot seq=45 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2318.1 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.08:996][612]LogVeloxNet: VeloxMoveRepaired ts=32.877106 dt=0.016670 slot=old
+[2026.10.31-07.10.09:029][614]LogVeloxNet: VeloxLagCompRewind seq=46 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.810 live_stamp=43.928 samples=60
+[2026.10.31-07.10.09:029][614]LogVeloxNet: VeloxLagCompRewind seq=46 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.810 live_stamp=43.928 samples=60
+[2026.10.31-07.10.09:029][614]LogVeloxNet: VeloxLagCompRewind seq=46 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.810 live_stamp=43.928 samples=60
+[2026.10.31-07.10.09:029][614]LogVeloxNet: VeloxLagCompRewind seq=46 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.810 live_stamp=43.928 samples=60
+[2026.10.31-07.10.09:029][614]LogVeloxCombat: VeloxShot seq=46 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2429.9 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.09:046][615]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=43.962 stamp=32.927 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.09:114][619]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-992.08, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.09:114][619]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=207.92, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.10.09:114][619]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-992.08, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.09:114][619]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-992.08, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.09:164][622]LogVeloxNet: VeloxLagCompRewind seq=47 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.912 live_stamp=44.062 samples=60
+[2026.10.31-07.10.09:164][622]LogVeloxNet: VeloxLagCompRewind seq=47 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.912 live_stamp=44.062 samples=60
+[2026.10.31-07.10.09:164][622]LogVeloxNet: VeloxLagCompRewind seq=47 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.912 live_stamp=44.062 samples=60
+[2026.10.31-07.10.09:164][622]LogVeloxNet: VeloxLagCompRewind seq=47 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.912 live_stamp=44.062 samples=60
+[2026.10.31-07.10.09:164][622]LogVeloxCombat: VeloxShot seq=47 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2145.4 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.09:214][625]LogVeloxNet: VeloxLagCompRewind seq=48 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.987 live_stamp=44.113 samples=60
+[2026.10.31-07.10.09:214][625]LogVeloxNet: VeloxLagCompRewind seq=48 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.987 live_stamp=44.113 samples=60
+[2026.10.31-07.10.09:214][625]LogVeloxNet: VeloxLagCompRewind seq=48 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=43.987 live_stamp=44.113 samples=60
+[2026.10.31-07.10.09:214][625]LogVeloxNet: VeloxLagCompRewind seq=48 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=43.987 live_stamp=44.113 samples=60
+[2026.10.31-07.10.09:214][625]LogVeloxCombat: VeloxShot seq=48 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2938.8 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.09:315][631]LogVeloxNet: VeloxLagCompRewind seq=49 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=44.086 live_stamp=44.213 samples=60
+[2026.10.31-07.10.09:315][631]LogVeloxNet: VeloxLagCompRewind seq=49 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=44.086 live_stamp=44.213 samples=60
+[2026.10.31-07.10.09:315][631]LogVeloxNet: VeloxLagCompRewind seq=49 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=44.086 live_stamp=44.213 samples=60
+[2026.10.31-07.10.09:315][631]LogVeloxNet: VeloxLagCompRewind seq=49 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=44.086 live_stamp=44.213 samples=60
+[2026.10.31-07.10.09:315][631]LogVeloxCombat: VeloxShot seq=49 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2134.3 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.09:399][636]LogVeloxNet: VeloxLagCompRewind seq=50 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=44.196 live_stamp=44.297 samples=60
+[2026.10.31-07.10.09:399][636]LogVeloxNet: VeloxLagCompRewind seq=50 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=44.196 live_stamp=44.297 samples=60
+[2026.10.31-07.10.09:399][636]LogVeloxNet: VeloxLagCompRewind seq=50 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=44.196 live_stamp=44.297 samples=60
+[2026.10.31-07.10.09:399][636]LogVeloxNet: VeloxLagCompRewind seq=50 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=44.196 live_stamp=44.297 samples=60
+[2026.10.31-07.10.09:399][636]LogVeloxCombat: VeloxShot seq=50 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=1907.6 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.09:466][640]LogVeloxCombat: VeloxWeaponSwitch DA_Weapon_MachineGun -> DA_Weapon_Railgun wait=0.033 drop=0.20 raise=0.25 role=server
+[2026.10.31-07.10.09:466][640]LogVeloxNet: VeloxMoveGap ts=33.343872 dt=0.025005
+[2026.10.31-07.10.09:483][641]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=44.398 stamp=44.398 n=60 span_ms=991 loc=(-700.0,-87.6,72.2) hh=70.0
+[2026.10.31-07.10.09:483][641]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=44.398 stamp=44.398 n=60 span_ms=991 loc=(1300.0,-1287.6,72.2) hh=70.0
+[2026.10.31-07.10.09:483][641]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=44.398 stamp=44.398 n=60 span_ms=991 loc=(300.0,-1287.6,72.2) hh=70.0
+[2026.10.31-07.10.09:483][641]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=44.398 stamp=44.398 n=60 span_ms=991 loc=(-700.0,-1287.6,72.2) hh=70.0
+[2026.10.31-07.10.09:953][669]LogVeloxNet: VeloxLagCompRewind seq=51 pawn=VeloxCharacter_0 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=44.751 live_stamp=44.851 samples=60
+[2026.10.31-07.10.09:953][669]LogVeloxNet: VeloxLagCompRewind seq=51 pawn=VeloxCharacter_1 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=44.751 live_stamp=44.851 samples=60
+[2026.10.31-07.10.09:953][669]LogVeloxNet: VeloxLagCompRewind seq=51 pawn=VeloxCharacter_2 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=0 hint_stamp=44.751 live_stamp=44.851 samples=60
+[2026.10.31-07.10.09:953][669]LogVeloxNet: VeloxLagCompRewind seq=51 pawn=VeloxCharacter_3 mode=current rewind_ms=0.0 offset_cm=0.0 hinted=1 hint_stamp=44.751 live_stamp=44.851 samples=60
+[2026.10.31-07.10.09:953][669]LogVeloxCombat: VeloxShot seq=51 shooter=VeloxCharacter_4 hit=none rewind_ms=0.0 view_ms=0.0 hint=fallback dist_cm=2442.2 hits=0 rays=1 snap=0 late_ms=0.0
+[2026.10.31-07.10.09:987][671]LogVeloxCombat: VeloxWeaponSwitch DA_Weapon_Railgun -> DA_Weapon_RocketLauncher wait=1.466 drop=0.20 raise=0.25 role=server
+[2026.10.31-07.10.09:987][671]LogVeloxNet: VeloxMoveGap ts=33.894001 dt=0.025005
+[2026.10.31-07.10.10:053][675]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=44.969 stamp=33.894 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.10:490][701]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=45.405 stamp=45.405 n=60 span_ms=990 loc=(-700.0,146.7,72.2) hh=70.0
+[2026.10.31-07.10.10:490][701]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=45.405 stamp=45.405 n=60 span_ms=990 loc=(1300.0,-1053.3,72.2) hh=70.0
+[2026.10.31-07.10.10:490][701]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=45.405 stamp=45.405 n=60 span_ms=990 loc=(300.0,-1053.3,72.2) hh=70.0
+[2026.10.31-07.10.10:490][701]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=45.405 stamp=45.405 n=60 span_ms=990 loc=(-700.0,-1053.3,72.2) hh=70.0
+[2026.10.31-07.10.11:060][735]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=45.975 stamp=33.894 n=60 span_ms=990 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.11:110][738]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1086.76, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.11:110][738]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1086.76, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.11:110][738]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1086.76, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.11:110][738]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=113.24, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.10.11:126][739]LogVeloxNet: VeloxMoveRepaired ts=35.027576 dt=0.016670 slot=old
+[2026.10.31-07.10.11:496][761]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=46.411 stamp=46.411 n=60 span_ms=989 loc=(-700.0,-195.2,72.2) hh=70.0
+[2026.10.31-07.10.11:496][761]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=46.411 stamp=46.411 n=60 span_ms=989 loc=(1300.0,-1395.2,72.2) hh=70.0
+[2026.10.31-07.10.11:496][761]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=46.411 stamp=46.411 n=60 span_ms=989 loc=(300.0,-1395.2,72.2) hh=70.0
+[2026.10.31-07.10.11:496][761]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=46.411 stamp=46.411 n=60 span_ms=989 loc=(-700.0,-1395.2,72.2) hh=70.0
+[2026.10.31-07.10.11:931][787]LogVeloxCombat: VeloxMoveShot seq=52 weapon=DA_Weapon_RocketLauncher fire_ts=35.811100 move_ts=35.819435 move_dt=0.008335 flight_ms=441.0 event_ts=36.252075 splash_origin=V(X=-715.73, Z=2.00) rpc_first=1 quad=0
+[2026.10.31-07.10.11:932][787]LogVeloxCombat: VeloxProjectileShot seq=52 weapon=DA_Weapon_RocketLauncher fire_ts=35.811100 client_ts=35.811100 last_ts=35.819435 event_id=1 splash_origin=V(X=-715.73, Z=2.00) source=move late_ms=8.3
+[2026.10.31-07.10.11:932][787]LogVeloxCombat: VeloxProjectileSpawn seq=52 weapon=DA_Weapon_RocketLauncher owner=VeloxCharacter_4 origin=V(X=-1700.00, Z=127.15) fwd_ms=65.3 self_event=1 quad=0
+[2026.10.31-07.10.12:065][795]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=46.981 stamp=33.894 n=60 span_ms=989 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.12:082][796]LogVeloxNet: VeloxMoveGap ts=35.969467 dt=0.033340
+[2026.10.31-07.10.12:300][809]LogVeloxCombat: VeloxDamageCalc target=VeloxPlayerState_3 dmg=82 pellets=1 armor=0 self=0 protected=1 noarmor=0 radius=1 suit=0 dead=0 frozen=0 -> health_loss=0 armor_loss=0 knockback=0.0 cm/s
+[2026.10.31-07.10.12:300][809]LogVeloxCombat: VeloxDamage target=VeloxPlayerState_3 instigator=VeloxPlayerState_4 tags=[Velox.Damage.Rocket] health 100->100 armor 0->0 knockback=V(0) (0 cm/s, AddKnockback(Server) none)
+[2026.10.31-07.10.12:300][809]LogVeloxCombat: VeloxProjectileExplode seq=52 weapon=DA_Weapon_RocketLauncher owner=VeloxCharacter_4 at=V(X=-715.73, Z=2.00) age_ms=441.0 direct=None splash=1 self=move_timed confirm_victims=1 confirm_dmg=0 kill=0 confirm_sent=1 quad=0
+[2026.10.31-07.10.12:334][811]LogVeloxCombat: VeloxSelfSplash role=server reason=move seq=52 ts=36.252861 pos=V(X=-1700.00, Z=72.15) origin=V(X=-715.73, Z=2.00) hit=0 dist=0.00 points=0 quad=0
+[2026.10.31-07.10.12:502][821]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=47.417 stamp=47.417 n=60 span_ms=989 loc=(-700.0,253.8,72.2) hh=70.0
+[2026.10.31-07.10.12:502][821]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=47.417 stamp=47.417 n=60 span_ms=989 loc=(1300.0,-946.2,72.2) hh=70.0
+[2026.10.31-07.10.12:502][821]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=47.417 stamp=47.417 n=60 span_ms=989 loc=(300.0,-946.2,72.2) hh=70.0
+[2026.10.31-07.10.12:502][821]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=47.417 stamp=47.417 n=60 span_ms=989 loc=(-700.0,-946.2,72.2) hh=70.0
+[2026.10.31-07.10.13:074][855]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_4 t=47.988 stamp=33.894 n=60 span_ms=991 loc=(-1700.0,0.0,72.2) hh=70.0
+[2026.10.31-07.10.13:108][857]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=19.37, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.10.13:108][857]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1180.63, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.13:108][857]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1180.63, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.13:108][857]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1180.63, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.13:308][869]LogVeloxNet: VeloxMoveRepaired ts=37.169735 dt=0.016670 slot=old
+[2026.10.31-07.10.13:511][881]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=48.425 stamp=48.425 n=60 span_ms=991 loc=(-700.0,-303.3,72.2) hh=70.0
+[2026.10.31-07.10.13:511][881]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=48.425 stamp=48.425 n=60 span_ms=991 loc=(1300.0,-1503.3,72.2) hh=70.0
+[2026.10.31-07.10.13:511][881]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=48.425 stamp=48.425 n=60 span_ms=991 loc=(300.0,-1503.3,72.2) hh=70.0
+[2026.10.31-07.10.13:511][881]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=48.425 stamp=48.425 n=60 span_ms=991 loc=(-700.0,-1503.3,72.2) hh=70.0
+[2026.10.31-07.10.13:864][902]LogVeloxNet: VeloxMoveRepaired ts=37.753204 dt=0.016670 slot=old
+[2026.10.31-07.10.13:881][903]LogNet:  - Result=ControlChannelClose, ErrorContext="ControlChannelClose"
+[2026.10.31-07.10.13:897][904]LogVeloxCombat: VeloxPlayerState_4: ability actor info owner=VeloxPlayerState_4 avatar VeloxCharacter_4 -> None (7 abilities)
+[2026.10.31-07.10.13:898][904]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_4 registered=4
+[2026.10.31-07.10.13:901][904]LogVeloxCombat: VeloxPlayerState_5: ability actor info owner=VeloxPlayerState_5 avatar None -> VeloxPlayerState_5 (0 abilities)
+[2026.10.31-07.10.13:901][904]LogVeloxCombat: VeloxColor player=VeloxPlayerState_5 index=5 palette=8
+[2026.10.31-07.10.14:519][941]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=49.435 stamp=49.435 n=60 span_ms=993 loc=(-700.0,337.3,72.2) hh=70.0
+[2026.10.31-07.10.14:520][941]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=49.435 stamp=49.435 n=60 span_ms=993 loc=(1300.0,-862.7,72.2) hh=70.0
+[2026.10.31-07.10.14:520][941]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=49.435 stamp=49.435 n=60 span_ms=993 loc=(300.0,-862.7,72.2) hh=70.0
+[2026.10.31-07.10.14:520][941]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=49.435 stamp=49.435 n=60 span_ms=993 loc=(-700.0,-862.7,72.2) hh=70.0
+[2026.10.31-07.10.15:108][976]LogVelox: Dummy VeloxDummyController_3 at V(X=-700.00, Y=-74.18, Z=72.15) velocity V(Y=-800.00) (origin Y 0, half width 300, dir -1)
+[2026.10.31-07.10.15:108][976]LogVelox: Dummy VeloxDummyController_2 at V(X=1300.00, Y=-1274.18, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.15:109][976]LogVelox: Dummy VeloxDummyController_1 at V(X=300.00, Y=-1274.18, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.15:109][976]LogVelox: Dummy VeloxDummyController_0 at V(X=-700.00, Y=-1274.18, Z=72.15) velocity V(Y=-800.00) (origin Y -1200, half width 300, dir -1)
+[2026.10.31-07.10.15:528][  1]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=50.444 stamp=50.444 n=60 span_ms=993 loc=(-700.0,-319.1,72.2) hh=70.0
+[2026.10.31-07.10.15:529][  1]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=50.444 stamp=50.444 n=60 span_ms=993 loc=(1300.0,-1519.1,72.2) hh=70.0
+[2026.10.31-07.10.15:529][  1]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=50.444 stamp=50.444 n=60 span_ms=993 loc=(300.0,-1519.1,72.2) hh=70.0
+[2026.10.31-07.10.15:529][  1]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=50.444 stamp=50.444 n=60 span_ms=993 loc=(-700.0,-1519.1,72.2) hh=70.0
+[2026.10.31-07.10.16:537][ 61]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_3 t=51.453 stamp=51.453 n=60 span_ms=992 loc=(-700.0,288.4,72.2) hh=70.0
+[2026.10.31-07.10.16:537][ 61]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_2 t=51.453 stamp=51.453 n=60 span_ms=992 loc=(1300.0,-911.6,72.2) hh=70.0
+[2026.10.31-07.10.16:537][ 61]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_1 t=51.453 stamp=51.453 n=60 span_ms=992 loc=(300.0,-911.6,72.2) hh=70.0
+[2026.10.31-07.10.16:537][ 61]LogVeloxNet: VeloxLagCompSample pawn=VeloxCharacter_0 t=51.453 stamp=51.453 n=60 span_ms=992 loc=(-700.0,-911.6,72.2) hh=70.0
+[2026.10.31-07.10.16:681][ 71]LogCrowdFollowing: Warning: Unable to find RecastNavMesh instance while trying to create UCrowdManager instance
+[2026.10.31-07.10.16:682][ 71]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxCharacter_0 -> None (2 abilities)
+[2026.10.31-07.10.16:682][ 71]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_0 registered=3
+[2026.10.31-07.10.16:683][ 71]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_1 -> None (2 abilities)
+[2026.10.31-07.10.16:683][ 71]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_1 registered=2
+[2026.10.31-07.10.16:683][ 71]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar VeloxCharacter_2 -> None (2 abilities)
+[2026.10.31-07.10.16:683][ 71]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_2 registered=1
+[2026.10.31-07.10.16:683][ 71]LogVeloxCombat: VeloxPlayerState_3: ability actor info owner=VeloxPlayerState_3 avatar VeloxCharacter_3 -> None (2 abilities)
+[2026.10.31-07.10.16:683][ 71]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_3 registered=0

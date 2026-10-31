@@ -1,0 +1,86 @@
+[2026.10.31-07.10.57:250][  0]LogTemp: Error test: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-07.10.57:250][  0]LogTemp: Error with param: UE::UnifiedErrorTest::WithInt: [Error with int -7]
+[2026.10.31-07.10.57:251][  0]LogTemp: Error with context: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-07.10.57:251][  0]LogTemp: FError that has been invalidated: ::: []
+[2026.10.31-07.10.57:251][  0]LogTemp: FError that has been moved from: ::: []
+[2026.10.31-07.10.57:389][  0]LogConsoleManager: Warning: Setting the console variable 'r.VSync' with 'SetByGameSetting' was ignored as it is lower priority than the previous 'SetByProjectSetting'. Value remains '0'
+[2026.10.31-07.10.57:389][  0]LogVelox: VeloxSettings applied sens=5.000 deg_per_count=0.1100 invert_y=0 fov=105.0 autoswitch=1 crosshair=0/24 name=Player aa=MSAA4 r.AntiAliasingMethod=3 r.MSAACount=4 fps_limit=0 vol master=1.00 effects=1.00 music=1.00
+[2026.10.31-07.10.57:394][  0]LogVelox: UVeloxGameInstance initialised.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'ActorLayersWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'UObjectLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'FolderCompatibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DiskSizeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataItemTypeWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataLabelWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetDataVirtualPathWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AssetNameWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'DynamicAssetDataColumnBaseWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:964][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'StaticMeshTrianglesWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:965][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:965][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'AlertHeaderWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:966][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:966][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'OutlinerUnsavedHeaderConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:966][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'SocketWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:966][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'TypeInfoWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:966][  0]LogEditorDataStorageUI: Warning: Unable to register widget factory 'VisibilityWidgetConstructor' as purpose '0' isn't registered.
+[2026.10.31-07.10.58:969][  0]LogAssetRegistry: Warning: GetFirstPackageByName is being called in `-game` to resolve partial package name. This may cause a slow scan on disk. Consider using the fully qualified package name for better performance. 
+[2026.10.31-07.10.59:056][  0]LogVeloxMatch: VeloxMatch init mode=VeloxGameMode_FFA definition=DA_GameMode_FFA rules=1 frag_limit=20 time_limit=600 min_players=2 max_active=16 ready=0 countdown=20.0 overtime=0 post_match=15.0 forfeit=0
+[2026.10.31-07.10.59:058][  0]LogVeloxBots: VeloxBots seed=-294528307 (velox.bots.Seed=0)
+[2026.10.31-07.10.59:059][  0]LogVeloxBots: VeloxNav building... navdata=RecastNavMesh-VeloxPawn tiles=0 agents=1 agent0=VeloxPawn class0=RecastNavMesh nav_bounds=2
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Health_Small at=V(X=-2550.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Armor_Shard at=V(X=-2250.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Ammo_Bullets at=V(X=-1950.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Health_Medium at=V(X=-1650.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Health_Large at=V(X=-1350.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Ammo_Shells at=V(X=-1050.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Ammo_Cells at=V(X=-450.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Ammo_Lightning at=V(X=-150.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Ammo_Slugs at=V(X=150.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Weapon_MachineGun at=V(X=450.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Weapon_Shotgun at=V(X=750.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Weapon_RocketLauncher at=V(X=1050.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Weapon_LightningGun at=V(X=1350.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Weapon_Railgun at=V(X=1650.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:059][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Weapon_PlasmaGun at=V(X=1950.00, Y=-1700.00) available_in=0.00
+[2026.10.31-07.10.59:060][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Powerup_Regen at=V(X=2250.00, Y=-1700.00) available_in=43.85
+[2026.10.31-07.10.59:060][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Powerup_BattleSuit at=V(X=2550.00, Y=-1700.00) available_in=46.29
+[2026.10.31-07.10.59:060][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Health_Mega at=V(X=-1500.00, Y=1200.00, Z=300.00) available_in=0.00
+[2026.10.31-07.10.59:060][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Armor_Red at=V(X=2100.00, Y=1200.00, Z=300.00) available_in=0.00
+[2026.10.31-07.10.59:060][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Ammo_Rockets at=V(X=1800.00, Y=-1000.00, Z=350.00) available_in=0.00
+[2026.10.31-07.10.59:060][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Armor_Yellow at=V(X=-213.63, Y=1200.00, Z=103.53) available_in=0.00
+[2026.10.31-07.10.59:060][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Powerup_Haste at=V(X=-2400.00, Y=1775.00) available_in=32.85
+[2026.10.31-07.10.59:060][  0]LogVeloxItems: VeloxPickupSpawn item=DA_Item_Powerup_Quad at=V(X=500.00) available_in=32.48
+[2026.10.31-07.10.59:060][  0]LogVeloxMatch: VeloxMatch phase=Warmup old=Warmup reason=none now=0.000 end=0.000 duration=0.0 active=0 overtime=0 winner=-
+[2026.10.31-07.10.59:938][ 13]LogVeloxBots: VeloxNav built tiles=30 seconds=0.914 links=15 relevant_triggers=0 runtime=Dynamic agent_radius=45.0 agent_height=140.0 step=45.0 cell=19.0 cell_height=10.0 slope=45.5 tile_size=1000
+[2026.10.31-07.11.10:623][649]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar None -> VeloxPlayerState_0 (0 abilities)
+[2026.10.31-07.11.10:624][649]LogVeloxCombat: VeloxColor player=VeloxPlayerState_0 index=0 palette=8
+[2026.10.31-07.11.10:624][649]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_5 at V(X=1200.00, Y=-900.00, Z=100.00) starts=8 candidates=8 enemies=0 nearest_enemy_cm=-1 telefrag=0
+[2026.10.31-07.11.10:625][649]LogVeloxCombat: VeloxSpawn player=VeloxPlayerController_0 start=PlayerStart_4 at V(X=-1200.00, Y=-900.00, Z=100.00) starts=8 candidates=8 enemies=0 nearest_enemy_cm=-1 telefrag=0
+[2026.10.31-07.11.10:629][649]LogVeloxNet: VeloxLagCompRegister pawn=VeloxCharacter_0 capacity=60 registered=1
+[2026.10.31-07.11.10:630][649]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxPlayerState_0 -> VeloxCharacter_0 (0 abilities)
+[2026.10.31-07.11.10:630][649]LogVeloxCombat: VeloxPlayerState_0: granted default ability sets once: 0 sets, 0 abilities, 0 effects, 0 attribute sets.
+[2026.10.31-07.11.10:630][649]LogVeloxCombat: VeloxPlayerState_0: ResetToLoadout owned=0x0001 current=DA_Weapon_MachineGun (1 entries)
+[2026.10.31-07.11.10:631][649]LogVeloxCombat: VeloxPlayerState_0: GE_SpawnInit health 125/100 armor 0/200 bullets 100 (settings DA_CombatSettings_Default)
+[2026.10.31-07.11.10:632][649]LogVeloxMatch: VeloxMatch join player=Player spectator=0 phase=Warmup active=1
+[2026.10.31-07.11.11:597][707]LogVeloxNet: VeloxMoveRepaired ts=0.541705 dt=0.016668 slot=old
+[2026.10.31-07.11.12:454][758]LogVeloxItems: VeloxPickup item=DA_Item_Health_Small by=Player gain=5 powerup_s=0.0 respawn_in=35.00 t=12.764 take=1
+[2026.10.31-07.11.12:806][779]LogVeloxItems: VeloxPickup item=DA_Item_Armor_Shard by=Player gain=5 powerup_s=0.0 respawn_in=25.00 t=13.116 take=1
+[2026.10.31-07.11.13:176][801]LogVeloxItems: VeloxPickup item=DA_Item_Ammo_Bullets by=Player gain=50 powerup_s=0.0 respawn_in=40.00 t=13.486 take=1
+[2026.10.31-07.11.14:166][860]LogVeloxNet: VeloxMoveRepaired ts=3.083562 dt=0.016668 slot=extra
+[2026.10.31-07.11.14:167][860]LogVeloxNet: VeloxMoveRepaired ts=3.100230 dt=0.016668 slot=old
+[2026.10.31-07.11.14:619][887]LogVeloxNet: VeloxMoveRepaired ts=3.550265 dt=0.016667 slot=old
+[2026.10.31-07.11.14:754][895]LogVeloxNet: VeloxMoveRepaired ts=3.666939 dt=0.016667 slot=old
+[2026.10.31-07.11.14:971][908]LogVeloxNet: VeloxMoveRepaired ts=3.883619 dt=0.016668 slot=extra
+[2026.10.31-07.11.14:972][908]LogVeloxNet: VeloxMoveRepaired ts=3.900286 dt=0.016667 slot=old
+[2026.10.31-07.11.15:978][968]LogVeloxNet: VeloxMoveRepaired ts=4.917017 dt=0.016668 slot=old
+[2026.10.31-07.11.16:465][997]LogNet:  - Result=ControlChannelClose, ErrorContext="ControlChannelClose"
+[2026.10.31-07.11.16:482][998]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxCharacter_0 -> None (2 abilities)
+[2026.10.31-07.11.16:482][998]LogVeloxNet: VeloxLagCompUnregister pawn=VeloxCharacter_0 registered=0
+[2026.10.31-07.11.16:482][998]LogVeloxMatch: VeloxMatch leave player=Player phase=Warmup
+[2026.10.31-07.11.16:483][998]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxPlayerState_1 (0 abilities)
+[2026.10.31-07.11.16:483][998]LogVeloxCombat: VeloxColor player=VeloxPlayerState_1 index=1 palette=8
+[2026.10.31-07.11.18:320][109]LogCrowdFollowing: Warning: Unable to find RecastNavMesh instance while trying to create UCrowdManager instance
