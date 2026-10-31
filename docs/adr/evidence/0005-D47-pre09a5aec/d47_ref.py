@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Reference implementation of ADR 0005 D47 (a)-(c): the process-slow window class of the bot cost classifier.
+"""Reference implementation of ADR 0005 D47 (a)-(c), the process-slow window class of the bot cost classifier, with the
+D48 (a) transition rule (2026-10-31: a window with over_share > 5 % and R_other < 2.0 is process-slow, not cost, iff
+rr <= 2.5 and a neighbouring window has R_other >= 2.0; the fixture numbers below are unchanged by it).
 
 usage: d47_ref.py <skip> <server.log> [<server.log> ...]
   <skip> = number of leading windows excluded from the reference set (D47: 1, i.e. windows 2..n).
 
 Reads the VeloxBotBudget / VeloxBotCost line pairs of a dedicated-server log and prints, per log, the reference, the
-class string (. clean, P process-slow, X cost) and the round figures nettest.sh must reproduce. No host sidecar is read:
-the fixture has none, so the `contended` branch of D47 (b) never fires here (nettest.sh adds it before the P/X tests).
+class string (. clean, P process-slow incl. transition, X cost) and the round figures nettest.sh must reproduce. No host
+sidecar is read: the fixture has none, so the `contended` branch of D47 (b) never fires here (nettest.sh adds it before
+the P/X tests).
 """
 import re
 import sys
@@ -50,16 +53,21 @@ def classify(rows, skip):
     ref = [i for i in cand if fo[i] <= REF_BAND * min3]
     fref = sum(fo[i] for i in ref) / len(ref)
     mref = sum(mu[i] for i in ref) / len(ref)
+    r_other = [f / fref for f in fo]
+    rr = [(mu[i] / mref) / r_other[i] for i in range(n)]
     cls = []
     for i in range(n):
-        r_other = fo[i] / fref
-        rr = (mu[i] / mref) / r_other
         if over[i] <= 5.0:
-            cls.append("." if r_other < R_OTHER_SLOW else "P")
-        elif r_other < R_OTHER_SLOW:
-            cls.append("X")                      # D46 1c: the thread did not slow, the bots did
+            cls.append("." if r_other[i] < R_OTHER_SLOW else "P")
+        elif r_other[i] < R_OTHER_SLOW:
+            # D46 1c: the thread did not slow, the bots did -> cost. D48 (a): unless the slow state begins or ends
+            # inside this window (a neighbour is slow) and the bots track the thread (rr <= RR_WINDOW_MAX): a
+            # transition window, process-slow. Printed as P; the runner adds transition=1 to its detail line.
+            neighbours = [j for j in (i - 1, i + 1) if 0 <= j < n]
+            transition = rr[i] <= RR_WINDOW_MAX and any(r_other[j] >= R_OTHER_SLOW for j in neighbours)
+            cls.append("P" if transition else "X")
         else:
-            cls.append("X" if rr > RR_WINDOW_MAX else "P")
+            cls.append("X" if rr[i] > RR_WINDOW_MAX else "P")
     return fo, mu, cls, fref, mref, min3, len(ref)
 
 
