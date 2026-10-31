@@ -7,6 +7,10 @@
 #        ffa.sh --reeval DIR [--map NAME]                                                   (summary + set evaluation on saved ffa-*.log; no engine)
 #
 # --map NAME replaces the map of the server URL (ADR 0006 section 7); the ?game=FFA?Bots=3?... options stay.
+# Link success and item coverage (ADR 0006 E0.3 b/c, ffa_set.py): link success = ok / (ok + failed) per type, failed = reason missed,
+# timeout, noimpulse, tooslow, not an attempt = replaced, below_start, ineligible (printed as aborted=<n>), judged from 30 attempts;
+# item coverage is per pickup instance, keyed (definition, at=) from the VeloxPickupReset / VeloxPickup lines, per definition on old
+# logs without at=; BAND_FFA_COVERAGE_EXEMPT is honoured on L_ItemTest / L_CombatTest / L_MovementTest only (else ignored, warning).
 # Bands are per map: infra/ci/bands/<Map>.sh (lib.sh ci_load_bands; the default map L_ItemTest has one: the D36/D51 sum of kills >= 74
 # over 10 runs, kills >= 2 / pickups >= 20 / Mega >= 1 per run). A map without a band file runs report-only (`band=none`) and prints
 # every metric. The map-independent invariants are judged on every map, see ffa_set.py: left_arena, world_kill, no_nav_point, giveup,

@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 04 (runner), ADR 0006 E0.3 (a)–(c)
 
 ## Goal
@@ -19,13 +19,13 @@ The item-coverage invariant judges every pickup *instance* (DM1 has 2 YA, 6 shar
 - `docs/adr/evidence/0005-D51-single-shot/` (the `--reeval` sets)
 
 ## Acceptance criteria
-- [ ] **`at=` on the pickup lines.** `VeloxPickup item=… take=<n> at=X,Y,Z` (trailing field), the same on `VeloxPickupReset` and `VeloxPickupRespawn`. Build green; `Velox.Items.*` tests and `fts.sh` (`FtItemPickup` parses nothing positional after `take=` — verify) pass.
-- [ ] **Coverage by instance.** `ffa_summary.py` records `(definition, at)` for resets and takes when `at=` is present; `ffa_set.py` judges per instance in that case and falls back to per definition when any run lacks `at=` (old logs). Output: `item_coverage <taken>/<present> pickups (<d> definitions)`; untaken instances listed as `<definition>@(X,Y,Z)`. `nettest.sh`'s pickup counters are unaffected.
-- [ ] **Exemption scope.** `BAND_FFA_COVERAGE_EXEMPT` is applied only when the map is `L_ItemTest`, `L_CombatTest` or `L_MovementTest`; on any other map it is ignored with a printed warning (`exemption ignored on <Map>: test maps only (ADR 0006 E0.3 a)`). The `L_ItemTest` band file comments name the two items and E0.3 (a)'s reasons.
-- [ ] **Link definition.** In both runners: per type, `ok` from `result=ok`; **failed when `reason` ∈ {missed, timeout, noimpulse, tooslow}**; **not an attempt when `reason` ∈ {replaced, below_start, ineligible}** (counted as `aborted=<n>` per type and printed); unknown reasons count as failed and are printed. Success = ok / (ok + failed). `LINK_MIN_ATTEMPTS` / `INV_LINK_MIN_ATTEMPTS` = 30. `FLAG` printed when `aborted ≥ ok` for a type over a set (report-only, no FAIL).
-- [ ] **Re-evaluation unchanged.** `nettest.sh --reeval <set>/nettest` for `botrun-medium`, `botduel`, `botrun-easy` and `ffa.sh --reeval <ffa dir>` of `docs/adr/evidence/0005-D51-single-shot`: every round and set verdict line byte-identical to the task-04 output; only the link lines gain `aborted=` and the sample note, and `item_coverage` keeps its per-definition figure (old logs have no `at=`). Paste the diff.
-- [ ] **Live.** Idle host, soak lock: `ffa.sh --repeat 1` on `L_ItemTest` shows `at=` in the log and the per-instance coverage line (`n/j`, 1 run); `nettest.sh --scripts BotRun` PASS with the new link line.
-- [ ] Header comments of both scripts and `infra/ci/README.md` state the definition (E0.3 b), the 30-attempt minimum, the per-instance rule and the exemption scope.
+- [x] **`at=` on the pickup lines.** `VeloxPickup item=… take=<n> at=X,Y,Z` (trailing field), the same on `VeloxPickupReset` and `VeloxPickupRespawn`. Build green; `Velox.Items.*` tests and `fts.sh` (`FtItemPickup` parses nothing positional after `take=` — verify) pass.
+- [x] **Coverage by instance.** `ffa_summary.py` records `(definition, at)` for resets and takes when `at=` is present; `ffa_set.py` judges per instance in that case and falls back to per definition when any run lacks `at=` (old logs). Output: `item_coverage <taken>/<present> pickups (<d> definitions)`; untaken instances listed as `<definition>@(X,Y,Z)`. `nettest.sh`'s pickup counters are unaffected.
+- [x] **Exemption scope.** `BAND_FFA_COVERAGE_EXEMPT` is applied only when the map is `L_ItemTest`, `L_CombatTest` or `L_MovementTest`; on any other map it is ignored with a printed warning (`exemption ignored on <Map>: test maps only (ADR 0006 E0.3 a)`). The `L_ItemTest` band file comments name the two items and E0.3 (a)'s reasons.
+- [x] **Link definition.** In both runners: per type, `ok` from `result=ok`; **failed when `reason` ∈ {missed, timeout, noimpulse, tooslow}**; **not an attempt when `reason` ∈ {replaced, below_start, ineligible}** (counted as `aborted=<n>` per type and printed); unknown reasons count as failed and are printed. Success = ok / (ok + failed). `LINK_MIN_ATTEMPTS` / `INV_LINK_MIN_ATTEMPTS` = 30. `FLAG` printed when `aborted ≥ ok` for a type over a set (report-only, no FAIL).
+- [x] **Re-evaluation unchanged.** `nettest.sh --reeval <set>/nettest` for `botrun-medium`, `botduel`, `botrun-easy` and `ffa.sh --reeval <ffa dir>` of `docs/adr/evidence/0005-D51-single-shot`: every round and set verdict line byte-identical to the task-04 output; only the link lines gain `aborted=` and the sample note, and `item_coverage` keeps its per-definition figure (old logs have no `at=`). Paste the diff.
+- [x] **Live.** Idle host, soak lock: `ffa.sh --repeat 1` on `L_ItemTest` shows `at=` in the log and the per-instance coverage line (`n/j`, 1 run); `nettest.sh --scripts BotRun` PASS with the new link line.
+- [x] Header comments of both scripts and `infra/ci/README.md` state the definition (E0.3 b), the 30-attempt minimum, the per-instance rule and the exemption scope.
 
 ## Verification steps
 1. `infra/ci/build.sh`; `infra/ci/fts.sh` → `OK 7/7`.
@@ -37,3 +37,5 @@ The item-coverage invariant judges every pickup *instance* (DM1 has 2 YA, 6 shar
 Standard format plus the `--reeval` diffs and the live invariants table.
 
 ## Notes / outcome
+
+Done 2026-10-31 (dev). `at=` added to the three pickup log lines (log-line change only). Runners judge links by `reason=` (failed: missed/timeout/noimpulse/tooslow/unknown; not an attempt: replaced/below_start/ineligible, printed as `aborted=<n>`, FLAG when aborted >= ok), minimum 30 attempts, per-instance item coverage with per-definition fallback on old logs, exemption honoured on L_ItemTest/L_CombatTest/L_MovementTest only (otherwise `WARNING: exemption ignored on <Map>: test maps only (ADR 0006 E0.3 a)`). `--reeval` of the D51 sets: all round/set verdict lines unchanged; only the link lines gain `aborted=` and the sample note. Build 107 tests OK, fts OK 7/7, live FFA x1 on L_ItemTest shows `at=` and `18/23 pickups (23 definitions)`, BotRun PASS. Deviation: the `item_coverage` row of the FFA table in instance mode reads `n/m pickups (d definitions)` and the link row gains `aborted=<n>`; unknown link reasons are reported in a `link unknown reasons` line (new). Report: none written (returned inline).

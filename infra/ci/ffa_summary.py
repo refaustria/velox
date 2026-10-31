@@ -4,6 +4,10 @@ report-only diagnostics. Copy of a04d/summary.py + the stall.py dwell scan + ram
 ADR 0006 section 7: per-map bands come from BAND_FFA_* environment variables (infra/ci/bands/<Map>.sh via lib.sh ci_load_bands; unset =
 report-only), the map-independent invariants are fixed here: left_arena, world_kill, no_nav_point, giveup, bursts, max dwell <= 5 s, nav
 build <= 2 s; the json also carries the item and link figures for ffa_set.py (item coverage, link success per type).
+Link outcomes are judged by reason= (ADR 0006 E0.3 b): failed = missed, timeout, noimpulse, tooslow (and any unknown reason, printed by
+ffa_set.py); not an attempt = replaced, below_start, ineligible (counted as aborted per type). link_types[type] = [ok, failed, aborted].
+Pickup lines carry a trailing at=<X,Y,Z> (E0.3 c): resets_at / takes_at list [definition, at] pairs so ffa_set.py can judge every pickup
+instance; a log without at= leaves at = null and ffa_set.py falls back to per definition.
 Usage: summary.py <log> [label]"""
 import collections
 import datetime
@@ -61,8 +65,14 @@ pocket = 0
 nav_secs = []
 no_nav = world_kills = 0
 left_arena = None
-link_types = collections.defaultdict(lambda: [0, 0])   # type -> [ok, failed]; "aborted" (replaced, below_start) is a re-plan, not an attempt
+LINK_FAILED_REASONS = ('missed', 'timeout', 'noimpulse', 'tooslow')       # ADR 0006 E0.3 (b)
+LINK_NOT_ATTEMPT_REASONS = ('replaced', 'below_start', 'ineligible')      # re-plans (D28): not attempts
+link_types = collections.defaultdict(lambda: [0, 0, 0])   # type -> [ok, failed, aborted]
+link_unknown = collections.Counter()   # result/reason outside both lists: counted failed
 resets = []
+resets_at = []
+takes_at = []
+AT = re.compile(r' at=(V\(.*?\))')
 spawns = []
 taken = collections.Counter()
 strike_list = []
@@ -86,6 +96,8 @@ with open(path, 'rb') as f:
         m = re.search(r'VeloxPickupReset item=(\S+)', line)
         if m:
             resets.append(m.group(1))
+            am = AT.search(line)
+            resets_at.append([m.group(1), am.group(1) if am else None])
             continue
         m = re.search(r'VeloxPickupSpawn item=(\S+) at=(V\(.*?\))', line)
         if m:
@@ -96,6 +108,8 @@ with open(path, 'rb') as f:
             if m and m.group(1) not in ('-', 'none'):
                 im = re.search(r'item=(\S+)', line)
                 taken[im.group(1)] += 1
+                am = AT.search(line)
+                takes_at.append([im.group(1), am.group(1) if am else None])
                 pickups += 1
                 if 'item=DA_Item_Weapon_' in line:
                     weapon_pickups += 1
@@ -143,8 +157,13 @@ with open(path, 'rb') as f:
             lt = tm.group(1) if tm else '?'
             if m.group(2) == 'ok':
                 link_types[lt][0] += 1
-            elif m.group(2) != 'aborted':
+            elif m.group(3) in LINK_FAILED_REASONS:
                 link_types[lt][1] += 1
+            elif m.group(3) in LINK_NOT_ATTEMPT_REASONS:
+                link_types[lt][2] += 1
+            else:
+                link_types[lt][1] += 1
+                link_unknown[f'{m.group(2)}/{m.group(3)}'] += 1
             if m.group(2) != 'ok':
                 reasons[m.group(3)] += 1
             dt = float(m.group(4))
@@ -248,4 +267,5 @@ with open(path + '.json', 'w') as jf:
                'kills': kills, 'pickups': pickups, 'mega': len(mega_times), 'repaths': repath_total, 'fails': fails,
                'rules': dict(rules), 'speed_strikes': [x for x in strike_list if ':speed' in x],
                'nav_seconds': max(nav_secs) if nav_secs else None, 'world_kills': world_kills, 'left_arena': left_arena, 'no_nav_point': no_nav,
-               'giveup': giveup, 'link_types': dict(link_types), 'resets': resets, 'spawns': spawns, 'taken': dict(taken)}, jf)
+               'giveup': giveup, 'link_types': dict(link_types), 'link_unknown': dict(link_unknown), 'resets': resets, 'spawns': spawns, 'taken': dict(taken),
+               'resets_at': resets_at, 'takes_at': takes_at}, jf)
