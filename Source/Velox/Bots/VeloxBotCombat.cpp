@@ -60,7 +60,8 @@ namespace VeloxBotCombat
 			return EVeloxFireVerdict::NoAmmo;
 		}
 		// D50: a held trigger stays down FireHoldAfterLostSeconds after the target left sight (TargetCentre = last seen).
-		const bool bHeldLost = !In.bTargetVisible && In.bTriggerHeld && Difficulty.FireHoldAfterLostSeconds > 0.f
+		// D51 (2)(a): automatic weapons only; a single-shot weapon's next shot is an aimed one.
+		const bool bHeldLost = In.bAutomaticWeapon && !In.bTargetVisible && In.bTriggerHeld && Difficulty.FireHoldAfterLostSeconds > 0.f
 			&& In.SecondsSinceTargetSeen <= Difficulty.FireHoldAfterLostSeconds;
 		if (!In.bTargetVisible && !bHeldLost)
 		{
@@ -91,12 +92,14 @@ namespace VeloxBotCombat
 		const double CosAngle = FMath::Clamp(FVector::DotProduct(ToDesired, Aim), -1.0, 1.0);
 		const double AngleDeg = FMath::RadiansToDegrees(FMath::Acos(CosAngle));
 		bool bInCone = !ToDesired.IsZero() && AngleDeg <= Difficulty.FireConeDeg;
-		if (bInCone && !bSplash && In.DirectHitRadiusCm > 0.f)
+		// D50/D51: the per-preset gate scale applies to automatic weapons only (0 = cone only); single-shot weapons keep D14's radius.
+		const float Radius = In.DirectHitRadiusCm * (In.bAutomaticWeapon ? FMath::Max(Difficulty.DirectHitRadiusScale, 0.f) : 1.f);
+		if (bInCone && !bSplash && Radius > 0.f)
 		{
 			// Q3 BotCheckAttack: the shot would actually hit (the ray passes the desired point within the hit radius).
 			const FVector ToPoint = In.DesiredPoint - In.Eye;
 			const double Along = FVector::DotProduct(ToPoint, Aim);
-			bInCone = Along > 0.0 && (ToPoint - Aim * Along).Size() <= In.DirectHitRadiusCm;
+			bInCone = Along > 0.0 && (ToPoint - Aim * Along).Size() <= Radius;
 		}
 		const bool bGroundHit = bSplash && In.bAimHit && FVector::Dist(In.AimHitPoint, In.TargetCentre) <= In.SplashRadiusCm * In.SplashHitFraction;
 		if (bInCone || bGroundHit)
@@ -104,7 +107,8 @@ namespace VeloxBotCombat
 			return EVeloxFireVerdict::Fire;
 		}
 		// D50 trigger hysteresis: a held trigger sweeps across the target inside the release cone, without the gate.
-		if (In.bTriggerHeld && Difficulty.FireReleaseConeScale > 1.f && !ToDesired.IsZero() && AngleDeg <= Difficulty.FireConeDeg * Difficulty.FireReleaseConeScale)
+		// D51 (2)(a), (8): automatic weapons only, and FireReleaseConeScale <= 1 means no hysteresis.
+		if (In.bAutomaticWeapon && In.bTriggerHeld && Difficulty.FireReleaseConeScale > 1.f && !ToDesired.IsZero() && AngleDeg <= Difficulty.FireConeDeg * Difficulty.FireReleaseConeScale)
 		{
 			return EVeloxFireVerdict::FireHeld;
 		}
@@ -799,7 +803,9 @@ namespace VeloxBotCombatGlue
 		Fire.SplashRadiusCm = Current ? Current->SplashRadiusCm : 0.f;
 		Fire.SelfSplashMarginCm = Settings.SelfSplashMarginCm;
 		Fire.SplashHitFraction = Settings.SplashHitFraction;
-		Fire.DirectHitRadiusCm = Settings.DirectHitRadiusCm * FMath::Max(Params.DirectHitRadiusScale, 0.f);
+		// D51 (2)(a): the unscaled gate; EvaluateFire scales it for automatic weapons (FireInterval <= SprayMaxFireInterval).
+		Fire.DirectHitRadiusCm = Settings.DirectHitRadiusCm;
+		Fire.bAutomaticWeapon = Current && Current->GetSafeFireInterval() <= Settings.SprayMaxFireInterval;
 		if (const FVeloxBotWeaponPreference* Pref = VeloxBotCombatGlueImpl::FindPreference(Params, Current))
 		{
 			Fire.MinRangeCm = Pref->MinRange;
