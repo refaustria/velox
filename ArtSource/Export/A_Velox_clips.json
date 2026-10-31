@@ -1,0 +1,70 @@
+{
+ "clips": {
+  "Air_Loop": {
+   "frames": 30,
+   "loop": true,
+   "seconds": 0.5
+  },
+  "Crouch_Idle": {
+   "frames": 120,
+   "loop": true,
+   "seconds": 2.0
+  },
+  "Crouch_Walk": {
+   "frames": 48,
+   "loop": true,
+   "seconds": 0.8
+  },
+  "Death_A": {
+   "frames": 48,
+   "loop": false,
+   "seconds": 0.8
+  },
+  "Death_B": {
+   "frames": 48,
+   "loop": false,
+   "seconds": 0.8
+  },
+  "Fire_Upper": {
+   "frames": 9,
+   "loop": false,
+   "seconds": 0.15
+  },
+  "Idle": {
+   "frames": 120,
+   "loop": true,
+   "seconds": 2.0
+  },
+  "Jump_Start": {
+   "frames": 9,
+   "loop": false,
+   "seconds": 0.15
+  },
+  "Land": {
+   "frames": 12,
+   "loop": false,
+   "seconds": 0.2
+  },
+  "Run_Back": {
+   "frames": 36,
+   "loop": true,
+   "seconds": 0.6
+  },
+  "Run_Fwd": {
+   "frames": 36,
+   "loop": true,
+   "seconds": 0.6
+  },
+  "Run_Left": {
+   "frames": 36,
+   "loop": true,
+   "seconds": 0.6
+  },
+  "Run_Right": {
+   "frames": 36,
+   "loop": true,
+   "seconds": 0.6
+  }
+ },
+ "fps": 60
+}
