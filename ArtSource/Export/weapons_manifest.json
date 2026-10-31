@@ -1,0 +1,529 @@
+{
+ "items": [
+  {
+   "asset": "DA_Item_Health_Small",
+   "bounds_max": [
+    7.8,
+    7.8,
+    14.8
+   ],
+   "bounds_min": [
+    -7.8,
+    -7.8,
+    0.0
+   ],
+   "fbx": "SM_Item_Health_Small.fbx",
+   "name": "SM_Item_Health_Small",
+   "tris": 132
+  },
+  {
+   "asset": "DA_Item_Health_Medium",
+   "bounds_max": [
+    11.8,
+    11.8,
+    22.8
+   ],
+   "bounds_min": [
+    -11.8,
+    -11.8,
+    0.0
+   ],
+   "fbx": "SM_Item_Health_Medium.fbx",
+   "name": "SM_Item_Health_Medium",
+   "tris": 132
+  },
+  {
+   "asset": "DA_Item_Health_Large",
+   "bounds_max": [
+    15.8,
+    15.8,
+    30.8
+   ],
+   "bounds_min": [
+    -15.8,
+    -15.8,
+    0.0
+   ],
+   "fbx": "SM_Item_Health_Large.fbx",
+   "name": "SM_Item_Health_Large",
+   "tris": 132
+  },
+  {
+   "asset": "DA_Item_Health_Mega",
+   "bounds_max": [
+    19.38,
+    19.38,
+    38.9
+   ],
+   "bounds_min": [
+    -19.38,
+    -19.38,
+    0.0
+   ],
+   "fbx": "SM_Item_Health_Mega.fbx",
+   "name": "SM_Item_Health_Mega",
+   "tris": 148
+  },
+  {
+   "asset": "DA_Item_Armor_Shard",
+   "bounds_max": [
+    6.0,
+    5.2,
+    22.8
+   ],
+   "bounds_min": [
+    -6.0,
+    -5.2,
+    0.0
+   ],
+   "fbx": "SM_Item_Armor_Shard.fbx",
+   "name": "SM_Item_Armor_Shard",
+   "tris": 12
+  },
+  {
+   "asset": "DA_Item_Armor_Yellow",
+   "bounds_max": [
+    16.0,
+    4.0,
+    34.0
+   ],
+   "bounds_min": [
+    -16.0,
+    -4.0,
+    0.0
+   ],
+   "fbx": "SM_Item_Armor_Yellow.fbx",
+   "name": "SM_Item_Armor_Yellow",
+   "tris": 32
+  },
+  {
+   "asset": "DA_Item_Armor_Red",
+   "bounds_max": [
+    20.8,
+    5.2,
+    44.2
+   ],
+   "bounds_min": [
+    -20.8,
+    -5.2,
+    0.0
+   ],
+   "fbx": "SM_Item_Armor_Red.fbx",
+   "name": "SM_Item_Armor_Red",
+   "tris": 32
+  },
+  {
+   "asset": "DA_Item_Ammo_Bullets",
+   "bounds_max": [
+    11.6,
+    8.6,
+    23.9
+   ],
+   "bounds_min": [
+    -11.6,
+    -8.6,
+    0.0
+   ],
+   "fbx": "SM_Item_Ammo_Bullets.fbx",
+   "name": "SM_Item_Ammo_Bullets",
+   "tris": 78
+  },
+  {
+   "asset": "DA_Item_Ammo_Shells",
+   "bounds_max": [
+    11.6,
+    8.6,
+    22.4
+   ],
+   "bounds_min": [
+    -11.6,
+    -8.6,
+    0.0
+   ],
+   "fbx": "SM_Item_Ammo_Shells.fbx",
+   "name": "SM_Item_Ammo_Shells",
+   "tris": 64
+  },
+  {
+   "asset": "DA_Item_Ammo_Rockets",
+   "bounds_max": [
+    11.6,
+    8.6,
+    29.4
+   ],
+   "bounds_min": [
+    -11.6,
+    -8.6,
+    0.0
+   ],
+   "fbx": "SM_Item_Ammo_Rockets.fbx",
+   "name": "SM_Item_Ammo_Rockets",
+   "tris": 54
+  },
+  {
+   "asset": "DA_Item_Ammo_Cells",
+   "bounds_max": [
+    11.6,
+    8.6,
+    23.4
+   ],
+   "bounds_min": [
+    -11.6,
+    -8.6,
+    0.0
+   ],
+   "fbx": "SM_Item_Ammo_Cells.fbx",
+   "name": "SM_Item_Ammo_Cells",
+   "tris": 72
+  },
+  {
+   "asset": "DA_Item_Ammo_Lightning",
+   "bounds_max": [
+    11.6,
+    8.6,
+    29.4
+   ],
+   "bounds_min": [
+    -11.6,
+    -8.6,
+    0.0
+   ],
+   "fbx": "SM_Item_Ammo_Lightning.fbx",
+   "name": "SM_Item_Ammo_Lightning",
+   "tris": 36
+  },
+  {
+   "asset": "DA_Item_Ammo_Slugs",
+   "bounds_max": [
+    11.6,
+    8.6,
+    24.4
+   ],
+   "bounds_min": [
+    -11.6,
+    -8.6,
+    0.0
+   ],
+   "fbx": "SM_Item_Ammo_Slugs.fbx",
+   "name": "SM_Item_Ammo_Slugs",
+   "tris": 64
+  },
+  {
+   "asset": "DA_Item_Powerup_Quad",
+   "bounds_max": [
+    15.0,
+    12.99,
+    54.6
+   ],
+   "bounds_min": [
+    -15.0,
+    -12.99,
+    0.0
+   ],
+   "fbx": "SM_Item_Powerup_Quad.fbx",
+   "name": "SM_Item_Powerup_Quad",
+   "tris": 56
+  },
+  {
+   "asset": "DA_Item_Powerup_Haste",
+   "bounds_max": [
+    15.0,
+    12.99,
+    54.6
+   ],
+   "bounds_min": [
+    -15.0,
+    -12.99,
+    0.0
+   ],
+   "fbx": "SM_Item_Powerup_Haste.fbx",
+   "name": "SM_Item_Powerup_Haste",
+   "tris": 56
+  },
+  {
+   "asset": "DA_Item_Powerup_Regen",
+   "bounds_max": [
+    15.0,
+    12.99,
+    54.6
+   ],
+   "bounds_min": [
+    -15.0,
+    -12.99,
+    0.0
+   ],
+   "fbx": "SM_Item_Powerup_Regen.fbx",
+   "name": "SM_Item_Powerup_Regen",
+   "tris": 56
+  },
+  {
+   "asset": "DA_Item_Powerup_BattleSuit",
+   "bounds_max": [
+    15.0,
+    12.99,
+    54.6
+   ],
+   "bounds_min": [
+    -15.0,
+    -12.99,
+    0.0
+   ],
+   "fbx": "SM_Item_Powerup_BattleSuit.fbx",
+   "name": "SM_Item_Powerup_BattleSuit",
+   "tris": 56
+  }
+ ],
+ "palette": [
+  {
+   "name": "steel_dark",
+   "srgb": [
+    62,
+    66,
+    78
+   ]
+  },
+  {
+   "name": "steel_mid",
+   "srgb": [
+    110,
+    115,
+    125
+   ]
+  },
+  {
+   "name": "steel_light",
+   "srgb": [
+    180,
+    185,
+    195
+   ]
+  },
+  {
+   "name": "white",
+   "srgb": [
+    245,
+    245,
+    245
+   ]
+  },
+  {
+   "name": "red",
+   "srgb": [
+    240,
+    40,
+    40
+   ]
+  },
+  {
+   "name": "orange",
+   "srgb": [
+    255,
+    150,
+    20
+   ]
+  },
+  {
+   "name": "yellow",
+   "srgb": [
+    255,
+    220,
+    40
+   ]
+  },
+  {
+   "name": "green",
+   "srgb": [
+    40,
+    220,
+    40
+   ]
+  },
+  {
+   "name": "mint",
+   "srgb": [
+    60,
+    240,
+    160
+   ]
+  },
+  {
+   "name": "cyan",
+   "srgb": [
+    40,
+    230,
+    255
+   ]
+  },
+  {
+   "name": "blue",
+   "srgb": [
+    60,
+    120,
+    255
+   ]
+  },
+  {
+   "name": "purple",
+   "srgb": [
+    160,
+    80,
+    255
+   ]
+  },
+  {
+   "name": "pale_yellow",
+   "srgb": [
+    240,
+    240,
+    120
+   ]
+  },
+  {
+   "name": "pale_blue",
+   "srgb": [
+    220,
+    240,
+    255
+   ]
+  },
+  {
+   "name": "dark_red",
+   "srgb": [
+    150,
+    20,
+    20
+   ]
+  },
+  {
+   "name": "brass",
+   "srgb": [
+    170,
+    130,
+    60
+   ]
+  }
+ ],
+ "total_tris": 2052,
+ "weapons": [
+  {
+   "bounds_max": [
+    47.0,
+    4.2,
+    11.0
+   ],
+   "bounds_min": [
+    -20.0,
+    -4.2,
+    -15.0
+   ],
+   "fbx": "SM_Weapon_MachineGun.fbx",
+   "muzzle": [
+    47.0,
+    0.0,
+    5.5
+   ],
+   "name": "SM_Weapon_MachineGun",
+   "tris": 136
+  },
+  {
+   "bounds_max": [
+    58.0,
+    4.7,
+    8.5
+   ],
+   "bounds_min": [
+    -26.0,
+    -4.7,
+    -15.0
+   ],
+   "fbx": "SM_Weapon_Shotgun.fbx",
+   "muzzle": [
+    58.0,
+    0.0,
+    5.0
+   ],
+   "name": "SM_Weapon_Shotgun",
+   "tris": 100
+  },
+  {
+   "bounds_max": [
+    49.5,
+    5.54,
+    12.0
+   ],
+   "bounds_min": [
+    -10.0,
+    -5.54,
+    -15.0
+   ],
+   "fbx": "SM_Weapon_PlasmaGun.fbx",
+   "muzzle": [
+    49.5,
+    0.0,
+    4.0
+   ],
+   "name": "SM_Weapon_PlasmaGun",
+   "tris": 188
+  },
+  {
+   "bounds_max": [
+    58.0,
+    7.21,
+    16.0
+   ],
+   "bounds_min": [
+    -12.0,
+    -7.21,
+    -15.0
+   ],
+   "fbx": "SM_Weapon_RocketLauncher.fbx",
+   "muzzle": [
+    58.0,
+    0.0,
+    6.0
+   ],
+   "name": "SM_Weapon_RocketLauncher",
+   "tris": 148
+  },
+  {
+   "bounds_max": [
+    46.0,
+    8.19,
+    9.0
+   ],
+   "bounds_min": [
+    -16.0,
+    -8.19,
+    -15.0
+   ],
+   "fbx": "SM_Weapon_LightningGun.fbx",
+   "muzzle": [
+    46.0,
+    0.0,
+    4.5
+   ],
+   "name": "SM_Weapon_LightningGun",
+   "tris": 116
+  },
+  {
+   "bounds_max": [
+    74.0,
+    4.16,
+    17.0
+   ],
+   "bounds_min": [
+    -12.0,
+    -4.16,
+    -15.0
+   ],
+   "fbx": "SM_Weapon_Railgun.fbx",
+   "muzzle": [
+    74.0,
+    0.0,
+    4.0
+   ],
+   "name": "SM_Weapon_Railgun",
+   "tris": 152
+  }
+ ]
+}

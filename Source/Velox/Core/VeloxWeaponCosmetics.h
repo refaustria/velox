@@ -63,6 +63,17 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Light", Meta = (ClampMin = "0"))
 	float MuzzleLightIntensity = 0.f;
 
+	/** Projectile weapons: colour of the light that rides the projectile in flight (task M5-13). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Light")
+	FLinearColor ProjectileLightColor = FLinearColor(1.f, 0.55f, 0.2f);
+
+	/** 0 = no flight light. Counted against UVeloxAudioSettings::MaxMovableLights together with the muzzle flashes. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Light", Meta = (ClampMin = "0"))
+	float ProjectileLightIntensity = 0.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Light", Meta = (ClampMin = "0", Units = "cm"))
+	float ProjectileLightRadius = 400.f;
+
 	/** Every soft reference of this asset (meshes, sounds), for the asset manager's resident load (UVeloxAssetManager::LoadWeaponCosmetics). */
 	void GetSoftReferences(TArray<FSoftObjectPath>& OutPaths) const;
 };

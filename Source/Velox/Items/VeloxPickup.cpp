@@ -95,6 +95,13 @@ AVeloxPickup::AVeloxPickup(const FObjectInitializer& ObjectInitializer)
 			Placeholder->SetStaticMesh(CubeMesh.Object);
 		}
 	}
+	ItemMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ItemMesh"));
+	ItemMesh->SetupAttachment(Placeholder);
+	ItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ItemMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	ItemMesh->SetGenerateOverlapEvents(false);
+	ItemMesh->SetCanEverAffectNavigation(false);
+	ItemMesh->SetCastShadow(false);
 	PlaceholderMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Materials/M_PlayerBody.M_PlayerBody")));
 }
 
@@ -200,11 +207,27 @@ void AVeloxPickup::BeginPlay()
 
 	if (!IsNetMode(NM_DedicatedServer))
 	{
-		if (Definition)
+		// Task M5-13: the definition's model replaces the cube. It is a child of the spinning Placeholder, shifted by its bounds
+		// centre (weapon meshes have the grip at the origin), at scale 1. A mesh that fails to load keeps the cube.
+		UStaticMesh* Model = (Definition && !Definition->Mesh.IsNull()) ? Definition->Mesh.LoadSynchronous() : nullptr;
+		if (Model)
 		{
+			ItemMesh->SetStaticMesh(Model);
+			ItemMesh->SetRelativeLocation(-Model->GetBounds().Origin);
+			Placeholder->SetStaticMesh(nullptr);
+			Placeholder->SetRelativeScale3D(FVector::OneVector);
+			UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupMesh item=%s mesh=%s bounds_center=%s"), *GetNameSafe(Definition), *GetNameSafe(Model), *Model->GetBounds().Origin.ToCompactString());
+		}
+		else if (Definition)
+		{
+			if (!Definition->Mesh.IsNull())
+			{
+				UE_LOG(LogVeloxItems, Warning, TEXT("VeloxPickupMesh item=%s mesh=%s failed to load, keeping the placeholder"), *GetNameSafe(Definition), *Definition->Mesh.ToString());
+			}
 			Placeholder->SetRelativeScale3D(Definition->PlaceholderScale);
 		}
-		if (UMaterialInterface* Base = PlaceholderMaterial.IsNull() ? nullptr : PlaceholderMaterial.LoadSynchronous())
+		// The model carries its own palette material; the placeholder colour parameter only applies to the cube.
+		if (UMaterialInterface* Base = (Model || PlaceholderMaterial.IsNull()) ? nullptr : PlaceholderMaterial.LoadSynchronous())
 		{
 			PlaceholderMID = Placeholder->CreateDynamicMaterialInstance(0, Base);
 			if (PlaceholderMID && Definition)
@@ -841,6 +864,11 @@ void AVeloxPickup::UpdatePlaceholder()
 	if (Placeholder)
 	{
 		// M5 plays the pickup / respawn sounds on these transitions (skipped when this machine predicted the take).
-		Placeholder->SetVisibility(IsPlaceholderVisible());
+		Placeholder->SetVisibility(IsPlaceholderVisible(), true);  // propagates to the item model child
 	}
+}
+
+bool AVeloxPickup::IsShowingItemMesh() const
+{
+	return ItemMesh && ItemMesh->GetStaticMesh() != nullptr;
 }

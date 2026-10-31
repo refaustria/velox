@@ -13,6 +13,7 @@
 #include "VeloxItemDefinition.generated.h"
 
 class USoundBase;
+class UStaticMesh;
 class UVeloxGE_Powerup;
 class UVeloxWeaponDefinition;
 
@@ -102,6 +103,13 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics")
 	FVector PlaceholderScale = FVector(0.4, 0.4, 0.4);
+
+	/**
+	 * The pickup's model (task M5-13, Tools/blender/weapons_items.py), shown instead of the placeholder cube on every machine that
+	 * renders. Empty keeps the cube with PlaceholderColor / PlaceholderScale. A dedicated server never loads it.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics")
+	TSoftObjectPtr<UStaticMesh> Mesh;
 
 	/** Played when the item is taken (own takes 2D at prediction, others at the item with SA_Pickup) and when it is back; ADR 0006 section 9. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Audio")

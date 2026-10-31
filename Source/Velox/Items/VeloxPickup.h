@@ -55,6 +55,9 @@ public:
 	bool IsPredictedTaken() const { return bPredictionPending; }
 	/** Whether the placeholder is drawn (available and not predicted taken). */
 	bool IsPlaceholderVisible() const;
+	/** Client: the definition's Mesh is shown (task M5-13) instead of the placeholder cube. Never true on a dedicated server. */
+	bool IsShowingItemMesh() const;
+	const UStaticMeshComponent* GetItemMeshComponent() const { return ItemMesh; }
 
 	/**
 	 * Server: Pawn takes the item if it is available, the pawn is alive and the Q3 rule grants something. Applies the
@@ -101,6 +104,13 @@ protected:
 	/** Greybox look from the definition (unlit colour, scale); no collision; rotates on clients. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Pickup")
 	TObjectPtr<UStaticMeshComponent> Placeholder;
+
+	/**
+	 * The item's model (UVeloxItemDefinition::Mesh), a child of Placeholder so it turns with it; centred on its bounds so a weapon
+	 * (grip origin) and a base-origin item both spin about their middle. Empty until the mesh is set; client only.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Pickup")
+	TObjectPtr<UStaticMeshComponent> ItemMesh;
 
 	/** The item. Placed pickups: set per instance in the level; initial-only replication for spawned ones. */
 	UPROPERTY(EditInstanceOnly, Replicated, BlueprintReadOnly, Category = "Velox|Pickup")

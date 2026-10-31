@@ -25,6 +25,7 @@
 
 class APawn;
 class UAbilitySystemComponent;
+class UPointLightComponent;
 class USphereComponent;
 class UVeloxMovementComponent;
 class UVeloxWeaponDefinition;
@@ -149,6 +150,9 @@ protected:
 	void TickFake(float DeltaSeconds);
 	void TickProxy(float DeltaSeconds);
 
+	/** Attaches the cosmetics' projectile light (shared movable-light budget); retried for MaxFlightLightTries ticks. */
+	void UpdateFlightLight();
+
 	void ServerExplode(const FVeloxProjectileImpact& Impact);
 	void FakeDetonate(const FVeloxProjectileImpact& Impact);
 
@@ -180,6 +184,12 @@ protected:
 	/** ADR 0004 section 3: fired under Quad Damage (direct and splash damage x QuadDamageFactor at the explosion). */
 	UPROPERTY(Replicated)
 	bool bQuad = false;
+
+	/** The in-flight light (null: none, refused by the budget, or not rendered here). Owned by this actor. */
+	UPROPERTY(Transient)
+	TObjectPtr<UPointLightComponent> FlightLight;
+	int32 FlightLightTries = 0;
+	static constexpr int32 MaxFlightLightTries = 30;
 
 	FVeloxProjectileState State;
 	TWeakObjectPtr<UAbilitySystemComponent> SourceASC;
