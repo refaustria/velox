@@ -236,6 +236,7 @@ EYE_Z = 160.0
 
 # ---------------------------------------------------------------- nav links (ADR 0005 section 4; Tools/editor/README.md)
 DROP_IN, DROP_OUT = 60.0, 150.0
+DROP_OUT_TALL = 350.0      # 320 cm and 640 cm drops: a bot leaves the edge at 400..800 cm/s and lands 250..600 cm out; LinkEndAcceptanceCm is 150 (task 06)
 
 
 def _drop(i, sx, sy, sz, ex, ey, ez):
@@ -249,23 +250,23 @@ LINKS = [
     Link("RJ_West", "ROCKET_JUMP", (-650, 0, 320), (0, 0, 640), None),   # run-up 450 cm from the top slab edge (x -200)
     Link("RJ_East", "ROCKET_JUMP", (650, 0, 320), (0, 0, 640), None),
     # drops: 60 cm inside the free edge, 150 cm outside it
-    _drop("Drop_ALedge_N", -2100 + DROP_IN, 450, 320, -2100 - DROP_OUT, 450, 0),
-    _drop("Drop_ALedge_S", -2100 + DROP_IN, -450, 320, -2100 - DROP_OUT, -450, 0),
-    _drop("Drop_BBalcony", 2100 - DROP_IN, 0, 320, 2100 + DROP_OUT, 0, 0),
+    _drop("Drop_ALedge_N", -2100 + DROP_IN, 450, 320, -2100 - DROP_OUT_TALL, 450, 0),
+    _drop("Drop_ALedge_S", -2100 + DROP_IN, -450, 320, -2100 - DROP_OUT_TALL, -450, 0),
+    _drop("Drop_BBalcony", 2100 - DROP_IN, 0, 320, 2100 + DROP_OUT_TALL, 0, 0),
     _drop("Drop_DBalcony_1", -1200, -1800 - DROP_IN, 320, -1200, -1800 + DROP_OUT, 0),
     _drop("Drop_DBalcony_2", -400, -1800 - DROP_IN, 320, -400, -1800 + DROP_OUT, 0),
     _drop("Drop_DBalcony_3", 400, -1800 - DROP_IN, 320, 400, -1800 + DROP_OUT, 0),
     _drop("Drop_DBalcony_4", 1200, -1800 - DROP_IN, 320, 1200, -1800 + DROP_OUT, 0),
-    _drop("Drop_DockW_N", -450, 200 - DROP_IN, 320, -450, 200 + DROP_OUT, 0),
-    _drop("Drop_DockW_S", -450, -200 + DROP_IN, 320, -450, -200 - DROP_OUT, 0),
-    _drop("Drop_DockE_N", 450, 200 - DROP_IN, 320, 450, 200 + DROP_OUT, 0),
-    _drop("Drop_DockE_S", 450, -200 + DROP_IN, 320, 450, -200 - DROP_OUT, 0),
-    _drop("Drop_MidBridge_N", 0, 200 - DROP_IN, 320, 0, 200 + DROP_OUT, 0),
-    _drop("Drop_MidBridge_S", 0, -200 + DROP_IN, 320, 0, -200 - DROP_OUT, 0),
+    _drop("Drop_DockW_N", -450, 200 - DROP_IN, 320, -450, 200 + DROP_OUT_TALL, 0),
+    _drop("Drop_DockW_S", -450, -200 + DROP_IN, 320, -450, -200 - DROP_OUT_TALL, 0),
+    _drop("Drop_DockE_N", 450, 200 - DROP_IN, 320, 450, 200 + DROP_OUT_TALL, 0),
+    _drop("Drop_DockE_S", 450, -200 + DROP_IN, 320, 450, -200 - DROP_OUT_TALL, 0),
+    _drop("Drop_MidBridge_N", 0, 200 - DROP_IN, 320, 0, 200 + DROP_OUT_TALL, 0),
+    _drop("Drop_MidBridge_S", 0, -200 + DROP_IN, 320, 0, -200 - DROP_OUT_TALL, 0),
     _drop("Drop_Top_W", -200 + DROP_IN, 0, 640, -200 - DROP_OUT, 0, 320),
     _drop("Drop_Top_E", 200 - DROP_IN, 0, 640, 200 + DROP_OUT, 0, 320),
-    _drop("Drop_Top_N", 0, 250 - DROP_IN, 640, 0, 250 + DROP_OUT, 0),
-    _drop("Drop_Top_S", 0, -250 + DROP_IN, 640, 0, -250 - DROP_OUT, 0),
+    _drop("Drop_Top_N", 0, 250 - DROP_IN, 640, 0, 250 + DROP_OUT_TALL, 0),
+    _drop("Drop_Top_S", 0, -250 + DROP_IN, 640, 0, -250 - DROP_OUT_TALL, 0),
 ]
 
 # ---------------------------------------------------------------- lights (task 15 placeholders; not spawned in blockout mode)
