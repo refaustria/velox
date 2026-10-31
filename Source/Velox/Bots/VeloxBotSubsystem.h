@@ -1,0 +1,232 @@
+// Velox - server-side bot world state (ADR 0005 sections 3, 4, 12): the nav-ready flag (runtime Recast build at map
+// load), the nav-link registry (FindLinkByStart for the path follower), the master random seed (velox.bots.Seed), and
+// the bot / projectile registries that tasks 04 and 05 fill. Created only on the authority (NetMode != NM_Client).
+
+#pragma once
+
+#include "Bots/VeloxBotCost.h"
+#include "Engine/TimerHandle.h"
+#include "Engine/EngineBaseTypes.h"
+#include "Stats/Stats.h"
+#include "Subsystems/WorldSubsystem.h"
+
+#include "VeloxBotSubsystem.generated.h"
+
+class ANavigationData;
+class AVeloxBotController;
+class UVeloxBotDifficulty;
+class AVeloxNavLink;
+class AVeloxProjectile;
+class UWorld;
+
+// ADR 0005 section 13: per-phase cycle stats of the bot controllers (`stat VeloxBots`).
+DECLARE_STATS_GROUP(TEXT("VeloxBots"), STATGROUP_VeloxBots, STATCAT_Advanced);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Think"), STAT_VeloxBots_Think, STATGROUP_VeloxBots, VELOX_API);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Perceive"), STAT_VeloxBots_Perceive, STATGROUP_VeloxBots, VELOX_API);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Path"), STAT_VeloxBots_Path, STATGROUP_VeloxBots, VELOX_API);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Steer"), STAT_VeloxBots_Steer, STATGROUP_VeloxBots, VELOX_API);
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Apply"), STAT_VeloxBots_Apply, STATGROUP_VeloxBots, VELOX_API);
+
+/** Task M4-08: wall clock of the fixed calibration work in the VeloxBotCost line (us). */
+struct FVeloxBotCalib
+{
+	double AluMicros = 0.0;
+	double MemMicros = 0.0;
+	double AllocMicros = 0.0;
+	double ClockMicros = 0.0;
+};
+
+/** A link end matched by FindLinkByStart. */
+struct FVeloxNavLinkMatch
+{
+	AVeloxNavLink* Link = nullptr;
+	/** True when the point matched the link's end, i.e. a BothWays link traversed right to left. */
+	bool bReversed = false;
+	/** Horizontal distance of the point from the matched end (cm). */
+	double Distance2D = 0.0;
+};
+
+UCLASS()
+class VELOX_API UVeloxBotSubsystem : public UWorldSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	static UVeloxBotSubsystem* Get(const UWorld* World);
+
+	/**
+	 * World-free link-end matching (FindLinkByStart's rule, testable): the index of the candidate whose end lies within
+	 * Radius horizontally and MaxDeltaZ vertically of Point, nearest first; INDEX_NONE if none. Ends[i] is a link start
+	 * (or, for BothWays links, also its end as a separate candidate).
+	 */
+	static int32 FindNearestEnd(const TArray<FVector>& Ends, const FVector& Point, double Radius, double MaxDeltaZ);
+
+	// --- Nav readiness (ADR 0005 section 3) ---
+
+	/** The runtime nav mesh has finished its initial build (tiles > 0, no build task pending). Bots wait for this. */
+	bool IsNavReady() const { return bNavReady; }
+	/** The map has no NavMeshBoundsVolume, so no nav data will be built (5.8 has no whole-world mode). */
+	bool IsNavUnavailable() const { return bNavUnavailable; }
+	/** Runs Callback now if the nav is ready, else once when it becomes ready; dropped (warning) on a map without nav bounds. */
+	void CallWhenNavReady(TFunction<void()> Callback);
+	/** Wall-clock seconds from world init to the nav-ready flag (-1 until ready). */
+	double GetNavBuildSeconds() const { return NavBuildSeconds; }
+	/** The world's default nav data (the one Recast mesh), or null. */
+	ANavigationData* GetNavData() const;
+
+	// --- Nav links (ADR 0005 section 4) ---
+
+	void RegisterNavLink(AVeloxNavLink* Link);
+	void UnregisterNavLink(AVeloxNavLink* Link);
+	TArray<AVeloxNavLink*> GetNavLinks() const;
+	/**
+	 * The enabled link whose start (or, for a BothWays link, end) matches a path point: within Radius (cm) horizontally
+	 * and the link's snap height vertically, nearest first. Recast inserts the link ends as path points, so the match is
+	 * a few centimetres at most; Radius is normally the link's snap radius.
+	 */
+	FVeloxNavLinkMatch FindLinkByStart(const FVector& Point, double Radius) const;
+
+	// --- Random seed (ADR 0005 section 12) ---
+
+	/** velox.bots.Seed if non-zero (deterministic tests), else the time-based seed drawn at world begin play. */
+	int32 GetMasterSeed() const;
+
+	// --- Bots (ADR 0005 section 12) ---
+
+	/**
+	 * Adds a bot: spawns an AVeloxBotController (its PlayerState comes from bWantsPlayerState), names it (Name, else the
+	 * next free UVeloxBotSettings::BotNames entry), flags it IsABot, gives it a palette colour and restarts it through the
+	 * game mode (outside PostMatch). Null when refused: no Velox game mode, or the mode's MaxActivePlayers reached
+	 * (`VeloxBot add refused reason=full`). Difficulty null = UVeloxBotSettings::DefaultDifficulty.
+	 */
+	AVeloxBotController* AddBot(const UVeloxBotDifficulty* Difficulty = nullptr, const FString& Name = FString());
+	/** Removes the bot named NameOrAll (case-insensitive), or every bot for "all": pawn and controller destroyed, Logout runs. Count removed. */
+	int32 KickBot(const FString& NameOrAll);
+	/** Easy | Medium | Hard | Expert (or a DA_Bot_* asset name / object path); empty = the settings default. Null if unknown. */
+	static const UVeloxBotDifficulty* LoadDifficulty(const FString& NameOrPath);
+
+	/** Registration (AVeloxBotController::BeginPlay / EndPlay): assigns the lowest free BotIndex (perception stagger). */
+	void RegisterBot(AVeloxBotController* Bot);
+	void UnregisterBot(AVeloxBotController* Bot);
+	TArray<AVeloxBotController*> GetBots() const;
+	int32 NumBots() const { return GetBots().Num(); }
+	/** The bot whose player name matches (case-insensitive), or null. */
+	AVeloxBotController* FindBot(const FString& Name) const;
+
+	/** Authority projectiles (AVeloxProjectile::BeginPlay); unregistered by their OnEndPlay. */
+	void RegisterProjectile(AVeloxProjectile* Projectile);
+	void UnregisterProjectile(AVeloxProjectile* Projectile);
+	/** Live (not exploded) registered projectiles. */
+	TArray<AVeloxProjectile*> GetProjectiles() const;
+
+	// --- Budget (ADR 0005 section 13) ---
+
+	/**
+	 * One controller tick of Bot took Micros (wall clock). Accumulated into the `VeloxBotBudget bots= mean_us= max_us=
+	 * paths=/s traces=/s` line every UVeloxBotCombatSettings::BudgetLogIntervalSeconds. max_us and the warning exclude
+	 * path-query ticks (D10; max_path_us reports them) and ticks that held the fire input (the fire ability's server
+	 * path, shared with players and logged per shot; max_fire_us reports them); a tick above UVeloxBotSettings::BudgetWarnMicroseconds is counted
+	 * (`over=`) and warned about at most once per interval. `stalls=` counts ticks of any kind above 10 ms and `frames=` the server frames of the window (D46).
+	 */
+	void RecordBotTick(const AVeloxBotController& Bot, double Micros, int32 PathQueries, bool bFireTick = false);
+	void NoteTraces(int32 Count) { BudgetTraces += Count; }
+	void NoteNavRaycast() { ++BudgetNavRaycasts; }
+	/**
+	 * Task M4-08 (report-only): wall clock of one category scope of a bot tick (VeloxBotCost.h). Printed per window as the
+	 * `VeloxBotCost` line: per category the mean per bot tick and the window maximum, plus the server frame's phases.
+	 */
+	void NoteCost(EVeloxBotCost Cost, double Micros)
+	{
+		const int32 i = static_cast<int32>(Cost);
+		CostSum[i] += Micros;
+		CostMax[i] = FMath::Max(CostMax[i], Micros);
+	}
+
+	/** Whole-run budget figures (functional tests, velox.bots.List). */
+	double GetBudgetMeanMicros() const { return TotalTicks > 0 ? TotalMicros / TotalTicks : 0.0; }
+	double GetBudgetMaxMicros() const { return TotalMaxMicros; }
+
+protected:
+	//~UWorldSubsystem interface
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
+	//~End of UWorldSubsystem interface
+
+private:
+	void PollNavReady();
+	void LogBudget();
+	/** Task M4-08: the server frame's phases (report-only, `VeloxBotCost frame_*`). */
+	void HandleWorldTickStart(UWorld* InWorld, ELevelTick TickType, float DeltaSeconds);
+	void HandleWorldPreActorTick(UWorld* InWorld, ELevelTick TickType, float DeltaSeconds);
+	void HandleWorldPostActorTick(UWorld* InWorld, ELevelTick TickType, float DeltaSeconds);
+	void HandleWorldTickEnd(UWorld* InWorld, ELevelTick TickType, float DeltaSeconds);
+	/** Task M4-08: the calib_* fixed work of the VeloxBotCost line. */
+	FVeloxBotCalib RunCalib();
+	UFUNCTION()
+	void HandleProjectileEndPlay(AActor* Actor, EEndPlayReason::Type EndPlayReason);
+	UFUNCTION()
+	void OnNavigationGenerationFinished(ANavigationData* NavData);
+	void MarkNavReady();
+	/** Pad/pickup trigger components the nav system would export (must be zero: ADR 0005 section 3). */
+	int32 CountNavRelevantTriggers() const;
+
+	TArray<TWeakObjectPtr<AVeloxNavLink>> NavLinks;
+	TArray<TWeakObjectPtr<AVeloxBotController>> Bots;
+	TArray<TWeakObjectPtr<AVeloxProjectile>> Projectiles;
+
+	TArray<TFunction<void()>> NavReadyCallbacks;
+	FTimerHandle NavPollHandle;
+	double WorldInitSeconds = 0.0;
+	double NavBuildSeconds = -1.0;
+	bool bNavReady = false;
+	bool bLoggedBuilding = false;
+	bool bWarnedSlowBuild = false;
+	/** The map has no nav bounds: no nav data will ever be built (logged once, polling stopped). */
+	bool bNavUnavailable = false;
+
+	int32 TimeSeed = 0;
+
+	FTimerHandle BudgetHandle;
+	double BudgetWindowStart = 0.0;
+	double BudgetMicros = 0.0;
+	double BudgetMaxMicros = 0.0;
+	double BudgetMaxPathMicros = 0.0;
+	double BudgetMaxFireMicros = 0.0;
+	int64 BudgetTicks = 0;
+	int32 BudgetPaths = 0;
+	int32 BudgetTraces = 0;
+	int32 BudgetNavRaycasts = 0;
+	int32 BudgetOver = 0;
+	/** Ticks of any kind above 10 ms in this window (D46(a)). */
+	int32 BudgetStalls = 0;
+	/** GFrameCounter at the window start; the `frames=` field is the delta (D46(a)). */
+	uint64 BudgetFrameStart = 0;
+	bool bBudgetWarned = false;
+	double TotalMicros = 0.0;
+	double TotalMaxMicros = 0.0;
+	int64 TotalTicks = 0;
+
+	// Task M4-08 (report-only) per-category bot tick cost and server frame phases of the window.
+	double CostSum[static_cast<int32>(EVeloxBotCost::Num)] = {};
+	double CostMax[static_cast<int32>(EVeloxBotCost::Num)] = {};
+	uint64 FrameTickStartCycles = 0;
+	uint64 FramePreActorCycles = 0;
+	uint64 FramePostActorCycles = 0;
+	double FrameWorldMicros = 0.0;
+	double FrameWorldMaxMicros = 0.0;
+	double FrameDispatchMicros = 0.0;
+	double FrameActorMicros = 0.0;
+	double FrameFlushMicros = 0.0;
+	int64 FrameCount = 0;
+	/** Keeps the calib_* loops from being optimised away. */
+	uint64 CalibSink = 0;
+	/** Random-walk table of calib_mem_us. */
+	TArray<uint32> CalibTable;
+	FDelegateHandle TickStartHandle;
+	FDelegateHandle PreActorHandle;
+	FDelegateHandle PostActorHandle;
+	FDelegateHandle TickEndHandle;
+};

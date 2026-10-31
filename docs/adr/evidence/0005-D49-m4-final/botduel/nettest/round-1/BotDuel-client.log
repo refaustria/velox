@@ -1,0 +1,158 @@
+LogInit: Display: Running engine for game: Velox
+LogCsvProfiler: Display: Metadata set : commandline="" /home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Velox.uproject 127.0.0.1:7961?SpectatorOnly=1 -game -log -stdout -FullStdOutLogOutput -nullrhi -nosound -unattended -nopause -nosplash -ExecCmds="t.MaxFPS 120, log LogVeloxMovement Verbose, log LogVeloxNet Verbose, velox.bots.Watch 120" -WINDOWED -ResX=320 -ResY=240 -PktLag=100 -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=80 -PktIncomingLagMax=120 -PktIncomingLoss=2""
+Failed to find game directory: /opt/UnrealEngine-5.8/Velox/Binaries
+LogPluginManager: Found matching target receipt: ../../../../../home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Binaries/Linux/VeloxEditor.target
+LogPluginManager: Found matching target receipt: ../../../../../home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Binaries/Linux/VeloxEditor.target
+LogInit: Command Line: 127.0.0.1:7961?SpectatorOnly=1 -game -log -stdout -FullStdOutLogOutput -nullrhi -nosound -unattended -nopause -nosplash -ExecCmds="t.MaxFPS 120, log LogVeloxMovement Verbose, log LogVeloxNet Verbose, velox.bots.Watch 120" -WINDOWED -ResX=320 -ResY=240 -PktLag=100 -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=80 -PktIncomingLagMax=120 -PktIncomingLoss=2
+[2026.10.31-08.35.52:675][  0]Launching UnrealBuildTool... [/opt/UnrealEngine-5.8/Engine/Build/BatchFiles/Linux/Build.sh -Mode=ValidatePlatforms -OutputSDKs  -AllPlatforms  -project="/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Velox.uproject" -log="/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Saved/Logs/AutoSDKInfo.txt" -verbose -timestamps -progress]
+Running command : dotnet Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.dll -Mode=ValidatePlatforms -OutputSDKs -AllPlatforms -project=/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Velox.uproject -log=/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Saved/Logs/AutoSDKInfo.txt -verbose -timestamps -progress
+[2026.10.31-08.35.57:314][  0]LogModuleManager: InternalLoadLibrary: 'Velox' ('/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Binaries/Linux/libUnrealEditor-Velox.so')
+[2026.10.31-08.35.58:365][  0]LogTemp: Error test: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.35.58:365][  0]LogTemp: Error with param: UE::UnifiedErrorTest::WithInt: [Error with int -7]
+[2026.10.31-08.35.58:365][  0]LogTemp: Error with context: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.35.58:365][  0]LogTemp: FError that has been invalidated: ::: []
+[2026.10.31-08.35.58:365][  0]LogTemp: FError that has been moved from: ::: []
+[2026.10.31-08.35.58:535][  0]LogVelox: VeloxSettings applied sens=5.000 deg_per_count=0.1100 invert_y=0 fov=105.0 autoswitch=1 crosshair=0/24 name=Player aa=MSAA4 r.AntiAliasingMethod=3 r.MSAACount=4 fps_limit=0 vol master=1.00 effects=1.00 music=1.00
+[2026.10.31-08.35.58:541][  0]LogVelox: UVeloxGameInstance initialised.
+[2026.10.31-08.35.59:142][  0]LogNetVersion: Velox 1.0.0.0, NetCL: 55116800, EngineNetworkVersion: 44, GameNetworkVersion: 0 (Checksum: 3779376671)
+[2026.10.31-08.35.59:611][  0]LogHAL: Log category LogVeloxMovement verbosity has been raised to Verbose.
+[2026.10.31-08.35.59:611][  0]LogVeloxMovement                          Verbose       
+[2026.10.31-08.35.59:611][  0]LogHAL: Log category LogVeloxNet verbosity has been raised to Verbose.
+[2026.10.31-08.35.59:611][  0]LogVeloxNet                               Verbose       
+[2026.10.31-08.36.00:045][ 53]LogNet: Welcomed by server (Level: /Game/Maps/L_ItemTest, Game: /Script/Velox.VeloxGameMode_Duel)
+[2026.10.31-08.36.00:045][ 53]LogLoad: LoadMap: 127.0.0.1:7961/Game/Maps/L_ItemTest?Name=Player?SpectatorOnly=1?game=/Script/Velox.VeloxGameMode_Duel
+[2026.10.31-08.36.00:492][ 96]LogVelox: VeloxHUD scoreboard class=VeloxScoreboardWidget created=1 in_viewport=1
+[2026.10.31-08.36.00:492][ 96]LogVelox: VeloxHUD widget class=VeloxHUDWidget created=1 in_viewport=1
+[2026.10.31-08.36.00:492][ 96]LogVeloxMatch: VeloxMatch client phase=Countdown old=Warmup start=0.017 end=20.017 live_start=0.000 overtime=0 winner=None server_now=11.337
+[2026.10.31-08.36.00:543][102]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar None -> VeloxPlayerState_0 (0 abilities)
+[2026.10.31-08.36.00:544][102]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxPlayerState_1 (0 abilities)
+[2026.10.31-08.36.00:545][102]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxPlayerState_1 -> VeloxCharacter_0 (0 abilities)
+[2026.10.31-08.36.00:545][102]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar None -> VeloxPlayerState_2 (0 abilities)
+[2026.10.31-08.36.00:545][102]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar VeloxPlayerState_2 -> VeloxCharacter_1 (0 abilities)
+[2026.10.31-08.36.00:643][115]LogVeloxBots: VeloxBotWatch started seconds=120
+[2026.10.31-08.36.00:643][115]LogVeloxBots: VeloxBotWatch phase=Countdown old=-
+[2026.10.31-08.36.00:643][115]LogVeloxBots: VeloxBotWatch t=0 phase=Countdown players=3 feed=0 pickups_taken=0
+[2026.10.31-08.36.04:643][595]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Celer
+[2026.10.31-08.36.05:393][685]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Celer
+[2026.10.31-08.36.05:643][715]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Celer
+[2026.10.31-08.36.06:393][805]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Celer
+[2026.10.31-08.36.09:177][138]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_2 (0 abilities)
+[2026.10.31-08.36.09:178][138]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar None -> VeloxCharacter_3 (0 abilities)
+[2026.10.31-08.36.09:178][138]LogVeloxMatch: VeloxMatch client phase=Live old=Countdown start=20.017 end=620.017 live_start=20.017 overtime=0 winner=None server_now=20.015
+[2026.10.31-08.36.09:393][165]LogVeloxBots: VeloxBotWatch phase=Live old=Countdown
+[2026.10.31-08.36.10:643][315]LogVeloxBots: VeloxBotWatch t=10 phase=Live players=3 feed=0 pickups_taken=4
+[2026.10.31-08.36.12:644][555]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Rapidus
+[2026.10.31-08.36.13:144][615]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Mega taken_by=Celer
+[2026.10.31-08.36.15:144][855]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Celer
+[2026.10.31-08.36.16:394][  5]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Rapidus
+[2026.10.31-08.36.20:394][485]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Rapidus
+[2026.10.31-08.36.20:645][515]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Celer
+[2026.10.31-08.36.20:645][515]LogVeloxBots: VeloxBotWatch t=20 phase=Live players=3 feed=0 pickups_taken=10
+[2026.10.31-08.36.21:361][600]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.36.22:135][693]LogVeloxCombat: VeloxKillFeed client seq=0 killer=Celer victim=Rapidus tag=Velox.Damage.Lightning suicide=0 t=32.98 server_now=32.97
+[2026.10.31-08.36.22:136][693]LogVeloxBots: VeloxBotWatch feed seq=0 killer=Celer victim=Rapidus tag=Velox.Damage.Lightning suicide=0
+[2026.10.31-08.36.22:136][693]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_2 -> None (0 abilities)
+[2026.10.31-08.36.22:410][726]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.36.23:845][898]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_4 (0 abilities)
+[2026.10.31-08.36.25:702][121]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.36.26:269][189]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.36.26:544][222]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.36.26:919][267]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.36.27:645][355]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Rapidus
+[2026.10.31-08.36.30:645][715]LogVeloxBots: VeloxBotWatch t=30 phase=Live players=3 feed=1 pickups_taken=11
+[2026.10.31-08.36.31:145][775]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Celer
+[2026.10.31-08.36.32:494][936]LogVeloxCombat: VeloxKillFeed client seq=1 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0 t=43.34 server_now=43.34
+[2026.10.31-08.36.32:495][936]LogVeloxBots: VeloxBotWatch feed seq=1 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0
+[2026.10.31-08.36.32:495][936]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_4 -> None (0 abilities)
+[2026.10.31-08.36.34:212][142]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_5 (0 abilities)
+[2026.10.31-08.36.40:649][915]LogVeloxBots: VeloxBotWatch t=40 phase=Live players=3 feed=2 pickups_taken=12
+[2026.10.31-08.36.41:154][975]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Rapidus
+[2026.10.31-08.36.43:482][253]LogVeloxCombat: VeloxPowerupTint pawn=VeloxCharacter_3 powerup=Velox.Powerup.BattleSuit on tint=(R=0.150000,G=1.000000,B=0.200000,A=1.000000)
+[2026.10.31-08.36.45:090][446]LogVeloxCombat: VeloxPowerupTint pawn=VeloxCharacter_5 powerup=Velox.Powerup.Haste on tint=(R=1.000000,G=0.850000,B=0.100000,A=1.000000)
+[2026.10.31-08.36.45:161][454]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Powerup_Haste taken_by=Rapidus
+[2026.10.31-08.36.47:682][757]LogVeloxCombat: VeloxKillFeed client seq=2 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0 t=58.53 server_now=58.52
+[2026.10.31-08.36.47:683][757]LogVeloxBots: VeloxBotWatch feed seq=2 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0
+[2026.10.31-08.36.47:683][757]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_5 -> None (0 abilities)
+[2026.10.31-08.36.49:408][963]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_6 (0 abilities)
+[2026.10.31-08.36.50:674][115]LogVeloxBots: VeloxBotWatch t=50 phase=Live players=3 feed=3 pickups_taken=14
+[2026.10.31-08.36.51:971][269]LogVeloxCombat: VeloxPowerupTint pawn=VeloxCharacter_3 powerup=Velox.Powerup.Quad on tint=(R=0.150000,G=0.350000,B=1.000000,A=1.000000)
+[2026.10.31-08.36.52:182][295]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Powerup_Quad taken_by=Celer
+[2026.10.31-08.36.53:657][471]LogVeloxCombat: VeloxPowerupTint pawn=VeloxCharacter_6 powerup=Velox.Powerup.Regen on tint=(R=1.000000,G=0.100000,B=0.100000,A=1.000000)
+[2026.10.31-08.36.53:680][475]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Powerup_Regen taken_by=Rapidus
+[2026.10.31-08.36.54:935][625]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Rapidus
+[2026.10.31-08.36.55:434][685]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Rapidus
+[2026.10.31-08.36.58:692][ 75]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Mega taken_by=Celer
+[2026.10.31-08.37.00:227][258]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.37.00:485][289]LogVeloxCombat: VeloxKillFeed client seq=3 killer=Celer victim=Rapidus tag=Velox.Damage.Lightning suicide=0 t=71.30 server_now=71.32
+[2026.10.31-08.37.00:485][289]LogVeloxBots: VeloxBotWatch feed seq=3 killer=Celer victim=Rapidus tag=Velox.Damage.Lightning suicide=0
+[2026.10.31-08.37.00:486][289]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_6 -> None (0 abilities)
+[2026.10.31-08.37.00:698][315]LogVeloxBots: VeloxBotWatch t=60 phase=Live players=3 feed=4 pickups_taken=19
+[2026.10.31-08.37.00:720][317]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.37.02:205][489]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_7 (0 abilities)
+[2026.10.31-08.37.03:457][639]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Celer
+[2026.10.31-08.37.05:579][894]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.37.05:832][924]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.37.06:962][ 60]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Rapidus
+[2026.10.31-08.37.07:812][161]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.37.08:145][201]LogVeloxCombat: VeloxKillFeed client seq=4 killer=Celer victim=Rapidus tag=Velox.Damage.Lightning suicide=0 t=78.96 server_now=78.98
+[2026.10.31-08.37.08:145][201]LogVeloxBots: VeloxBotWatch feed seq=4 killer=Celer victim=Rapidus tag=Velox.Damage.Lightning suicide=0
+[2026.10.31-08.37.08:146][201]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_7 -> None (0 abilities)
+[2026.10.31-08.37.08:387][230]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.37.09:868][407]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_8 (0 abilities)
+[2026.10.31-08.37.10:721][509]LogVeloxBots: VeloxBotWatch t=70 phase=Live players=3 feed=5 pickups_taken=21
+[2026.10.31-08.37.11:219][569]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Celer
+[2026.10.31-08.37.12:419][713]LogVeloxCombat: VeloxKillFeed client seq=5 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0 t=83.25 server_now=83.26
+[2026.10.31-08.37.12:419][713]LogVeloxBots: VeloxBotWatch feed seq=5 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0
+[2026.10.31-08.37.12:419][713]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_8 -> None (0 abilities)
+[2026.10.31-08.37.13:470][839]LogVeloxCombat: VeloxPowerupTint pawn=VeloxCharacter_3 powerup=Velox.Powerup.BattleSuit off tint=(R=0.150000,G=0.350000,B=1.000000,A=1.000000)
+[2026.10.31-08.37.13:725][870]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Celer
+[2026.10.31-08.37.14:108][915]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_9 (0 abilities)
+[2026.10.31-08.37.14:225][929]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Celer
+[2026.10.31-08.37.18:953][495]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.37.18:990][499]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Celer
+[2026.10.31-08.37.19:306][537]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.37.19:814][598]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.37.19:989][620]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Rapidus
+[2026.10.31-08.37.20:183][642]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.37.20:744][710]LogVeloxBots: VeloxBotWatch t=80 phase=Live players=3 feed=6 pickups_taken=26
+[2026.10.31-08.37.21:188][762]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.37.21:286][774]LogVeloxCombat: VeloxKillFeed client seq=6 killer=Celer victim=Rapidus tag=Velox.Damage.Lightning suicide=0 t=92.11 server_now=92.12
+[2026.10.31-08.37.21:286][774]LogVeloxBots: VeloxBotWatch feed seq=6 killer=Celer victim=Rapidus tag=Velox.Damage.Lightning suicide=0
+[2026.10.31-08.37.21:287][774]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_9 -> None (0 abilities)
+[2026.10.31-08.37.21:524][802]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.37.21:984][857]LogVeloxCombat: VeloxPowerupTint pawn=VeloxCharacter_3 powerup=Velox.Powerup.Quad off tint=(R=0.000000,G=0.000000,B=0.000000,A=0.000000)
+[2026.10.31-08.37.22:506][920]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Celer
+[2026.10.31-08.37.22:989][977]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_10 (0 abilities)
+[2026.10.31-08.37.29:623][772]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam start on VeloxCharacter_3
+[2026.10.31-08.37.29:765][790]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Celer
+[2026.10.31-08.37.30:484][875]LogVeloxCombat: VeloxCue GameplayCue.Weapon.LightningGun.Beam stop on VeloxCharacter_3
+[2026.10.31-08.37.30:771][910]LogVeloxBots: VeloxBotWatch t=90 phase=Live players=3 feed=7 pickups_taken=28
+[2026.10.31-08.37.32:496][116]LogVeloxCombat: VeloxKillFeed client seq=7 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0 t=103.32 server_now=103.33
+[2026.10.31-08.37.32:497][116]LogVeloxBots: VeloxBotWatch feed seq=7 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0
+[2026.10.31-08.37.32:498][116]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_10 -> None (0 abilities)
+[2026.10.31-08.37.34:222][322]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_11 (0 abilities)
+[2026.10.31-08.37.37:281][690]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Mega taken_by=Celer
+[2026.10.31-08.37.38:790][869]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Rapidus
+[2026.10.31-08.37.39:893][  2]LogVeloxCombat: VeloxKillFeed client seq=8 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0 t=110.71 server_now=110.73
+[2026.10.31-08.37.39:893][  2]LogVeloxBots: VeloxBotWatch feed seq=8 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0
+[2026.10.31-08.37.39:894][  2]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_11 -> None (0 abilities)
+[2026.10.31-08.37.40:036][ 20]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Rapidus
+[2026.10.31-08.37.40:789][109]LogVeloxBots: VeloxBotWatch t=100 phase=Live players=3 feed=9 pickups_taken=31
+[2026.10.31-08.37.41:610][207]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_12 (0 abilities)
+[2026.10.31-08.37.46:542][800]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Rapidus
+[2026.10.31-08.37.46:793][830]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Rapidus
+[2026.10.31-08.37.47:298][890]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Rapidus
+[2026.10.31-08.37.48:603][ 46]LogVeloxCombat: VeloxKillFeed client seq=9 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0 t=119.44 server_now=119.44
+[2026.10.31-08.37.48:603][ 46]LogVeloxBots: VeloxBotWatch feed seq=9 killer=Celer victim=Rapidus tag=Velox.Damage.Rail suicide=0
+[2026.10.31-08.37.48:605][ 46]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar VeloxCharacter_12 -> None (0 abilities)
+[2026.10.31-08.37.50:328][252]LogVeloxCombat: VeloxPlayerState_1: ability actor info owner=VeloxPlayerState_1 avatar None -> VeloxCharacter_13 (0 abilities)
+[2026.10.31-08.37.50:803][310]LogVeloxBots: VeloxBotWatch t=110 phase=Live players=3 feed=10 pickups_taken=34
+[2026.10.31-08.37.55:372][857]LogVeloxCombat: VeloxKillFeed client seq=10 killer=Rapidus victim=Celer tag=Velox.Damage.MachineGun suicide=0 t=126.22 server_now=126.21
+[2026.10.31-08.37.55:373][857]LogVeloxBots: VeloxBotWatch feed seq=10 killer=Rapidus victim=Celer tag=Velox.Damage.MachineGun suicide=0
+[2026.10.31-08.37.55:373][857]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar VeloxCharacter_3 -> None (0 abilities)
+[2026.10.31-08.37.57:111][ 65]LogVeloxCombat: VeloxPlayerState_2: ability actor info owner=VeloxPlayerState_2 avatar None -> VeloxCharacter_14 (0 abilities)
+[2026.10.31-08.37.58:061][180]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Rapidus
+[2026.10.31-08.38.00:565][480]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Celer
+[2026.10.31-08.38.00:812][509]LogVeloxBots: VeloxBotWatch t=120 phase=Live players=3 feed=11 pickups_taken=36
+[2026.10.31-08.38.00:812][510]LogVeloxBots: VeloxBotWatch done seconds=120 phase=Live feed=11 pickups_taken=36
+[2026.10.31-08.38.00:830][510]LogSlate: Window 'Velox (64-bit Development SF_VULKAN_SM5) ' being destroyed

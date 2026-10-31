@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged; notes/01-report.md)
 **Depends on:** ADR 0005 §3, §4, §12 (subsystem registries only)
 
 ## Goal

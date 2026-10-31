@@ -1,0 +1,261 @@
+LogInit: Display: Running engine for game: Velox
+LogCsvProfiler: Display: Metadata set : commandline="" /home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Velox.uproject 127.0.0.1:7961 -game -log -stdout -FullStdOutLogOutput -nullrhi -nosound -unattended -nopause -nosplash -ExecCmds="t.MaxFPS 120, log LogVeloxMovement Verbose, log LogVeloxNet Verbose" -VeloxScript=KnockbackRun -WINDOWED -ResX=320 -ResY=240 -PktLag=100 -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=80 -PktIncomingLagMax=120 -PktIncomingLoss=2""
+Failed to find game directory: /opt/UnrealEngine-5.8/Velox/Binaries
+LogPluginManager: Found matching target receipt: ../../../../../home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Binaries/Linux/VeloxEditor.target
+LogPluginManager: Found matching target receipt: ../../../../../home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Binaries/Linux/VeloxEditor.target
+LogInit: Command Line: 127.0.0.1:7961 -game -log -stdout -FullStdOutLogOutput -nullrhi -nosound -unattended -nopause -nosplash -ExecCmds="t.MaxFPS 120, log LogVeloxMovement Verbose, log LogVeloxNet Verbose" -VeloxScript=KnockbackRun -WINDOWED -ResX=320 -ResY=240 -PktLag=100 -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=80 -PktIncomingLagMax=120 -PktIncomingLoss=2
+[2026.10.31-08.44.36:288][  0]Launching UnrealBuildTool... [/opt/UnrealEngine-5.8/Engine/Build/BatchFiles/Linux/Build.sh -Mode=ValidatePlatforms -OutputSDKs  -AllPlatforms  -project="/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Velox.uproject" -log="/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Saved/Logs/AutoSDKInfo.txt" -verbose -timestamps -progress]
+Running command : dotnet Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.dll -Mode=ValidatePlatforms -OutputSDKs -AllPlatforms -project=/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Velox.uproject -log=/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Saved/Logs/AutoSDKInfo.txt -verbose -timestamps -progress
+[2026.10.31-08.44.40:894][  0]LogModuleManager: InternalLoadLibrary: 'Velox' ('/home/bojan/velox/.claude/worktrees/agent-a0876f0674d62f027/Binaries/Linux/libUnrealEditor-Velox.so')
+[2026.10.31-08.44.41:934][  0]LogTemp: Error test: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.44.41:934][  0]LogTemp: Error with param: UE::UnifiedErrorTest::WithInt: [Error with int -7]
+[2026.10.31-08.44.41:934][  0]LogTemp: Error with context: UE::UnifiedErrorTest::Empty: [Empty error]
+[2026.10.31-08.44.41:934][  0]LogTemp: FError that has been invalidated: ::: []
+[2026.10.31-08.44.41:934][  0]LogTemp: FError that has been moved from: ::: []
+[2026.10.31-08.44.42:092][  0]LogVelox: VeloxSettings applied sens=5.000 deg_per_count=0.1100 invert_y=0 fov=105.0 autoswitch=1 crosshair=0/24 name=Player aa=MSAA4 r.AntiAliasingMethod=3 r.MSAACount=4 fps_limit=0 vol master=1.00 effects=1.00 music=1.00
+[2026.10.31-08.44.42:097][  0]LogVelox: UVeloxGameInstance initialised.
+[2026.10.31-08.44.42:660][  0]LogNetVersion: Velox 1.0.0.0, NetCL: 55116800, EngineNetworkVersion: 44, GameNetworkVersion: 0 (Checksum: 3779376671)
+[2026.10.31-08.44.43:130][  0]LogHAL: Log category LogVeloxMovement verbosity has been raised to Verbose.
+[2026.10.31-08.44.43:130][  0]LogVeloxMovement                          Verbose       
+[2026.10.31-08.44.43:130][  0]LogHAL: Log category LogVeloxNet verbosity has been raised to Verbose.
+[2026.10.31-08.44.43:130][  0]LogVeloxNet                               Verbose       
+[2026.10.31-08.44.44:022][108]LogNet: Welcomed by server (Level: /Game/Maps/L_MovementTest, Game: /Script/Velox.VeloxGameMode)
+[2026.10.31-08.44.44:022][108]LogLoad: LoadMap: 127.0.0.1:7961/Game/Maps/L_MovementTest?Name=Player?game=/Script/Velox.VeloxGameMode
+[2026.10.31-08.44.44:247][125]LogVelox: VeloxHUD scoreboard class=VeloxScoreboardWidget created=1 in_viewport=1
+[2026.10.31-08.44.44:247][125]LogVelox: VeloxHUD widget class=VeloxHUDWidget created=1 in_viewport=1
+[2026.10.31-08.44.44:252][126]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar None -> VeloxPlayerState_0 (0 abilities)
+[2026.10.31-08.44.44:255][126]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxPlayerState_0 -> VeloxCharacter_0 (2 abilities)
+[2026.10.31-08.44.44:256][126]LogVeloxCombat: VeloxShotSeqReset pawn=VeloxCharacter_0
+[2026.10.31-08.44.44:261][127]LogVelox: VeloxHUD bound health=125 armor=0 ammo=100 weapon=MachineGun clock= banner=WARMUP weapon_cells=1 powerups=0 feed=0 ready_prompt='' pickup='' item_timers=0 crosshair_bars=1 dot=0
+[2026.10.31-08.44.44:328][136]LogVeloxNet: VeloxScript: reposition V(X=-2780.00, Y=8400.00, Z=72.10) -> V(X=40.00, Z=100.00)
+[2026.10.31-08.44.44:494][155]LogVeloxNet: Verbose: VeloxSend new=0.008334 pending=-1.000000
+[2026.10.31-08.44.44:510][157]LogVeloxNet: Verbose: VeloxSend new=0.025002 pending=-1.000000
+[2026.10.31-08.44.44:527][159]LogVeloxNet: Verbose: VeloxSend new=0.041670 pending=-1.000000
+[2026.10.31-08.44.44:543][161]LogVeloxNet: Verbose: VeloxSend new=0.058337 pending=-1.000000
+[2026.10.31-08.44.44:560][163]LogVeloxNet: Verbose: VeloxSend new=0.075005 pending=-1.000000
+[2026.10.31-08.44.44:577][165]LogVeloxNet: Verbose: VeloxSend new=0.091673 pending=-1.000000
+[2026.10.31-08.44.44:593][167]LogVeloxNet: Verbose: VeloxSend new=0.108341 pending=-1.000000
+[2026.10.31-08.44.44:610][169]LogVeloxNet: Verbose: VeloxSend new=0.125009 pending=-1.000000
+[2026.10.31-08.44.44:627][171]LogVeloxNet: Verbose: VeloxSend new=0.141676 pending=-1.000000
+[2026.10.31-08.44.44:643][173]LogVeloxNet: Verbose: VeloxSend new=0.158345 pending=-1.000000
+[2026.10.31-08.44.44:660][175]LogVeloxNet: Verbose: VeloxSend new=0.175012 pending=-1.000000
+[2026.10.31-08.44.44:677][177]LogVeloxNet: Verbose: VeloxSend new=0.191681 pending=-1.000000
+[2026.10.31-08.44.44:693][179]LogVeloxNet: Verbose: VeloxSend new=0.208348 pending=-1.000000
+[2026.10.31-08.44.44:710][181]LogVeloxNet: Verbose: VeloxSend new=0.225016 pending=-1.000000
+[2026.10.31-08.44.44:727][183]LogVeloxMovement: VeloxCorrectionResponse t=0.705 ts=0.008334 grace=0.000000 latch=0 svel=16.7 kseq=0 haste_end=0.000000
+[2026.10.31-08.44.44:727][183]LogVeloxMovement: VeloxReplay t=0.713 start=0.025002 expected=0.025002 moves=14
+[2026.10.31-08.44.44:727][183]LogVeloxNet: Verbose: VeloxResend old=0.225016 new=0.241684 pending=0.233351 event=0 extra=0.208348
+[2026.10.31-08.44.44:743][185]LogVeloxNet: Verbose: VeloxResend old=0.241684 new=0.258352 pending=-1.000000 event=0 extra=0.233351
+[2026.10.31-08.44.44:760][187]LogVeloxNet: Verbose: VeloxResend old=0.258352 new=0.275019 pending=-1.000000 event=0 extra=0.241684
+[2026.10.31-08.44.44:777][189]LogVeloxNet: Verbose: VeloxResend old=0.275019 new=0.291687 pending=-1.000000 event=0 extra=0.258352
+[2026.10.31-08.44.44:793][191]LogVeloxNet: Verbose: VeloxResend old=0.291687 new=0.308355 pending=-1.000000 event=0 extra=0.275019
+[2026.10.31-08.44.44:802][192]LogVeloxMovement: VeloxCorrectionResponse t=0.780 ts=0.058337 grace=0.000000 latch=0 svel=116.7 kseq=0 haste_end=0.000000
+[2026.10.31-08.44.44:802][192]LogVeloxMovement: VeloxReplay t=0.788 start=0.075005 expected=0.075005 moves=16
+[2026.10.31-08.44.44:810][193]LogVeloxNet: Verbose: VeloxResend old=0.308355 new=0.325023 pending=-1.000000 event=0 extra=0.291687
+[2026.10.31-08.44.44:827][195]LogVeloxNet: Verbose: VeloxResend old=0.325023 new=0.341691 pending=-1.000000 event=0 extra=0.308355
+[2026.10.31-08.44.44:843][197]LogVeloxMovement: VeloxCorrectionResponse t=0.821 ts=0.108341 grace=0.000000 latch=0 svel=216.7 kseq=0 haste_end=0.000000
+[2026.10.31-08.44.44:843][197]LogVeloxMovement: VeloxReplay t=0.830 start=0.125009 expected=0.125009 moves=16
+[2026.10.31-08.44.44:844][197]LogVeloxNet: Verbose: VeloxResend old=0.341691 new=0.358359 pending=0.350025 event=0 extra=0.325023
+[2026.10.31-08.44.44:860][199]LogVeloxNet: Verbose: VeloxResend old=0.358359 new=0.375027 pending=-1.000000 event=0 extra=0.350025
+[2026.10.31-08.44.44:877][201]LogVeloxNet: Verbose: VeloxResend old=0.375027 new=0.391694 pending=-1.000000 event=0 extra=0.358359
+[2026.10.31-08.44.44:893][203]LogVeloxNet: Verbose: VeloxResend old=0.391694 new=0.408362 pending=-1.000000 event=0 extra=0.375027
+[2026.10.31-08.44.44:910][205]LogVeloxMovement: VeloxCorrectionResponse t=0.888 ts=0.175012 grace=0.000000 latch=0 svel=0.0 kseq=0 haste_end=0.000000
+[2026.10.31-08.44.44:910][205]LogVeloxMovement: VeloxReplay t=0.896 start=0.191681 expected=0.191681 moves=17
+[2026.10.31-08.44.44:910][205]LogVeloxNet: Verbose: VeloxResend old=0.408362 new=0.425029 pending=0.416696 event=0 extra=0.391694
+[2026.10.31-08.44.44:927][207]LogVeloxNet: Verbose: VeloxResend old=0.425029 new=0.441697 pending=-1.000000 event=0 extra=0.416696
+[2026.10.31-08.44.44:943][209]LogVeloxNet: Verbose: VeloxResend old=0.441697 new=0.458365 pending=-1.000000 event=0 extra=0.425029
+[2026.10.31-08.44.44:960][211]LogVeloxNet: Verbose: VeloxResend old=0.458365 new=0.475033 pending=-1.000000 event=0 extra=0.441697
+[2026.10.31-08.44.44:968][212]LogVeloxMovement: VeloxCorrectionResponse t=0.946 ts=0.225016 grace=0.000000 latch=0 svel=0.0 kseq=0 haste_end=0.000000
+[2026.10.31-08.44.44:968][212]LogVeloxMovement: VeloxReplay t=0.955 start=0.233351 expected=0.233351 moves=18
+[2026.10.31-08.44.44:977][213]LogVeloxNet: Verbose: VeloxResend old=0.475033 new=0.491700 pending=-1.000000 event=0 extra=0.458365
+[2026.10.31-08.44.44:993][215]LogVeloxNet: Verbose: VeloxResend old=0.491700 new=0.508368 pending=-1.000000 event=0 extra=0.475033
+[2026.10.31-08.44.45:010][217]LogVeloxNet: Verbose: VeloxResend old=0.508368 new=0.525035 pending=-1.000000 event=0 extra=0.491700
+[2026.10.31-08.44.45:027][219]LogVeloxNet: Verbose: VeloxResend old=0.525035 new=0.541703 pending=-1.000000 event=0 extra=0.508368
+[2026.10.31-08.44.45:043][221]LogVeloxNet: Verbose: VeloxResend old=0.541703 new=0.558371 pending=-1.000000 event=0 extra=0.525035
+[2026.10.31-08.44.45:060][223]LogVeloxNet: Verbose: VeloxResend old=0.558371 new=0.575038 pending=-1.000000 event=0 extra=0.541703
+[2026.10.31-08.44.45:077][225]LogVeloxNet: Verbose: VeloxResend old=0.575038 new=0.591706 pending=-1.000000 event=0 extra=0.558371
+[2026.10.31-08.44.45:093][227]LogVeloxNet: Verbose: VeloxResend old=0.591706 new=0.608373 pending=-1.000000 event=0 extra=0.575038
+[2026.10.31-08.44.45:110][229]LogVeloxNet: Verbose: VeloxResend old=0.608373 new=0.625041 pending=-1.000000 event=0 extra=0.591706
+[2026.10.31-08.44.45:127][231]LogVeloxNet: Verbose: VeloxResend old=0.625041 new=0.641708 pending=-1.000000 event=0 extra=0.608373
+[2026.10.31-08.44.45:143][233]LogVeloxNet: Verbose: VeloxResend old=0.641708 new=0.658377 pending=-1.000000 event=0 extra=0.625041
+[2026.10.31-08.44.45:160][235]LogVeloxNet: Verbose: VeloxResend old=0.658377 new=0.675044 pending=-1.000000 event=0 extra=0.641708
+[2026.10.31-08.44.45:177][237]LogVeloxNet: Verbose: VeloxResend old=0.675044 new=0.691712 pending=-1.000000 event=0 extra=0.658377
+[2026.10.31-08.44.45:193][239]LogVeloxNet: Verbose: VeloxResend old=0.691712 new=0.708380 pending=-1.000000 event=0 extra=0.675044
+[2026.10.31-08.44.45:210][241]LogVeloxNet: Verbose: VeloxResend old=0.708380 new=0.725048 pending=-1.000000 event=0 extra=0.691712
+[2026.10.31-08.44.45:227][243]LogVeloxNet: Verbose: VeloxResend old=0.725048 new=0.741716 pending=-1.000000 event=0 extra=0.708380
+[2026.10.31-08.44.45:227][244]LogVeloxNet: VeloxNetSoak event=info script=KnockbackRun ground_speed=800.0 jump_velocity=675.0 gravity_z=-2000.0 knockback_grace_max=0.200 ground_friction=6.000 stop_speed=250.0
+[2026.10.31-08.44.45:228][244]LogVeloxNet: VeloxScript: start script=KnockbackRun rows=2 duration=2.50s pos=V(X=40.00, Z=72.15)
+[2026.10.31-08.44.45:235][244]LogVeloxNet: VeloxScript: st=0.000 row=0 'stand' pos=V(X=40.00, Z=72.15) vel=V(0)
+[2026.10.31-08.44.45:243][245]LogVeloxNet: Verbose: VeloxResend old=0.741716 new=0.758384 pending=-1.000000 event=0 extra=0.725048
+[2026.10.31-08.44.45:260][247]LogVeloxNet: Verbose: VeloxResend old=0.758384 new=0.775051 pending=-1.000000 event=0 extra=0.741716
+[2026.10.31-08.44.45:277][249]LogVeloxNet: Verbose: VeloxResend old=0.775051 new=0.791719 pending=-1.000000 event=0 extra=0.758384
+[2026.10.31-08.44.45:293][251]LogVeloxNet: Verbose: VeloxResend old=0.791719 new=0.808387 pending=-1.000000 event=0 extra=0.775051
+[2026.10.31-08.44.45:310][253]LogVeloxNet: Verbose: VeloxResend old=0.808387 new=0.825054 pending=-1.000000 event=0 extra=0.791719
+[2026.10.31-08.44.45:327][255]LogVeloxNet: Verbose: VeloxResend old=0.825054 new=0.841722 pending=-1.000000 event=0 extra=0.808387
+[2026.10.31-08.44.45:343][257]LogVeloxNet: Verbose: VeloxResend old=0.841722 new=0.858390 pending=-1.000000 event=0 extra=0.825054
+[2026.10.31-08.44.45:360][259]LogVeloxNet: Verbose: VeloxResend old=0.858390 new=0.875058 pending=-1.000000 event=0 extra=0.841722
+[2026.10.31-08.44.45:377][261]LogVeloxNet: Verbose: VeloxResend old=0.875058 new=0.891726 pending=-1.000000 event=0 extra=0.858390
+[2026.10.31-08.44.45:393][263]LogVeloxNet: Verbose: VeloxResend old=0.891726 new=0.908393 pending=-1.000000 event=0 extra=0.875058
+[2026.10.31-08.44.45:410][265]LogVeloxNet: Verbose: VeloxResend old=0.908393 new=0.925061 pending=-1.000000 event=0 extra=0.891726
+[2026.10.31-08.44.45:427][267]LogVeloxNet: Verbose: VeloxResend old=0.925061 new=0.941729 pending=-1.000000 event=0 extra=0.908393
+[2026.10.31-08.44.45:443][269]LogVeloxNet: Verbose: VeloxResend old=0.941729 new=0.958405 pending=-1.000000 event=0 extra=0.925061
+[2026.10.31-08.44.45:460][271]LogVeloxNet: Verbose: VeloxResend old=0.958405 new=0.975073 pending=-1.000000 event=0 extra=0.941729
+[2026.10.31-08.44.45:477][273]LogVeloxNet: Verbose: VeloxResend old=0.975073 new=0.991740 pending=-1.000000 event=0 extra=0.958405
+[2026.10.31-08.44.45:493][275]LogVeloxNet: Verbose: VeloxResend old=0.991740 new=1.008408 pending=-1.000000 event=0 extra=0.975073
+[2026.10.31-08.44.45:510][277]LogVeloxNet: Verbose: VeloxResend old=1.008408 new=1.025076 pending=-1.000000 event=0 extra=0.991740
+[2026.10.31-08.44.45:527][279]LogVeloxNet: Verbose: VeloxResend old=1.025076 new=1.041743 pending=-1.000000 event=0 extra=1.008408
+[2026.10.31-08.44.45:543][281]LogVeloxNet: Verbose: VeloxResend old=1.041743 new=1.058411 pending=-1.000000 event=0 extra=1.025076
+[2026.10.31-08.44.45:560][283]LogVeloxNet: Verbose: VeloxResend old=1.058411 new=1.075079 pending=-1.000000 event=0 extra=1.041743
+[2026.10.31-08.44.45:577][285]LogVeloxNet: Verbose: VeloxResend old=1.075079 new=1.091747 pending=-1.000000 event=0 extra=1.058411
+[2026.10.31-08.44.45:593][287]LogVeloxNet: Verbose: VeloxResend old=1.091747 new=1.108414 pending=-1.000000 event=0 extra=1.075079
+[2026.10.31-08.44.45:610][289]LogVeloxNet: Verbose: VeloxResend old=1.108414 new=1.125082 pending=-1.000000 event=0 extra=1.091747
+[2026.10.31-08.44.45:627][291]LogVeloxNet: Verbose: VeloxResend old=1.125082 new=1.141750 pending=-1.000000 event=0 extra=1.108414
+[2026.10.31-08.44.45:643][293]LogVeloxNet: Verbose: VeloxResend old=1.141750 new=1.158417 pending=-1.000000 event=0 extra=1.125082
+[2026.10.31-08.44.45:660][295]LogVeloxNet: Verbose: VeloxResend old=1.158417 new=1.175085 pending=-1.000000 event=0 extra=1.141750
+[2026.10.31-08.44.45:677][297]LogVeloxNet: Verbose: VeloxResend old=1.175085 new=1.191753 pending=-1.000000 event=0 extra=1.158417
+[2026.10.31-08.44.45:693][299]LogVeloxNet: Verbose: VeloxResend old=1.191753 new=1.208420 pending=-1.000000 event=0 extra=1.175085
+[2026.10.31-08.44.45:710][301]LogVeloxNet: Verbose: VeloxResend old=1.208420 new=1.225088 pending=-1.000000 event=0 extra=1.191753
+[2026.10.31-08.44.45:727][303]LogVeloxNet: Verbose: VeloxResend old=1.225088 new=1.241756 pending=-1.000000 event=0 extra=1.208420
+[2026.10.31-08.44.45:743][305]LogVeloxNet: Verbose: VeloxResend old=1.241756 new=1.258424 pending=-1.000000 event=0 extra=1.225088
+[2026.10.31-08.44.45:760][307]LogVeloxNet: Verbose: VeloxResend old=1.258424 new=1.275092 pending=-1.000000 event=0 extra=1.241756
+[2026.10.31-08.44.45:777][309]LogVeloxNet: Verbose: VeloxResend old=1.275092 new=1.291760 pending=-1.000000 event=0 extra=1.258424
+[2026.10.31-08.44.45:793][311]LogVeloxNet: Verbose: VeloxResend old=1.291760 new=1.308427 pending=-1.000000 event=0 extra=1.275092
+[2026.10.31-08.44.45:810][313]LogVeloxNet: Verbose: VeloxResend old=1.308427 new=1.325095 pending=-1.000000 event=0 extra=1.291760
+[2026.10.31-08.44.45:827][315]LogVeloxNet: Verbose: VeloxResend old=1.325095 new=1.341763 pending=-1.000000 event=0 extra=1.308427
+[2026.10.31-08.44.45:843][317]LogVeloxNet: Verbose: VeloxResend old=1.341763 new=1.358432 pending=-1.000000 event=0 extra=1.325095
+[2026.10.31-08.44.45:860][319]LogVeloxNet: Verbose: VeloxResend old=1.358432 new=1.375100 pending=-1.000000 event=0 extra=1.341763
+[2026.10.31-08.44.45:877][321]LogVeloxNet: Verbose: VeloxResend old=1.375100 new=1.391767 pending=-1.000000 event=0 extra=1.358432
+[2026.10.31-08.44.45:893][323]LogVeloxNet: Verbose: VeloxResend old=1.391767 new=1.408435 pending=-1.000000 event=0 extra=1.375100
+[2026.10.31-08.44.45:910][325]LogVeloxNet: Verbose: VeloxResend old=1.408435 new=1.425102 pending=-1.000000 event=0 extra=1.391767
+[2026.10.31-08.44.45:927][327]LogVeloxNet: Verbose: VeloxResend old=1.425102 new=1.441771 pending=-1.000000 event=0 extra=1.408435
+[2026.10.31-08.44.45:943][329]LogVeloxNet: Verbose: VeloxResend old=1.441771 new=1.458439 pending=-1.000000 event=0 extra=1.425102
+[2026.10.31-08.44.45:960][331]LogVeloxNet: Verbose: VeloxResend old=1.458439 new=1.475107 pending=-1.000000 event=0 extra=1.441771
+[2026.10.31-08.44.45:977][333]LogVeloxNet: Verbose: VeloxResend old=1.475107 new=1.491775 pending=-1.000000 event=0 extra=1.458439
+[2026.10.31-08.44.45:993][335]LogVeloxNet: Verbose: VeloxResend old=1.491775 new=1.508442 pending=-1.000000 event=0 extra=1.475107
+[2026.10.31-08.44.46:010][337]LogVeloxNet: Verbose: VeloxResend old=1.508442 new=1.525110 pending=-1.000000 event=0 extra=1.491775
+[2026.10.31-08.44.46:027][339]LogVeloxNet: Verbose: VeloxResend old=1.525110 new=1.541778 pending=-1.000000 event=0 extra=1.508442
+[2026.10.31-08.44.46:043][341]LogVeloxNet: Verbose: VeloxResend old=1.541778 new=1.558445 pending=-1.000000 event=0 extra=1.525110
+[2026.10.31-08.44.46:060][343]LogVeloxNet: Verbose: VeloxResend old=1.558445 new=1.575113 pending=-1.000000 event=0 extra=1.541778
+[2026.10.31-08.44.46:077][345]LogVeloxNet: Verbose: VeloxResend old=1.575113 new=1.591781 pending=-1.000000 event=0 extra=1.558445
+[2026.10.31-08.44.46:094][347]LogVeloxNet: Verbose: VeloxResend old=1.591781 new=1.608449 pending=-1.000000 event=0 extra=1.575113
+[2026.10.31-08.44.46:110][349]LogVeloxNet: Verbose: VeloxResend old=1.608449 new=1.625116 pending=-1.000000 event=0 extra=1.591781
+[2026.10.31-08.44.46:127][351]LogVeloxNet: Verbose: VeloxResend old=1.625116 new=1.641784 pending=-1.000000 event=0 extra=1.608449
+[2026.10.31-08.44.46:143][353]LogVeloxNet: Verbose: VeloxResend old=1.641784 new=1.658451 pending=-1.000000 event=0 extra=1.625116
+[2026.10.31-08.44.46:160][355]LogVeloxNet: Verbose: VeloxResend old=1.658451 new=1.675118 pending=-1.000000 event=0 extra=1.641784
+[2026.10.31-08.44.46:177][357]LogVeloxNet: Verbose: VeloxResend old=1.675118 new=1.691787 pending=-1.000000 event=0 extra=1.658451
+[2026.10.31-08.44.46:193][359]LogVeloxNet: Verbose: VeloxResend old=1.691787 new=1.708455 pending=-1.000000 event=0 extra=1.675118
+[2026.10.31-08.44.46:210][361]LogVeloxNet: Verbose: VeloxResend old=1.708455 new=1.725122 pending=-1.000000 event=0 extra=1.691787
+[2026.10.31-08.44.46:227][363]LogVeloxNet: Verbose: VeloxResend old=1.725122 new=1.741790 pending=-1.000000 event=0 extra=1.708455
+[2026.10.31-08.44.46:235][364]LogVeloxNet: VeloxScript: st=1.000 row=1 'knockback' pos=V(X=40.00, Z=72.15) vel=V(0)
+[2026.10.31-08.44.46:235][364]LogVeloxNet: VeloxNetSoak event=knockback t=2.221 st=1.000 impulse=V(X=1250.00, Z=600.00) override=0
+[2026.10.31-08.44.46:243][365]LogVeloxNet: Verbose: VeloxResend old=1.741790 new=1.758458 pending=-1.000000 event=0 extra=1.725122
+[2026.10.31-08.44.46:260][367]LogVeloxNet: Verbose: VeloxResend old=1.758458 new=1.775126 pending=-1.000000 event=0 extra=1.741790
+[2026.10.31-08.44.46:277][369]LogVeloxNet: Verbose: VeloxResend old=1.775126 new=1.791794 pending=-1.000000 event=0 extra=1.758458
+[2026.10.31-08.44.46:293][371]LogVeloxNet: Verbose: VeloxResend old=1.791794 new=1.808462 pending=-1.000000 event=0 extra=1.775126
+[2026.10.31-08.44.46:310][373]LogVeloxNet: Verbose: VeloxResend old=1.808462 new=1.825129 pending=-1.000000 event=0 extra=1.791794
+[2026.10.31-08.44.46:327][375]LogVeloxNet: Verbose: VeloxResend old=1.825129 new=1.841798 pending=-1.000000 event=0 extra=1.808462
+[2026.10.31-08.44.46:343][377]LogVeloxNet: Verbose: VeloxResend old=1.841798 new=1.858465 pending=-1.000000 event=0 extra=1.825129
+[2026.10.31-08.44.46:360][379]LogVeloxNet: Verbose: VeloxResend old=1.858465 new=1.875134 pending=-1.000000 event=0 extra=1.841798
+[2026.10.31-08.44.46:377][381]LogVeloxNet: Verbose: VeloxResend old=1.875134 new=1.891801 pending=-1.000000 event=0 extra=1.858465
+[2026.10.31-08.44.46:393][383]LogVeloxNet: Verbose: VeloxResend old=1.891801 new=1.908469 pending=-1.000000 event=0 extra=1.875134
+[2026.10.31-08.44.46:410][385]LogVeloxNet: Verbose: VeloxResend old=1.908469 new=1.925136 pending=-1.000000 event=0 extra=1.891801
+[2026.10.31-08.44.46:427][387]LogVeloxNet: Verbose: VeloxResend old=1.925136 new=1.941804 pending=-1.000000 event=0 extra=1.908469
+[2026.10.31-08.44.46:443][389]LogVeloxNet: Verbose: VeloxResend old=1.941804 new=1.958472 pending=-1.000000 event=0 extra=1.925136
+[2026.10.31-08.44.46:452][390]LogVeloxMovement: VeloxCorrectionResponse t=2.430 ts=1.758458 grace=0.183332 latch=0 svel=1372.4 kseq=0 haste_end=0.000000
+[2026.10.31-08.44.46:452][390]LogVeloxMovement: VeloxReplay t=2.438 start=1.775126 expected=1.775126 moves=12
+[2026.10.31-08.44.46:452][390]LogVeloxNet: VeloxCorrection t=2.430 cm=22.99 st=1.217 air=1 grace=0.000 latch=0 speed2d=1250.0 vz=150.0
+[2026.10.31-08.44.46:460][391]LogVeloxNet: Verbose: VeloxResend old=1.958472 new=1.975139 pending=1.966805 event=0 extra=1.941804
+[2026.10.31-08.44.46:477][393]LogVeloxNet: Verbose: VeloxResend old=1.975139 new=1.991807 pending=1.983473 event=0 extra=1.966805
+[2026.10.31-08.44.46:493][395]LogVeloxNet: Verbose: VeloxResend old=1.991807 new=2.008475 pending=2.000141 event=0 extra=1.983473
+[2026.10.31-08.44.46:510][397]LogVeloxNet: Verbose: VeloxResend old=2.008475 new=2.025142 pending=2.016809 event=0 extra=2.000141
+[2026.10.31-08.44.46:527][399]LogVeloxNet: Verbose: VeloxResend old=2.025142 new=2.041810 pending=2.033476 event=0 extra=2.016809
+[2026.10.31-08.44.46:543][401]LogVeloxNet: Verbose: VeloxResend old=2.041810 new=2.058478 pending=2.050144 event=0 extra=2.033476
+[2026.10.31-08.44.46:560][403]LogVeloxMovement: VeloxCorrectionResponse t=2.538 ts=1.825129 grace=0.116661 latch=0 svel=1323.0 kseq=0 haste_end=0.000000
+[2026.10.31-08.44.46:560][403]LogVeloxMovement: VeloxReplay t=2.546 start=1.841798 expected=1.841798 moves=21
+[2026.10.31-08.44.46:560][403]LogVeloxNet: Verbose: VeloxResend old=2.058478 new=2.075145 pending=2.066812 event=0 extra=2.050144
+[2026.10.31-08.44.46:560][403]LogVeloxNet: VeloxCorrection t=2.538 cm=0.00 st=1.325 air=1 grace=0.000 latch=0 speed2d=1250.0 vz=-66.7
+[2026.10.31-08.44.46:577][405]LogVeloxNet: Verbose: VeloxResend old=2.075145 new=2.091813 pending=2.083479 event=0 extra=2.066812
+[2026.10.31-08.44.46:593][407]LogVeloxNet: Verbose: VeloxResend old=2.091813 new=2.108480 pending=2.100147 event=0 extra=2.083479
+[2026.10.31-08.44.46:594][407]LogVeloxNet: VeloxNetSoak event=post_correction_sample t=2.580 air=1 grace=0.000 speed2d=1250.0 vz=-133.4
+[2026.10.31-08.44.46:602][408]LogVeloxMovement: VeloxCorrectionResponse t=2.580 ts=1.891801 grace=0.049989 latch=0 svel=1285.5 kseq=0 haste_end=0.000000
+[2026.10.31-08.44.46:602][408]LogVeloxMovement: VeloxReplay t=2.588 start=1.908469 expected=1.908469 moves=22
+[2026.10.31-08.44.46:602][408]LogVeloxNet: VeloxCorrection t=2.580 cm=0.00 st=1.367 air=1 grace=0.000 latch=0 speed2d=1250.0 vz=-150.0
+[2026.10.31-08.44.46:610][409]LogVeloxNet: Verbose: VeloxResend old=2.108480 new=2.125149 pending=2.116814 event=0 extra=2.100147
+[2026.10.31-08.44.46:627][411]LogVeloxNet: Verbose: VeloxResend old=2.125149 new=2.141816 pending=2.133482 event=0 extra=2.116814
+[2026.10.31-08.44.46:643][413]LogVeloxNet: Verbose: VeloxResend old=2.141816 new=2.158484 pending=2.150150 event=0 extra=2.133482
+[2026.10.31-08.44.46:660][415]LogVeloxNet: Verbose: VeloxResend old=2.158484 new=2.175151 pending=2.166817 event=0 extra=2.150150
+[2026.10.31-08.44.46:668][416]LogVeloxMovement: VeloxCorrectionResponse t=2.646 ts=1.925136 grace=0.016654 latch=0 svel=1271.6 kseq=0 haste_end=0.000000
+[2026.10.31-08.44.46:668][416]LogVeloxMovement: VeloxReplay t=2.655 start=1.941804 expected=1.941804 moves=28
+[2026.10.31-08.44.46:669][416]LogVeloxNet: VeloxCorrection t=2.646 cm=0.00 st=1.433 air=1 grace=0.000 latch=0 speed2d=1250.0 vz=-283.4
+[2026.10.31-08.44.46:677][417]LogVeloxNet: Verbose: VeloxResend old=2.175151 new=2.191818 pending=2.183485 event=0 extra=2.166817
+[2026.10.31-08.44.46:693][419]LogVeloxNet: Verbose: VeloxResend old=2.191818 new=2.208485 pending=2.200152 event=0 extra=2.183485
+[2026.10.31-08.44.46:710][421]LogVeloxNet: Verbose: VeloxResend old=2.208485 new=2.225153 pending=2.216819 event=0 extra=2.200152
+[2026.10.31-08.44.46:727][423]LogVeloxNet: Verbose: VeloxResend old=2.225153 new=2.241820 pending=2.233486 event=0 extra=2.216819
+[2026.10.31-08.44.46:743][425]LogVeloxNet: Verbose: VeloxResend old=2.241820 new=2.258488 pending=2.250154 event=0 extra=2.233486
+[2026.10.31-08.44.46:743][425]LogVeloxNet: VeloxNetSoak event=post_correction_sample t=2.730 air=1 grace=0.000 speed2d=1250.0 vz=-433.4
+[2026.10.31-08.44.46:760][427]LogVeloxNet: Verbose: VeloxResend old=2.258488 new=2.275156 pending=2.266822 event=0 extra=2.250154
+[2026.10.31-08.44.46:777][429]LogVeloxNet: Verbose: VeloxResend old=2.275156 new=2.291824 pending=2.283489 event=0 extra=2.266822
+[2026.10.31-08.44.46:794][431]LogVeloxNet: Verbose: VeloxResend old=2.291824 new=2.308492 pending=2.300158 event=0 extra=2.283489
+[2026.10.31-08.44.46:810][433]LogVeloxNet: Verbose: VeloxResend old=2.308492 new=2.325159 pending=2.316826 event=0 extra=2.300158
+[2026.10.31-08.44.46:827][435]LogVeloxNet: Verbose: VeloxResend old=2.325159 new=2.341827 pending=2.333493 event=0 extra=2.316826
+[2026.10.31-08.44.46:835][436]LogVeloxNet: Verbose: VeloxResend old=2.341827 new=2.350176 pending=-1.000000 event=0 extra=2.333493
+[2026.10.31-08.44.46:835][436]LogVeloxNet: VeloxNetSoak event=land t=2.821 st=1.600 jumped=0 vz=0.0 speed_before=1250.0 speed_after=1208.2 latch=0
+[2026.10.31-08.44.46:852][438]LogVeloxNet: Verbose: VeloxResend old=2.350176 new=2.366843 pending=-1.000000 event=0 extra=2.341827
+[2026.10.31-08.44.46:869][440]LogVeloxNet: Verbose: VeloxResend old=2.366843 new=2.383511 pending=-1.000000 event=0 extra=2.350176
+[2026.10.31-08.44.46:885][442]LogVeloxNet: Verbose: VeloxResend old=2.383511 new=2.400179 pending=-1.000000 event=0 extra=2.366843
+[2026.10.31-08.44.46:902][444]LogVeloxNet: Verbose: VeloxResend old=2.400179 new=2.416847 pending=-1.000000 event=0 extra=2.383511
+[2026.10.31-08.44.46:919][446]LogVeloxNet: Verbose: VeloxResend old=2.416847 new=2.433514 pending=-1.000000 event=0 extra=2.400179
+[2026.10.31-08.44.46:935][448]LogVeloxNet: Verbose: VeloxResend old=2.433514 new=2.450182 pending=-1.000000 event=0 extra=2.416847
+[2026.10.31-08.44.46:952][450]LogVeloxNet: Verbose: VeloxResend old=2.450182 new=2.466850 pending=-1.000000 event=0 extra=2.433514
+[2026.10.31-08.44.46:968][452]LogVeloxNet: Verbose: VeloxResend old=2.466850 new=2.483518 pending=-1.000000 event=0 extra=2.450182
+[2026.10.31-08.44.46:985][454]LogVeloxNet: Verbose: VeloxResend old=2.483518 new=2.500186 pending=-1.000000 event=0 extra=2.466850
+[2026.10.31-08.44.47:002][456]LogVeloxNet: Verbose: VeloxResend old=2.500186 new=2.516854 pending=-1.000000 event=0 extra=2.483518
+[2026.10.31-08.44.47:019][458]LogVeloxNet: Verbose: VeloxResend old=2.516854 new=2.533522 pending=-1.000000 event=0 extra=2.500186
+[2026.10.31-08.44.47:035][460]LogVeloxNet: Verbose: VeloxResend old=2.533522 new=2.550203 pending=-1.000000 event=0 extra=2.516854
+[2026.10.31-08.44.47:052][462]LogVeloxNet: Verbose: VeloxResend old=2.550203 new=2.566870 pending=-1.000000 event=0 extra=2.533522
+[2026.10.31-08.44.47:069][464]LogVeloxNet: Verbose: VeloxResend old=2.566870 new=2.583538 pending=-1.000000 event=0 extra=2.550203
+[2026.10.31-08.44.47:085][466]LogVeloxNet: Verbose: VeloxResend old=2.583538 new=2.600207 pending=-1.000000 event=0 extra=2.566870
+[2026.10.31-08.44.47:102][468]LogVeloxNet: Verbose: VeloxResend old=2.600207 new=2.616875 pending=-1.000000 event=0 extra=2.583538
+[2026.10.31-08.44.47:119][470]LogVeloxNet: Verbose: VeloxResend old=2.616875 new=2.633543 pending=-1.000000 event=0 extra=2.600207
+[2026.10.31-08.44.47:135][472]LogVeloxNet: Verbose: VeloxResend old=2.633543 new=2.650210 pending=-1.000000 event=0 extra=2.616875
+[2026.10.31-08.44.47:152][474]LogVeloxNet: Verbose: VeloxResend old=2.650210 new=2.666877 pending=-1.000000 event=0 extra=2.633543
+[2026.10.31-08.44.47:169][476]LogVeloxNet: Verbose: VeloxResend old=2.666877 new=2.683545 pending=-1.000000 event=0 extra=2.650210
+[2026.10.31-08.44.47:185][478]LogVeloxNet: Verbose: VeloxResend old=2.683545 new=2.700212 pending=-1.000000 event=0 extra=2.666877
+[2026.10.31-08.44.47:202][480]LogVeloxNet: Verbose: VeloxResend old=2.700212 new=2.716880 pending=-1.000000 event=0 extra=2.683545
+[2026.10.31-08.44.47:219][482]LogVeloxNet: Verbose: VeloxResend old=2.716880 new=2.733548 pending=-1.000000 event=0 extra=2.700212
+[2026.10.31-08.44.47:235][484]LogVeloxNet: Verbose: VeloxResend old=2.733548 new=2.750216 pending=-1.000000 event=0 extra=2.716880
+[2026.10.31-08.44.47:252][486]LogVeloxNet: Verbose: VeloxResend old=2.750216 new=2.766885 pending=-1.000000 event=0 extra=2.733548
+[2026.10.31-08.44.47:260][487]LogVeloxNet: Verbose: VeloxResend old=2.766885 new=2.775218 pending=-1.000000 event=0 extra=2.750216
+[2026.10.31-08.44.47:277][489]LogVeloxNet: Verbose: VeloxResend old=2.775218 new=2.791886 pending=-1.000000 event=0 extra=2.766885
+[2026.10.31-08.44.47:294][491]LogVeloxNet: Verbose: VeloxResend old=2.791886 new=2.808553 pending=-1.000000 event=0 extra=2.775218
+[2026.10.31-08.44.47:310][493]LogVeloxNet: Verbose: VeloxResend old=2.808553 new=2.825221 pending=-1.000000 event=0 extra=2.791886
+[2026.10.31-08.44.47:327][495]LogVeloxNet: Verbose: VeloxResend old=2.825221 new=2.841889 pending=-1.000000 event=0 extra=2.808553
+[2026.10.31-08.44.47:344][497]LogVeloxNet: Verbose: VeloxResend old=2.841889 new=2.858557 pending=-1.000000 event=0 extra=2.825221
+[2026.10.31-08.44.47:360][499]LogVeloxNet: Verbose: VeloxResend old=2.858557 new=2.875224 pending=-1.000000 event=0 extra=2.841889
+[2026.10.31-08.44.47:377][501]LogVeloxNet: Verbose: VeloxResend old=2.875224 new=2.891892 pending=-1.000000 event=0 extra=2.858557
+[2026.10.31-08.44.47:393][503]LogVeloxNet: Verbose: VeloxResend old=2.891892 new=2.908560 pending=-1.000000 event=0 extra=2.875224
+[2026.10.31-08.44.47:410][505]LogVeloxNet: Verbose: VeloxResend old=2.908560 new=2.925228 pending=-1.000000 event=0 extra=2.891892
+[2026.10.31-08.44.47:427][507]LogVeloxNet: Verbose: VeloxResend old=2.925228 new=2.941896 pending=-1.000000 event=0 extra=2.908560
+[2026.10.31-08.44.47:444][509]LogVeloxNet: Verbose: VeloxResend old=2.941896 new=2.958564 pending=-1.000000 event=0 extra=2.925228
+[2026.10.31-08.44.47:460][511]LogVeloxNet: Verbose: VeloxResend old=2.958564 new=2.975231 pending=-1.000000 event=0 extra=2.941896
+[2026.10.31-08.44.47:477][513]LogVeloxNet: Verbose: VeloxResend old=2.975231 new=2.991900 pending=-1.000000 event=0 extra=2.958564
+[2026.10.31-08.44.47:494][515]LogVeloxNet: Verbose: VeloxResend old=2.991900 new=3.008567 pending=-1.000000 event=0 extra=2.975231
+[2026.10.31-08.44.47:510][517]LogVeloxNet: Verbose: VeloxResend old=3.008567 new=3.025234 pending=-1.000000 event=0 extra=2.991900
+[2026.10.31-08.44.47:527][519]LogVeloxNet: Verbose: VeloxResend old=3.025234 new=3.041902 pending=-1.000000 event=0 extra=3.008567
+[2026.10.31-08.44.47:544][521]LogVeloxNet: Verbose: VeloxResend old=3.041902 new=3.058569 pending=-1.000000 event=0 extra=3.025234
+[2026.10.31-08.44.47:560][523]LogVeloxNet: Verbose: VeloxResend old=3.058569 new=3.075237 pending=-1.000000 event=0 extra=3.041902
+[2026.10.31-08.44.47:577][525]LogVeloxNet: Verbose: VeloxResend old=3.075237 new=3.091904 pending=-1.000000 event=0 extra=3.058569
+[2026.10.31-08.44.47:594][527]LogVeloxNet: Verbose: VeloxResend old=3.091904 new=3.108571 pending=-1.000000 event=0 extra=3.075237
+[2026.10.31-08.44.47:610][529]LogVeloxNet: Verbose: VeloxResend old=3.108571 new=3.125239 pending=-1.000000 event=0 extra=3.091904
+[2026.10.31-08.44.47:627][531]LogVeloxNet: Verbose: VeloxResend old=3.125239 new=3.141907 pending=-1.000000 event=0 extra=3.108571
+[2026.10.31-08.44.47:644][533]LogVeloxNet: Verbose: VeloxResend old=3.141907 new=3.158575 pending=-1.000000 event=0 extra=3.125239
+[2026.10.31-08.44.47:660][535]LogVeloxNet: Verbose: VeloxResend old=3.158575 new=3.175242 pending=-1.000000 event=0 extra=3.141907
+[2026.10.31-08.44.47:677][537]LogVeloxNet: Verbose: VeloxResend old=3.175242 new=3.191909 pending=-1.000000 event=0 extra=3.158575
+[2026.10.31-08.44.47:694][539]LogVeloxNet: Verbose: VeloxResend old=3.191909 new=3.208577 pending=-1.000000 event=0 extra=3.175242
+[2026.10.31-08.44.47:710][541]LogVeloxNet: Verbose: VeloxResend old=3.208577 new=3.225245 pending=-1.000000 event=0 extra=3.191909
+[2026.10.31-08.44.47:727][543]LogVeloxNet: Verbose: VeloxResend old=3.225245 new=3.241913 pending=-1.000000 event=0 extra=3.208577
+[2026.10.31-08.44.47:735][544]LogVeloxNet: VeloxNetSoak: script=KnockbackRun moves=300 corrections=4 max=22.99 mean=5.75 checks=0/0 peak2d=1250.0 peak_t=2.438 result=PASS reason=-
+[2026.10.31-08.44.47:737][545]LogNet: UNetConnection::Close: [UNetConnection] RemoteAddr: 127.0.0.1:7961, Name: IpConnection_0, Driver: Name:GameNetDriver Def:GameNetDriver IpNetDriver_0, IsServer: NO, PC: VeloxPlayerController_0, Owner: VeloxPlayerController_0, UniqueId: NULL:bojan-01A19121D30C7BBCBF748506C82C3BE5, Channels: 9, Time: 2026.10.31-08.44.47
+[2026.10.31-08.44.47:737][545]LogNet: UChannel::Close: Sending CloseBunch. ChIndex == 0. Name: [UChannel] ChIndex: 0, Closing: 0 [UNetConnection] RemoteAddr: 127.0.0.1:7961, Name: IpConnection_0, Driver: Name:GameNetDriver Def:GameNetDriver IpNetDriver_0, IsServer: NO, PC: VeloxPlayerController_0, Owner: VeloxPlayerController_0, UniqueId: NULL:bojan-01A19121D30C7BBCBF748506C82C3BE5
+[2026.10.31-08.44.47:738][545]LogVeloxCombat: VeloxPlayerState_0: ability actor info owner=VeloxPlayerState_0 avatar VeloxCharacter_0 -> None (2 abilities)
+[2026.10.31-08.44.47:742][545]LogSlate: Window 'Velox (64-bit Development SF_VULKAN_SM5) ' being destroyed

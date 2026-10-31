@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (merged; notes/02-report.md)
 **Depends on:** ADR 0005 §2, §4 (maneuver state machine), §5, §7, §8, §9 (no code dependencies; parallel with 01 and 03)
 
 ## Goal

@@ -74,3 +74,54 @@ Dedicated server plus one scripted client with 100 ms / 2 % loss each way (see `
 - Server: `VeloxMoveGap ts= dt=` for a move > 20 ms (merged lost RPCs or a slow client frame) and `VeloxMoveRepaired ts= dt= slot=old|extra` for an old move simulated in its own partition (lost RPC repaired from the next RPC's OldMove, `slot=old`, or extra move, `slot=extra`; ADR 0002 A32/A35; the nettest row prints `repaired=N repaired_extra=M resent_extra=K`). An extra or old move the server already has is rejected by the engine's time stamp check without a Velox line (`ServerMove_PerformMovement`, `LogNetPlayerMovement` Log `ServerMove: TimeStamp expired`, Warning only beyond `net.NetServerMoveTimestampExpiredWarningThreshold`; visible with `log LogNetPlayerMovement Log`); it is not counted in `VeloxMoveRepaired`.
 
 `nettest.sh` evaluates the windows from these lines (stray correction = at most one correction of <= 5 cm in the window). Known property of the setup: a server-side knockback is not predicted by the client, so every client move already in flight when the first correction is sent is also rejected by the server and answered with another (0 cm after the client replay) correction; see STATUS.md for the measured numbers.
+
+## Bots (M4 task 04, ADR 0005 sections 12 and 14)
+
+Bots are `AVeloxBotController`s on the server; they drive the same `UVeloxMovementComponent` as players through the player
+input entry points only. Commands (authority world: dedicated server console, `-ExecCmds`, listen host):
+
+- `AddBot [Easy|Medium|Hard|Expert] [Name]`: adds a bot (default preset `UVeloxBotSettings::DefaultDifficulty`, name from
+  `BotNames`, palette colour, `IsABot` = `BOT` in the scoreboard). Refused at the mode's `MaxActivePlayers`
+  (`VeloxBot add refused reason=full`). On a client the command is forwarded through `AVeloxPlayerController::ServerAddBot`
+  (non-shipping, rate-limited by `BotCommandMinIntervalSeconds`); the client retries for 30 s while it is still connecting.
+- `KickBot [Name|all]`: removes the bot (pawn and controller destroyed, `Logout` runs: `VeloxBot logout`). Client: `ServerKickBot`.
+- URL: `?Bots=N` (capped to `MaxActivePlayers - 1` unless `?BotsFill=1`), `?BotDifficulty=Hard`; without `?Bots=` the
+  settings' `DefaultBotCount` applies (0). Example: `L_ItemTest?game=Duel?Bots=2?BotsFill=1?BotDifficulty=Hard`.
+- `velox.bots.List`: one `VeloxBot name= goal= item= enemy= vis= weapon= speed= link= filter= ...` line per bot.
+- `velox.bots.Debug 0/1` (cvar): that line once per second per bot (`DebugIntervalSeconds`), including the controller's
+  `tick_us_mean` / `tick_us_max` (rough per-bot cost; the section 13 stats land with task 05).
+- `velox.bots.Goal <bot|all> <item tag | point x y z | none>`: forces a goal (kept across respawns until reached, taken
+  or `none`); e.g. `velox.bots.Goal Celer Velox.Item.Health.Mega`.
+- `velox.bots.Freeze 0/1` (cvar): every bot releases its keys and stands.
+- `velox.bots.Kill <bot>`: environment-damage kill by the local player (kill feed, B8 death, auto-respawn).
+- `velox.bots.Players`: the PlayerArray as this machine sees it (`VeloxPlayers net=client|server name= bot= color=`).
+- `velox.bots.After <seconds> <command ...>`: runs a command after game-world seconds (headless scripts; restarts the
+  count when the client travels to the server's map).
+- `velox.bots.DumpNav`, `velox.bots.DumpPadLandings`, `velox.bots.Seed`: task 01 (nav paths, pad landings, master seed).
+
+Log lines: `VeloxBotLink bot= type=JumpPad|Drop|Jump|JumpFast|RocketJump from= to= result=ok|missed|aborted reason= dt=`
+(every traversal), `VeloxBotStuck bot= at= goal= strikes=`, `VeloxBotGoal`, `VeloxBotPath` (Verbose), `VeloxBot possess`,
+`VeloxBotOffMesh bot= at= to= target=walkable|nearest tested= attempt= result=` / `VeloxBotOffMesh bot= recovered after=`
+(task 04b: feet on the ground but off the nav mesh for `OffMeshGraceSeconds`, the bot walks straight to the nearest nav
+point with no wall in between). `velox.bots.ListPresets` logs each preset with its effective `reaction_s` /
+`reaction_jitter` (cvar overrides such as `velox.bots.ReactionJitter 0` applied).
+Tunables: `[/Script/Velox.VeloxBotController]` (acceptance radii, stuck speed/strikes, repath interval, CPM key snap,
+roam attempts) and `[/Script/Velox.VeloxBotPathFollowingComponent]` (`LinkEntryRadiusCm`, `LinkEntryImpulseRadiusCm`,
+`PartialEndSlackCm`) in `DefaultGame.ini`; presets in `Content/Bots/DA_Bot_*`. Project-wide: `[/Script/Velox.VeloxBotSettings]`
+(fight score `FightBaseScore` / `FightFullStrength` / `FightWeakWeaponScale`, maneuver constants `LinkStartAcceptanceCm`,
+`JumpFastSpeedFraction`, `JumpFastRunUpCm`, `JumpFastRetries`, `RocketJumpImpulseTimeoutSeconds`; ADR 0005 D4).
+
+Functional tests (console, like `FT_ItemPickup`; `quit` exits 0/1, `VeloxBotFt result=PASS|FAIL`):
+
+```
+UnrealEditor-Cmd Velox.uproject L_ItemTest -game -nullrhi -UseFixedTimeStep -FPS=60 \
+    -ExecCmds="velox.bots.Seed 1, velox.bots.FtNavigation quit"         # FT_BotNavigation: pad + drop to Mega and RA
+UnrealEditor-Cmd Velox.uproject L_MovementTest -game -nullrhi -UseFixedTimeStep -FPS=60 \
+    -ExecCmds="velox.bots.Seed 1, velox.bots.FtStrafeCorridor quit"     # FT_BotStrafeCorridor: Hard strafe-jumps, Easy walks
+```
+
+All bot FTs in one go: `infra/ci/fts.sh [--port N]` (FtItemPickup, FtNavigation, FtStrafeCorridor, FtItemRouting,
+FtOffMesh; `[fts] OK 5/5`), run for every bot task and before a merge to `main` (see `infra/ci/README.md`).
+
+Unit rows: `Velox.Bots.ControllerRules` (seed, key presence, turn rate, stuck, names, `?Bots=` cap, link mapping) and
+`Velox.Bots.FindNearestEnd` run in `build.sh`.

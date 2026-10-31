@@ -15,6 +15,7 @@ class UArrowComponent;
 class UBoxComponent;
 class UPrimitiveComponent;
 class UStaticMeshComponent;
+class UWorld;
 struct FHitResult;
 
 UENUM(BlueprintType)
@@ -57,6 +58,21 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Velox|JumpPad")
 	FVector GetLandingPoint(float GravityZ) const;
+
+	/**
+	 * Bots (ADR 0005 section 4, retires the A21 apex caveat for nav links): where a pawn launched by this pad first
+	 * touches world geometry on the *descending* branch of the arc. The capsule bottom (trigger centre minus the
+	 * trigger's scaled half height, which equals the standing capsule's) follows VeloxMoveSim::BallisticPoint from the
+	 * apex in LandingSampleSeconds steps with a line trace between samples on the Weapon channel (world only: pawns and
+	 * triggers ignore it). Returns the hit point (a floor point), or the last sample when nothing is hit within
+	 * LandingMaxFlightSeconds, or the floor point under the trigger when the launch is unsolvable. Gravity comes from the
+	 * class-default movement settings, as in map check.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Velox|JumpPad")
+	FVector ComputeLandingPoint(const UWorld* World) const;
+
+	/** ComputeLandingPoint; returns whether the trace hit geometry (false: fallback point). */
+	bool TryComputeLandingPoint(const UWorld* World, FVector& OutLanding) const;
 
 	/** Launch point: the trigger centre. */
 	UFUNCTION(BlueprintPure, Category = "Velox|JumpPad")
@@ -116,6 +132,14 @@ protected:
 	/** Replace the pawn's velocity (Q3 trigger_push) instead of adding to it. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Velox|JumpPad")
 	bool bOverrideVelocity = true;
+
+	/** ComputeLandingPoint: time between two traced samples of the arc (one 60 Hz server frame). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = "Velox|JumpPad", Meta = (ClampMin = "0.001", Units = "s"))
+	float LandingSampleSeconds = 1.f / 60.f;
+
+	/** ComputeLandingPoint: the arc is traced at most this long after the apex. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category = "Velox|JumpPad", Meta = (ClampMin = "0.1", Units = "s"))
+	float LandingMaxFlightSeconds = 5.f;
 
 	/** Validation bound: map check and a one-time runtime warning when the launch speed exceeds it (ADR 0002 section 4). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Velox|JumpPad", Meta = (ClampMin = "0", Units = "cm/s"))
