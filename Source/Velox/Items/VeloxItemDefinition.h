@@ -24,6 +24,9 @@ public:
 	/** The quantity the pickup rules use: Weapon->PickupAmmo for weapons (one source of truth), else Quantity. */
 	int32 GetEffectiveQuantity() const;
 
+	/** True when ModeTag (a UVeloxGameModeDefinition::ModeTag; invalid = no mode known) is listed in DisabledInModes (exact match). */
+	bool IsDisabledInMode(const FGameplayTag& ModeTag) const { return ModeTag.IsValid() && DisabledInModes.HasTagExact(ModeTag); }
+
 	/** Velox.Item.<Type>.<Name>. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item", Meta = (Categories = "Velox.Item"))
 	FGameplayTag ItemTag;
@@ -53,6 +56,13 @@ public:
 	/** Everyone hears the take (Q3 EV_GLOBAL_ITEM_PICKUP; powerups). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item")
 	bool bGlobalPickupSound = false;
+
+	/**
+	 * Game modes (UVeloxGameModeDefinition::ModeTag, Velox.Mode.*) in which a placed pickup of this item is removed on the server
+	 * at BeginPlay (ADR 0006 section 3: the Quad is FFA only, so DA_Item_Powerup_Quad lists Velox.Mode.Duel). Empty = every mode.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item", Meta = (Categories = "Velox.Mode"))
+	FGameplayTagContainer DisabledInModes;
 
 	/** Mega, Red / Yellow Armor, powerups: item timers (spectators) and bot priority. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item")

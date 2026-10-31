@@ -11,6 +11,8 @@
 //                             taken (tag, 30 s); client prediction (hide, predicted weapon slot, timeout -> shown).
 //   Velox.Items.PickupReset   M3-13 F1: Reset() defers the standing-pawn check one tick (live pawn takes it then, a pawn the
 //                             reset destroys does not). PickupRules also covers IsStaleTake (F2).
+//   Velox.Items.ModeGating    ADR 0006 section 3: DisabledInModes (the Quad lists Velox.Mode.Duel); a level pickup is destroyed on
+//                             the server at BeginPlay in Duel and kept in FFA and with no mode definition.
 //   Velox.Items.PowerupStacking  task 02: powerup GE layout, grant / in-place extension (ModifyActiveEffectStartTime) with
 //                             the rule's arithmetic, Quad x3 on a dummy, Battle Suit, Regen ticks and decay skip, loss on
 //                             GE_SpawnInit, no regen while dead, frozen = no damage, projectile
@@ -36,6 +38,7 @@
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
 #include "GameModes/VeloxGameModeDefinition.h"
+#include "GameModes/VeloxGameState.h"
 #include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Movement/VeloxMovementComponent.h"
@@ -854,6 +857,58 @@ bool FVeloxItemsPowerupStackingTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("projectile: no quad, 100"), AVeloxProjectile::ScaledShotDamage(Rocket->SplashDamage, false, ASC), 100);
 		Projectile->Reset();
 		TestFalse(TEXT("projectile: destroyed by Reset (ResetLevel)"), IsValid(Projectile));
+	}
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------------ ModeGating
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxItemsModeGatingTest, "Velox.Items.ModeGating", VeloxItemTest::Flags)
+
+bool FVeloxItemsModeGatingTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxItemTest;
+
+	const UVeloxItemDefinition* Quad = AVeloxPickup::LoadDefinitionByName(TEXT("Powerup.Quad"));
+	const UVeloxItemDefinition* Haste = AVeloxPickup::LoadDefinitionByName(TEXT("Powerup.Haste"));
+	const UVeloxGameModeDefinition* FFA = LoadObject<UVeloxGameModeDefinition>(nullptr, TEXT("/Game/Data/DA_GameMode_FFA.DA_GameMode_FFA"));
+	const UVeloxGameModeDefinition* Duel = LoadObject<UVeloxGameModeDefinition>(nullptr, TEXT("/Game/Data/DA_GameMode_Duel.DA_GameMode_Duel"));
+	if (!TestNotNull(TEXT("item and mode assets (run create_item_content.py)"), Quad) || !Haste || !FFA || !Duel)
+	{
+		return false;
+	}
+
+	// Data: the Quad is disabled in Duel only; every other item in no mode.
+	TestTrue(TEXT("Quad disabled in Duel"), Quad->IsDisabledInMode(VeloxMatchTags::Mode_Duel));
+	TestFalse(TEXT("Quad enabled in FFA"), Quad->IsDisabledInMode(VeloxMatchTags::Mode_FFA));
+	TestFalse(TEXT("an invalid mode tag disables nothing"), Quad->IsDisabledInMode(FGameplayTag()));
+	TestFalse(TEXT("Haste disabled in no mode"), Haste->IsDisabledInMode(VeloxMatchTags::Mode_Duel) || Haste->IsDisabledInMode(VeloxMatchTags::Mode_FFA));
+
+	// Runtime: a pickup spawned at BeginPlay of a world whose GameState carries the mode definition.
+	struct FCase { const TCHAR* Name; const UVeloxGameModeDefinition* Mode; bool bQuadKept; };
+	const FCase Cases[] = { { TEXT("Duel"), Duel, false }, { TEXT("FFA"), FFA, true }, { TEXT("no definition"), nullptr, true } };
+	for (const FCase& Case : Cases)
+	{
+		FItemTestWorld W;
+		AVeloxGameState* State = W.World->SpawnActor<AVeloxGameState>();
+		if (!TestNotNull(TEXT("game state"), State))
+		{
+			return false;
+		}
+		W.World->SetGameState(State);
+		State->InitMatchRules(Case.Mode, 0, 0);
+		UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(W.World);
+		if (!TestNotNull(TEXT("registry"), Registry))
+		{
+			return false;
+		}
+		AVeloxPickup* QuadPickup = AVeloxPickup::SpawnPickup(W.World, Quad, FVector(0, 0, 0));
+		AVeloxPickup* HastePickup = AVeloxPickup::SpawnPickup(W.World, Haste, FVector(300, 0, 0));
+		W.Advance(0.1f);
+		TestEqual(FString::Printf(TEXT("%s: Quad pickup %s"), Case.Name, Case.bQuadKept ? TEXT("kept") : TEXT("destroyed")), IsValid(QuadPickup), Case.bQuadKept);
+		TestTrue(FString::Printf(TEXT("%s: Haste pickup kept"), Case.Name), IsValid(HastePickup));
+		TestEqual(FString::Printf(TEXT("%s: Quad in the registry"), Case.Name), Registry->FindByTag(VeloxGameplayTags::Item_Powerup_Quad.GetTag()).Num(), Case.bQuadKept ? 1 : 0);
+		TestEqual(FString::Printf(TEXT("%s: registry size"), Case.Name), Registry->GetPickups().Num(), Case.bQuadKept ? 2 : 1);
 	}
 	return true;
 }

@@ -84,7 +84,8 @@ ITEMS = [
     dict(type=WEAPON, name="LightningGun", display="Lightning Gun", respawn=5, bot=55, weapon="LightningGun", color=color(220, 240, 255), scale=(0.6, 0.2, 0.2)),
     dict(type=WEAPON, name="Railgun", display="Railgun", respawn=5, bot=60, weapon="Railgun", color=color(60, 240, 160), scale=(0.6, 0.2, 0.2)),
     dict(type=WEAPON, name="PlasmaGun", display="Plasma Gun", respawn=5, bot=50, weapon="PlasmaGun", color=color(160, 80, 255), scale=(0.6, 0.2, 0.2)),
-    dict(type=POWERUP, name="Quad", display="Quad Damage", respawn=120, bot=110, major=True, powerup_s=30, color=color(60, 120, 255), scale=(0.5, 0.5, 0.5)),
+    dict(type=POWERUP, name="Quad", display="Quad Damage", respawn=120, bot=110, major=True, powerup_s=30, color=color(60, 120, 255), scale=(0.5, 0.5, 0.5),
+         disabled_in_modes=("Velox.Mode.Duel",)),   # ADR 0006 section 3 / E0.5: the Quad is FFA only
     dict(type=POWERUP, name="Haste", display="Haste", respawn=120, bot=110, major=True, powerup_s=30, color=color(255, 220, 40), scale=(0.5, 0.5, 0.5)),
     dict(type=POWERUP, name="Regen", display="Regeneration", respawn=120, bot=110, major=True, powerup_s=30, color=color(240, 30, 30), scale=(0.5, 0.5, 0.5)),
     dict(type=POWERUP, name="BattleSuit", display="Battle Suit", respawn=120, bot=110, major=True, powerup_s=30, color=color(40, 220, 40), scale=(0.5, 0.5, 0.5)),
@@ -127,9 +128,14 @@ def item_values(item):
         "powerup_effect": powerup_effect_class(item),
         "powerup_seconds": float(item.get("powerup_s", 0.0)),
         "pickup_cue_tag": unreal.GameplayTag(),
+        "disabled_in_modes": unreal.GameplayTagContainer(),
         "placeholder_color": item["color"],
         "placeholder_scale": unreal.Vector(*item["scale"]),
     }
+    if item.get("disabled_in_modes"):
+        container = unreal.GameplayTagContainer()
+        container.import_text("(GameplayTags=(" + ",".join('(TagName="%s")' % t for t in item["disabled_in_modes"]) + "))")
+        values["disabled_in_modes"] = container
     if "weapon" in item:
         weapon_path = f"{WEAPON_DIR}/DA_Weapon_{item['weapon']}"
         weapon = EAL.load_asset(weapon_path) if EAL.does_asset_exist(weapon_path) else None
@@ -173,6 +179,11 @@ def verify_items():
                 fail(f"{path}.{k} = {got}, expected {want}")
         if ("weapon" in item) != (da.get_editor_property("weapon") is not None):
             fail(f"{path}.weapon mismatch")
+        want_modes = sorted(item.get("disabled_in_modes", ()))
+        got_modes = sorted(str(t.get_editor_property("tag_name")) for t in da.get_editor_property("disabled_in_modes").gameplay_tags) \
+            if hasattr(da.get_editor_property("disabled_in_modes"), "gameplay_tags") else None
+        if got_modes is not None and got_modes != want_modes:
+            fail(f"{path}.disabled_in_modes = {got_modes}, expected {want_modes}")
         effect = da.get_editor_property("powerup_effect")
         want_effect = f"VeloxGE_Powerup_{item['name']}" if item["type"] == POWERUP else None
         got_effect = effect.get_name() if effect is not None else None

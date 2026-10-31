@@ -44,3 +44,17 @@ Helpers: `box(name, center, size, material, kind, collide=True, tags=())`, `ramp
 
 Regeneration (all with `-nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput`, absolute `-script=` paths; run the movement map first on a fresh checkout because it creates the `M_Greybox_*` materials):
 `UnrealEditor-Cmd Velox.uproject -run=pythonscript -script=$PWD/Tools/editor/create_movement_test_map.py ...` (then `create_combat_test_map.py`, then `create_item_test_map.py`, which also needs `create_item_content.py`).
+
+## DM1 "Praesidium": `maps/dm1_layout.py` and `create_dm1_map.py` (ADR 0006 sections 2 and 3, task M5-05)
+
+`maps/dm1_layout.py` is the declarative layout table (namedtuples and lists, no `unreal` import): rooms, solid boxes, wall strips with openings, stairs, the 15 degree ramp, the three pads, 35 items (with `disabled_in_modes`), 8 spawns, 22 nav links, light placeholders (task 15), clip volumes, nav bounds, `MAP_ID`, `DISPLAY_NAME = "Praesidium"` (E0.5), `FLOOR_Z = 0`, `KILL_Z = -1000`. Its docstring has the top-down sketch.
+
+`create_dm1_map.py --mode blockout` (default; the mode can also come from `VELOX_DM1_MODE`; `--mode art` raises "task 15") regenerates `/Game/Maps/DM1/L_DM1_Blockout` idempotently:
+`UnrealEditor-Cmd Velox.uproject -run=pythonscript -script="$PWD/Tools/editor/create_dm1_map.py --mode blockout" -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput`
+(needs `create_movement_test_map.py` for the materials and `create_item_content.py` for `/Game/Items`).
+
+- Before touching the editor it validates the table in plain Python (`python3 -I Tools/editor/create_dm1_map.py --validate-only` runs only this): walkable widths >= 120, openings 240..400, room ceilings (atria 800, rooms >= 480, corridors >= 320), pad landing zones >= 300 x 300 with a simulated arc (same formulas as `AVeloxJumpPad`; the simulated landing must be within 60 cm of the authored landing and of the `JUMP_PAD` link end), rocket-jump clearance >= 900, spawns >= 10 m apart, <= 8 m (horizontal) from a weapon and without line of sight to Mega / RA, ammo 6..12 m from its weapon, the ADR item mix, Quad disabled in Duel, every item standing on a solid top.
+- It then spawns everything with the `veloxmap.py` helpers, tags every actor `Layout:<record id>`, asserts the per-kind counts, sets `KillZ -1000`, one `NavMeshBoundsVolume`, perimeter + roof + per-room ceiling clip, and verifies that no actor carries `NavLintIgnore` (E0.2 b: forbidden on DM1).
+- `veloxmap.configure(fill_nav_kinds=("floor", "wall", "platform", "step"))`: every solid that stands on the ground fills the nav underneath; `ramp`, `bridge`, `bridgewall` and `lintel` hang over walkable space and never do (E0.2 d). The ramp's void is sealed by stepped `A_Ramp_Fill_*` boxes (residual clearance < 60 cm).
+- Gates: `infra/ci/navlint.sh /Game/Maps/DM1/L_DM1_Blockout` (`clusters=0` walk-in and isolated, `lowclear polys=0`), `infra/ci/fts.sh` (`FtDm1Reachability`, FT_DM1_Reachability), `velox.bots.DumpPadLandings` (each landing within 60 cm of its link end).
+- Quad gating: `UVeloxItemDefinition::DisabledInModes` (`Velox.Mode.*` tags, set by `create_item_content.py`: the Quad lists `Velox.Mode.Duel`); `AVeloxPickup::BeginPlay` destroys such a pickup on the server before the item registry sees it (`VeloxPickupDisabled` log line).
