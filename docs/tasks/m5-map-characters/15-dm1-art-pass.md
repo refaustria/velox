@@ -9,7 +9,7 @@
 `L_DM1` is generated from the same layout table as the blockout: every box becomes kit instances, the boxes stay as hidden clip geometry, static lights and reflection captures come from the layout's `Light` records, the sky cubemap is set, and the map plays identically to the blockout (collision diff empty, soaks PASS with the DM1 bands).
 
 ## Scope — files/modules the agent may touch
-- `Tools/editor/create_dm1_map.py` (`--mode art`), `Tools/editor/maps/dm1_layout.py` (the `Light` records and kit mapping hints only — no geometry changes without re-running the blockout gates), `Tools/editor/veloxmap.py` (kit placement helpers: `kit_fill_box`, `clip_box`, `static_point_light`, `static_spot_light`, `sphere_reflection_capture`, `sky_light(cubemap)`), `Content/Maps/DM1/L_DM1.umap` (LFS), `Config/DefaultGame.ini` (`+MapsToCook` L_DM1)
+- `Tools/editor/create_dm1_map.py` (`--mode art`), `Tools/editor/maps/dm1_layout.py` (the `Light` records and kit mapping hints only — no geometry changes without re-running the blockout gates), `Tools/editor/veloxmap.py` (kit placement helpers: `kit_fill_box`, `clip_box`, `static_point_light`, `static_spot_light`, `sphere_reflection_capture`, `sky_light(cubemap)`), `Content/Maps/DM1/L_DM1.umap` (LFS). **Not** `Config/DefaultGame.ini`: `L_DM1` enters `+MapsToCook` only with the baked map in task 16 part B (ADR 0006 E0.1 c), otherwise `Velox.Maps.LightingBuilt` turns the VM build red during the Mac wait.
 - `docs/tasks/m5-map-characters/notes/15-report.md`
 
 ## Relevant ADRs / references
@@ -22,7 +22,7 @@
 - [ ] `infra/ci/navlint.sh /Game/Maps/DM1/L_DM1` → `clusters=0`; `FT_DM1_Reachability` also runs on `L_DM1` (parametrise the FT by map or duplicate the test actor) and passes.
 - [ ] Budgets from `audit_map.py L_DM1` within ADR §8 (draw-call proxy: ≤ 25 distinct meshes × ≤ 8 materials; tri count estimate; lightmap MB; texture MB; components with res > 64 ≤ 120).
 - [ ] Soaks on `L_DM1` with the DM1 bands: BotRun ×3, BotDuel ×3 PASS; FFA ×10 PASS (idle host, soak lock). `DM1Run` PASS on `L_DM1`.
-- [ ] Lighting is **not** baked in this task (task 16); the map loads headless with `-game -nullrhi` clean.
+- [ ] Lighting is **not** baked in this task (task 16 part B, on the Apple Silicon Mac — ADR 0006 E0.1); the map runs in fallback-C state (unbuilt preview lighting) for the soaks here and loads headless with `-game -nullrhi` clean. `L_DM1` is **not** added to `+MapsToCook`.
 
 ## Verification steps
 1. Generate both modes; `audit_map.py --diff-collision …` and `--protrusion`.

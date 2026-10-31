@@ -4,12 +4,14 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 
 | # | Task | Agent | Est. | Depends on | Wave | Status |
 |---|---|---|---|---|---|---|
-| 01 | [headless-lighting-probe](01-headless-lighting-probe.md) | dev | 2 h | ADR §5 | 0 | todo |
-| 02 | [map-library-refactor](02-map-library-refactor.md) | dev | 2–3 h | ADR §2 | 0 | todo |
-| 03 | [nav-coverage-lint](03-nav-coverage-lint.md) | dev-hard | 3 h | ADR §6, ADR 0005 D41 | 0 | todo |
-| 04 | [soak-runner-map-override-and-bands](04-soak-runner-map-override-and-bands.md) | dev | 2–3 h | ADR §7 | 0 | todo |
-| 05 | [dm1-blockout](05-dm1-blockout.md) | dev | 3 h (may split: layout+map / FT+gating) | 02, 03 | 1 | todo |
-| 06 | [dm1-bot-iteration](06-dm1-bot-iteration.md) | dev | 3 h (+ soak time) | 04, 05 | 1 | todo |
+| 01 | [headless-lighting-probe](01-headless-lighting-probe.md) | dev | 2 h | ADR §5 | 0 | done — PATH A FAILS; bake on the Apple Silicon Mac (E0.1) |
+| 02 | [map-library-refactor](02-map-library-refactor.md) | dev | 2–3 h | ADR §2 | 0 | done (maps committed by 03b) |
+| 03 | [nav-coverage-lint](03-nav-coverage-lint.md) | dev-hard | 3 h | ADR §6, ADR 0005 D41 | 0 | done (deviations accepted, E0.2) |
+| 03b | [test-maps-lint-baseline-and-regen](03b-test-maps-lint-baseline-and-regen.md) | dev | 2–3 h | 02, 03, E0.2 (e), E0.4 | 0b (parallel with 05) | todo |
+| 04 | [soak-runner-map-override-and-bands](04-soak-runner-map-override-and-bands.md) | dev | 2–3 h | ADR §7 | 0 | done (findings ruled, E0.3) |
+| 04b | [runner-per-instance-coverage-and-link-definition](04b-runner-per-instance-coverage-and-link-definition.md) | dev | 1–2 h | 04, E0.3 | 0b (before 06's final sets) | todo |
+| 05 | [dm1-blockout](05-dm1-blockout.md) | dev | 3 h (may split: layout+map / FT+gating) | 02, 03, E0.2/E0.5 (final lint with 03b) | 1 | todo |
+| 06 | [dm1-bot-iteration](06-dm1-bot-iteration.md) | dev | 3 h (+ soak time) | 04, 04b, 05 | 1 | todo |
 | 07 | [dm1-band-ruling](07-dm1-band-ruling.md) | architect | 1 h | 06 | 1 | todo |
 | 08 | [character-cosmetics-and-anim-instance](08-character-cosmetics-and-anim-instance.md) | dev-hard | 3 h | ADR §4 | 2 (parallel with 1) | todo |
 | 09 | [view-model-and-weapon-cosmetics](09-view-model-and-weapon-cosmetics.md) | dev | 3 h | 08 | 2 | todo |
@@ -19,21 +21,21 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 | 13 | [weapon-and-item-models](13-weapon-and-item-models.md) | dev | 3 h | 09, 10, 11 | 3 | todo |
 | 14 | [modular-kit](14-modular-kit.md) | dev | 3 h | 11, Q4 | 3 | todo |
 | 15 | [dm1-art-pass](15-dm1-art-pass.md) | dev | 3 h | 07, 14 | 4 | todo |
-| 16 | [lighting-bake-and-perf-audit](16-lighting-bake-and-perf-audit.md) | dev | 3 h (+ bake time) | 01, 15 (audit tool part may start after 05) | 4 | todo |
+| 16 | [lighting-bake-and-perf-audit](16-lighting-bake-and-perf-audit.md) | dev (A) / human + dev (B) | A 3 h; B bake 1–3 h on the Apple Silicon Mac | A: 05 (tool), 15; B: 15, the Mac (E0.1) | 4 | todo |
 | 17 | [m5-playtest-checklist](17-m5-playtest-checklist.md) | dev | 1 h | 15, 16, 08–13 | 4 | todo |
 | 18 | [architect-review-cosmetics](18-architect-review-cosmetics.md) | architect | 1–2 h | 08, 09, 10 merged | 4 | todo |
 
 ## Wave plan (from ADR 0006 implementation notes)
 
-- **Wave 0 — infrastructure, all four in parallel:** 01 answers the lighting question before anything depends on it; 02 gives the DM1 generator its library; 03 pays the nav-lint debt; 04 makes the soaks map-aware. No art, no new gameplay.
+- **Wave 0 — infrastructure, all four in parallel:** 01 answers the lighting question before anything depends on it; 02 gives the DM1 generator its library; 03 pays the nav-lint debt; 04 makes the soaks map-aware. No art, no new gameplay. **Done 2026-10-31; rulings in ADR 0006 E0.** Wave 0b (03b, 04b) closes the findings and runs in parallel with 05.
 - **Wave 1 — the map as gameplay:** 05 blockout (gated by lint + FT), 06 bots iterate the layout (report-only sets, evidence), 07 architect fixes the DM1 bands as ADR 0006 E1.
 - **Wave 2 — character/cosmetics code, parallel with wave 1:** 08 (dev-hard: replicated pawn/PlayerState surface), then 09 and 10. Everything works with empty soft references, so no art is needed.
 - **Wave 3 — art pipeline, parallel tasks:** 11–14 each produce a Blender script, a spec document and a verified headless import path. If Blender is on no host they end as "script + spec + fixture-proven import"; the human then runs the scripts on the Mac (or approves `apt install blender` here) and the import is one command.
-- **Wave 4 — assembly and acceptance:** 15 art pass (same soaks, same bands), 16 bake + audit + cook + default map, 17 checklist, 18 review. M5 is done when the ROADMAP criteria hold *and* the human signs the checklist on the Apple Silicon Mac.
+- **Wave 4 — assembly and acceptance:** 15 art pass (same soaks, same bands; fallback-C lighting, not in `MapsToCook`), 16 part A audit + tightened `LightingBuilt` + cook dry run on the VM, 16 part B the human's Production bake on the Apple Silicon Mac + `MapsToCook` + default map, 17 checklist, 18 review. M5 is done when the ROADMAP criteria hold, the bake is committed *and* the human signs the checklist on the Apple Silicon Mac.
 
 Rules repeated for every dispatch: never touch `Movement/` or the lag-compensation path; cosmetics only via `TSoftObjectPtr`; soaks only under the soak lock on an idle host; keep ≥ 15 GB free; `.blend1` never committed; one task per agent invocation.
 
-## Questions for the human (copy into `STATUS.md`, numbered after the current 30)
+## Questions for the human (copied into `STATUS.md` as 31–40; **all decided 2026-10-31**, rulings in ADR 0006 E0.5 — kept here for the record)
 
 1. **Install Blender on this VM?** `apt install blender` (Debian 13 ships 4.2 LTS; ≈ 1 GB with dependencies; runs headless with `blender -b`). Options: (a) yes — agents produce `.blend`/FBX themselves and the import is end-to-end here; (b) no — agents write scripts + specs, you run the scripts on the Mac (Blender 4.x, one command per script) and commit the FBX. **Recommendation: (a)**; disk stays above the 15 GB floor (21 GB free now).
 2. **Art direction.** (a) Low-poly, flat-shaded, hard-edged "stylised brutalist" that scripts can generate (baked lighting does the beauty work); (b) textured, hand-made art by you/an artist later, agents only block out. **Recommendation: (a)** for M5 — readability first, and it is replaceable piece by piece (the kit is ≤ 25 meshes).

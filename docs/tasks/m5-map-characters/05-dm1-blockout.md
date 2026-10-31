@@ -3,7 +3,7 @@
 **Milestone:** M5 Map + characters
 **Agent:** dev
 **Status:** todo
-**Depends on:** 02 (library), 03 (lint), ADR 0006 §2–§3
+**Depends on:** 02 (library), 03 (lint), ADR 0006 §2–§3 and **E0.2, E0.3 (e), E0.5**; the final lint gate runs with 03b's lint (edge-strip kind) — start in parallel, re-run step 3 after 03b merges
 
 ## Goal
 The first real map exists as a greybox generated from one declarative layout table: five rooms (A Mega Hall, B RA Yard, C North Lane, D South Hall, E Rail Tower), three levels, three pads, two rocket-jump shortcuts, all items of ADR 0006 §3, 8 spawns, nav bounds and links, KillZ and clip ceiling. It passes the nav lint with zero clusters and every item is reachable from every spawn.
@@ -16,14 +16,15 @@ The first real map exists as a greybox generated from one declarative layout tab
 
 ## Relevant ADRs / references
 - ADR 0006 §3 (room table, flow rules, item list, spawns, gating), §2 (grid, module, clip-first, `Layout:` tags), §6 (lint gate), §7 (FT)
+- ADR 0006 **E0.2** (gate counts `walkin` and `isolated` clusters and `inside=1` lowclear polys; remedies per kind; `NavLintIgnore` forbidden on DM1; `fill_nav_kinds` contract; `--grid 25` report-only run), **E0.3 (e)** (lowest floor top at Z = 0), **E0.5** (theme concrete and steel bunker — dressing only; display name `Casemate`; Quad FFA only)
 - ADR 0005 §4 and `Tools/editor/README.md` (nav link conventions), D41 (seal or nav), task `m4-bots/07f` (KillZ −1000, clip ceiling)
 - ADR 0004 §1 (item definitions and respawn times)
 
 ## Acceptance criteria
-- [ ] `dm1_layout.py` is data only (namedtuples/dataclasses + lists; no `unreal` import) and encodes every §3 rule as a record: rooms with floor/ceiling heights, boxes, ramps (15°), stairs (20 cm risers), doors (240–400 cm), three pads with target points, items with definition paths and `disabled_in_modes`, 8 spawns with yaw, links (`JUMP_PAD` × 3, `ROCKET_JUMP` × 2, `DROP` at every free edge, `JUMP`/`JUMP_FAST` where gaps exist), lights (placeholders for task 15; ignored in blockout mode), clip ceiling height per room.
+- [ ] `dm1_layout.py` is data only (namedtuples/dataclasses + lists; no `unreal` import), starts with `MAP_ID = "DM1"`, `DISPLAY_NAME = "Casemate"` (ADR 0006 E0.5; shown by a `text_label` next to the intermission camera, no UI binding yet) and `FLOOR_Z = 0` (E0.3 e: level 0 is the lowest walkable floor top, `KillZ −1000`), and encodes every §3 rule as a record: rooms with floor/ceiling heights, boxes, ramps (15°), stairs (20 cm risers), doors (240–400 cm), three pads with target points, items with definition paths and `disabled_in_modes`, 8 spawns with yaw, links (`JUMP_PAD` × 3, `ROCKET_JUMP` × 2, `DROP` at every free edge, `JUMP`/`JUMP_FAST` where gaps exist), lights (placeholders for task 15; ignored in blockout mode), clip ceiling height per room.
 - [ ] `create_dm1_map.py --mode blockout` regenerates `L_DM1_Blockout` idempotently, asserts counts, sets `KillZ −1000`, one `NavMeshBoundsVolume`, perimeter clip, tags every actor `Layout:<id>`.
 - [ ] Geometry rules hold and are asserted by the script itself at generation time: walkable widths ≥ 120 cm, ledges ≥ 120 cm deep, doors 240–400 cm, pad landing zones ≥ 300 × 300, corridor ceilings ≥ 320, room ceilings ≥ 480, atria 800, RJ surfaces ≥ 900 cm clearance, spawns ≥ 10 m apart, each spawn ≤ 8 m from a weapon, Mega–RA upper-ring path 45–50 m (measured with `velox.bots.DumpNav` and recorded in the notes).
-- [ ] `infra/ci/navlint.sh /Game/Maps/DM1/L_DM1_Blockout` → `clusters=0`, `lowclear polys=0`.
+- [ ] `infra/ci/navlint.sh /Game/Maps/DM1/L_DM1_Blockout` → `clusters=0` (walk-in **and** isolated; `edge` strips are not counted once 03b has landed), `lowclear polys=0` (incl. `inside=1`). **No actor on the map carries `NavLintIgnore`** (E0.2 b); findings are fixed in the layout table by kind: `walkin` → fill/seal/widen ≥ 120 cm, `isolated` → clip to the ceiling, slope > 45.5°, or widen + `DROP` links. `create_dm1_map.py` calls `vm.configure(fill_nav_kinds=<every solid kind except ramp and bridge>)` (E0.2 d); ramps over voids are sealed with pawn-blocking fill boxes (as `Ramp_Fill_*` on `L_ItemTest`) or keep ≥ 160 cm clearance. Additionally one `navlint.sh … --grid 25 --report-only` run, pasted into the notes (E0.2 a; not a gate).
 - [ ] `velox.bots.DumpPadLandings` on the map: every pad landing within 60 cm of its `JUMP_PAD` link end.
 - [ ] `FT_DM1_Reachability`: `FindPath` (Full filter) succeeds from every `PlayerStart` to every pickup and between all major items (Mega, RA, YA × 2, RG); in `fts.sh`, green.
 - [ ] Quad gating: `UVeloxItemDefinition::DisabledInModes`, server-side removal in `AVeloxPickup::BeginPlay` (verify the client never sees the actor; otherwise hide + disable and say so), unit test `Velox.Items.ModeGating`; headless check: `L_DM1_Blockout?game=Duel -server` logs no Quad in the item registry, `?game=FFA` logs one.
@@ -33,7 +34,7 @@ The first real map exists as a greybox generated from one declarative layout tab
 ## Verification steps
 1. `infra/ci/build.sh`.
 2. Generate: `UnrealEditor-Cmd "$VELOX_PROJECT" -run=pythonscript -script="$PWD/Tools/editor/create_dm1_map.py" -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput -- --mode blockout` (check how the existing scripts receive arguments; use an env var if `--` is not passed through).
-3. `infra/ci/navlint.sh /Game/Maps/DM1/L_DM1_Blockout` → exit 0.
+3. `infra/ci/navlint.sh /Game/Maps/DM1/L_DM1_Blockout` → exit 0; then `… --grid 25 --report-only` → pasted into the notes.
 4. `UnrealEditor-Cmd "$VELOX_PROJECT" /Game/Maps/DM1/L_DM1_Blockout -server -nullrhi -ExecCmds="velox.bots.DumpPadLandings, velox.bots.DumpNav <Mega xyz> <RA xyz> Full" …` → path length in the notes.
 5. `infra/ci/fts.sh` → `OK 8/8`.
 6. `du -sh Content/Maps/DM1` and `df -h /` in the report.
