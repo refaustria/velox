@@ -1,6 +1,7 @@
 // Velox - player/bot character.
 
 #include "Character/VeloxCharacter.h"
+#include "Character/VeloxFootstepComponent.h"
 
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Camera/CameraTypes.h"
@@ -94,6 +95,7 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 	HealthComponent = CreateDefaultSubobject<UVeloxHealthComponent>(TEXT("HealthComponent"));
 	HitboxComponent = CreateDefaultSubobject<UVeloxHitboxComponent>(TEXT("HitboxComponent"));
 	CombatFeedbackComponent = CreateDefaultSubobject<UVeloxCombatFeedbackComponent>(TEXT("CombatFeedbackComponent"));
+	FootstepComponent = CreateDefaultSubobject<UVeloxFootstepComponent>(TEXT("FootstepComponent"));
 
 	// ADR 0003 section 10: a bright, capsule-sized placeholder body, coloured per player. Attached to the skeletal mesh so it
 	// receives the network smoothing offset; never collides, never casts a shadow, hidden from its own player's camera.
@@ -881,10 +883,32 @@ void AVeloxCharacter::ApplyCorpseState()
 	ApplyPlayerColor();
 }
 
+void AVeloxCharacter::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+	if (FootstepComponent)
+	{
+		FootstepComponent->HandleLanded(GetCharacterMovement() ? static_cast<float>(GetCharacterMovement()->Velocity.Z) : 0.f);
+	}
+}
+
+void AVeloxCharacter::OnJumped_Implementation()
+{
+	Super::OnJumped_Implementation();
+	if (FootstepComponent)
+	{
+		FootstepComponent->HandleJumped();
+	}
+}
+
 void AVeloxCharacter::OnRep_IsCorpse()
 {
 	if (bIsCorpse)
 	{
+		if (FootstepComponent)
+		{
+			FootstepComponent->HandleCorpse();
+		}
 		ApplyCorpseState();
 	}
 }

@@ -23,6 +23,9 @@ namespace VeloxSettingsPrivate
 	const TCHAR* const MasterClassPath = TEXT("/Game/Audio/SC_Master.SC_Master");
 	const TCHAR* const EffectsClassPath = TEXT("/Game/Audio/SC_Effects.SC_Effects");
 	const TCHAR* const MusicClassPath = TEXT("/Game/Audio/SC_Music.SC_Music");
+	// M5-10: children of SC_Master outside SC_Effects (so the announcer duck mix on SC_Effects does not lower them); the Effects slider drives both.
+	const TCHAR* const AnnouncerClassPath = TEXT("/Game/Audio/SC_Announcer.SC_Announcer");
+	const TCHAR* const UIClassPath = TEXT("/Game/Audio/SC_UI.SC_UI");
 	const TCHAR* const MixPath = TEXT("/Game/Audio/SM_Default.SM_Default");
 
 	/** Seconds the volume change fades in; 0 = immediate (a slider should not lag). */
@@ -142,7 +145,8 @@ void UVeloxGameUserSettings::ApplyAudio(UWorld* World)
 	{
 		const TCHAR* Path;
 		float Volume;
-	} Classes[] = {{MasterClassPath, MasterVolume}, {EffectsClassPath, EffectsVolume}, {MusicClassPath, MusicVolume}};
+	} Classes[] = {{MasterClassPath, MasterVolume}, {EffectsClassPath, EffectsVolume}, {MusicClassPath, MusicVolume},
+		{AnnouncerClassPath, EffectsVolume}, {UIClassPath, EffectsVolume}};
 	for (const FClassVolume& Entry : Classes)
 	{
 		if (USoundClass* SoundClass = Cast<USoundClass>(FSoftObjectPath(Entry.Path).TryLoad()))

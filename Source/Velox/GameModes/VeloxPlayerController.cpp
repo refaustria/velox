@@ -30,6 +30,7 @@
 #include "Core/VeloxGameplayTags.h"
 #include "Input/VeloxInputConfig.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
+#include "UI/VeloxAnnouncerComponent.h"
 #include "UI/VeloxGameUserSettings.h"
 #include "UI/VeloxPauseMenuWidget.h"
 #include "UI/VeloxUISettings.h"
@@ -415,6 +416,16 @@ void AVeloxPlayerController::Reset()
 	bAutoManageActiveCameraTarget = GetClass()->GetDefaultObject<APlayerController>()->bAutoManageActiveCameraTarget;
 	ResetIgnoreMoveInput();
 	Super::Reset();
+}
+
+void AVeloxPlayerController::BeginPlay()
+{
+	Super::BeginPlay();
+	if (IsLocalController() && GetNetMode() != NM_DedicatedServer)
+	{
+		Announcer = NewObject<UVeloxAnnouncerComponent>(this, TEXT("Announcer"));
+		Announcer->RegisterComponent();
+	}
 }
 
 void AVeloxPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)

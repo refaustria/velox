@@ -21,6 +21,9 @@ struct FVeloxDamageDirection
 	double Time = 0.0;
 };
 
+class UAudioComponent;
+class UPointLightComponent;
+
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxCombatFeedbackComponent : public UActorComponent
 {
@@ -63,6 +66,15 @@ protected:
 	FName PowerupTintParameter = TEXT("PowerupTint");
 
 private:
+	/** M5 audio (ADR 0006 section 9): the fire / impact one-shots, the Lightning Gun beam loop and the muzzle light. Clients only. */
+	void PlayCueAudio(const FGameplayTag& CueTag, const FString& TagName, const FVector& Start, const FVector& End);
+	void UpdateBeamAudio(bool bStart);
+	void SpawnMuzzleLight(const FVector& Location);
+
+	/** The looping beam sound of this pawn's Lightning Gun while the beam cue is active. */
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> BeamAudio;
+
 	/** Looping powerup cue: OnActive/WhileActive add, Removed removes; returns false for any other cue. */
 	bool HandlePowerupCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType);
 	void ApplyPowerupTint();

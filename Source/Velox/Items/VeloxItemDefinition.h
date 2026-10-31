@@ -12,6 +12,7 @@
 
 #include "VeloxItemDefinition.generated.h"
 
+class USoundBase;
 class UVeloxGE_Powerup;
 class UVeloxWeaponDefinition;
 
@@ -91,4 +92,12 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics")
 	FVector PlaceholderScale = FVector(0.4, 0.4, 0.4);
+
+	/** Played when the item is taken (own takes 2D at prediction, others at the item with SA_Pickup) and when it is back; ADR 0006 section 9. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Audio")
+	TSoftObjectPtr<USoundBase> PickupSound;
+
+	/** Empty: UVeloxAudioSettings::ItemRespawnSound. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Audio")
+	TSoftObjectPtr<USoundBase> RespawnSound;
 };

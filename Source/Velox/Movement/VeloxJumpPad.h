@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "Engine/NetSerialization.h"
 #include "GameFramework/Actor.h"
 
 #include "VeloxJumpPad.generated.h"
@@ -93,6 +94,14 @@ public:
 	virtual void CheckForErrors() override;
 	//~End of AActor interface
 #endif
+
+	/**
+	 * Audio only (ADR 0006 section 9): the server tells the clients that Launched was launched. The launching pawn's own
+	 * client already played the sound at its predicted launch and skips this one; the launch itself stays predicted and
+	 * needs no RPC.
+	 */
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastLaunchCue(FVector_NetQuantize Location, AActor* Launched);
 
 protected:
 	//~AActor interface

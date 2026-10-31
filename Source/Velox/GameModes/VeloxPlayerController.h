@@ -9,6 +9,7 @@
 
 class AVeloxCharacter;
 class UEnhancedInputComponent;
+class UVeloxAnnouncerComponent;
 class UInputAction;
 class UInputMappingContext;
 class UEnhancedInputComponent;
@@ -171,6 +172,8 @@ public:
 	//~AActor interface
 	/** Level reset (match restart): leaves the intermission. */
 	virtual void Reset() override;
+	/** Local controllers create the announcer (ADR 0006 section 9). */
+	virtual void BeginPlay() override;
 	/** A death spectate still running ends with reason=logout. */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	//~End of AActor interface
@@ -216,6 +219,10 @@ protected:
 	TSubclassOf<UVeloxPauseMenuWidget> PauseMenuWidgetClass;
 
 private:
+	/** The announcer of this local player (null on the server's remote controllers). */
+	UPROPERTY(Transient)
+	TObjectPtr<UVeloxAnnouncerComponent> Announcer;
+
 	void BindMenuInput(UEnhancedInputComponent* EnhancedInput);
 	/** Cursor and input mode for the intermission (scoreboard Ready button) or plain game input; no-op while the menu is open. */
 	void ApplyUIInputMode();
