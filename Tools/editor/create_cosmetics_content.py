@@ -5,7 +5,8 @@ Run headless after create_bootstrap_content.py (it needs DA_PawnData_Default):
       -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput
 
 Idempotent: an existing asset is loaded and its properties re-applied. SK_Velox and MI_Skin_* are linked when task 11's import_art.py has
-imported them; ABP_Velox and A_Velox_* stay empty until task 12; the pawn then keeps its PlaceholderBody.
+imported them; the A_Velox_* sequence table (task 12) is linked when import_art.py --animations has imported the clips; ABP_Velox
+stays empty (Mac-authored, ADR 0006 section 4.5); the pawn then keeps its PlaceholderBody.
 Skins are in the old PlayerColorPalette order (UVeloxCombatSettings), so SkinIndex still names the HUD colour; their
 BodyColor is that palette entry converted to linear. Fails (exception) if anything could not be created or saved.
 """
@@ -25,6 +26,15 @@ VIEW_MODEL_SETTINGS_PATH = "/Game/Characters/Velox/DA_ViewModelSettings_Default"
 # Names of the first six palette entries (UVeloxCombatSettings::PlayerColorPalette order). ADR 0006 section 4.3 names an
 # Orange skin; palette index 4 is magenta, and keeping the HUD colours stable wins (task 08 report).
 SKIN_NAMES = ["Red", "Blue", "Green", "Yellow", "Magenta", "Cyan"]
+
+
+# ---- task 12: leg state -> clip (ADR 0006 section 4.4). Dead plays Death_A; Death_B is imported for the Mac ABP / a later variant pick.
+ANIM_FOLDER = COSMETICS_FOLDER + "/Anims"
+LEG_STATE_CLIPS = {
+    "IDLE": "Idle", "RUN": "Run_Fwd", "JUMP_START": "Jump_Start", "AIR": "Air_Loop", "LAND": "Land",
+    "CROUCH_IDLE": "Crouch_Idle", "CROUCH_WALK": "Crouch_Walk", "DEAD": "Death_A",
+}
+RUN_DIRECTION_CLIPS = {"FWD": "Run_Fwd", "BACK": "Run_Back", "LEFT": "Run_Left", "RIGHT": "Run_Right"}
 
 
 def log(msg):
@@ -68,6 +78,27 @@ def to_linear(color):
     return unreal.LinearColor(srgb_to_linear(color.r), srgb_to_linear(color.g), srgb_to_linear(color.b), 1.0)
 
 
+def link_animation_sequences(cosmetics):
+    """Sequences (EVeloxLegState -> clip) and RunSequences (EVeloxRunDirection -> clip) from the imported A_Velox_* assets."""
+    def load(clip):
+        path = f"{ANIM_FOLDER}/A_Velox_{clip}"
+        return EAL.load_asset(path) if EAL.does_asset_exist(path) else None
+
+    sequences, runs = {}, {}
+    for state, clip in LEG_STATE_CLIPS.items():
+        seq = load(clip)
+        if seq is not None:
+            sequences[getattr(unreal.VeloxLegState, state)] = seq
+    for direction, clip in RUN_DIRECTION_CLIPS.items():
+        seq = load(clip)
+        if seq is not None:
+            runs[getattr(unreal.VeloxRunDirection, direction)] = seq
+    if sequences or runs:
+        cosmetics.set_editor_property("sequences", sequences)
+        cosmetics.set_editor_property("run_sequences", runs)
+        log(f"linked {len(sequences)} leg-state sequences and {len(runs)} run directions from {ANIM_FOLDER}")
+
+
 def build_character_cosmetics():
     palette = unreal.VeloxCombatSettings.get_default_object().get_editor_property("player_color_palette")
     if len(palette) < len(SKIN_NAMES):
@@ -95,6 +126,7 @@ def build_character_cosmetics():
     cosmetics.set_editor_property("mesh_offset_z", -70.0)
     cosmetics.set_editor_property("mesh_yaw_deg", -90.0)
     cosmetics.set_editor_property("use_sequence_playback", True)
+    link_animation_sequences(cosmetics)
     if EAL.does_asset_exist(VIEW_MODEL_SETTINGS_PATH):
         cosmetics.set_editor_property("view_model_settings", EAL.load_asset(VIEW_MODEL_SETTINGS_PATH))
     else:

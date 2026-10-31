@@ -7,14 +7,16 @@ Run (absolute paths; the argument string goes inside the quoted -script value):
 Options:
   --character <fbx>   import SK_Velox: T_Velox_Mask, M_Character_Master, SK_Velox, SKEL_Velox, PA_Velox (+ sockets),
                       MI_Skin_<name> for every skin of create_cosmetics_content.py, then fill DA_Cosmetics_Velox
+  --animations <dir>  import ArtSource/Export/A_Velox_*.fbx (task 12, character.py --animations) as A_Velox_<Name> on SKEL_Velox into
+                      /Game/Characters/Velox/Anims (loop flags, Fire_Upper additive), then fill DA_Cosmetics_Velox Sequences/RunSequences
   --kit <dir>         import the modular kit (task 14): delegates to import_kit.run(dir, verify, fixture)
   --static <dir>      import the weapon and item meshes of Tools/blender/weapons_items.py (task 13): T_Items_Palette, M_Items_Palette,
                       M_Weapon_Flat, SM_Weapon_* (/Game/Weapons/Meshes, `muzzle` socket), SM_Item_* (/Game/Items/Meshes); then runs
                       create_cosmetics_content.py and create_item_content.py so DA_WeaponCosmetics_* and DA_Item_* point at them.
                       With --fixture: self-test of the static import path only (engine Cylinder -> FBX -> import -> socket -> delete).
   --mask <png>        mask texture (default ArtSource/Textures/T_Velox_Mask.png next to the fbx's ArtSource)
-  --fixture           self-test of this import path: export an engine skeletal mesh to a scratch folder, import it with the same
-                      code, verify it, delete the scratch assets
+  --fixture           self-test of this import path: import the FBX (SK_Velox.fbx, or with --animations A_Velox_Idle.fbx) into a scratch
+                      folder with the same code, verify it, delete the scratch assets
   --verify            reopen everything and assert the budgets (bone count, sockets, one material slot, triangles, LFS size)
 Idempotent. Raises on any error so the commandlet exits non-zero.
 """
@@ -31,6 +33,7 @@ MEL = unreal.MaterialEditingLibrary
 ERRORS = []
 
 FOLDER = "/Game/Characters/Velox"
+ANIM_FOLDER = FOLDER + "/Anims"
 SCRATCH = "/Game/_Scratch/ImportFixture"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
@@ -48,6 +51,14 @@ SOCKETS = {  # name -> (bone, relative location)
     "foot_r": ("ball_r", (0.0, 0.0, 0.0)),
     "eye": ("head", (0.0, 0.0, 0.0)),
 }
+# ADR 0006 section 4.4 / task 12: clip -> (seconds, loops). Fire_Upper is additive; the 60 fps of character.py makes every length exact.
+ANIM_FPS = 60
+ANIM_CLIPS = {
+    "Idle": (2.0, True), "Run_Fwd": (0.6, True), "Run_Back": (0.6, True), "Run_Left": (0.6, True), "Run_Right": (0.6, True),
+    "Jump_Start": (0.15, False), "Air_Loop": (0.5, True), "Land": (0.2, False), "Crouch_Idle": (2.0, True),
+    "Crouch_Walk": (0.8, True), "Fire_Upper": (0.15, False), "Death_A": (0.8, False), "Death_B": (0.8, False),
+}
+ANIM_ADDITIVE = "Fire_Upper"
 MIN_VALUE, MIN_SATURATION = 0.6, 0.7  # ADR 0006 section 4.3 colour rule (HSV, sRGB)
 
 
@@ -72,7 +83,7 @@ def parse_args():
     for token in extra:  # the commandlet may leave the script arguments only in the command line
         if token.startswith("--") and token not in argv:
             pass
-    opts = {"kit": None, "static": None, "character": None, "mask": None, "fixture": False, "verify": False}
+    opts = {"animations": None, "kit": None, "static": None, "character": None, "mask": None, "fixture": False, "verify": False}
     flat = []
     for a in argv:
         flat += a.split()
@@ -84,6 +95,11 @@ def parse_args():
             i += 1
         elif a == "--character":
             opts["character"] = ""
+        elif a == "--animations" and i + 1 < len(flat) and not flat[i + 1].startswith("--"):
+            opts["animations"] = flat[i + 1]
+            i += 1
+        elif a == "--animations":
+            opts["animations"] = ""
         elif a == "--kit" and i + 1 < len(flat):
             opts["kit"] = flat[i + 1]
             i += 1
@@ -414,6 +430,151 @@ def import_character(fbx_path, mask_path, folder, prefix_names=True):
     EAL.save_asset(f"{folder}/PA_Velox", False)
     build_skins(master)
     log("character imported")
+
+
+# ---------------------------------------------------------------- animations (task 12)
+def import_animation(fbx_path, folder, name, skeleton):
+    """FBX -> UAnimSequence `name` on `skeleton`. Returns the sequence or None."""
+    ui = unreal.FbxImportUI()
+    ui.set_editor_property("import_mesh", False)
+    ui.set_editor_property("import_as_skeletal", False)
+    ui.set_editor_property("import_animations", True)
+    ui.set_editor_property("import_materials", False)
+    ui.set_editor_property("import_textures", False)
+    ui.set_editor_property("automated_import_should_detect_type", False)
+    ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_ANIMATION)
+    ui.set_editor_property("skeleton", skeleton)
+    data = ui.get_editor_property("anim_sequence_import_data")
+    data.set_editor_property("animation_length", unreal.FBXAnimationLengthImportType.FBXALIT_EXPORTED_TIME)
+    data.set_editor_property("import_bone_tracks", True)
+    data.set_editor_property("remove_redundant_keys", False)
+    # 0.15 s clips (9 frames at 60 fps) are "not compatible with the import frame rate" at the 30 fps default: pin the source rate.
+    data.set_editor_property("use_default_sample_rate", False)
+    data.set_editor_property("custom_sample_rate", ANIM_FPS)
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", fbx_path)
+    task.set_editor_property("destination_path", folder)
+    task.set_editor_property("destination_name", name)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("replace_existing_settings", True)
+    task.set_editor_property("save", False)
+    task.set_editor_property("options", ui)
+    ATOOLS.import_asset_tasks([task])
+    paths = [str(p) for p in task.get_editor_property("imported_object_paths")]
+    seq = EAL.load_asset(f"{folder}/{name}")
+    if seq is None or not isinstance(seq, unreal.AnimSequence):
+        fail(f"animation import failed for {fbx_path}: imported={paths} loaded={seq}")
+        return None
+    return seq
+
+
+def seq_seconds(seq):
+    return float(seq.get_editor_property("sequence_length"))
+
+
+def prop_names(name):
+    """The Python spelling of a UPROPERTY: the editor drops a leading b of bools (bLoop -> loop); try both."""
+    return (name, "b_" + name)
+
+
+def set_prop(obj, name, value):
+    for candidate in prop_names(name):
+        try:
+            obj.set_editor_property(candidate, value)
+            return True
+        except Exception:  # noqa: BLE001
+            pass
+    fail(f"cannot set {name} on {obj.get_name()}")
+    return False
+
+
+def get_prop(obj, name):
+    for candidate in prop_names(name):
+        try:
+            return obj.get_editor_property(candidate)
+        except Exception:  # noqa: BLE001
+            pass
+    fail(f"cannot read {name} on {obj.get_name()}")
+    return None
+
+
+def configure_animation(seq, clip):
+    seconds, loops = ANIM_CLIPS[clip]
+    set_prop(seq, "enable_root_motion", False)
+    set_prop(seq, "loop", loops)
+    if clip == ANIM_ADDITIVE:
+        set_prop(seq, "additive_anim_type", unreal.AdditiveAnimationType.AAT_LOCAL_SPACE_BASE)
+        set_prop(seq, "ref_pose_type", unreal.AdditiveBasePoseType.ABPT_ANIM_FRAME)
+        set_prop(seq, "ref_frame_index", 0)
+    EAL.save_loaded_asset(seq, False)
+
+
+def import_animations(directory):
+    skel = EAL.load_asset(f"{FOLDER}/SKEL_Velox")
+    if skel is None:
+        fail("SKEL_Velox missing: import the character first (--character)")
+        return
+    ensure_dir(ANIM_FOLDER)
+    for clip in ANIM_CLIPS:
+        fbx = os.path.join(directory, f"A_Velox_{clip}.fbx")
+        if not os.path.exists(fbx):
+            fail("missing " + fbx)
+            continue
+        seq = import_animation(fbx, ANIM_FOLDER, f"A_Velox_{clip}", skel)
+        if seq is not None:
+            configure_animation(seq, clip)
+            log(f"A_Velox_{clip}: {seq_seconds(seq):.3f} s loop={ANIM_CLIPS[clip][1]}")
+
+
+def verify_animations(folder=ANIM_FOLDER):
+    skel = EAL.load_asset(f"{FOLDER}/SKEL_Velox")
+    names = [str(p) for p in EAL.list_assets(folder, recursive=False, include_folder=False)]
+    found = [n for n in names if n.split("/")[-1].startswith("A_Velox_")]
+    check(len(found) == len(ANIM_CLIPS), f"animation count {len(found)} != {len(ANIM_CLIPS)}")
+    for clip, (seconds, loops) in ANIM_CLIPS.items():
+        seq = EAL.load_asset(f"{folder}/A_Velox_{clip}")
+        if not check(seq is not None, f"A_Velox_{clip} missing"):
+            continue
+        length = seq_seconds(seq)
+        check(abs(length - seconds) <= 1.0 / ANIM_FPS + 1e-4, f"A_Velox_{clip} length {length:.4f} s != {seconds} s (+-1 frame)")
+        check(seq.get_editor_property("skeleton") == skel, f"A_Velox_{clip} skeleton")
+        check(bool(get_prop(seq, "loop")) == loops, f"A_Velox_{clip} loop flag")
+        additive = get_prop(seq, "additive_anim_type") != unreal.AdditiveAnimationType.AAT_NONE
+        check(additive == (clip == ANIM_ADDITIVE), f"A_Velox_{clip} additive={additive}")
+        if clip == ANIM_ADDITIVE:
+            check(get_prop(seq, "ref_pose_type") == unreal.AdditiveBasePoseType.ABPT_ANIM_FRAME, "Fire_Upper base pose type")
+            check(get_prop(seq, "ref_frame_index") == 0, "Fire_Upper base frame")
+        log(f"verify: A_Velox_{clip} {length:.3f} s loop={loops} additive={additive}")
+    cos = EAL.load_asset(f"{FOLDER}/DA_Cosmetics_Velox")
+    if check(cos is not None, "DA_Cosmetics_Velox missing"):
+        seqs = cos.get_editor_property("sequences")
+        check(len(seqs) == 8, f"cosmetics Sequences has {len(seqs)} entries, expected one per EVeloxLegState (8)")
+        check(len(cos.get_editor_property("run_sequences")) == 4, "cosmetics RunSequences != 4 entries")
+        check(bool(cos.get_editor_property("use_sequence_playback")), "bUseSequencePlayback off")
+    log("verify: animations ok")
+
+
+def run_animation_fixture(fbx):
+    """Self-test of import_animation without touching the real assets: re-import one clip FBX into a scratch folder under another
+    name, check it, delete the scratch folder (no engine animation exists on this machine to export, see run_fixture)."""
+    if not os.path.exists(fbx):
+        fail("fixture: missing " + fbx)
+        return
+    skel = EAL.load_asset(f"{FOLDER}/SKEL_Velox")
+    if skel is None:
+        fail("fixture: SKEL_Velox missing")
+        return
+    ensure_dir(SCRATCH)
+    seq = import_animation(fbx, SCRATCH, "A_Fixture_Idle", skel)
+    if seq is not None:
+        length = seq_seconds(seq)
+        log(f"fixture: re-imported {seq.get_path_name()} {length:.3f} s")
+        check(abs(length - ANIM_CLIPS["Idle"][0]) <= 1.0 / ANIM_FPS + 1e-4, "fixture length")
+        check(seq.get_editor_property("skeleton") == skel, "fixture skeleton")
+    EAL.delete_directory(SCRATCH)
+    check(not EAL.does_directory_exist(SCRATCH) or not EAL.list_assets(SCRATCH), "fixture scratch assets not deleted")
+    log("fixture: scratch assets deleted")
 
 
 # ---------------------------------------------------------------- verify
@@ -805,6 +966,16 @@ def main():
         if not ERRORS:
             import_character(fbx, mask, FOLDER)
             runpy.run_path(os.path.join(SCRIPT_DIR, "create_cosmetics_content.py"), run_name="__velox_import__")
+    if opts["animations"] is not None:
+        directory = os.path.abspath(opts["animations"] or os.path.join(REPO, "ArtSource", "Export"))
+        if opts["fixture"]:
+            run_animation_fixture(os.path.join(directory, "A_Velox_Idle.fbx"))
+        else:
+            import_animations(directory)
+            if not ERRORS:
+                runpy.run_path(os.path.join(SCRIPT_DIR, "create_cosmetics_content.py"), run_name="__velox_import__")
+            if opts["verify"]:
+                verify_animations()
     if opts["kit"]:
         sys.path.insert(0, SCRIPT_DIR)
         import import_kit
@@ -816,9 +987,9 @@ def main():
             import_static(opts["static"], opts["verify"])
         else:
             fail("--static needs a directory (ArtSource/Export)")
-    if opts["fixture"] and not opts["kit"] and opts["static"] is None:
+    if opts["fixture"] and not opts["kit"] and opts["static"] is None and opts["animations"] is None:
         run_fixture(os.path.abspath(opts["character"]) if opts["character"] else os.path.join(REPO, "ArtSource", "Export", "SK_Velox.fbx"))
-    if opts["verify"] and not opts["fixture"] and not opts["kit"] and opts["static"] is None:
+    if opts["verify"] and not opts["fixture"] and not opts["kit"] and opts["static"] is None and opts["animations"] is None:
         verify_character(FOLDER)
     if ERRORS:
         raise RuntimeError(f"import_art.py: {len(ERRORS)} error(s): {ERRORS}")

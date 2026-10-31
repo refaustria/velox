@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done (2026-10-31, branch `m5-map-characters`)
 **Depends on:** 11 (skeleton), 08 (`UVeloxAnimInstance`, `Sequences` map); ADR 0006 §4.4–4.5, **E0.5** (Blender 4.3.2 on the VM)
 
 ## Goal
@@ -16,12 +16,12 @@ The 13 clips of ADR 0006 §4.4 exist as `A_Velox_*` on `SKEL_Velox`, generated b
 - ADR 0006 §4.4 (names, durations, cadence, play rate), §4.5 (`LegState`, sequence playback fallback, ABP as a Blueprint on the Mac)
 
 ## Acceptance criteria
-- [ ] Clips: `Idle` (2 s loop, breathing), `Run_Fwd/Back/Left/Right` (0.6 s loop at 800 cm/s reference; legs cycle, arms counter-swing, torso lean 5°), `Jump_Start` (0.15 s), `Air_Loop` (0.5 s loop), `Land` (0.2 s), `Crouch_Idle`, `Crouch_Walk` (0.8 s loop), `Fire_Upper` (0.15 s, upper-body bones only, additive-ready: first frame = reference pose), `Death_A`, `Death_B` (0.8 s, end pose fully on the floor, within the capsule footprint ± 40 cm). No root motion; `root` stays at origin.
-- [ ] Import: each FBX → `A_Velox_<Name>` on `SKEL_Velox`, loop flags set, `Fire_Upper` marked additive (`AAT_LocalSpaceBase`, base = its own first frame); `--verify` asserts count 13, lengths ± 1 frame, skeleton match.
-- [ ] `DA_Cosmetics_Velox::Sequences` maps every `EVeloxLegState` to its clip; `bUseSequencePlayback = true`; the directional pick in task 08 uses the four run clips.
-- [ ] Headless: `L_ItemTest -game -nullrhi ?Bots=3` for 60 s logs `LegState` transitions with sequence names (Verbose), no "sequence missing" warnings.
-- [ ] `character-spec.md` ABP section: states, transitions (from `LegState`), the `Fire_Upper` additive slot blend, blend times (0.1 s locomotion, 0.05 s jump/land, 0 for death), and the 30-minute build recipe on the Mac.
-- [ ] The 13 clips are produced by the Blender run on the VM (ADR 0006 E0.5); no "without Blender" outcome is acceptable for this task. `import_art.py --animations --fixture` (one engine clip exported and re-imported into a scratch folder, then deleted) stays as the self-test of the import path.
+- [x] Clips: `Idle` (2 s loop, breathing), `Run_Fwd/Back/Left/Right` (0.6 s loop at 800 cm/s reference; legs cycle, arms counter-swing, torso lean 5°), `Jump_Start` (0.15 s), `Air_Loop` (0.5 s loop), `Land` (0.2 s), `Crouch_Idle`, `Crouch_Walk` (0.8 s loop), `Fire_Upper` (0.15 s, upper-body bones only, additive-ready: first frame = reference pose), `Death_A`, `Death_B` (0.8 s, end pose fully on the floor, within the capsule footprint ± 40 cm). No root motion; `root` stays at origin.
+- [x] Import: each FBX → `A_Velox_<Name>` on `SKEL_Velox`, loop flags set, `Fire_Upper` marked additive (`AAT_LocalSpaceBase`, base = its own first frame); `--verify` asserts count 13, lengths ± 1 frame, skeleton match.
+- [x] `DA_Cosmetics_Velox::Sequences` maps every `EVeloxLegState` to its clip; `bUseSequencePlayback = true`; the directional pick in task 08 uses the four run clips.
+- [x] Headless: `L_ItemTest -game -nullrhi ?Bots=3` for 60 s logs `LegState` transitions with sequence names (Verbose), no "sequence missing" warnings.
+- [x] `character-spec.md` ABP section: states, transitions (from `LegState`), the `Fire_Upper` additive slot blend, blend times (0.1 s locomotion, 0.05 s jump/land, 0 for death), and the 30-minute build recipe on the Mac.
+- [x] The 13 clips are produced by the Blender run on the VM (ADR 0006 E0.5); no "without Blender" outcome is acceptable for this task. `import_art.py --animations --fixture` (one engine clip exported and re-imported into a scratch folder, then deleted) stays as the self-test of the import path.
 
 ## Verification steps
 1. `blender -b --factory-startup --python Tools/blender/character.py -- --animations --out ArtSource/Export`.
@@ -33,3 +33,14 @@ The 13 clips of ADR 0006 §4.4 exist as `A_Velox_*` on `SKEL_Velox`, generated b
 Standard format; clip table (name, length, loop); the Blender run's output tail.
 
 ## Notes / outcome
+
+Done. `character.py --animations` (60 fps, armature-only FBX, per-clip asserts: loop seam, root fixed, feet above the floor, Fire_Upper
+first frame = reference pose and upper-body bones only, death end pose on the floor and within 77.5 cm) writes 13 `A_Velox_*.fbx`;
+`import_art.py --animations <dir> [--verify|--fixture]` imports them to `/Game/Characters/Velox/Anims` (2.0 MB), sets loop/additive,
+and re-runs `create_cosmetics_content.py`, which fills `Sequences` (8 leg states; `Dead` = `Death_A`) and `RunSequences` (4).
+Headless `L_ItemTest -game -nullrhi` 60 s with 3 bots: 405 `leg=... sequence=A_Velox_*` lines, all 8 states seen except CrouchIdle/CrouchWalk
+(bots never crouch), zero null sequences. `infra/ci/build.sh --tests-only`: 117 tests, 0 not successful.
+Deviations: 60 fps (0.15 s clips fail the import at the 30 fps default); `Crouch_Idle` 2 s; `Death_B` is imported but has no `Sequences` slot
+(one `Dead` entry), so sequence playback always plays `Death_A`; `--fixture` re-imports `A_Velox_Idle.fbx` (no engine animation to export on
+this machine); the Python name of `bLoop` is `loop`. `PA_Velox` still has the importer's default bodies (Python cannot edit them).
+
