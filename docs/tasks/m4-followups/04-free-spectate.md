@@ -2,7 +2,7 @@
 
 **Milestone:** M4 follow-ups (human decision q16, 2026-10-30; an M3 game-loop feature)
 **Agent:** dev-hard
-**Status:** done (dev-hard, 2026-10-31; architect design review pending)
+**Status:** done (dev-hard, 2026-10-31; architect design review 2026-10-31: approve with follow-ups, `docs/adr/reviews/0004-C11-review.md` → task 04b)
 **Depends on:** ADR 0004 C11 (this task's ruling), ADR 0003 §8 / B8 / B28 / B43, STATUS question 16
 
 ## Goal
