@@ -56,11 +56,11 @@ struct FVeloxBotDifficultyParams
 	float LeadScale = 0.7f;
 	float FireConeDeg = 7.f;
 	/** ADR 0005 D50: the glue's direct-hit gate is UVeloxBotCombatSettings::DirectHitRadiusCm x this (0 = cone only). */
-	float DirectHitRadiusScale = 1.5f;
+	float DirectHitRadiusScale = 2.0f;
 	/** D50 trigger hysteresis: a held trigger keeps firing inside FireConeDeg x this, without the gate (<= 1 = none). */
-	float FireReleaseConeScale = 1.5f;
+	float FireReleaseConeScale = 1.2f;
 	/** D50: a held trigger stays down this long after the target stopped being visible (s; 0 = release at once). */
-	float FireHoldAfterLostSeconds = 0.2f;
+	float FireHoldAfterLostSeconds = 0.15f;
 
 	// --- Perception (section 6) ---
 	float PerceptionFovDeg = 130.f;
