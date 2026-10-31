@@ -1,4 +1,4 @@
-// Velox - world-free fire timing decisions (ADR 0003 section 5, amendments B18, B19 and B37). Unit-tested in
+// Velox - world-free fire and switch timing decisions (ADR 0003 section 5, amendments B18, B19, B37 and B42). Unit-tested in
 // Velox.Combat.FireTiming; used by UVeloxGameplayAbility_Fire and UVeloxGameplayAbility_WeaponSwitch on the shooter's
 // machine and on the server.
 
@@ -54,5 +54,44 @@ namespace VeloxFireTiming
 	inline double HasteFireInterval(double Interval, bool bHaste, double HasteFireRateScale)
 	{
 		return bHaste && HasteFireRateScale > 0.0 ? Interval / HasteFireRateScale : Interval;
+	}
+
+	/**
+	 * ADR 0003 B42 (switch retarget, STATUS q20), Q3 PM_Weapon: weaponTime is one counter for refire and raise. A new
+	 * switch (pressed outside a drop) starts its drop after max(refire wait, the running switch's remaining time); in a
+	 * raise that is the remaining raise, so a press during a raise costs remaining raise + Drop + Raise (Q3
+	 * PM_BeginWeaponChange adds the drop to the running weaponTime).
+	 */
+	inline double SwitchStartWait(double RefireWait, double RunningSwitchRemaining)
+	{
+		return FMath::Max(FMath::Max(RefireWait, 0.0), FMath::Max(RunningSwitchRemaining, 0.0));
+	}
+
+	/** B42: how the server applies a remote shooter's retarget (a press the shooter made during its own drop). */
+	enum class ERemoteRetarget : uint8
+	{
+		/** The server's drop is still running: the pending target changes, drop end and switch end stay. */
+		Pending,
+		/** The server's drop ended at most Tolerance ago (jitter / resend): the target becomes current at once, the raise runs on. */
+		Late,
+		/** Neither (outside the tolerance): applied as a fresh switch (wait + drop + raise on the server's timeline). */
+		Fresh,
+	};
+
+	/**
+	 * B42, world-free: bHasPending = the server has a pending switch; LastDropEndTime = server world time of its last drop
+	 * completion (< 0: none). Tolerance is FireRateJitterToleranceSeconds (the one resend tolerance, B37 ii).
+	 */
+	inline ERemoteRetarget ClassifyRemoteRetarget(bool bHasPending, double Now, double LastDropEndTime, double Tolerance)
+	{
+		if (bHasPending)
+		{
+			return ERemoteRetarget::Pending;
+		}
+		if (LastDropEndTime >= 0.0 && Now >= LastDropEndTime && Now - LastDropEndTime <= FMath::Max(Tolerance, 0.0) + CarryEpsilonSeconds)
+		{
+			return ERemoteRetarget::Late;
+		}
+		return ERemoteRetarget::Fresh;
 	}
 }
