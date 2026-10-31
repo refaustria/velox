@@ -15,6 +15,8 @@
 //         "override": false,                  // optional: knockback replaces the velocity
 //         "serverHaste": 2.5,                 // optional: at row start the server gives this pawn Haste with exactly this many
 //                                             // seconds left (ADR 0004 section 3, HasteRun; AVeloxCharacter::ServerGiveTestHaste)
+//         "serverKill": true,                 // optional: at row start the server kills this pawn (ADR 0004 C11, DeathSpectateRun;
+//                                             // ServerKillSelfTest); a run with a kill quits only after the respawn
 //         "label": "text",                    // optional: logged at row start
 //         "check": { "name": "text", "box": [minX, minY, maxX, maxY], "onGround": true }  // optional, at row end
 //         // Combat rows (ADR 0003 section 9, task 08 FireRun), through the real ability input path (ASC input tags):
@@ -71,6 +73,8 @@ struct FVeloxScriptRow
 	bool bKnockbackOverride = false;
 	/** Seconds of Haste the server gives at row start (0 = none). */
 	float ServerHasteSeconds = 0.f;
+	/** The server kills the pawn at row start (environment damage, the real death flow). */
+	bool bServerKill = false;
 	FString Label;
 	TOptional<FVeloxScriptCheck> Check;
 
@@ -163,6 +167,16 @@ public:
 	/** Logs `VeloxNetSoak event=haste` and gives the pawn Haste (direct on authority, RPC otherwise). */
 	void RequestTestHaste(float Seconds);
 
+	/**
+	 * Test-only (ADR 0004 C11, DeathSpectateRun): the server kills this pawn with EnvironmentKillDamage (suicide; the
+	 * whole B8 death order, the death camera and the respawn wait). Rejected in shipping builds.
+	 */
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerKillSelfTest();
+
+	/** Logs `VeloxNetSoak event=kill` and kills the pawn (direct on authority, RPC otherwise). */
+	void RequestTestKill();
+
 	/** Test-only: teleports this pawn on the server to Location/Yaw and stops it (script start positions). */
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerTeleportTestPawn(FVector Location, float InYaw);
@@ -211,6 +225,9 @@ private:
 
 	bool bRunning = false;
 	bool bQuitOnFinish = false;
+	/** A serverKill row ran: a quitting run waits for the respawn (a new pawn of this controller) before it exits. */
+	bool bKillRequested = false;
+	TWeakObjectPtr<AController> KilledController;
 	bool bDrivenExternally = false;
 	bool bJumpHeldByScript = false;
 	bool bCrouchHeldByScript = false;

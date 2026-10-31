@@ -14,6 +14,8 @@
 //   Velox.UI.ScoreboardFormat  world-free (task M3-08): row sort, row/limits text, ready prompt matrix, pickup message, item timer rule/text/order.
 //                              The scoreboard rows, ready button, HUD ready prompt / pickup message / item timers are asserted inside the
 //                              widget checks (Velox.UI.HUDWidget, velox.ui.FtHUDWidget).
+//   Velox.UI.DeadIsNotSpectator ADR 0004 C11: a death-spectating controller (!bOnlySpectator) has bSpectator = false, no item
+//                              timers under the Spectators rule, and a player row on the scoreboard.
 //   velox.ui.FtScoreboard      live (`-game -nullrhi L_ItemTest`): scoreboard hidden, held, released, forced at PostMatch. `quit` exits 0/1.
 //   velox.ui.Scoreboard 0|1    holds / releases the scoreboard key; velox.ui.DumpScoreboard logs what the live widget shows.
 //   velox.ui.DumpHUD           logs the bound values of the live HUD widget of the first local player (`VeloxHUD bound ...`).
@@ -39,7 +41,11 @@
 #include "UI/VeloxHUDWidget.h"
 #include "UI/VeloxScoreboardFormat.h"
 #include "UI/VeloxScoreboardWidget.h"
+#include "GameFramework/WorldSettings.h"
+#include "GameModes/VeloxGameMode.h"
 #include "GameModes/VeloxGameState.h"
+#include "GameModes/VeloxPlayerState.h"
+#include "Misc/ScopeExit.h"
 #include "Items/VeloxItemDefinition.h"
 #include "Items/VeloxItemRegistrySubsystem.h"
 #include "Items/VeloxPickup.h"
@@ -588,6 +594,64 @@ bool FVeloxUIHUDWidgetTest::RunTest(const FString& Parameters)
 		AddError(Failure);
 	}
 	TestEqual(TEXT("failed widget checks"), Checks.Failed, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxUIDeadIsNotSpectatorTest, "Velox.UI.DeadIsNotSpectator", EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FVeloxUIDeadIsNotSpectatorTest::RunTest(const FString& Parameters)
+{
+	// ADR 0004 C11: a dead player in the engine's spectating state keeps the player's information rules. Game world with
+	// an AVeloxGameMode (no definition: ItemTimers = Spectators), a local controller in NAME_Spectating, !bOnlySpectator.
+	const FName WorldName = MakeUniqueObjectName(nullptr, UWorld::StaticClass(), TEXT("VeloxUIDeadWorld"), EUniqueObjectNameOptions::GloballyUnique);
+	FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, WorldName, GetTransientPackage());
+	World->AddToRoot();
+	Context.SetCurrentWorld(World);
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);
+	GameInstance->AddToRoot();
+	Context.OwningGameInstance = GameInstance;
+	World->SetGameInstance(GameInstance);
+	World->GetWorldSettings()->DefaultGameMode = AVeloxGameMode::StaticClass();
+	World->SetGameMode(FURL());
+	World->InitializeActorsForPlay(FURL());
+	World->GetWorldSettings()->NotifyBeginPlay();
+	ON_SCOPE_EXIT
+	{
+		World->EndPlay(EEndPlayReason::LevelTransition);
+		GEngine->ShutdownWorldNetDriver(World);
+		World->DestroyWorld(true);
+		GEngine->DestroyWorldContext(World);
+		World->RemoveFromRoot();
+		GameInstance->RemoveFromRoot();
+	};
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AVeloxPlayerController* PC = World->SpawnActor<AVeloxPlayerController>(AVeloxPlayerController::StaticClass(), FTransform::Identity, Params);
+	AVeloxPlayerState* PS = PC ? PC->GetPlayerState<AVeloxPlayerState>() : nullptr;
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("player state"), PS))
+	{
+		return false;
+	}
+	PC->SetAsLocalPlayerController();
+	PC->SetDeathViewPoint(FVector(0, 0, 200), FRotator::ZeroRotator);
+	PC->BeginDeathSpectate(nullptr);
+	TestTrue(TEXT("spectating (death)"), PC->IsInState(NAME_Spectating) && PC->IsDeathSpectating());
+	TestFalse(TEXT("not only a spectator"), PS->IsOnlyASpectator());
+
+	UVeloxHUDViewModel* ViewModel = NewObject<UVeloxHUDViewModel>(GetTransientPackage());
+	ViewModel->UpdateFromGame(*PC);
+	TestFalse(TEXT("dead != spectator: bSpectator false"), ViewModel->bSpectator);
+	TestFalse(TEXT("item timers hidden under the Spectators rule"), ViewModel->bShowItemTimers);
+	TestFalse(TEXT("rule check: Spectators hides timers from a player"), VeloxScoreboardFormat::ItemTimersVisible(EVeloxItemTimerVisibility::Spectators, ViewModel->bSpectator));
+	const FString Label = AVeloxPlayerState::VeloxPlayerLabel(PS);
+	TestFalse(TEXT("scoreboard: not in the spectator names"), ViewModel->SpectatorNames.Contains(Label));
+	TestTrue(TEXT("scoreboard: one player row"), ViewModel->ScoreRows.Num() == 1);
+	// Death overlay: no pawn and waiting (PawnLostTime < 0 here: the controller never had a pawn), so check the prompt
+	// through the controller that really lost one in Velox.GameMode.DeathSpectate; the setting itself must exist.
+	TestFalse(TEXT("DeathSpectatePrompt is set"), UVeloxUISettings::Get().DeathSpectatePrompt.IsEmpty());
+	ViewModel->Unbind();
 	return true;
 }
 

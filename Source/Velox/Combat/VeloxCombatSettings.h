@@ -136,10 +136,10 @@ public:
 	// Lag compensation (task 03).
 	/**
 	 * Oldest server pose a shot may rewind to (s), also the B25 projectile fire-stamp window. ADR 0003 B34: a hinted shot
-	 * needs RTT + 20-40 ms of rewind, so 0.30 compensates the full 250 ms RTT limit (0.25 covered only ~210 ms).
+	 * needs RTT + 20-40 ms of rewind, so 0.35 compensates the 250 ms RTT limit with jitter headroom (0.25 covered ~210 ms, 0.30 ~260 ms).
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation", Meta = (ClampMin = "0", Units = "s"))
-	float MaxRewindSeconds = 0.30f;
+	float MaxRewindSeconds = 0.35f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|LagCompensation")
 	float HistoryWindowSeconds = 1.0f;
@@ -218,6 +218,31 @@ public:
 	/** Death camera: the camera backs off walls by this much (cm). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0", Units = "cm"))
 	float DeathCamWallOffsetCm = 12.f;
+
+	/**
+	 * Free-spectate death camera (ADR 0004 C11): the dead player's spectator pawn flies at most this fast (1.5 x
+	 * MaxGroundSpeed: a dead player repositions the view quickly), with this acceleration and deceleration.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "1", Units = "cm/s"))
+	float DeathSpectateSpeedCmS = 1200.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0"))
+	float DeathSpectateAccelerationCmS2 = 6000.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0"))
+	float DeathSpectateDecelerationCmS2 = 8000.f;
+
+	/** Server clamp of the synced spectator view point: the map's nav-bounds box grown by this much (cm). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0", Units = "cm"))
+	float DeathSpectateBoundsMarginCm = 300.f;
+
+	/** Server clamp: a synced step may cover DeathSpectateSpeedCmS x this x the time since the last accepted point (two bunched 4 Hz packets plus jitter). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "1"))
+	float DeathSpectateSyncSpeedScale = 3.f;
+
+	/** Server clamp: lower bound of that time, so two unreliable RPCs arriving in one server frame do not trip the step. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0.001", Units = "s"))
+	float DeathSpectateSyncDtFloorSeconds = 0.0167f;
 
 	/** Damage of the world kill (pits, FellOutOfWorld): Q3 kills outright. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "1"))

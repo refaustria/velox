@@ -13,6 +13,7 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/PlayerController.h"
 #include "GameModes/VeloxGameMode.h"
+#include "GameModes/VeloxPlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Net/UnrealNetwork.h"
@@ -324,6 +325,8 @@ void AVeloxCharacter::InitAbilityActorInfo()
 			if (UVeloxWeaponInventoryComponent* Inventory = VeloxPS->GetWeaponInventory())
 			{
 				Inventory->ResetShotSeq();
+				// ADR 0003 B44: no switch of the old life survives into this one (pending, drop timer, switch end, prediction).
+				Inventory->ResetLocalSwitchState();
 				// Every client resets every player's counter (only the owning client's is used): Log for the own pawn only.
 				if (GetLocalRole() == ROLE_AutonomousProxy)
 				{
@@ -758,6 +761,12 @@ void AVeloxCharacter::HandleDeath(const FVeloxDamageEvent& Event)
 		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath step=3 hitbox unregistered=%d"), LagComp->IsRegistered(this) ? 0 : 1);
 	}
 	DyingController = DeadController;
+	// ADR 0004 C11: the free-spectate death camera starts at the eye and the view of the moment of death (before the
+	// corpse drop of CompleteDeath moves the body).
+	if (AVeloxPlayerController* DeadPC = Cast<AVeloxPlayerController>(DeadController))
+	{
+		DeadPC->SetDeathViewPoint(GetPawnViewLocation(), DeadPC->GetControlRotation());
+	}
 
 	// Death cue (colour flash; no ragdoll, ADR 0003 section 8).
 	if (ASC)
@@ -815,22 +824,27 @@ void AVeloxCharacter::CompleteDeath()
 	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath step=4 corpse collision=%d movement_mode=%d lifetime=%.2f s"), GetCapsuleComponent()->GetCollisionEnabled() != ECollisionEnabled::NoCollision ? 1 : 0,
 		GetCharacterMovement() ? static_cast<int32>(GetCharacterMovement()->MovementMode.GetValue()) : -1, Settings.CorpseLifetime);
 
-	// Last: the controller lets go (UnPossessed clears the ASC avatar), then the death camera shows the corpse.
+	// Last: the controller lets go (UnPossessed clears the ASC avatar), then the game mode picks the death camera (ADR 0004
+	// C11: the corpse or the free spectate) and arms the respawn wait.
 	AController* DeadController = DyingController.Get();
-	if (DeadController && DeadController->GetPawn() == this)
+	const bool bUnpossess = DeadController && DeadController->GetPawn() == this;
+	if (bUnpossess)
 	{
 		DeadController->UnPossess();
-		if (APlayerController* PC = Cast<APlayerController>(DeadController))
-		{
-			PC->SetViewTarget(this);
-		}
-		if (AVeloxGameMode* GameMode = World->GetAuthGameMode<AVeloxGameMode>())
-		{
-			GameMode->NotifyControllerDied(DeadController);
-		}
 	}
 	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath step=5 unpossessed controller=%s avatar_cleared=%d"), *GetNameSafe(DeadController),
 		(ASC && ASC->GetAvatarActor() != this) ? 1 : 0);
+	if (bUnpossess)
+	{
+		if (AVeloxGameMode* GameMode = World->GetAuthGameMode<AVeloxGameMode>())
+		{
+			GameMode->NotifyControllerDied(DeadController, this);
+		}
+		else if (APlayerController* PC = Cast<APlayerController>(DeadController))
+		{
+			PC->SetViewTarget(this); // no Velox game mode: ADR 0003 section 8's corpse view
+		}
+	}
 	ForceNetUpdate();
 }
 

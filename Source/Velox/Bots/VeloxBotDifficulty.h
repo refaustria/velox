@@ -61,6 +61,21 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bot|Aim", Meta = (ClampMin = "0.0", ClampMax = "90.0", Units = "deg"))
 	float FireConeDeg = 7.f;
 
+	/**
+	 * ADR 0005 D50: scale of the direct-hit gate (UVeloxBotCombatSettings::DirectHitRadiusCm x this) for direct-hit weapons;
+	 * 0 = the cone alone (the bot fires through its aim error: spray).
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bot|Combat", Meta = (ClampMin = "0.0"))
+	float DirectHitRadiusScale = 2.0f;
+
+	/** D50 trigger hysteresis: while the trigger is held the bot keeps firing inside FireConeDeg x this, without the gate (<= 1 = none). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bot|Combat", Meta = (ClampMin = "1.0"))
+	float FireReleaseConeScale = 1.2f;
+
+	/** D50: a held trigger stays down this long after the target stopped being visible (fires through the corner; s). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bot|Combat", Meta = (ClampMin = "0.0", Units = "s"))
+	float FireHoldAfterLostSeconds = 0.15f;
+
 	// --- Perception (section 6) ---
 
 	/** Total field of view for seeing enemies (degrees). */

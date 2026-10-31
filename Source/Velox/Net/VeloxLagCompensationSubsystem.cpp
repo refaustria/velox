@@ -8,6 +8,7 @@
 #include "Core/VeloxCollisionChannels.h"
 #include "Core/VeloxLog.h"
 #include "Engine/World.h"
+#include "GameModes/VeloxPlayerState.h"
 #include "EngineUtils.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -774,7 +775,17 @@ void UVeloxLagCompensationSubsystem::TraceShot(const FVeloxShotRequest& Request,
 
 	const TCHAR* HintName = !Hint ? TEXT("none") : OutResult.HintMode == EVeloxRewindMode::Stamp ? TEXT("stamp") : TEXT("fallback");
 	const double DistCm = OutResult.Hits.Num() > 0 ? OutResult.Hits[0].Dist : (OutResult.Rays.Num() > 0 ? OutResult.Rays[0].WorldDist : 0.0);
-	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShot seq=%u shooter=%s hit=%s rewind_ms=%.1f view_ms=%.1f hint=%s dist_cm=%.1f hits=%d rays=%d snap=%d late_ms=%s"),
+	// ADR 0005 D50 (4): by= is the shooter's player label (stable across lives, the runner's identity), weapon= the tag leaf.
+	const FString ByLabel = AVeloxPlayerState::VeloxPlayerLabel(ShooterPawn ? ShooterPawn->GetPlayerState() : nullptr);
+	FString WeaponLeaf = Request.WeaponTag.IsValid() ? Request.WeaponTag.ToString() : FString(TEXT("-"));
+	{
+		int32 Dot = INDEX_NONE;
+		if (WeaponLeaf.FindLastChar(TEXT('.'), Dot))
+		{
+			WeaponLeaf.RightChopInline(Dot + 1);
+		}
+	}
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShot seq=%u shooter=%s hit=%s rewind_ms=%.1f view_ms=%.1f hint=%s dist_cm=%.1f hits=%d rays=%d snap=%d late_ms=%s by=%s weapon=%s"),
 		Request.ShotSeq, *GetNameSafe(Shooter), OutResult.Hits.Num() > 0 ? *GetNameSafe(OutResult.Hits[0].Pawn) : TEXT("none"),
-		OutResult.RewindMs, OutResult.ViewMs, HintName, DistCm, OutResult.Hits.Num(), OutResult.Rays.Num(), OutResult.bOriginSnapped ? 1 : 0, *LateMs);
+		OutResult.RewindMs, OutResult.ViewMs, HintName, DistCm, OutResult.Hits.Num(), OutResult.Rays.Num(), OutResult.bOriginSnapped ? 1 : 0, *LateMs, *ByLabel, *WeaponLeaf);
 }

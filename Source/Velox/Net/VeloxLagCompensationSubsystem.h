@@ -16,6 +16,7 @@
 #pragma once
 
 #include "Combat/VeloxHitMath.h"
+#include "GameplayTagContainer.h"
 #include "Subsystems/WorldSubsystem.h"
 
 #include "VeloxLagCompensationSubsystem.generated.h"
@@ -132,9 +133,9 @@ struct FVeloxShotRequest
 	float HintTargetStamp = 0.f;
 	/**
 	 * Tolerances; ApplySettings copies them from the shooter's combat settings (these defaults only matter without it).
-	 * MaxRewindSeconds equals the UVeloxCombatSettings default 0.30 (ADR 0003 B34; 0.35 is human question 19).
+	 * MaxRewindSeconds equals the UVeloxCombatSettings default 0.35 (ADR 0003 B34, human question 19).
 	 */
-	float MaxRewindSeconds = 0.30f;
+	float MaxRewindSeconds = 0.35f;
 	float MaxOriginErrorCm = 75.f;
 	/**
 	 * Snap Origin to the shooter's server eye when farther than MaxOriginErrorCm (B15); the eye is the one at
@@ -145,6 +146,8 @@ struct FVeloxShotRequest
 	float FireMoveTimeStamp = 0.f;
 	bool bHasFireMoveTimeStamp = false;
 	uint8 ShotSeq = 0;
+	/** The firing weapon's Velox.Weapon.* tag; the VeloxShot line logs its leaf as weapon= (ADR 0005 D50 (4); log only). */
+	FGameplayTag WeaponTag;
 
 	void ApplySettings(const UVeloxCombatSettings* Settings);
 	void ApplyTiming(const FVeloxShotTiming& Timing);

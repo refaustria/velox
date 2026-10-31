@@ -196,6 +196,7 @@ GAME_MODES = [
         "overtime_rule": unreal.VeloxOvertimeRule.NONE,
         "allow_join_during_match": True,
         "leaver_forfeits": False,
+        "combat_settings_override": None,
     },
     {
         "name": "DA_GameMode_Duel",
@@ -209,6 +210,8 @@ GAME_MODES = [
         "overtime_rule": unreal.VeloxOvertimeRule.SUDDEN_DEATH,
         "allow_join_during_match": False,
         "leaver_forfeits": True,
+        # ADR 0004 C11 Duel decision: a 5 s forced respawn (asset made by create_bootstrap_content.py).
+        "combat_settings_override": "/Game/Data/DA_CombatSettings_Duel",
     },
 ]
 
@@ -220,6 +223,8 @@ GAME_MODE_SHARED = {
     "weapon_respawn_seconds": 5.0,
     "item_respawn_scale": 1.0,
     "item_timers": unreal.VeloxItemTimerVisibility.SPECTATORS,
+    # ADR 0004 C11 (STATUS q16): a dead human free-flies until the respawn in both modes.
+    "death_camera": unreal.VeloxDeathCamera.FREE_SPECTATE,
 }
 
 
@@ -243,6 +248,13 @@ def build_game_modes():
             "allow_join_during_match": mode["allow_join_during_match"],
             "leaver_forfeits": mode["leaver_forfeits"],
         })
+        override_path = mode["combat_settings_override"]
+        if override_path is None:
+            values["combat_settings_override"] = None
+        elif EAL.does_asset_exist(override_path):
+            values["combat_settings_override"] = EAL.load_asset(override_path)
+        else:
+            fail(f"{mode['name']}: {override_path} missing (run create_bootstrap_content.py first)")
         for k, v in values.items():
             try:
                 da.set_editor_property(k, v)

@@ -128,6 +128,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Death")
 	FLinearColor DeathTitleColor = FLinearColor(1.f, 0.1f, 0.1f, 1.f);
 
+	/** Death overlay prompt while a dead player free-flies before MinRespawnDelay (ADR 0004 C11); the respawn prompt follows. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Death")
+	FString DeathSpectatePrompt = TEXT("free look \u2014 FIRE to respawn");
+
 	/** Key shown in the ready prompt and the scoreboard button (the default binding of IA_Ready; rebinds do not change the text). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Ready")
 	FString ReadyKeyLabel = TEXT("F3");

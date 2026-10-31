@@ -217,7 +217,15 @@ void UVeloxHUDViewModel::UpdateFromGame(const AVeloxPlayerController& Controller
 	{
 		const double Waited = Now - Controller.GetPawnLostTime();
 		DeathTitle = TEXT("YOU WERE FRAGGED");
-		DeathPrompt = Waited < Combat.MinRespawnDelay ? FString::Printf(TEXT("Respawn in %.1f"), Combat.MinRespawnDelay - Waited) : FString(TEXT("Press FIRE to respawn"));
+		if (Waited < Combat.MinRespawnDelay)
+		{
+			// ADR 0004 C11: free spectate says so until a respawn is possible; the corpse view keeps the countdown.
+			DeathPrompt = Controller.IsDeathSpectating() ? UI.DeathSpectatePrompt : FString::Printf(TEXT("Respawn in %.1f"), Combat.MinRespawnDelay - Waited);
+		}
+		else
+		{
+			DeathPrompt = TEXT("Press FIRE to respawn");
+		}
 	}
 
 	// Hit marker (state in the controller, set by ClientConfirmHit).

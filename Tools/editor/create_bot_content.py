@@ -6,7 +6,7 @@ Run headless after building the editor target:
 
 Idempotent: existing assets are loaded and every property is re-applied (re-saved only when a value changed). Fails
 (exception) if anything could not be created, set or saved, or if a re-read asset does not carry the table values.
-Values are the ADR 0005 section 11 table (Q3 skill 1/3/4/5 shape); the weapon preferences are the section 9 defaults with
+Values are the ADR 0005 section 11 table (Q3 skill 1/3/4/5 shape; D50 adds the three fire-discipline fields); the weapon preferences are the section 9 defaults with
 RG/LG weights scaled for Easy (0.5) and Medium (0.8).
 """
 import unreal
@@ -55,6 +55,7 @@ PRESETS = {
     "Easy": dict(
         reaction_seconds=0.50, reaction_jitter=0.3, aim_error_deg=8.0, error_correlation_seconds=0.4, tracking_smoothing_seconds=0.25,
         max_turn_rate_deg_per_sec=240.0, lead_projectiles=False, lead_scale=0.0, fire_cone_deg=12.0,
+        direct_hit_radius_scale=0.5, fire_release_cone_scale=1.3, fire_hold_after_lost_seconds=0.25,  # D50 0/2.0/0.35 -> tuned (task 03, iteration 1 values)
         perception_fov_deg=110.0, perception_range_cm=4000.0, perception_interval_seconds=0.15, enemy_memory_seconds=2.0,
         bunny_hop=False, strafe_jump=False, rocket_jumps=False, estimated_travel_speed=700.0,
         item_timing_skill=0.0, max_wait_seconds=0.0, goal_reevaluate_seconds=1.5, goal_switch_hysteresis=1.5,
@@ -65,6 +66,7 @@ PRESETS = {
     "Medium": dict(
         reaction_seconds=0.30, reaction_jitter=0.3, aim_error_deg=4.0, error_correlation_seconds=0.3, tracking_smoothing_seconds=0.15,
         max_turn_rate_deg_per_sec=420.0, lead_projectiles=True, lead_scale=0.7, fire_cone_deg=7.0,
+        direct_hit_radius_scale=2.0, fire_release_cone_scale=1.2, fire_hold_after_lost_seconds=0.15,  # D50 1.5/1.5/0.20 -> tuned (task 03, iteration 1 values)
         perception_fov_deg=130.0, perception_range_cm=8000.0, perception_interval_seconds=0.1, enemy_memory_seconds=3.0,
         bunny_hop=True, strafe_jump=False, rocket_jumps=False, estimated_travel_speed=800.0,
         item_timing_skill=0.5, max_wait_seconds=4.0, goal_reevaluate_seconds=1.0, goal_switch_hysteresis=1.3,
@@ -75,6 +77,7 @@ PRESETS = {
     "Hard": dict(
         reaction_seconds=0.18, reaction_jitter=0.3, aim_error_deg=1.8, error_correlation_seconds=0.25, tracking_smoothing_seconds=0.08,
         max_turn_rate_deg_per_sec=720.0, lead_projectiles=True, lead_scale=0.9, fire_cone_deg=4.0,
+        direct_hit_radius_scale=1.0, fire_release_cone_scale=1.0, fire_hold_after_lost_seconds=0.08,  # D50 release 1.2 -> 1.0 (task 03: Hard drift at 1.2)
         perception_fov_deg=160.0, perception_range_cm=20480.0, perception_interval_seconds=0.1, enemy_memory_seconds=4.0,
         bunny_hop=True, strafe_jump=True, rocket_jumps=True, estimated_travel_speed=1000.0,
         item_timing_skill=1.0, max_wait_seconds=8.0, goal_reevaluate_seconds=1.0, goal_switch_hysteresis=1.3,
@@ -85,6 +88,7 @@ PRESETS = {
     "Expert": dict(
         reaction_seconds=0.10, reaction_jitter=0.3, aim_error_deg=0.7, error_correlation_seconds=0.2, tracking_smoothing_seconds=0.04,
         max_turn_rate_deg_per_sec=1080.0, lead_projectiles=True, lead_scale=1.0, fire_cone_deg=3.0,
+        direct_hit_radius_scale=1.0, fire_release_cone_scale=1.0, fire_hold_after_lost_seconds=0.0,  # D50
         perception_fov_deg=180.0, perception_range_cm=20480.0, perception_interval_seconds=0.1, enemy_memory_seconds=5.0,
         bunny_hop=True, strafe_jump=True, rocket_jumps=True, estimated_travel_speed=1100.0,
         item_timing_skill=1.0, max_wait_seconds=10.0, goal_reevaluate_seconds=0.75, goal_switch_hysteresis=1.2,
@@ -183,6 +187,9 @@ def verify_presets():
                 fail(f"{path}.{k} = {got}, expected {want}")
         if not prefs_equal(list(da.get_editor_property("weapon_preferences")), make_preferences(table["aim_weapon_scale"])):
             fail(f"{path}.weapon_preferences differ from the section 9 defaults")
+        # ADR 0005 D50: the three fire-discipline fields are compared above; print them so the log shows the applied values.
+        log("%s direct_hit_radius_scale=%.2f fire_release_cone_scale=%.2f fire_hold_after_lost_seconds=%.2f" % (asset_name(preset),
+            da.get_editor_property("direct_hit_radius_scale"), da.get_editor_property("fire_release_cone_scale"), da.get_editor_property("fire_hold_after_lost_seconds")))
         # ADR 0005 D4: ReactionJitter is a preset field (0.3 in every preset); a missing property fails here, not silently.
         try:
             log(f"{asset_name(preset)} reaction_jitter={da.get_editor_property('reaction_jitter'):.3f}")
