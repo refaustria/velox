@@ -1071,6 +1071,9 @@ elif script == "DeathSpectateRun":
     # spectator pawn on a dedicated server), clamps=0 and 10 <= syncs <= 20 (the engine's 0.25 s throttle gives ~15-16 in
     # 4 s; below = lost/late syncs, above = a second send path). Client: VeloxSpectate begin, then end reason=respawn,
     # and a VeloxShotSeqReset of the new pawn after the kill. No Error: lines on either side. The pre-death rows: FireRun's rule below.
+    # clamps=0 is strict on purpose (C11 review nit): the classic driver delivers Pawn=null before ClientBeginDeathSpectate. If
+    # the RPC ever arrived first after an airborne death, the first sync would be the corpse eye after a floor drop of up to
+    # CorpseDropMaxCm against the pre-drop seed: one harmless 'speed' clamp that turns this rule red. Look there first.
     FORCE_S = 4.0
     ERR_RE = re.compile(r"\bError: ")
     step6 = [l for l in S if "VeloxDeath step=6" in l]

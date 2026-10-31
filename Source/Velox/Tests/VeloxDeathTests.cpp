@@ -15,6 +15,10 @@
 //   Velox.GameMode.DeathSpectate   game world, local AVeloxPlayerController (C11): FreeSpectate death -> Spectating with an
 //                                  AVeloxSpectatorPawn at the death eye, flight speed, early/late respawn request, Corpse
 //                                  rule (velox.match.DeathCamera 0), intermission while spectating -> Inactive.
+//   Velox.GameMode.SpectateIntermission  game world, local AVeloxPlayerController (C11 amendment 3, task 04b): intermission
+//                                  before CompleteDeath -> no death camera, view target kept, step 6 spectate=intermission,
+//                                  respawn still armed (D1); a pure spectator (StartSpectatingOnly) -> Inactive at the
+//                                  intermission, spectator pawn destroyed, still only a spectator (D4).
 
 #include "Misc/AutomationTest.h"
 
@@ -849,6 +853,82 @@ bool FVeloxDeathSpectateTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("intermission: death spectate over"), W.PC->IsDeathSpectating());
 	GLog->FlushThreadedLogs();
 	TestTrue(TEXT("end reason=intermission logged"), SpectateLog.Lines.ContainsByPredicate([](const FString& L) { return L.Contains(TEXT("VeloxSpectate end reason=intermission")); }));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxSpectateIntermissionTest, "Velox.GameMode.SpectateIntermission", VeloxDeathTest::Flags)
+
+bool FVeloxSpectateIntermissionTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxDeathTest;
+
+	// D1: the match-ending frag. HandleDeath queues EvaluateMatch and CompleteDeath for the next tick; here the intermission
+	// is entered explicitly *before* that tick, so the result does not depend on the timer order.
+	{
+		FSpectateWorld W;
+		if (!TestNotNull(TEXT("D1: game mode"), W.GameMode) || !TestNotNull(TEXT("D1: player controller"), W.PC) || !TestNotNull(TEXT("D1: player state"), W.PS))
+		{
+			return false;
+		}
+		AVeloxCharacter* Pawn = W.Respawn();
+		if (!TestNotNull(TEXT("D1: pawn"), Pawn))
+		{
+			return false;
+		}
+		W.Advance(2.f);
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AActor* IntermissionCamera = W.World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(FVector(0, 0, 500)), Params);
+		FDeathLogCapture StepLog(TEXT("VeloxDeath step=6"));
+		FDeathLogCapture SpectateLog(TEXT("VeloxSpectate begin"));
+		Damage(W.PS->GetVeloxAbilitySystemComponent(), 1000);
+		TestTrue(TEXT("D1: the pawn is still possessed until CompleteDeath"), W.PC->GetPawn() == Pawn);
+		W.PC->EnterIntermission(IntermissionCamera);
+		TestTrue(TEXT("D1: in the intermission"), W.PC->IsInIntermission());
+		TestFalse(TEXT("D1: camera auto-management off for the intermission"), W.PC->bAutoManageActiveCameraTarget);
+		W.Advance(0.05f);
+		TestTrue(TEXT("D1: CompleteDeath ran (unpossessed)"), W.PC->GetPawn() == nullptr);
+		TestFalse(TEXT("D1: not spectating"), W.PC->IsInState(NAME_Spectating));
+		TestTrue(TEXT("D1: no spectator pawn"), W.PC->GetSpectatorPawn() == nullptr);
+		TestFalse(TEXT("D1: no death spectate"), W.PC->IsDeathSpectating());
+		TestTrue(*FString::Printf(TEXT("D1: view target unchanged (%s)"), *GetNameSafe(W.PC->GetViewTarget())), W.PC->GetViewTarget() == IntermissionCamera);
+		TestTrue(TEXT("D1: pending respawn still armed"), W.GameMode->IsAwaitingRespawn(W.PC));
+		GLog->FlushThreadedLogs();
+		TestTrue(*FString::Printf(TEXT("D1: step 6 logged spectate=intermission (%s)"), StepLog.Lines.Num() > 0 ? *StepLog.Lines[0] : TEXT("-")),
+			StepLog.Lines.Num() == 1 && StepLog.Lines[0].Contains(TEXT("spectate=intermission")));
+		TestEqual(TEXT("D1: no VeloxSpectate begin"), SpectateLog.Lines.Num(), 0);
+	}
+
+	// D4: a pure spectator stops flying at the intermission, not only a death spectator.
+	{
+		FSpectateWorld W;
+		if (!TestNotNull(TEXT("D4: player controller"), W.PC) || !TestNotNull(TEXT("D4: player state"), W.PS))
+		{
+			return false;
+		}
+		// The controller already spectates from its spawn (before SetAsLocalPlayerController, so without a pawn); leave the
+		// state first so StartSpectatingOnly's ChangeState(Spectating) runs BeginSpectatingState as a local controller.
+		W.PC->ChangeState(NAME_Inactive);
+		W.PC->StartSpectatingOnly();
+		W.PC->ChangeState(NAME_Spectating);
+		W.Advance(0.1f);
+		TestTrue(TEXT("D4: spectating"), W.PC->IsInState(NAME_Spectating));
+		TestTrue(TEXT("D4: only a spectator"), W.PS->IsOnlyASpectator());
+		TestFalse(TEXT("D4: no death spectate"), W.PC->IsDeathSpectating());
+		const TWeakObjectPtr<ASpectatorPawn> Spectator(W.PC->GetSpectatorPawn());
+		TestTrue(TEXT("D4: a spectator pawn (local controller)"), Spectator.IsValid());
+		W.PC->EnterIntermission(nullptr);
+		TestTrue(TEXT("D4: intermission: inactive"), W.PC->IsInState(NAME_Inactive));
+		TestTrue(TEXT("D4: spectator pawn destroyed"), !Spectator.IsValid() && W.PC->GetSpectatorPawn() == nullptr);
+		TestTrue(TEXT("D4: still only a spectator"), W.PS->IsOnlyASpectator());
+		W.Advance(0.1f);
+		TestTrue(TEXT("D4: stays inactive"), W.PC->IsInState(NAME_Inactive));
+		// The level reset: auto camera management back on, the pure spectator spectates again (PlayerWaiting off).
+		W.PC->Reset();
+		TestTrue(TEXT("D4: reset restores camera auto-management"), W.PC->bAutoManageActiveCameraTarget);
+		TestTrue(TEXT("D4: reset: spectating again"), W.PC->IsInState(NAME_Spectating));
+		TestFalse(TEXT("D4: reset: no longer in the intermission"), W.PC->IsInIntermission());
+	}
 	return true;
 }
 

@@ -6,7 +6,8 @@
 //   Velox.GameMode.KillFeed          (task 06) sequence wrap, ordering, damage tag choice; PlayerDied -> Kills/Deaths/Score, feed
 //                                    entry with snapshotted names, trimming to KillFeedLength, Reset zeroes.
 //   Velox.GameMode.ModeDefinitions   DA_GameMode_FFA / DA_GameMode_Duel carry the ADR 0004 defaults and map to the rules;
-//                                    C11: DeathCamera FreeSpectate, Duel ForceRespawnDelay 5 via DA_CombatSettings_Duel (drift guard).
+//                                    C11: DeathCamera FreeSpectate, Duel ForceRespawnDelay 5 via DA_CombatSettings_Duel (drift guard);
+//                                    amendment 3 (ii): ?SpectatorOnly=1 logins get AVeloxPlayerController (CDO).
 
 #include "Misc/AutomationTest.h"
 
@@ -22,6 +23,7 @@
 #include "GameModes/VeloxGameModeDefinition.h"
 #include "GameModes/VeloxGameState.h"
 #include "GameModes/VeloxKillFeed.h"
+#include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxMatchRules.h"
@@ -309,6 +311,14 @@ bool FVeloxModeDefinitionsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Duel overtime"), static_cast<int32>(Duel->OvertimeRule), static_cast<int32>(EVeloxOvertimeRule::SuddenDeath));
 	TestTrue(TEXT("Duel forfeit"), Duel->bLeaverForfeits);
 	TestFalse(TEXT("Duel joins only between matches"), Duel->bAllowJoinDuringMatch);
+
+	// C11 amendment 3 (ii): AGameModeBase::SpawnPlayerController uses ReplaySpectatorPlayerControllerClass for ?SpectatorOnly=1.
+	{
+		const AVeloxGameMode* GameModeCDO = GetDefault<AVeloxGameMode>();
+		TestTrue(*FString::Printf(TEXT("spectator controller class = AVeloxPlayerController (%s)"), *GetNameSafe(GameModeCDO->ReplaySpectatorPlayerControllerClass.Get())),
+			GameModeCDO->ReplaySpectatorPlayerControllerClass.Get() == AVeloxPlayerController::StaticClass());
+		TestTrue(TEXT("player controller class = AVeloxPlayerController"), GameModeCDO->PlayerControllerClass.Get() == AVeloxPlayerController::StaticClass());
+	}
 
 	for (const UVeloxGameModeDefinition* Def : {FFA, Duel})
 	{
