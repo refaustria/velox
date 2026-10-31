@@ -11,6 +11,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Core/VeloxAudioSettings.h"
 #include "Core/VeloxGameInstance.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -149,15 +150,18 @@ bool UVeloxPauseMenuWidget::Disconnect()
 
 void UVeloxPauseMenuWidget::HandleResume()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	Resume();
 }
 
 void UVeloxPauseMenuWidget::HandleSettings()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	OpenSettings();
 }
 
 void UVeloxPauseMenuWidget::HandleDisconnect()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	Disconnect();
 }

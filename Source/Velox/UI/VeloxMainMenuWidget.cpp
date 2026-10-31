@@ -12,6 +12,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Core/VeloxAudioSettings.h"
 #include "Core/VeloxGameInstance.h"
 #include "Core/VeloxLog.h"
 #include "Engine/GameInstance.h"
@@ -207,21 +208,25 @@ void UVeloxMainMenuWidget::QuitGame()
 
 void UVeloxMainMenuWidget::HandleConnect()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	Connect();
 }
 
 void UVeloxMainMenuWidget::HandleHost()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	HostLocal();
 }
 
 void UVeloxMainMenuWidget::HandleSettings()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	OpenSettings();
 }
 
 void UVeloxMainMenuWidget::HandleQuit()
 {
+	UVeloxAudioSettings::PlayUIClick(this);
 	QuitGame();
 }
 

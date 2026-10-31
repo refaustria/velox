@@ -1227,8 +1227,7 @@ namespace VeloxBotOffMeshFt
 
 	/** L_ItemTest (Tools/editor/create_item_test_map.py): corridor wall y 1500..1600, platforms y 1000..1400, cross 200 high. */
 	const FCase Cases[] = {
-		{ TEXT("ra_strip"), FVector(2100.0, 1450.0, 0.0), FVector(2100.0, 500.0, 0.0), true },
-		{ TEXT("mega_strip"), FVector(-1500.0, 1450.0, 0.0), FVector(-1500.0, 500.0, 0.0), true },
+		// ra_strip / mega_strip removed: the 100 cm slots north of the RA / Mega platforms are sealed (ADR 0006 E0.2 (e)); the D17-room slot cases below cover the D45 class.
 		// D46 item 2: sealed D17 room (create_item_test_map.py build_d17_room). ramp_strip_wall moved with the slots: slot B
 		// (207 cm block on its north side, the room wall on its south side), start 37.5 cm from the wall as before.
 		{ TEXT("ramp_strip_wall"), FVector(RoomSlotCentreX, RoomSlotBY0 + 37.5, 0.0), RoomGoal, true },

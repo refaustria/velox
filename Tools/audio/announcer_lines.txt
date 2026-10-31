@@ -1,0 +1,14 @@
+# name|spoken text (espeak-ng placeholder; the human replaces the WAVs with a real announcer pack)
+three|Three
+two|Two
+one|One
+fight|Fight
+quad_damage|Quad damage
+excellent|Excellent
+impressive|Impressive
+lead_taken|You have taken the lead
+lead_lost|You have lost the lead
+lead_tied|Tied for the lead
+one_minute|One minute warning
+overtime|Overtime
+match_over|Match over

@@ -8,6 +8,9 @@
 # exists, the default map L_ItemTest has one ("bands=L_ItemTest"); a map without a file runs report-only ("band=none") and still
 # prints every metric. Map-independent invariants (left_arena, world_kill, no_nav_point, giveup, stuck/burst/dwell <= 5 s, nav build
 # <= 2 s, link success >= 90 % per type over a --repeat 3 set) are judged on every map and cannot be loosened by a band file.
+# Link success (ADR 0006 E0.3 b): judged by VeloxBotLink reason=, ok / (ok + failed) per type pooled over the set. Failed = missed,
+# timeout, noimpulse, tooslow (unknown reasons count as failed and are printed); not an attempt = replaced, below_start, ineligible
+# (printed as aborted=<n>; FLAG, report-only, when aborted >= ok). A type is judged from 30 attempts on (LINK_MIN_ATTEMPTS).
 set -uo pipefail
 
 CI_SCRIPT_NAME="infra/ci/nettest.sh"
@@ -351,6 +354,14 @@ run_one() {
 analyze_round() {
   python3 -I - "$@" <<'PY'
 import collections, math, os, re, statistics, sys
+# E0.3 (b): a link outcome is judged by reason= (NotifyLinkFinished writes result=aborted for every outcome that is neither ok nor missed).
+LINK_FAILED_REASONS = ("missed", "timeout", "noimpulse", "tooslow")          # failed attempts
+LINK_NOT_ATTEMPT_REASONS = ("replaced", "below_start", "ineligible")         # re-plans (D28): not attempts, counted as aborted=<n>
+def link_class(result, reason):
+    if result == "ok": return "ok"
+    if reason in LINK_FAILED_REASONS: return "failed"
+    if reason in LINK_NOT_ATTEMPT_REASONS: return "aborted"
+    return "unknown"    # unknown reason: counted failed by the caller and printed
 
 script, slog, clog, crc, server_alive, result_path, lag_ms, out_dir = sys.argv[1:9]
 stats_dir = sys.argv[9] if len(sys.argv) > 9 else out_dir
@@ -385,6 +396,10 @@ for name, lines in (("server", S), ("client", C)):
     for l in lines:
         if re.search(r"Fatal error|Assertion failed|Signal 11|SIGSEGV|CRASH", l):
             fails.append("%s: crash marker: %s" % (name, l.strip()[:160])); break
+# ADR 0006 / review 0006 gate: the dedicated server never loads or plays a cosmetic or an audio asset.
+for l in S:
+    if re.search(r"VeloxAudio play|VeloxViewModel weapon=|VeloxCosmetics .*: mesh=", l):
+        fails.append("server: cosmetic/audio line in the dedicated server log (ADR 0006 section 1): %s" % l.strip()[:160]); break
 if not server_alive:
     fails.append("server process died during the run")
 if crc != 0:
@@ -1443,7 +1458,8 @@ if script in ("BotRun", "BotDuel"):
             bots.add(m.group(1))
     nav_built = any("VeloxNav built" in l for l in S)
     nav_secs = [float(m_.group(1)) for m_ in (re.search(r"VeloxNav built .*?seconds=([\d.]+)", l) for l in S) if m_]
-    link_types = collections.defaultdict(lambda: [0, 0])   # ADR 0006 section 7: type -> [ok, failed]; "aborted" (replaced, below_start) is a re-plan, not an attempt
+    link_types = collections.defaultdict(lambda: [0, 0, 0])   # ADR 0006 E0.3 (b): type -> [ok, failed, aborted]; judged by reason=, see link_class()
+    link_unknown = collections.Counter()   # reasons outside both lists: counted failed and printed
     band_notes = []                # misses of a banded quantity on a map without that band: printed, not judged
     phases = [re.search(r"VeloxMatch phase=(\w+)", l).group(1) for l in S if "VeloxMatch phase=" in l]
     pickups = collections.Counter()
@@ -1559,8 +1575,9 @@ if script in ("BotRun", "BotDuel"):
             continue
         if "VeloxBotLink bot=" in l and "result=" in l:
             d = kv(l); link_total += 1
-            if d.get("result") == "ok": link_types[d.get("type", "?")][0] += 1
-            elif d.get("result") != "aborted": link_types[d.get("type", "?")][1] += 1
+            lc_ = link_class(d.get("result"), d.get("reason"))
+            link_types[d.get("type", "?")][{"ok": 0, "failed": 1, "aborted": 2, "unknown": 1}[lc_]] += 1
+            if lc_ == "unknown": link_unknown["%s/%s" % (d.get("result"), d.get("reason"))] += 1
             if d.get("result") == "ok": link_ok += 1
             else: reasons[d.get("reason", "?")] += 1
             dt = num(d, "dt")
@@ -1980,7 +1997,7 @@ if script in ("BotRun", "BotDuel"):
              "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w],
              "preset": preset, "calibration": calibration or None, "nh": nh_sum, "nh_bots": dict((b_, nh[b_]) for b_ in sorted(bots)),
              "nh_weapon": dict(nh_weapon), "rl_self_only": nh_rl_so["n"], "max_fire_us": max([w["fire"] for w in windows] or [0]), "mega_takes": len(mega), "link_max": link_max,
-             "link_types": dict(link_types), "nav_seconds": max(nav_secs) if nav_secs else None}
+             "link_types": dict(link_types), "link_unknown": dict(link_unknown), "nav_seconds": max(nav_secs) if nav_secs else None}
     with open(os.path.join(stats_dir, script + ".stats.json"), "w") as sf:
         json.dump(stats, sf)
     cost_txt = ("n/j" if not cost_judged else ("FAIL" if cost_w or budget_mean > BUDGET_MAX or (p_norm_mean or 0) > BUDGET_MAX or (rr_round or 0) > RR_ROUND_MAX else "PASS"))
@@ -2054,7 +2071,7 @@ PY
 # (round-<k>/ directories for --repeat > 1). Judged for --repeat 3 only; other counts are reported, not judged.
 bot_set_eval() {
   python3 -I - "$1" "$2" "$3" <<'PY'
-import json, os, re, sys
+import collections, json, os, re, sys
 script, base, rounds = sys.argv[1], sys.argv[2], int(sys.argv[3])
 MAJOR_ALL = ["Health_Mega", "Armor_Red", "Armor_Yellow", "Powerup_BattleSuit", "Powerup_Haste", "Powerup_Quad", "Powerup_Regen"]
 BUDGET_MAX = 300.0
@@ -2073,7 +2090,7 @@ BOTDUEL_CAMP_MIN = band("BAND_BOTDUEL_CAMP_MIN")      # D51 (1), D49 (a)/(4): Bo
 MEGA_WITHIN3_MIN = band("BAND_MEGA_WITHIN3_MIN")      # D51 (6): sum of timed Mega returns <= 3 s (the timing clause, D46 3)
 MEGA_WITHIN10_MIN = band("BAND_MEGA_WITHIN10_MIN")    # D51 (6): sum of timed Mega returns <= 10 s (replaces D48 b "within 6 s >= 3")
 MAJOR_REQUIRED = band("BAND_BOTRUN_MAJOR_REQUIRED")   # every major item taken by a bot over the BotRun set
-LINK_SUCCESS_MIN_PCT, LINK_MIN_ATTEMPTS = 90.0, 10    # ADR 0006 section 7: per link type over the set, judged from 10 attempts on
+LINK_SUCCESS_MIN_PCT, LINK_MIN_ATTEMPTS = 90.0, 30    # ADR 0006 section 7 / E0.3 (b): per link type over the set, judged from 30 attempts on
 STUCK_SUM_MAX = 10          # D36, re-checked unchanged by D51 (7)
 # D51 (11): the camp trio on the BotDuel set line (episodes per round mean, camp share %, camp time %, max lead s); report-only.
 CAMP_TRIO_BANDS = {"episodes_per_round_mean": (3, 6), "camp_share_pct": (4, 12), "camp_time_pct": (2, 8), "camp_max_lead_s": (None, 23)}
@@ -2189,17 +2206,21 @@ print("  left_arena=[%s] world_kills=[%s]" % (",".join(r.get("left_arena") or "n
 print("  %s" % ("bands=%s" % band_name if band_name != "none" else "band=none (report-only: the per-map set bands are printed, not judged; the map-independent invariants are judged)"))
 # ADR 0006 section 7: link traversal success per link type over the valid rounds (ok / (ok + failed); "aborted" re-plans are not attempts).
 lt_ = {}
+lu_ = collections.Counter()
 for r in valid:
-    for t_, (ok_, bad_) in (r.get("link_types") or {}).items():
-        a_ = lt_.setdefault(t_, [0, 0]); a_[0] += ok_; a_[1] += bad_
+    for t_, v_ in (r.get("link_types") or {}).items():
+        a_ = lt_.setdefault(t_, [0, 0, 0]); a_[0] += v_[0]; a_[1] += v_[1]; a_[2] += v_[2] if len(v_) > 2 else 0
+    lu_.update(r.get("link_unknown") or {})
 link_fail_types = []
 if lt_:
     parts_ = []
-    for t_, (ok_, bad_) in sorted(lt_.items()):
+    for t_, (ok_, bad_, ab_) in sorted(lt_.items()):
         n_ = ok_ + bad_; pct_ = 100.0 * ok_ / n_ if n_ else 100.0
-        parts_.append("%s=%d/%d (%.1f %%%s)" % (t_, ok_, n_, pct_, "" if n_ >= LINK_MIN_ATTEMPTS else ", < %d attempts: not judged" % LINK_MIN_ATTEMPTS))
+        parts_.append("%s=%d/%d (%.1f %%, aborted=%d%s)" % (t_, ok_, n_, pct_, ab_, "" if n_ >= LINK_MIN_ATTEMPTS else ", < %d attempts: not judged" % LINK_MIN_ATTEMPTS))
+        if ab_ >= ok_ and ab_ > 0: parts_.append("FLAG(%s: aborted %d >= ok %d, report-only)" % (t_, ab_, ok_))
         if n_ >= LINK_MIN_ATTEMPTS and pct_ < LINK_SUCCESS_MIN_PCT: link_fail_types.append("%s %.1f %% < %.0f %%" % (t_, pct_, LINK_SUCCESS_MIN_PCT))
-    print("  link success by type (invariant >= %.0f %%): %s" % (LINK_SUCCESS_MIN_PCT, " ".join(parts_)))
+    print("  link success by type (invariant >= %.0f %%, min %d attempts; failed = missed/timeout/noimpulse/tooslow, aborted = replaced/below_start/ineligible): %s" % (LINK_SUCCESS_MIN_PCT, LINK_MIN_ATTEMPTS, " ".join(parts_)))
+    if lu_: print("  link unknown reasons (counted failed): %s" % " ".join("%s=%d" % kv_ for kv_ in sorted(lu_.items())))
 if link_fail_types: fails.append("link traversal success per type: " + "; ".join(link_fail_types))
 # ADR 0005 D51 (11): near-human quantities pooled over the valid rounds (sums of numerators over sums of denominators), per
 # (preset, script) with the band and IN/OUT; report-only. The same table as analyze_round's NH_BANDS (None = report).

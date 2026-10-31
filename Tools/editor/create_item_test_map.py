@@ -67,6 +67,7 @@ GRID = [
 GRID_MOVED = {"Ammo.Rockets": "moved to the rocket-jump\nplatform (south-east)"}
 
 PLATFORM_TOP = 300.0
+NORTH_FILL_D = 100.0               # corridor wall Y 1500 minus platform north face Y 1400 (E0.2 (e) seal)
 MEGA_PAD = (-2300.0, 1200.0)      # (pad x, y): platform x -1700..-1300, y 1000..1400
 RA_PAD = (1300.0, 1200.0)         # platform x 1900..2300, y 1000..1400
 
@@ -130,7 +131,7 @@ STARTS = [  # (label, x, y, yaw)
 ]
 
 EXPECTED = {
-    "ground": 1, "wall": 4, "clip": 5, "cross": 2, "platform": 7 + 4 + 1 + 3, "ramp": 2, "roomfloor": 1, "roomwall": 4, "corridorwall": 2, "marker": 11,
+    "ground": 1, "wall": 4, "clip": 5, "cross": 2, "platform": 7 + 4 + 1 + 3 + 2, "ramp": 2, "roomfloor": 1, "roomwall": 4, "corridorwall": 2, "marker": 11,
     "pickup": 23, "jumppad": 2, "targetpoint": 2, "playerstart": 8, "camera": 1, "light": 2,
     "navbounds": 2,
     "navlink": 2 + 12 + 1,   # 2 JumpPad, 12 Drop (Mega 3, RA 3, rockets 4, ramp top 2), 1 RocketJump
@@ -189,6 +190,11 @@ def build_platform_item(tag, item, pad_x, y):
     edge = pad_x + PAD_TO_EDGE
     cx = edge + PLATFORM_SIZE / 2
     box("platform", f"{tag}_Platform", (cx, y, PLATFORM_TOP / 2), (PLATFORM_SIZE, PLATFORM_SIZE, PLATFORM_TOP), "Platform", folder=tag)
+    # ADR 0006 E0.2 (e): the 100 cm slot between the platform's north face (Y 1400) and the corridor wall (Y 1500) is a D17
+    # bed of the D41/D46 shape; seal it flush with the platform top (D46's remedy, as for the YA slot). Drop links are
+    # untouched (the north edge never had one).
+    box("platform", f"{tag}_NorthFill", (cx, y + PLATFORM_SIZE / 2 + NORTH_FILL_D / 2, PLATFORM_TOP / 2), (PLATFORM_SIZE, NORTH_FILL_D, PLATFORM_TOP),
+        "Platform", folder=tag)
     a = vm.jump_pad(f"{tag}_JumpPad", (pad_x, y), (edge, y, PAD_TARGET_Z), pad_label=f"{tag}_JumpPad",
                     target_label=f"{tag}_PadTarget", folder=tag)
     _, da = place_item(item, (cx, y, PLATFORM_TOP), folder=tag)

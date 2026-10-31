@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 09 (`UVeloxWeaponCosmetics` sound fields), ADR 0006 §9
 
 ## Goal
@@ -38,3 +38,5 @@ Every event in ADR 0006 §9 makes a sound on clients with the right attenuation,
 Standard format; the file count/size, and which hooks could not be exercised headless.
 
 ## Notes / outcome
+
+**Outcome (done).** 52 placeholder WAVs (22.05 kHz mono, 1.11 MB; espeak-ng announcer) in `ArtSource/Audio/placeholders/`, imported by `Tools/editor/create_audio_content.py` (idempotent, verifies attenuation/concurrency/ini) into `Content/Audio/` (980 KB). Asset paths and weapon cue sounds live in `Config/DefaultGame.ini [/Script/Velox.VeloxAudioSettings]`. Build green for VeloxEditor; 109 automation tests pass incl. `Velox.Audio.FootstepCadence` and `Velox.Audio.AnnouncerRules`; `nettest.sh --scripts FireRun,ItemRun` PASS and a BotRun with `log LogVeloxAudio Verbose` shows footsteps, fire/impact, pain, death, pickups (own predicted, other), item respawn, jump pad multicast, LG beam loop, countdown/fight announcer lines. Deviations: weapon sounds are keyed by cue tag in `UVeloxAudioSettings::CueSounds` (task 09's `UVeloxWeaponCosmetics` did not exist yet; it can adopt the sounds later); muzzle lights use settings defaults, no rocket-projectile light (projectile code out of scope); `MulticastLaunchCue` carries the launched pawn for the owner dedupe instead of a launch counter; dry-fire and UI-click sounds are imported and in the settings but have no hook (ability / menu code out of scope). Not exercised headless: own jump/land (the idle client never jumps), lead/excellent/impressive/one_minute/overtime/match_over lines, muzzle lights, real audio output (`-nosound`).

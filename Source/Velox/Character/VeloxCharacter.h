@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AbilitySystemInterface.h"
+#include "Character/VeloxAnimInstance.h"
 #include "GameFramework/Character.h"
 #include "GameplayCueInterface.h"
 #include "Engine/TimerHandle.h"
@@ -19,10 +20,15 @@ class UVeloxCombatSettings;
 class UVeloxAbilitySystemComponent;
 class UVeloxCombatFeedbackComponent;
 class UVeloxHealthComponent;
+class UVeloxFootstepComponent;
 class UVeloxHitboxComponent;
 class UVeloxMovementComponent;
 class UVeloxScriptedInputComponent;
+class UVeloxViewModelComponent;
+class UVeloxWeaponInventoryComponent;
 class UVeloxPawnData;
+class UVeloxCharacterCosmetics;
+class USkeletalMesh;
 struct FActiveGameplayEffectHandle;
 struct FGameplayEffectRemovalInfo;
 struct FGameplayEffectSpec;
@@ -37,6 +43,9 @@ namespace VeloxCharacterGeometry
 	inline constexpr float EyeHeight = 55.f;
 	inline constexpr float CrouchedHalfHeight = 50.f;
 	inline constexpr float CrouchedEyeHeight = 40.f;
+	/** Class-default mesh placement (ADR 0006 section 4.1): feet at the capsule bottom, FBX forward. Crouch reads the CDO. */
+	inline constexpr float MeshOffsetZ = -CapsuleHalfHeight;
+	inline constexpr float MeshYawDeg = -90.f;
 }
 
 UCLASS(Config = Game)
@@ -83,8 +92,29 @@ public:
 	/** Tints PlaceholderBody with the PlayerState's colour (dark when a corpse). Server and clients; no-op without a body material. */
 	void ApplyPlayerColor();
 
+	/** First-person weapon view model of the local player pawn (ADR 0006 section 4.6); null on everything else. */
+	UFUNCTION(BlueprintPure, Category = "Velox|Character")
+	UVeloxViewModelComponent* GetViewModelComponent() const { return ViewModel; }
+
+	/** The weapon in the pawn's hand as other players see it (socket weapon_r). */
+	UFUNCTION(BlueprintPure, Category = "Velox|Character")
+	UStaticMeshComponent* GetWeaponWorldMesh() const { return WeaponWorldMesh; }
+
 	/** Test hook: the body's current colour parameter value (black when there is no body material). */
 	FLinearColor GetBodyColor() const;
+
+	// ---- ADR 0006 section 4 (task 08): third-person cosmetics
+	/** The loaded cosmetics data asset (null on a dedicated server and until the async load finished). */
+	const UVeloxCharacterCosmetics* GetCharacterCosmetics() const { return CharacterCosmetics; }
+	/** Skin slot currently on the mesh (INDEX_NONE before cosmetics/skin). */
+	int32 GetAppliedSkinSlot() const { return AppliedSkinSlot; }
+	/** True when the mesh plays Sequences directly (no AnimClass, bUseSequencePlayback). */
+	bool IsUsingSequencePlayback() const { return bSequencePlayback; }
+	/** Leg state of the sequence-playback driver. */
+	EVeloxLegState GetSequenceLegState() const { return SequenceAnimState.LegState; }
+	/** Client: re-chooses the skin (own skin or forced enemy skin) and applies its colour; a corpse keeps its skin. */
+	void ApplyCharacterSkin();
+	// ---- end task 08
 
 	/**
 	 * Server (ADR 0004 section 3): writes the remaining time of the active Haste and Quad effects on the PlayerState ASC into
@@ -119,6 +149,9 @@ public:
 	/** Logs `VeloxCrouch: start|end` with half height and eye height (server, owning client and proxies). */
 	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	/** Audio (ADR 0006 section 9): land and jump sounds through UVeloxFootstepComponent. */
+	virtual void Landed(const FHitResult& Hit) override;
+	virtual void OnJumped_Implementation() override;
 	//~End of ACharacter interface
 
 	//~AActor interface
@@ -136,7 +169,11 @@ public:
 protected:
 	//~AActor interface
 	virtual void PostInitializeComponents() override;
+	/** Non-server worlds: requests the pawn data's cosmetics (ADR 0006 section 4.3). */
+	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	/** Drives the sequence-playback fallback (ADR 0006 section 4.5) when it is active; nothing else. */
+	virtual void Tick(float DeltaSeconds) override;
 	//~End of AActor interface
 
 	//~APawn interface
@@ -147,6 +184,14 @@ protected:
 	void InitAbilityActorInfo();
 
 	void LogCrouchState(const TCHAR* Event) const;
+
+	/** Creates the view model once this pawn is a local player's and its PlayerState inventory exists (non-dedicated only). */
+	void EnsureViewModel();
+	/** Shows the current weapon's WorldMesh on weapon_r for every client (inventory index is replicated); hidden on corpses. */
+	void RefreshWeaponWorldMesh();
+	/** Binds the PlayerState inventory's weapon change to RefreshWeaponWorldMesh (rebinding when the PlayerState changes). */
+	void BindWeaponWorldMesh();
+	void OnWeaponIndexChanged(int32 OldIndex, int32 NewIndex);
 
 	/** Server: UVeloxHealthComponent::OnOutOfHealth, synchronously inside the killing damage execution (ADR 0003 B8). */
 	void HandleOutOfHealth(const FVeloxDamageEvent& Event);
@@ -192,6 +237,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
 	TObjectPtr<UVeloxCombatFeedbackComponent> CombatFeedbackComponent;
 
+	/** Footsteps, jump, landing, pain and death sounds (client audio only; ADR 0006 section 9). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
+	TObjectPtr<UVeloxFootstepComponent> FootstepComponent;
+
 	/** Bright capsule-sized mesh attached to the skeletal mesh (so it gets the smoothing offset), coloured per player (ADR 0003 section 10). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
 	TObjectPtr<UStaticMeshComponent> PlaceholderBody;
@@ -199,6 +248,22 @@ protected:
 	/** Unlit material with a vector parameter BodyColorParameter (M_PlayerBody, bootstrap script). Set in DefaultGame.ini. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Readability")
 	TSoftObjectPtr<UMaterialInterface> PlayerBodyMaterial;
+
+	/** Local player only (EnsureViewModel); owns the first-person weapon mesh. */
+	UPROPERTY(Transient)
+	TObjectPtr<UVeloxViewModelComponent> ViewModel;
+
+	/** Current weapon in the right hand, hidden from the owner (the view model is theirs). Never created content-wise on a dedicated server. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Velox|Character", Meta = (AllowPrivateAccess = true))
+	TObjectPtr<UStaticMeshComponent> WeaponWorldMesh;
+
+	/** Socket of the skeletal mesh that carries the weapon. */
+	UPROPERTY(EditDefaultsOnly, Category = "Velox|Weapons")
+	FName WeaponSocketName = TEXT("weapon_r");
+
+	/** Where the weapon sits on the capsule when the mesh has no weapon socket (placeholder body period). */
+	UPROPERTY(EditDefaultsOnly, Category = "Velox|Weapons")
+	FVector WeaponFallbackOffset = FVector(30.0, 25.0, 15.0);
 
 	UPROPERTY(EditDefaultsOnly, Category = "Velox|Readability")
 	FName BodyColorParameter = TEXT("Color");
@@ -236,6 +301,40 @@ private:
 	/** This pawn is the avatar of ASC on the authority (a corpse's late callbacks are ignored). */
 	bool IsPowerupAvatarOf(const UAbilitySystemComponent* ASC) const;
 
+	TWeakObjectPtr<UVeloxWeaponInventoryComponent> WeaponMeshInventory;
+	FDelegateHandle WeaponMeshHandle;
+
 	TWeakObjectPtr<UAbilitySystemComponent> PowerupWatchedASC;
 	FDelegateHandle PowerupAppliedHandle;
+
+	// ---- ADR 0006 section 4 (task 08): third-person cosmetics (non-server worlds only)
+	/** Once per pawn: async-load PawnData->Cosmetics through UVeloxAssetManager (dedicated server: Verbose log, nothing). */
+	void RequestCharacterCosmetics();
+	void OnCharacterCosmeticsLoaded(const UVeloxCharacterCosmetics* Loaded);
+	/** Mesh, offset/yaw, anim class or sequence playback, placeholder visibility. */
+	void SetUpCosmeticMesh();
+	/** Moves the mesh to OffsetZ/YawDeg keeping the engine's base offsets (smoothing, crouch) consistent. */
+	void ApplyCosmeticMeshOffset(float OffsetZ, float YawDeg);
+	/** After the engine crouch code reset the mesh Z from the class default: re-adds CosmeticMeshZDelta. */
+	void ReapplyCosmeticMeshZDelta();
+	void PlaySequenceForState();
+	bool IsOwnedByLocalPlayer() const;
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UVeloxCharacterCosmetics> CharacterCosmetics;
+
+	/** Skin material instance on the mesh (BodyColorParameter = body colour, darkened on corpses). */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SkinMaterial;
+
+	bool bCosmeticsRequested = false;
+	bool bSequencePlayback = false;
+	int32 AppliedSkinSlot = INDEX_NONE;
+	FLinearColor AppliedSkinColor = FLinearColor::White;
+	/** CosmeticsMeshOffsetZ minus the class-default mesh Z, re-added after the engine's crouch offset reset. */
+	float CosmeticMeshZDelta = 0.f;
+	FVeloxAnimStateData SequenceAnimState;
+	FVeloxAnimSampler SequenceAnimSampler;
+	FDelegateHandle SettingsAppliedHandle;
+	// ---- end task 08
 };

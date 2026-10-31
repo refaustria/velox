@@ -1,6 +1,11 @@
 // Velox - player/bot character.
 
 #include "Character/VeloxCharacter.h"
+#include "Character/VeloxFootstepComponent.h"
+
+#include "Character/VeloxViewModelComponent.h"
+#include "Core/VeloxWeaponCosmetics.h"
+#include "Weapons/VeloxWeaponDefinition.h"
 
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Camera/CameraTypes.h"
@@ -24,6 +29,8 @@
 #include "Combat/VeloxHitboxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Core/VeloxAssetManager.h"
+#include "Core/VeloxCharacterCosmetics.h"
 #include "Core/VeloxCollisionChannels.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Core/VeloxLog.h"
@@ -44,10 +51,19 @@
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
 
+#include "Animation/AnimSequence.h"
 #include "DisplayDebugHelpers.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/Canvas.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxCharacter)
+
+namespace VeloxCosmeticsCVars
+{
+	// ADR 0006 section 4.3: the capsule placeholder stays as a fallback behind this switch once a skeletal mesh is set.
+	static TAutoConsoleVariable<int32> CVarPlaceholderBody(TEXT("velox.vis.PlaceholderBody"), 0,
+		TEXT("1 keeps the capsule placeholder body visible when the character cosmetics set a skeletal mesh (read when a pawn's cosmetics load)."), ECVF_Default);
+}
 
 AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UVeloxMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -70,6 +86,9 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 	if (USkeletalMeshComponent* MeshComponent = GetMesh())
 	{
 		MeshComponent->SetCollisionResponseToChannel(Velox_TraceChannel_Weapon, ECR_Ignore);
+		// ADR 0006 section 4.1 (task 08): class-default placement, so the engine's crouch offset (read from the CDO) and the
+		// smoothing base offset agree with the cosmetics; UVeloxCharacterCosmetics::MeshOffsetZ/MeshYawDeg may differ.
+		MeshComponent->SetRelativeLocationAndRotation(FVector(0.0, 0.0, VeloxCharacterGeometry::MeshOffsetZ), FRotator(0.0, VeloxCharacterGeometry::MeshYawDeg, 0.0));
 	}
 
 	// FPS: the capsule takes the controller yaw; pitch and roll are view-only (ADR 0002 section 1).
@@ -94,6 +113,7 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 	HealthComponent = CreateDefaultSubobject<UVeloxHealthComponent>(TEXT("HealthComponent"));
 	HitboxComponent = CreateDefaultSubobject<UVeloxHitboxComponent>(TEXT("HitboxComponent"));
 	CombatFeedbackComponent = CreateDefaultSubobject<UVeloxCombatFeedbackComponent>(TEXT("CombatFeedbackComponent"));
+	FootstepComponent = CreateDefaultSubobject<UVeloxFootstepComponent>(TEXT("FootstepComponent"));
 
 	// ADR 0003 section 10: a bright, capsule-sized placeholder body, coloured per player. Attached to the skeletal mesh so it
 	// receives the network smoothing offset; never collides, never casts a shadow, hidden from its own player's camera.
@@ -114,6 +134,18 @@ AVeloxCharacter::AVeloxCharacter(const FObjectInitializer& ObjectInitializer)
 		PlaceholderBody->SetRelativeScale3D(FVector(VeloxCharacterGeometry::CapsuleRadius * 2.0 / 100.0, VeloxCharacterGeometry::CapsuleRadius * 2.0 / 100.0, VeloxCharacterGeometry::CapsuleHalfHeight * 2.0 / 100.0));
 	}
 	PlayerBodyMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Materials/M_PlayerBody.M_PlayerBody")));
+
+	// ADR 0006 section 4.6: the weapon other players see. Mesh is set per weapon change (empty until the art lands).
+	WeaponWorldMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponWorldMesh"));
+	// On the capsule until a skeletal mesh with the socket exists (RefreshWeaponWorldMesh moves it to weapon_r).
+	WeaponWorldMesh->SetupAttachment(GetCapsuleComponent());
+	WeaponWorldMesh->SetRelativeLocation(WeaponFallbackOffset);
+	WeaponWorldMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WeaponWorldMesh->SetCollisionResponseToChannel(Velox_TraceChannel_Weapon, ECR_Ignore);
+	WeaponWorldMesh->SetGenerateOverlapEvents(false);
+	WeaponWorldMesh->SetCastShadow(false);
+	WeaponWorldMesh->SetOwnerNoSee(true);
+	WeaponWorldMesh->SetVisibility(false);
 
 	// DefaultInputComponentClass stays EnhancedInputComponent (ADR 0001); Velox pawns use the tag-binding subclass.
 	OverrideInputComponentClass = UVeloxInputComponent::StaticClass();
@@ -213,12 +245,14 @@ void AVeloxCharacter::PostInitializeComponents()
 void AVeloxCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
 	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	ReapplyCosmeticMeshZDelta(); // task 08: the engine reset the mesh Z from the class default
 	LogCrouchState(TEXT("start"));
 }
 
 void AVeloxCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
 	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	ReapplyCosmeticMeshZDelta(); // task 08: the engine reset the mesh Z from the class default
 	LogCrouchState(TEXT("end"));
 }
 
@@ -246,7 +280,16 @@ void AVeloxCharacter::PossessedBy(AController* NewController)
 
 void AVeloxCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (UVeloxGameUserSettings* UserSettings = UVeloxGameUserSettings::Get(); UserSettings && SettingsAppliedHandle.IsValid())
+	{
+		UserSettings->OnVeloxSettingsApplied.Remove(SettingsAppliedHandle);
+		SettingsAppliedHandle.Reset();
+	}
 	UnbindPowerupMoveTimes();
+	if (UVeloxWeaponInventoryComponent* Inventory = WeaponMeshInventory.Get())
+	{
+		Inventory->OnCurrentWeaponChanged.Remove(WeaponMeshHandle);
+	}
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -277,6 +320,7 @@ void AVeloxCharacter::OnRep_PlayerState()
 	Super::OnRep_PlayerState();
 
 	InitAbilityActorInfo();
+	RequestCharacterCosmetics();
 	ApplyPlayerColor();
 
 	// Clients: the pawn lost its PlayerState (it died and was unpossessed). A corpse is never an avatar and its health
@@ -298,12 +342,15 @@ void AVeloxCharacter::OnRep_PlayerState()
 void AVeloxCharacter::OnRep_Controller()
 {
 	Super::OnRep_Controller();
+	EnsureViewModel();
 
 	// The ASC caches the player controller in its actor info.
 	if (UVeloxAbilitySystemComponent* ASC = GetVeloxAbilitySystemComponent(); ASC && ASC->GetAvatarActor() == this)
 	{
 		ASC->RefreshAbilityActorInfo();
 	}
+	// Task 08: own pawn vs enemy decides the forced skin; the controller replicates to the owner only.
+	ApplyCharacterSkin();
 }
 
 void AVeloxCharacter::InitAbilityActorInfo()
@@ -352,6 +399,86 @@ void AVeloxCharacter::InitAbilityActorInfo()
 			}
 		}
 	}
+
+	BindWeaponWorldMesh();
+	EnsureViewModel();
+}
+
+// ---------------------------------------------------------------- Weapon cosmetics (ADR 0006 section 4.6)
+
+void AVeloxCharacter::EnsureViewModel()
+{
+	if (ViewModel || bIsCorpse || IsNetMode(NM_DedicatedServer) || !IsLocallyControlled() || !Cast<APlayerController>(GetController()))
+	{
+		return;
+	}
+	if (!UVeloxWeaponInventoryComponent::Find(this))
+	{
+		// The PlayerState has not arrived yet: InitAbilityActorInfo calls again.
+		return;
+	}
+	ViewModel = NewObject<UVeloxViewModelComponent>(this, TEXT("ViewModel"));
+	ViewModel->SetupAttachment(GetRootComponent());
+	ViewModel->RegisterComponent();
+	ViewModel->Initialize();
+}
+
+void AVeloxCharacter::BindWeaponWorldMesh()
+{
+	if (IsNetMode(NM_DedicatedServer))
+	{
+		UE_LOG(LogVelox, Verbose, TEXT("%s: dedicated server, no weapon world mesh content"), *GetName());
+		return;
+	}
+	UVeloxWeaponInventoryComponent* Inventory = UVeloxWeaponInventoryComponent::Find(this);
+	if (Inventory && WeaponMeshInventory.Get() != Inventory)
+	{
+		if (UVeloxWeaponInventoryComponent* Old = WeaponMeshInventory.Get())
+		{
+			Old->OnCurrentWeaponChanged.Remove(WeaponMeshHandle);
+		}
+		WeaponMeshInventory = Inventory;
+		WeaponMeshHandle = Inventory->OnCurrentWeaponChanged.AddUObject(this, &ThisClass::OnWeaponIndexChanged);
+	}
+	RefreshWeaponWorldMesh();
+}
+
+void AVeloxCharacter::OnWeaponIndexChanged(int32 OldIndex, int32 NewIndex)
+{
+	RefreshWeaponWorldMesh();
+}
+
+void AVeloxCharacter::RefreshWeaponWorldMesh()
+{
+	if (!WeaponWorldMesh || IsNetMode(NM_DedicatedServer))
+	{
+		return;
+	}
+	const UVeloxWeaponInventoryComponent* Inventory = WeaponMeshInventory.Get();
+	// Remote pawns show the replicated index; the local pawn's predicted index is no concern of its (hidden) world mesh.
+	const UVeloxWeaponDefinition* Definition = (Inventory && !bIsCorpse) ? Inventory->GetDefinition(Inventory->GetAuthoritativeIndex()) : nullptr;
+	const UVeloxWeaponCosmetics* Cosmetics = (Definition && !Definition->Cosmetics.IsNull()) ? Definition->Cosmetics.LoadSynchronous() : nullptr;
+	UStaticMesh* Mesh = (Cosmetics && !Cosmetics->WorldMesh.IsNull()) ? Cosmetics->WorldMesh.LoadSynchronous() : nullptr;
+
+	// weapon_r when the skeletal mesh has it; otherwise the capsule (placeholder body period).
+	const USkeletalMeshComponent* Body = GetMesh();
+	const bool bHasSocket = Body && Body->GetSkeletalMeshAsset() && Body->DoesSocketExist(WeaponSocketName);
+	const USceneComponent* DesiredParent = bHasSocket ? static_cast<const USceneComponent*>(Body) : GetCapsuleComponent();
+	if (WeaponWorldMesh->GetAttachParent() != DesiredParent || (bHasSocket && WeaponWorldMesh->GetAttachSocketName() != WeaponSocketName))
+	{
+		if (bHasSocket)
+		{
+			WeaponWorldMesh->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocketName);
+		}
+		else
+		{
+			WeaponWorldMesh->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+			WeaponWorldMesh->SetRelativeLocationAndRotation(WeaponFallbackOffset, FRotator::ZeroRotator);
+		}
+	}
+	WeaponWorldMesh->SetStaticMesh(Mesh);
+	WeaponWorldMesh->SetVisibility(Mesh != nullptr);
+	UE_LOG(LogVelox, Verbose, TEXT("%s: weapon world mesh weapon=%s mesh=%s attached=%s"), *GetName(), *GetNameSafe(Definition), *GetNameSafe(Mesh), bHasSocket ? TEXT("socket") : TEXT("capsule"));
 }
 
 // ---------------------------------------------------------------- Powerups in the move timeline (ADR 0004 section 3)
@@ -675,6 +802,7 @@ void AVeloxCharacter::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 
 void AVeloxCharacter::ApplyPlayerColor()
 {
+	ApplyCharacterSkin();
 	if (!BodyMaterial)
 	{
 		return;
@@ -700,6 +828,241 @@ FLinearColor AVeloxCharacter::GetBodyColor() const
 		BodyMaterial->GetVectorParameterValue(BodyColorParameter, Color);
 	}
 	return Color;
+}
+
+// ---------------------------------------------------------------- Cosmetics (ADR 0006 section 4, task 08)
+
+void AVeloxCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	RequestCharacterCosmetics();
+	if (!UVeloxAssetManager::IsCosmeticsFreeWorld(GetWorld()))
+	{
+		// Toggling the enemy skin in the settings screen re-skins the pawns at once.
+		if (UVeloxGameUserSettings* UserSettings = UVeloxGameUserSettings::Get())
+		{
+			SettingsAppliedHandle = UserSettings->OnVeloxSettingsApplied.AddUObject(this, &ThisClass::ApplyCharacterSkin);
+		}
+	}
+}
+
+void AVeloxCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (!bSequencePlayback || !CharacterCosmetics)
+	{
+		return;
+	}
+	const FVeloxAnimTuning& Tuning = CharacterCosmetics->AnimTuning;
+	const FVeloxAnimInput Input = SequenceAnimSampler.Sample(*this, DeltaSeconds, Tuning);
+	if (VeloxAnimState::Step(Input, SequenceAnimState, DeltaSeconds, Tuning))
+	{
+		PlaySequenceForState();
+	}
+	if (USkeletalMeshComponent* MeshComponent = GetMesh())
+	{
+		MeshComponent->SetPlayRate(SequenceAnimState.PlayRate);
+	}
+}
+
+void AVeloxCharacter::RequestCharacterCosmetics()
+{
+	if (bCosmeticsRequested)
+	{
+		return;
+	}
+	bCosmeticsRequested = true;
+	if (UVeloxAssetManager::IsCosmeticsFreeWorld(GetWorld()))
+	{
+		static bool bLoggedServerSkip = false;
+		UE_CLOG(!bLoggedServerSkip, LogVelox, Verbose, TEXT("VeloxCosmetics: cosmetics skipped on dedicated server (no mesh, skin or animation is loaded)."));
+		bLoggedServerSkip = true;
+		return;
+	}
+	if (!PawnData || PawnData->Cosmetics.IsNull())
+	{
+		UE_LOG(LogVelox, Log, TEXT("VeloxCosmetics %s: pawn data [%s] has no cosmetics; PlaceholderBody stays."), *GetName(), *GetNameSafe(PawnData));
+		return;
+	}
+	UE_LOG(LogVelox, Verbose, TEXT("VeloxCosmetics %s: requesting %s."), *GetName(), *PawnData->Cosmetics.ToString());
+	const TWeakObjectPtr<AVeloxCharacter> WeakThis(this);
+	UVeloxAssetManager::LoadCharacterCosmetics(GetWorld(), PawnData->Cosmetics, [WeakThis](const UVeloxCharacterCosmetics* Loaded)
+	{
+		if (AVeloxCharacter* Character = WeakThis.Get())
+		{
+			Character->OnCharacterCosmeticsLoaded(Loaded);
+		}
+	});
+}
+
+void AVeloxCharacter::OnCharacterCosmeticsLoaded(const UVeloxCharacterCosmetics* Loaded)
+{
+	if (!Loaded || CharacterCosmetics)
+	{
+		return;
+	}
+	CharacterCosmetics = Loaded;
+	SetUpCosmeticMesh();
+	ApplyPlayerColor(); // placeholder colour and skin
+}
+
+void AVeloxCharacter::SetUpCosmeticMesh()
+{
+	USkeletalMeshComponent* MeshComponent = GetMesh();
+	USkeletalMesh* SkeletalMesh = CharacterCosmetics ? CharacterCosmetics->SkeletalMesh.Get() : nullptr;
+	if (!MeshComponent || !SkeletalMesh)
+	{
+		UE_LOG(LogVelox, Log, TEXT("VeloxCosmetics %s: no SkeletalMesh set in %s; PlaceholderBody stays."), *GetName(), *GetNameSafe(CharacterCosmetics));
+		return;
+	}
+
+	// ADR 0006 section 4.1: the capsule is the only hitbox; the mesh never collides or blocks traces.
+	MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	MeshComponent->SetSkeletalMeshAsset(SkeletalMesh);
+	MeshComponent->SetOwnerNoSee(!bIsCorpse); // first person: no body for the own camera until death
+	ApplyCosmeticMeshOffset(CharacterCosmetics->MeshOffsetZ, CharacterCosmetics->MeshYawDeg);
+
+	UClass* AnimClass = CharacterCosmetics->AnimClass.Get();
+	if (AnimClass)
+	{
+		bSequencePlayback = false;
+		MeshComponent->SetAnimInstanceClass(AnimClass);
+	}
+	else
+	{
+		bSequencePlayback = CharacterCosmetics->bUseSequencePlayback;
+		SequenceAnimState = FVeloxAnimStateData();
+		SequenceAnimSampler = FVeloxAnimSampler();
+	}
+
+	const bool bKeepPlaceholder = VeloxCosmeticsCVars::CVarPlaceholderBody.GetValueOnGameThread() != 0;
+	if (PlaceholderBody)
+	{
+		PlaceholderBody->SetHiddenInGame(!bKeepPlaceholder);
+	}
+	UE_LOG(LogVelox, Log, TEXT("VeloxCosmetics %s: mesh=%s anim=%s sequencePlayback=%d placeholder=%d"), *GetName(), *SkeletalMesh->GetName(),
+		*GetNameSafe(AnimClass), bSequencePlayback ? 1 : 0, bKeepPlaceholder ? 1 : 0);
+	// Task 09's third-person weapon moves from the capsule fallback to weapon_r now that the skeletal mesh exists.
+	RefreshWeaponWorldMesh();
+}
+
+void AVeloxCharacter::ApplyCosmeticMeshOffset(float OffsetZ, float YawDeg)
+{
+	USkeletalMeshComponent* MeshComponent = GetMesh();
+	const ACharacter* DefaultCharacter = GetDefault<ACharacter>(GetClass());
+	if (!MeshComponent || !DefaultCharacter || !DefaultCharacter->GetMesh())
+	{
+		return;
+	}
+	const float DefaultZ = static_cast<float>(DefaultCharacter->GetMesh()->GetRelativeLocation().Z);
+	const float NewDelta = OffsetZ - DefaultZ;
+	const float Change = NewDelta - CosmeticMeshZDelta;
+	CosmeticMeshZDelta = NewDelta;
+
+	// The relative location may carry a network smoothing offset on top of BaseTranslationOffset: shift both.
+	FVector Location = MeshComponent->GetRelativeLocation();
+	Location.Z += Change;
+	BaseTranslationOffset.Z += Change;
+	const FRotator Rotation(0.0, YawDeg, 0.0);
+	BaseRotationOffset = Rotation.Quaternion();
+	MeshComponent->SetRelativeLocationAndRotation(Location, Rotation);
+	if (PlaceholderBody)
+	{
+		PlaceholderBody->SetRelativeLocation(FVector(0.0, 0.0, -OffsetZ));
+	}
+}
+
+void AVeloxCharacter::ReapplyCosmeticMeshZDelta()
+{
+	USkeletalMeshComponent* MeshComponent = GetMesh();
+	if (!MeshComponent || CosmeticMeshZDelta == 0.f)
+	{
+		return;
+	}
+	FVector Location = MeshComponent->GetRelativeLocation();
+	Location.Z += CosmeticMeshZDelta;
+	BaseTranslationOffset.Z += CosmeticMeshZDelta;
+	MeshComponent->SetRelativeLocation(Location);
+}
+
+void AVeloxCharacter::PlaySequenceForState()
+{
+	USkeletalMeshComponent* MeshComponent = GetMesh();
+	UAnimSequence* Sequence = CharacterCosmetics ? CharacterCosmetics->GetLoadedSequence(SequenceAnimState.LegState, SequenceAnimState.RunDirection) : nullptr;
+	UE_LOG(LogVelox, VeryVerbose, TEXT("VeloxCosmetics %s: leg=%s dir=%s sequence=%s"), *GetName(), *UEnum::GetValueAsString(SequenceAnimState.LegState),
+		*UEnum::GetValueAsString(SequenceAnimState.RunDirection), *GetNameSafe(Sequence));
+	if (MeshComponent && Sequence)
+	{
+		// Hard cut (Q3 cadence); Fire_Upper has no slot in this mode and is skipped.
+		MeshComponent->PlayAnimation(Sequence, VeloxAnimState::IsLooping(SequenceAnimState.LegState));
+	}
+}
+
+bool AVeloxCharacter::IsOwnedByLocalPlayer() const
+{
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	return PC && PC->IsLocalController();
+}
+
+void AVeloxCharacter::ApplyCharacterSkin()
+{
+	USkeletalMeshComponent* MeshComponent = GetMesh();
+	if (!CharacterCosmetics || !MeshComponent || !MeshComponent->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+	AVeloxPlayerState* VeloxPS = GetPlayerState<AVeloxPlayerState>();
+	if (VeloxPS)
+	{
+		VeloxPS->SetCharacterCosmetics(CharacterCosmetics);
+	}
+
+	// A corpse keeps the skin it died with (darkened below); it has no PlayerState and no controller any more.
+	// Without a PlayerState (a corpse, or an unpossessed pawn) the applied slot stays; only the tint is re-applied below.
+	if (AppliedSkinSlot == INDEX_NONE || (!bIsCorpse && VeloxPS))
+	{
+		const UVeloxGameUserSettings& UserSettings = UVeloxGameUserSettings::GetOrDefault();
+		const bool bOwned = IsOwnedByLocalPlayer();
+		const uint8 SkinIndex = VeloxPS ? VeloxPS->GetSkinIndex() : AVeloxPlayerState::NoSkin;
+		const int32 Slot = UVeloxCharacterCosmetics::ChooseSkinSlot(CharacterCosmetics, bOwned, UserSettings.bForceEnemySkin, UserSettings.ForcedEnemySkin, SkinIndex, AVeloxPlayerState::NoSkin);
+		if (Slot == INDEX_NONE)
+		{
+			return;
+		}
+		const bool bForced = UserSettings.bForceEnemySkin && !bOwned && Slot == CharacterCosmetics->FindSkin(UserSettings.ForcedEnemySkin);
+		const FVeloxSkin& Skin = CharacterCosmetics->Skins[Slot];
+		// Own skin: the PlayerState colour (equals the skin's BodyColor; past the skin list it is the palette entry, a tint).
+		AppliedSkinColor = (bForced || !VeloxPS) ? Skin.BodyColor : FLinearColor::FromSRGBColor(VeloxPS->GetPlayerColor());
+		if (Slot != AppliedSkinSlot || !SkinMaterial)
+		{
+			UMaterialInterface* Base = Skin.Material.Get();
+			if (!Base && MeshComponent->GetSkeletalMeshAsset()->GetMaterials().Num() > 0)
+			{
+				Base = MeshComponent->GetSkeletalMeshAsset()->GetMaterials()[0].MaterialInterface;
+			}
+			SkinMaterial = Base ? UMaterialInstanceDynamic::Create(Base, this) : nullptr;
+			for (int32 Index = 0; SkinMaterial && Index < MeshComponent->GetNumMaterials(); ++Index)
+			{
+				MeshComponent->SetMaterial(Index, SkinMaterial);
+			}
+			AppliedSkinSlot = Slot;
+			UE_LOG(LogVelox, Verbose, TEXT("VeloxCosmetics %s: skin=%s slot=%d forced=%d material=%s"), *GetName(), *Skin.Name.ToString(), Slot, bForced ? 1 : 0, *GetNameSafe(Base));
+		}
+	}
+
+	MeshComponent->SetOwnerNoSee(!bIsCorpse);
+	if (SkinMaterial)
+	{
+		FLinearColor Color = AppliedSkinColor;
+		if (bIsCorpse)
+		{
+			Color *= UVeloxCombatSettings::GetOrDefault(CachedCombatSettings).CorpseColorScale;
+			Color.A = 1.f;
+		}
+		SkinMaterial->SetVectorParameterValue(CharacterCosmetics->BodyColorParameter, Color);
+	}
 }
 
 // ---------------------------------------------------------------- Death (ADR 0003 section 8, B8, B17)
@@ -873,6 +1236,13 @@ void AVeloxCharacter::ApplyCorpseState()
 	{
 		HealthComponent->UninitializeFromAbilitySystem();
 	}
+	// ADR 0006 section 4.6: no weapon on a corpse, and the dying player's view model goes with the life.
+	RefreshWeaponWorldMesh();
+	if (ViewModel)
+	{
+		ViewModel->DestroyComponent();
+		ViewModel = nullptr;
+	}
 	// The owner (controller) is gone or going: the body becomes visible to the dying player's death camera.
 	if (PlaceholderBody)
 	{
@@ -881,10 +1251,32 @@ void AVeloxCharacter::ApplyCorpseState()
 	ApplyPlayerColor();
 }
 
+void AVeloxCharacter::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+	if (FootstepComponent)
+	{
+		FootstepComponent->HandleLanded(GetCharacterMovement() ? static_cast<float>(GetCharacterMovement()->Velocity.Z) : 0.f);
+	}
+}
+
+void AVeloxCharacter::OnJumped_Implementation()
+{
+	Super::OnJumped_Implementation();
+	if (FootstepComponent)
+	{
+		FootstepComponent->HandleJumped();
+	}
+}
+
 void AVeloxCharacter::OnRep_IsCorpse()
 {
 	if (bIsCorpse)
 	{
+		if (FootstepComponent)
+		{
+			FootstepComponent->HandleCorpse();
+		}
 		ApplyCorpseState();
 	}
 }
@@ -958,4 +1350,8 @@ void AVeloxCharacter::ApplyViewSettings(FMinimalViewInfo& OutResult) const
 	// The viewer's own setting, also while spectating another pawn: horizontal FOV, whatever the aspect ratio.
 	OutResult.FOV = VeloxSettingsMath::ClampFieldOfView(UVeloxGameUserSettings::GetOrDefault().FieldOfView);
 	OutResult.AspectRatioAxisConstraint = AspectRatio_MaintainXFOV;
+	if (ViewModel)
+	{
+		ViewModel->ApplyToView(OutResult);
+	}
 }
