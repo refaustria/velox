@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 08 (cosmetics asset to fill); ADR 0006 §4.1–4.3 and **E0.5** (decisions 31 and 33: Blender 4.3.2 + numpy on the VM, agent rig on Mannequin bone names now)
 
 ## Goal
@@ -34,3 +34,9 @@
 Standard format; the Blender run's output tail; the verify summary; the LFS size added.
 
 ## Notes / outcome
+
+**Outcome (dev, Sonnet 5.5 / Opus session):** done with deviations.
+- `character.py`: 26 bones (Mannequin names), 868 triangles, 140.00 cm, feet at Z 0, -Y forward (imports as +Y: FBX import mirrors Blender Y), sockets as `SOCKET_<name>` empties parented to bones (the FBX importer turns them into sockets; Python cannot set `SkeletalMeshSocket` names), mask PNG (4 vertical u bands), `SK_Velox.json` sidecar with the triangle count (the import API exposes only vertex counts). Mesh data, PNG and JSON are byte-identical across runs; `.blend` and `.fbx` embed time stamps.
+- Skin weights are computed in the script (rigid parts, two-bone blend across joints), not bone heat (disjoint solids).
+- `import_art.py --character [--verify|--fixture]`, `--kit` delegates to `import_kit.run`. Fifth skin is Magenta (code palette), `MI_Skin_Magenta`.
+- Deviations: (1) `PA_Velox` is the engine-generated physics asset: `UPhysicsAsset` bodies are not reflected to Python in 5.8, so the single pelvis capsule cannot be set headless (one editor step, or a C++ helper). (2) `--fixture` re-imports the character FBX into a scratch folder: exporting an engine skeletal mesh asserts in `SkinnedMeshComponent.cpp` under `-nullrhi`. (3) Emissive = base * lerp(EmissiveStrength, 1, mask.A) (whole figure glows a little, strips fully).

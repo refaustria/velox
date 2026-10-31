@@ -7,6 +7,7 @@ Run (absolute paths; the argument string goes inside the quoted -script value):
 Options:
   --character <fbx>   import SK_Velox: T_Velox_Mask, M_Character_Master, SK_Velox, SKEL_Velox, PA_Velox (+ sockets),
                       MI_Skin_<name> for every skin of create_cosmetics_content.py, then fill DA_Cosmetics_Velox
+  --kit <dir>         import the modular kit (task 14): delegates to import_kit.run(dir, verify, fixture)
   --mask <png>        mask texture (default ArtSource/Textures/T_Velox_Mask.png next to the fbx's ArtSource)
   --fixture           self-test of this import path: export an engine skeletal mesh to a scratch folder, import it with the same
                       code, verify it, delete the scratch assets
@@ -67,7 +68,7 @@ def parse_args():
     for token in extra:  # the commandlet may leave the script arguments only in the command line
         if token.startswith("--") and token not in argv:
             pass
-    opts = {"character": None, "mask": None, "fixture": False, "verify": False}
+    opts = {"kit": None, "character": None, "mask": None, "fixture": False, "verify": False}
     flat = []
     for a in argv:
         flat += a.split()
@@ -79,6 +80,9 @@ def parse_args():
             i += 1
         elif a == "--character":
             opts["character"] = ""
+        elif a == "--kit" and i + 1 < len(flat):
+            opts["kit"] = flat[i + 1]
+            i += 1
         elif a == "--mask":
             opts["mask"] = flat[i + 1]
             i += 1
@@ -536,9 +540,13 @@ def main():
         if not ERRORS:
             import_character(fbx, mask, FOLDER)
             runpy.run_path(os.path.join(SCRIPT_DIR, "create_cosmetics_content.py"), run_name="__velox_import__")
-    if opts["fixture"]:
+    if opts["kit"]:
+        sys.path.insert(0, SCRIPT_DIR)
+        import import_kit
+        import_kit.run(os.path.abspath(opts["kit"]), opts["verify"], opts["fixture"])
+    elif opts["fixture"]:
         run_fixture(os.path.abspath(opts["character"]) if opts["character"] else os.path.join(REPO, "ArtSource", "Export", "SK_Velox.fbx"))
-    if opts["verify"] and not opts["fixture"]:
+    if opts["verify"] and not opts["fixture"] and not opts["kit"]:
         verify_character(FOLDER)
     if ERRORS:
         raise RuntimeError(f"import_art.py: {len(ERRORS)} error(s): {ERRORS}")
