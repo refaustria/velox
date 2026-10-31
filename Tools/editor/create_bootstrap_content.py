@@ -361,12 +361,41 @@ def build_weapons():
     return table, defs
 
 
+# ADR 0004 C11 Duel decision (2026-10-31): Duel caps the free spectate of a dead player at a 5 s forced respawn. The
+# Duel asset is the default asset with these values replaced; everything else is re-applied from the same table on
+# every run, so the copy cannot drift (pinned by Velox.GameMode.ModeDefinitions' drift guard).
+DUEL_COMBAT_OVERRIDES = {"force_respawn_delay": 5.0}
+
+
 def build_combat_settings(table, defs):
-    """ADR 0003 section 1: DA_CombatSettings_Default. AmmoTypes keep the C++ defaults (six rows, cap 200)."""
+    """ADR 0003 section 1: DA_CombatSettings_Default and its Duel copy (C11). AmmoTypes keep the C++ defaults."""
     ensure_dir("/Game/Data")
-    cs, _ = get_or_create("/Game/Data", "DA_CombatSettings_Default", unreal.VeloxCombatSettings, None)
+    apply_combat_settings("DA_CombatSettings_Default", table, defs, {})
+    duel = apply_combat_settings("DA_CombatSettings_Duel", table, defs, DUEL_COMBAT_OVERRIDES)
+    assign_combat_overrides(duel)
+
+
+def assign_combat_overrides(duel):
+    """DA_GameMode_Duel.CombatSettingsOverride = DA_CombatSettings_Duel, FFA none (the modes come from create_item_content.py)."""
+    for name, override in (("DA_GameMode_Duel", duel), ("DA_GameMode_FFA", None)):
+        path = "/Game/Data/" + name
+        if not EAL.does_asset_exist(path):
+            log(f"{name} missing: run create_item_content.py (it sets the override too)")
+            continue
+        mode = EAL.load_asset(path)
+        try:
+            mode.set_editor_property("combat_settings_override", override)
+        except Exception as e:  # noqa: BLE001
+            fail(f"{name}.combat_settings_override: {e}")
+            continue
+        save(mode)
+        log(f"{name}.combat_settings_override = {override.get_name() if override else 'None'}")
+
+
+def apply_combat_settings(name, table, defs, overrides):
+    cs, _ = get_or_create("/Game/Data", name, unreal.VeloxCombatSettings, None)
     if cs is None:
-        return
+        return None
     values = {
         "spawn_health": 125.0,
         "max_health": 100.0,
@@ -406,21 +435,30 @@ def build_combat_settings(table, defs):
         "corpse_color_scale": 0.3,
         "hit_marker_seconds": 0.25,
         "hit_marker_size": 14.0,
+        # ADR 0004 C11 free-spectate death camera.
+        "death_spectate_speed_cm_s": 1200.0,
+        "death_spectate_acceleration_cm_s2": 6000.0,
+        "death_spectate_deceleration_cm_s2": 8000.0,
+        "death_spectate_bounds_margin_cm": 300.0,
+        "death_spectate_sync_speed_scale": 3.0,
+        "death_spectate_sync_dt_floor_seconds": 0.0167,
     }
+    values.update(overrides)
     for k, v in values.items():
         try:
             cs.set_editor_property(k, v)
         except Exception as e:  # noqa: BLE001
-            fail(f"DA_CombatSettings_Default.{k}: {e}")
+            fail(f"{name}.{k}: {e}")
     if len(cs.get_editor_property("ammo_types")) != 6:
-        fail("DA_CombatSettings_Default.ammo_types: expected the six C++ default rows")
+        fail(f"{name}.ammo_types: expected the six C++ default rows")
     # ADR 0003 B5: the spawn loadout is the only source of spawn ammo (Q3: machine gun with 100 bullets).
     if table is not None and "MachineGun" in defs:
         cs.set_editor_property("weapon_table", table)
         cs.set_editor_property("spawn_loadout", [unreal.VeloxSpawnWeapon(definition=defs["MachineGun"], ammo=100)])
     else:
-        fail("DA_CombatSettings_Default: weapon table / machine gun missing")
+        fail(f"{name}: weapon table / machine gun missing")
     save(cs)
+    return cs
 
 
 # ---------------------------------------------------------------- Player body material

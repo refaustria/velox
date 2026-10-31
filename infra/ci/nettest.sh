@@ -14,7 +14,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 GREP=/usr/bin/grep   # the interactive shell's grep is a ugrep wrapper; use the real one
 PORT=7777
-SCRIPTS_ARG="StrafeRun,PadRun,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun,BotRun,BotDuel"
+SCRIPTS_ARG="StrafeRun,PadRun,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun,BotRun,BotDuel,DeathSpectateRun"
 REPEAT=1
 KEEP_GOING=0
 CLIENT_TIMEOUT="${VELOX_NETTEST_TIMEOUT:-120}"
@@ -50,7 +50,8 @@ Usage: ${CI_SCRIPT_NAME} [options]
 Runs dedicated server + scripted -nullrhi client (100 ms / 2 % loss both directions) per script and checks the
 net-soak pass criteria. Exit code is non-zero if any script fails. FireRun, FireRunControl (FireRun.json with
 velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest. ItemRun runs on
-L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest. FireRunHold (task 08g, not in the default list) is FireRun
+L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest. DeathSpectateRun (ADR 0004 C11) runs on L_CombatTest with
+velox.combat.ForceRespawnDelay 4 on the server (free-spectate death camera, forced respawn). FireRunHold (task 08g, not in the default list) is FireRun
 with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3). RocketJumpRunHold
 (task 08f, not in the default list) is RocketJumpRun with the server holding the rocket's fire RPC 300 ms
 (velox.combat.DebugHoldShotRpc 300 5 1, ADR 0003 B35). PlasmaRun (task 08i, not in the default list) holds plasma fire
@@ -252,6 +253,16 @@ run_one() {
       # Task 08i / ADR 0003 B38: PlasmaRun.json holds plasma fire for 5 s (the 0.1 s interval keeps several fire RPCs
       # inside one pending timeout); every weapon from the server.
       sexec="velox.combat.GiveAllWeapons" ;;
+  esac
+  # ---- DeathSpectateRun (ADR 0004 C11, task m4-followups/04): free-spectate death camera on L_CombatTest. The script
+  # kills the client's pawn after a 5 s warm-up; the server force-respawns it after DEATH_SPECTATE_FORCE_RESPAWN_S.
+  # UVeloxCombatSettings is a data asset (no config class), so `-ini:Game:[/Script/Velox.VeloxCombatSettings]` cannot
+  # set ForceRespawnDelay; the non-shipping cvar velox.combat.ForceRespawnDelay does (C11 (2) fallback), echoed by the
+  # server's `VeloxRespawn waiting ... forced in 4.00 s` line.
+  local DEATH_SPECTATE_FORCE_RESPAWN_S=4
+  case "$script" in
+    DeathSpectateRun)
+      map="L_CombatTest"; sexec="velox.combat.ForceRespawnDelay ${DEATH_SPECTATE_FORCE_RESPAWN_S}" ;;
   esac
   # Debug knob: VELOX_NETTEST_EXEC="p.NetShowCorrections 1" runs extra console commands on both processes.
   if [[ -n "${VELOX_NETTEST_EXEC:-}" ]]; then cexec="$cexec, $VELOX_NETTEST_EXEC"; sexec="${sexec:+$sexec, }$VELOX_NETTEST_EXEC"; fi
@@ -1020,6 +1031,71 @@ elif script == "PlasmaRun":
                       nshots, len(fired), len(ms_all), nshots - len(bad_src), one_splash, splash_hit, ts_mismatch, rpc_first, short_moves, moves_per_rpc,
                       counts["late"], counts["orphan"], counts["pending_timeout"], counts["rpc_done"], counts["rejected"]))
 
+elif script == "DeathSpectateRun":
+    # ADR 0004 C11 (2), task m4-followups/04: free-spectate death camera. Server: VeloxDeath step=6 spectate=free, the
+    # forced respawn after 4 s (velox.combat.ForceRespawnDelay 4), VeloxSpectate end_server with spectator_pawn=0 (no
+    # spectator pawn on a dedicated server), clamps=0 and 10 <= syncs <= 20 (the engine's 0.25 s throttle gives ~15-16 in
+    # 4 s; below = lost/late syncs, above = a second send path). Client: VeloxSpectate begin, then end reason=respawn,
+    # and a VeloxShotSeqReset of the new pawn after the kill. No Error: lines on either side. The pre-death rows: FireRun's rule below.
+    FORCE_S = 4.0
+    ERR_RE = re.compile(r"\bError: ")
+    step6 = [l for l in S if "VeloxDeath step=6" in l]
+    waiting = [l for l in S if "VeloxRespawn waiting" in l and "ai=0" in l]
+    resp = [l for l in S if "VeloxRespawn controller=" in l and "(forced/auto)" in l]
+    ends = [kv(l) for l in S if "VeloxSpectate end_server" in l]
+    clamp_lines = [l for l in S if "VeloxSpectate clamp" in l]
+    c_begin = next((i for i, l in enumerate(C) if "VeloxSpectate begin at=" in l), None)
+    c_end = next((i for i, l in enumerate(C) if "VeloxSpectate end reason=" in l), None)
+    if len(step6) != 1 or "spectate=free" not in step6[0]:
+        fails.append("want one server 'VeloxDeath step=6 spectate=free', got %d: %s" % (len(step6), step6[0].strip()[-80:] if step6 else "-"))
+    if not waiting or "forced in %.2f s" % FORCE_S not in waiting[0]:
+        fails.append("ForceRespawnDelay override not honoured: %s" % (waiting[0].strip()[-90:] if waiting else "no 'VeloxRespawn waiting ai=0' line"))
+    after = None
+    if len(resp) != 1:
+        fails.append("want one forced respawn line, got %d" % len(resp))
+    else:
+        m = re.search(r"after (\S+) s", resp[0])
+        after = float(m.group(1)) if m else -1.0
+        if not (FORCE_S - 0.01 <= after <= FORCE_S + 0.25):
+            fails.append("forced respawn after %.2f s, want %.1f s (+0.25)" % (after, FORCE_S))
+    end = ends[0] if len(ends) == 1 else {}
+    if len(ends) != 1:
+        fails.append("want one 'VeloxSpectate end_server' line, got %d" % len(ends))
+    else:
+        syncs, clamps = int(num(end, "syncs", -1)), int(num(end, "clamps", -1))
+        if end.get("reason") != "respawn":
+            fails.append("end_server reason=%s, want respawn" % end.get("reason"))
+        if end.get("spectator_pawn") != "0":
+            fails.append("spectator_pawn=%s on the dedicated server, want 0" % end.get("spectator_pawn"))
+        if clamps != 0:
+            fails.append("clamps=%d, want 0 (%s)" % (clamps, clamp_lines[0].strip()[-100:] if clamp_lines else "-"))
+        if not (10 <= syncs <= 20):
+            fails.append("syncs=%d outside 10..20 (engine 4 Hz ServerSetSpectatorLocation over a 4 s spectate)" % syncs)
+    if c_begin is None:
+        fails.append("no client 'VeloxSpectate begin' line")
+    if c_end is None or "reason=respawn" not in C[c_end]:
+        fails.append("no client 'VeloxSpectate end reason=respawn' (%s)" % (C[c_end].strip()[-60:] if c_end is not None else "-"))
+    elif c_begin is not None and c_end < c_begin:
+        fails.append("client end before begin")
+    # The new pawn's shot-sequence reset runs at its first init with the PlayerState's ASC, which may come before the
+    # ClientRestart that ends the spectate: look for a reset of another pawn after the kill.
+    kill_i = next((i for i, l in enumerate(C) if "VeloxNetSoak event=kill " in l), None)
+    killed = kv(C[kill_i]).get("pawn") if kill_i is not None else None
+    if kill_i is None:
+        fails.append("no client 'VeloxNetSoak event=kill' line")
+    elif not any("VeloxShotSeqReset pawn=" in l and kv(l).get("pawn") != killed for l in C[kill_i:]):
+        fails.append("no client VeloxShotSeqReset of a new pawn after the kill (respawned pawn not set up)")
+    if not any("VeloxNetSoak event=respawn_seen" in l for l in C):
+        fails.append("client never saw the respawned pawn")
+    for name, lines in (("server", S), ("client", C)):
+        errs = [l for l in lines if ERR_RE.search(l)]
+        if errs:
+            fails.append("%d Error: line(s) in the %s log: %s" % (len(errs), name, errs[0].strip()[:140]))
+    detail.append("spectate=%s respawn=%s syncs=%s clamps=%s spectator_pawn=%s client=%s/%s" % (
+        "free" if step6 and "spectate=free" in step6[0] else "?", ("forced/auto %.2f s" % after) if after is not None else "-",
+        end.get("syncs", "-"), end.get("clamps", "-"), end.get("spectator_pawn", "-"), "begin" if c_begin is not None else "-",
+        ("end " + kv(C[c_end]).get("reason", "?")) if c_end is not None else "-"))
+
 elif script == "HasteRun":
     # M3 task 03 / ADR 0004 sections 3 and 10: HasteRun.json on L_MovementTest. Client: VeloxNetSoak event=haste t= (the
     # row that asks the server for 2.5 s of Haste), VeloxScript row lines (vel= at row start), VeloxHasteState role=client
@@ -1737,7 +1813,7 @@ rest = [c for c in nonecho if c not in excluded]
 xs = [c[1] for c in rest]
 x = max(xs) if xs else 0.0
 y = sum(xs) / len(xs) if xs else 0.0
-if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "FireRunHold", "HasteRun"):
+if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "FireRunHold", "HasteRun", "DeathSpectateRun"):
     if len(rest) > 3 * Lexp:
         fails.append("corrections C=%d > 3 x L_exp (%.1f)" % (len(rest), 3 * Lexp))
     if x > 30.0:
