@@ -1495,6 +1495,15 @@ if script in ("BotRun", "BotDuel"):
                 w["cls"] = "cost"
             else:
                 w["cls"] = "cost" if w["rr"] > RR_WINDOW_MAX else "pslow"
+        # ADR 0005 D48 (a): a window with over_share > 5 %, no host agreement and R_other < R_OTHER_SLOW is a transition window
+        # (process-slow, class P) iff rr <= RR_WINDOW_MAX and a neighbouring window of the same round has R_other >= R_OTHER_SLOW.
+        for wi_, w in enumerate(windows):
+            w["transition"] = False
+            if w["cls"] == "cost" and w["over_share"] > 5.0 and not w["agree"] and w["r_other"] < R_OTHER_SLOW and w["rr"] <= RR_WINDOW_MAX:
+                nb_ = [windows[j_] for j_ in (wi_ - 1, wi_ + 1) if 0 <= j_ < n_win]
+                if any(x_["r_other"] >= R_OTHER_SLOW for x_ in nb_):
+                    w["cls"] = "pslow"
+                    w["transition"] = True
     CLS_CHAR = {"clean": ".", "contended": "C", "cost": "X", "unverified": "?", "frames": "F", "pslow": "P"}
     clean_w = [w for w in windows if w["cls"] == "clean"]
     cost_w = [w for w in windows if w["cls"] == "cost"]
@@ -1543,7 +1552,7 @@ if script in ("BotRun", "BotDuel"):
 
     # ---- Duel timing (D46 3): timed returns are the Mega takes after a VeloxPickupRespawn; the Live reset take is reported only.
     live_t = next((num(kv(l), "now") for l in S if "VeloxMatch phase=Live" in l), 0.0)
-    timed = []     # (lag, taker, lead, state)
+    timed = []     # (lag, taker, lead, state, cycle)
     takes_after_live = sorted(m_ for m_ in mega if m_[0] >= live_t)
     first_after_live = (takes_after_live[0][0] - live_t) if takes_after_live else None
 
@@ -1568,8 +1577,9 @@ if script in ("BotRun", "BotDuel"):
             continue
         r_t, r_stamp = rs_[-1]
         lead_l = [ld for (st_, ld) in mega_lead.get(by_, []) if _st is not None and st_ <= _st]
-        timed.append((t_ - r_t, by_, lead_l[-1] if lead_l else None, bot_state(by_, r_stamp)))
+        timed.append((t_ - r_t, by_, lead_l[-1] if lead_l else None, bot_state(by_, r_stamp), len(rs_)))   # cycle: 1 = first respawn after Live (D48)
     timed_lags = [x_[0] for x_ in timed]
+    timed_cycles = [x_[4] for x_ in timed]
     mega_fast = sum(1 for v in timed_lags if v <= 3.0)
     mega_4 = sum(1 for v in timed_lags if v <= 4.0)
     # D46 (5): the possession snap (first correction after possession) is reported and excluded from the correction max.
@@ -1605,8 +1615,7 @@ if script in ("BotRun", "BotDuel"):
         if "Countdown" not in phases or "Live" not in phases or phases.index("Countdown") > phases.index("Live"):
             fails.append("phase did not go Countdown -> Live without a human: %s" % ">".join(phases))
         if frags_total < 1: fails.append("no frag in %.0f s" % duration)
-        # D46 (3): per round at least one timed return <= 6 s; the 3 s / 4 s bands are set bands; first_after_live_s is reported.
-        if not any(v <= 6.0 for v in timed_lags): fails.append("no timed Mega return within 6 s of its respawn (takes=%d timed=%s)" % (len(mega), ["%.1f" % v for v in timed_lags]))
+        # D48 (b): the per-round "a timed Mega return within 6 s" is a printed FLAG (below), not a fail; the set bands judge the Mega.
         if camp_lines < 1: fails.append("no VeloxBotRoute camp=1 line")
     else:
         if kills < 1: fails.append("no kill by a bot")
@@ -1653,8 +1662,10 @@ if script in ("BotRun", "BotDuel"):
     if duel:
         detail_lines.append("phases=%s mega_takes=%d first_after_live_s=%s timed_returns_s=[%s] within_3s=%d within_4s=%d" % (
             ">".join(phases), len(mega), "%.1f" % first_after_live if first_after_live is not None else "-", ",".join("%.1f" % v for v in timed_lags), mega_fast, mega_4))
-        for (lag_, by_, ld_, st_) in timed:
-            detail_lines.append("mega timed take lag=%.1f s by=%s lead=%s state_at_respawn=%s" % (lag_, by_, "%.1f" % ld_ if ld_ is not None else "n/a", st_))
+        if not any(v <= 6.0 for v in timed_lags):
+            detail_lines.append("FLAG no timed Mega return within 6 s of its respawn (takes=%d timed=%s); not a round fail, the set band judges (D48 b)" % (len(mega), ["%.1f" % v for v in timed_lags]))
+        for (lag_, by_, ld_, st_, cy_) in timed:
+            detail_lines.append("mega timed take lag=%.1f s cycle=%d by=%s lead=%s state_at_respawn=%s" % (lag_, cy_, by_, "%.1f" % ld_ if ld_ is not None else "n/a", st_))
     else:
         detail_lines.append("client corrections (report-only) non-echo=%d max=%.1f cm (t >= 2 s) possession_snap_cm=%.1f echoes=%d" % (len(nonecho), cmax_late, snap_cm, len(echoes)))
     detail_lines.append("camp_lines=%d camp_episodes=%d camp_share_pct=%.1f (of %d goal changes) camp_max_lead_s=%.1f" % (
@@ -1664,15 +1675,15 @@ if script in ("BotRun", "BotDuel"):
             h = w["host"]
             hs = "rq_wait_pct=%s steal_pct=%s majflt=%s psi_pct=%s" % tuple(("%.1f" % h[k_]) if (h and h[k_] is not None) else "n/a" for k_ in ("rq", "steal", "majflt", "psi")) if h else "host n/a"
             rrs = " R_other=%.2f R_bots=%.2f rr=%.2f" % (w["r_other"], w["r_bots"], w["rr"]) if "rr" in w else ""
-            detail_lines.append("window %d %s: mean_us=%.0f over_share=%.0f%% frame_deficit=%s stalls=%s%s %s" % (
+            detail_lines.append("window %d %s: mean_us=%.0f over_share=%.0f%% frame_deficit=%s stalls=%s%s%s %s" % (
                 w["i"], "PROCESS-SLOW" if w["cls"] == "pslow" else w["cls"].upper(), w["mean"], w["over_share"], "%.0f%%" % w["fdef"] if w["fdef"] is not None else "n/a",
-                w["stalls"] if w["stalls"] is not None else "n/a", rrs, hs))
+                w["stalls"] if w["stalls"] is not None else "n/a", rrs, " transition=1" if w.get("transition") else "", hs))
     watch = [l for l in C if "VeloxBotWatch" in l]
     detail_lines.append("client watch lines=%d (feed=%d phase=%d pickup=%d)" % (len(watch), sum(1 for l in watch if " feed " in l), sum(1 for l in watch if " phase=" in l and "old=" in l), sum(1 for l in watch if " pickup " in l)))
     behaviour_fails = [fl for fl in fails if not (fl.startswith("cost window") or fl.startswith("round invalid") or fl.startswith("VeloxBotBudget mean_us") or fl.startswith("p_norm_mean_us") or fl.startswith("rr_round"))]
     stats = {"script": script, "pass": not fails, "stuck": len(stuck), "kills": kills, "frags": frags_total, "pickups": nbots, "major": major_taken,
              "pocket": len(pocket), "bursts": len(bursts), "max_dwell": max_dwell, "repaths": repaths, "mega_fast": mega_fast,
-             "timed": timed_lags, "first_after_live": first_after_live, "invalid": invalid, "windows": n_win, "clean": len(clean_w),
+             "timed": timed_lags, "timed_cycles": timed_cycles, "transition_windows": sum(1 for w in windows if w.get("transition")), "first_after_live": first_after_live, "invalid": invalid, "windows": n_win, "clean": len(clean_w),
              "contended": len(cont_w), "p_windows": len(p_w), "frame_other_ref": fo_ref, "mean_ref": mean_ref, "rr_round": rr_round,
              "p_norm_mean_us": p_norm_mean, "cost_windows": len(cost_w), "cost_judged": cost_judged, "behaviour_fail": bool(behaviour_fails),
              "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w]}
@@ -1764,7 +1775,9 @@ missing = [m for m in MAJOR_ALL if m not in major]
 fails, cost_fails = [], []
 judged = rounds == 3 and not invalid_rounds
 timed = [v for r in valid for v in r.get("timed", [])]
-within3 = sum(1 for v in timed if v <= 3.0); within4 = sum(1 for v in timed if v <= 4.0)
+within3 = sum(1 for v in timed if v <= 3.0); within4 = sum(1 for v in timed if v <= 4.0); within6 = sum(1 for v in timed if v <= 6.0)
+timed_cy = [(v, c) for r in valid for v, c in zip(r.get("timed", []), r.get("timed_cycles", []))]
+first_cycle = [v for v, c in timed_cy if c == 1]; later_cycle = [v for v, c in timed_cy if c >= 2]
 if script == "BotRun":
     if S("stuck") > 10: fails.append("sum VeloxBotStuck %d > 10" % S("stuck"))
     if S("kills") < 12: fails.append("sum kills by bots %d < 12" % S("kills"))
@@ -1772,8 +1785,9 @@ if script == "BotRun":
 else:
     if S("frags") < 9: fails.append("sum frags %d < 9" % S("frags"))
     if S("stuck") > 10: fails.append("sum VeloxBotStuck %d > 10" % S("stuck"))
-    # D46 (3): timed returns = takes after a VeloxPickupRespawn; set band sum within 4 s >= 3 and >= 1 within 3 s.
-    if within4 < 3: fails.append("Mega timed returns within 4 s: %d < 3" % within4)
+    # D48 (b), amending D46 (3): timed returns = takes after a VeloxPickupRespawn; set band sum within 6 s >= 3 and >= 1 within 3 s
+    # (within_4s stays printed).
+    if within6 < 3: fails.append("Mega timed returns within 6 s: %d < 3" % within6)
     if within3 < 1: fails.append("Mega timed returns within 3 s: none in the set")
 # Cost (D46 1c, 5): per round on its clean windows; a round with < 50 % clean windows is not judged.
 refs = [r["frame_other_ref"] for r in valid if r.get("frame_other_ref")]
@@ -1797,8 +1811,8 @@ print("  sums: stuck=%d kills=%d frags=%d pocket_strikes=%d%s major_covered=%d/7
     S("stuck"), S("kills"), S("frags"), S("pocket"), " (FLAG: pocket strike -> architect)" if S("pocket") else "", len(major) if not missing else 7 - len(missing), ",".join(major),
     " missing=[%s]" % ",".join(missing) if missing else ""))
 if script == "BotDuel":
-    print("  mega timed returns (s): %s within_3s=%d within_4s=%d first_after_live_s=%s (reported)" % (
-        ",".join("%.1f" % v for v in timed), within3, within4, [("%.1f" % r["first_after_live"]) if r.get("first_after_live") is not None else "-" for r in valid]))
+    print("  mega timed returns (s): %s within_6s=%d within_3s=%d within_4s=%d first_cycle=[%s] later_cycle=[%s] first_after_live_s=%s (reported)" % (
+        ",".join("%.1f" % v for v in timed), within6, within3, within4, ",".join("%.1f" % v for v in first_cycle), ",".join("%.1f" % v for v in later_cycle), [("%.1f" % r["first_after_live"]) if r.get("first_after_live") is not None else "-" for r in valid]))
 print("  cost (D47): frame_other_ref per round %s (set min %s); mean_ref %s; P windows %s; rr_round %s; p_norm_mean_us %s%s" % (
     [("%.0f" % r["frame_other_ref"]) if r.get("frame_other_ref") else "-" for r in runs], "%.0f" % min_ref if min_ref else "-",
     [("%.1f" % r["mean_ref"]) if r.get("mean_ref") else "-" for r in runs], [r.get("p_windows", 0) for r in runs],
