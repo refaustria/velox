@@ -149,7 +149,7 @@ RAMPS = [
 PADS = [
     Pad("PadA", -2600, -450, (-2100, -450, 420), (-1954, -450, 320)),   # lower A -> ledge
     Pad("PadB", 2600, 0, (2100, 0, 420), (1954, 0, 320)),                # lower B -> balcony
-    Pad("PadD", 0, -1150, (0, -250, 740), (0, -60, 640)),                 # lower D -> E top (the RG pad), over the south gate
+    Pad("PadD", -150, -950, (0, -250, 740), (32, -98, 640)),              # lower D -> E top (the RG pad), over the south gate; off the x = 0 RL line and the lane centre (task 06)
 ]
 
 # ---------------------------------------------------------------- items
@@ -245,7 +245,7 @@ def _drop(i, sx, sy, sz, ex, ey, ez):
 LINKS = [
     Link("PadLink_A", "JUMP_PAD", (-2600, -450, 0), PADS[0].land, "PadA"),
     Link("PadLink_B", "JUMP_PAD", (2600, 0, 0), PADS[1].land, "PadB"),
-    Link("PadLink_D", "JUMP_PAD", (0, -1150, 0), PADS[2].land, "PadD"),
+    Link("PadLink_D", "JUMP_PAD", (PADS[2].x, PADS[2].y, 0), PADS[2].land, "PadD"),
     Link("RJ_West", "ROCKET_JUMP", (-650, 0, 320), (0, 0, 640), None),   # run-up 450 cm from the top slab edge (x -200)
     Link("RJ_East", "ROCKET_JUMP", (650, 0, 320), (0, 0, 640), None),
     # drops: 60 cm inside the free edge, 150 cm outside it
