@@ -7,6 +7,7 @@
 
 #include "VeloxPlayerController.generated.h"
 
+class AVeloxCharacter;
 class UEnhancedInputComponent;
 class UInputAction;
 class UInputMappingContext;
@@ -65,7 +66,46 @@ public:
 
 	//~AController interface
 	virtual void SetPawn(APawn* InPawn) override;
+	/** Leaving NAME_Spectating during a death spectate ends it (EndDeathSpectate: respawn, intermission, ...). */
+	virtual void ChangeState(FName NewState) override;
 	//~End of AController interface
+
+	// ---- Free-spectate death camera (ADR 0004 C11) ----
+
+	/**
+	 * The input config the character uses (its pawn data's InputConfig, remembered from the last possessed character;
+	 * UIInputConfig until one was possessed). The spectator pawn binds IA_Move / IA_Look / IA_Jump / IA_Crouch from it.
+	 */
+	const UVeloxInputConfig* GetInputConfig() const;
+
+	/** Server, from AVeloxCharacter::HandleDeath (before the corpse drop): the eye and the control rotation at death. */
+	void SetDeathViewPoint(const FVector& Eye, const FRotator& Rotation);
+
+	/**
+	 * Server, from AVeloxGameMode::NotifyControllerDied (rule FreeSpectate, after CompleteDeath's UnPossess): enters
+	 * NAME_Spectating here and on the owning client (ClientBeginDeathSpectate); the engine spawns the spectator pawn on
+	 * the owning client only. Seeds the clamp's last accepted point with the death eye.
+	 */
+	void BeginDeathSpectate(const AVeloxCharacter* Corpse);
+
+	/** Server -> owning client: store the death eye/rotation and enter NAME_Spectating (spectator pawn placed there). */
+	UFUNCTION(Client, Reliable)
+	void ClientBeginDeathSpectate(FVector Eye, FRotator Rotation);
+
+	/** True between BeginDeathSpectate (ClientBeginDeathSpectate) and leaving the spectating state. */
+	bool IsDeathSpectating() const { return bDeathSpectating; }
+	FVector GetDeathSpectateEye() const { return DeathSpectateEye; }
+	FRotator GetDeathSpectateRotation() const { return DeathSpectateRotation; }
+	/** Server: ServerSetSpectatorLocation calls and clamped ones since the current death spectate began. */
+	int32 GetNumSpectatorSyncs() const { return NumSpectatorSyncs; }
+	int32 GetNumSpectatorClamps() const { return NumSpectatorClamps; }
+
+	//~APlayerController interface
+	/** Super (spawns the spectator pawn on a local controller), then the death spectate places it at the death eye. */
+	virtual void BeginSpectatingState() override;
+	/** The engine's sync with the point VeloxSpectate::ClampViewPoint accepts (nav-bounds box, KillZ, speed step). */
+	virtual void ServerSetSpectatorLocation_Implementation(FVector NewLoc, FRotator NewRot) override;
+	//~End of APlayerController interface
 
 	// ---- In-game menu (ADR 0004 section 7; task M3-10) ----
 
@@ -131,6 +171,8 @@ public:
 	//~AActor interface
 	/** Level reset (match restart): leaves the intermission. */
 	virtual void Reset() override;
+	/** A death spectate still running ends with reason=logout. */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	//~End of AActor interface
 
 	//~APlayerController interface
@@ -208,6 +250,26 @@ private:
 	bool AcceptBotCommand(const TCHAR* Command, const FString& Args);
 	bool bInIntermission = false;
 	bool bScoreboardHeld = false;
+
+	/** C11: logs the end (server: syncs/clamps/spectator_pawn; owning client: reason) and clears the death spectate. */
+	void EndDeathSpectate(const TCHAR* Reason);
+	/** Owning client: the spectator pawn to the death eye/rotation (and the control rotation), view on it, `VeloxSpectate begin`. */
+	void PlaceDeathSpectatorPawn();
+
+	/** Input config of the last possessed character (GetInputConfig). */
+	UPROPERTY(Transient)
+	TObjectPtr<const UVeloxInputConfig> CharacterInputConfig;
+
+	bool bDeathSpectating = false;
+	bool bHasDeathViewPoint = false;
+	FVector DeathSpectateEye = FVector::ZeroVector;
+	FRotator DeathSpectateRotation = FRotator::ZeroRotator;
+	/** Server: the clamp's last accepted view point and its server time (unset outside a spectate until the first sync). */
+	TOptional<FVector> LastAcceptedSpectatorPoint;
+	double LastAcceptedSpectatorTime = 0.0;
+	double LastSpectatorClampLogTime = -1e9;
+	int32 NumSpectatorSyncs = 0;
+	int32 NumSpectatorClamps = 0;
 
 	/** Last measured interpolation delay (ADR 0003 B30 fallback); BuildShotTiming is const. */
 	mutable VeloxLagComp::FDelayMemory ShotDelayMemory;

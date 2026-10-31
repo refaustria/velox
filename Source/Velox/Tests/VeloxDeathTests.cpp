@@ -10,6 +10,11 @@
 //                                  health and still takes a confirmed hit; kill labels never empty; a corpse dropped above
 //                                  another pawn lands on the floor, not on the pawn.
 //   Velox.GameMode.PlayerColors    palette is bright and distinct; the PlayerState colour reaches the pawn's body material.
+//   Velox.GameMode.SpectateClamp   world-free (ADR 0004 C11): VeloxSpectate::ClampViewPoint inside / outside the expanded box /
+//                                  below KillZ + 50 / speed step / Dt <= 0 / NaN.
+//   Velox.GameMode.DeathSpectate   game world, local AVeloxPlayerController (C11): FreeSpectate death -> Spectating with an
+//                                  AVeloxSpectatorPawn at the death eye, flight speed, early/late respawn request, Corpse
+//                                  rule (velox.match.DeathCamera 0), intermission while spectating -> Inactive.
 
 #include "Misc/AutomationTest.h"
 
@@ -36,7 +41,16 @@
 #include "Engine/GameInstance.h"
 #include "GameFramework/DefaultPawn.h"
 #include "GameFramework/WorldSettings.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerStart.h"
 #include "GameModes/VeloxGameMode.h"
+#include "GameModes/VeloxGameModeDefinition.h"
+#include "GameModes/VeloxPlayerController.h"
+#include "GameModes/VeloxSpectateMath.h"
+#include "GameModes/VeloxSpectatorPawn.h"
+#include "HAL/IConsoleManager.h"
+#include "UI/VeloxHUDViewModel.h"
+#include "UI/VeloxUISettings.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameModes/VeloxSpawnSelection.h"
 #include "Materials/MaterialInterface.h"
@@ -598,6 +612,243 @@ bool FVeloxPlayerColorsTest::RunTest(const FString& Parameters)
 	{
 		AddInfo(TEXT("M_PlayerBody not found (run Tools/editor/create_bootstrap_content.py): body colour check skipped"));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxSpectateClampTest, "Velox.GameMode.SpectateClamp", VeloxDeathTest::Flags)
+
+bool FVeloxSpectateClampTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxSpectate;
+	const FBox Arena(FVector(-1000, -1000, 0), FVector(1000, 1000, 500));
+	const FBox Bounds = Arena.ExpandBy(300.0);
+	const double MinZ = -200.0 + KillZMarginCm;
+	constexpr double Step = 1200.0 * 3.0;   // DeathSpectateSpeedCmS x DeathSpectateSyncSpeedScale
+	const TOptional<FVector> NoLast;
+
+	// Inside, no previous point: unchanged.
+	{
+		const FClampResult R = ClampViewPoint(FVector(100, 200, 300), NoLast, 0.25, Bounds, MinZ, Step);
+		TestFalse(TEXT("inside: not clamped"), R.WasClamped());
+		TestTrue(TEXT("inside: point unchanged"), R.Point.Equals(FVector(100, 200, 300)));
+		TestEqual(TEXT("inside: distance 0"), R.DistCm, 0.0);
+		TestEqual(TEXT("reason none"), ReasonsToString(R.Reasons), FString(TEXT("none")));
+	}
+	// Outside the expanded box: nearest point on it.
+	{
+		const FClampResult R = ClampViewPoint(FVector(5000, 0, 250), NoLast, 0.25, Bounds, MinZ, Step);
+		TestTrue(TEXT("outside: bounds clamp"), (R.Reasons & ClampBounds) != 0);
+		TestTrue(*FString::Printf(TEXT("outside: nearest box point (%s)"), *R.Point.ToCompactString()), R.Point.Equals(FVector(1300, 0, 250), 0.01));
+		TestTrue(TEXT("outside: distance logged"), FMath::IsNearlyEqual(R.DistCm, 3700.0, 0.01));
+		TestEqual(TEXT("reason bounds"), ReasonsToString(R.Reasons), FString(TEXT("bounds")));
+		// Inside the margin (beyond the nav box, inside the expanded one): accepted.
+		TestFalse(TEXT("inside the margin: accepted"), ClampViewPoint(FVector(1200, 0, 250), NoLast, 0.25, Bounds, MinZ, Step).WasClamped());
+	}
+	// Below KillZ + 50: raised (unbounded box, so only the KillZ rule acts).
+	{
+		const FClampResult R = ClampViewPoint(FVector(0, 0, -1000), NoLast, 0.25, FBox(ForceInit), MinZ, Step);
+		TestTrue(TEXT("killz: clamp"), R.Reasons == ClampKillZ);
+		TestEqual(TEXT("killz: raised to KillZ + 50"), R.Point.Z, MinZ);
+		TestEqual(TEXT("reason killz"), ReasonsToString(R.Reasons), FString(TEXT("killz")));
+		TestFalse(TEXT("unbounded box: far point accepted"), ClampViewPoint(FVector(1e6, -1e6, 0), NoLast, 0.25, FBox(ForceInit), MinZ, Step).WasClamped());
+	}
+	// Speed step: a step above the cap is shortened along the request.
+	{
+		const TOptional<FVector> Last(FVector(0, 0, 100));
+		const double Dt = 0.25;
+		const FClampResult Ok = ClampViewPoint(FVector(800, 0, 100), Last, Dt, Bounds, MinZ, Step);
+		TestFalse(TEXT("speed: a step within the cap is accepted"), Ok.WasClamped());
+		const FClampResult R = ClampViewPoint(FVector(1100, 600, 100), Last, Dt, Bounds, MinZ, Step);
+		TestTrue(TEXT("speed: clamp"), R.Reasons == ClampSpeed);
+		const FVector Dir = (FVector(1100, 600, 100) - FVector(0, 0, 100)).GetSafeNormal();
+		TestTrue(TEXT("speed: step length = cap x dt"), FMath::IsNearlyEqual(FVector::Dist(R.Point, Last.GetValue()), Step * Dt, 0.01));
+		TestTrue(TEXT("speed: along the request"), (R.Point - Last.GetValue()).GetSafeNormal().Equals(Dir, 1e-6));
+		TestEqual(TEXT("reason speed"), ReasonsToString(R.Reasons), FString(TEXT("speed")));
+		// Dt <= 0 (the caller floors it; guard anyway): no step, no NaN.
+		const FClampResult Zero = ClampViewPoint(FVector(500, 0, 100), Last, 0.0, Bounds, MinZ, Step);
+		TestTrue(TEXT("dt 0: stays at the last accepted point"), Zero.Point.Equals(Last.GetValue()) && !Zero.Point.ContainsNaN());
+		const FClampResult Negative = ClampViewPoint(FVector(500, 0, 100), Last, -1.0, Bounds, MinZ, Step);
+		TestTrue(TEXT("dt < 0: stays at the last accepted point"), Negative.Point.Equals(Last.GetValue()) && Negative.Reasons == ClampSpeed);
+		TestFalse(TEXT("dt 0: an unchanged point is no clamp"), ClampViewPoint(Last.GetValue(), Last, 0.0, Bounds, MinZ, Step).WasClamped());
+		// Speed and bounds together.
+		const FClampResult Both = ClampViewPoint(FVector(1e5, 0, 100), TOptional<FVector>(FVector(1200, 0, 100)), 1.0, Bounds, MinZ, Step);
+		TestTrue(TEXT("speed+bounds"), Both.Reasons == (ClampSpeed | ClampBounds) && Both.Point.Equals(FVector(1300, 0, 100), 0.01));
+		TestEqual(TEXT("reason speed+bounds"), ReasonsToString(Both.Reasons), FString(TEXT("speed+bounds")));
+	}
+	// A non-finite request falls back to the last accepted point.
+	{
+		const FClampResult R = ClampViewPoint(FVector(NAN, 0, 0), TOptional<FVector>(FVector(10, 20, 30)), 0.25, Bounds, MinZ, Step);
+		TestTrue(TEXT("NaN: last accepted point"), R.Point.Equals(FVector(10, 20, 30)) && R.WasClamped());
+	}
+	return true;
+}
+
+namespace VeloxDeathTest
+{
+	/** Game world with an AVeloxGameMode, a player start and a local AVeloxPlayerController that owns a live pawn. */
+	struct FSpectateWorld : public FDeathTestWorld
+	{
+		FSpectateWorld() : FDeathTestWorld(true)
+		{
+			GameMode = World->GetAuthGameMode<AVeloxGameMode>();
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			World->SpawnActor<APlayerStart>(APlayerStart::StaticClass(), FVector(0, 0, 100), FRotator::ZeroRotator, Params);
+			PC = World->SpawnActor<AVeloxPlayerController>(AVeloxPlayerController::StaticClass(), FTransform::Identity, Params);
+			if (PC)
+			{
+				// No ULocalPlayer and no net driver: mark it local, as AGameModeBase does for the listen host.
+				PC->SetAsLocalPlayerController();
+			}
+			PS = PC ? PC->GetPlayerState<AVeloxPlayerState>() : nullptr;
+		}
+
+		AVeloxCharacter* Respawn()
+		{
+			if (GameMode && PC && !PC->GetPawn())
+			{
+				GameMode->RestartPlayer(PC);
+			}
+			return PC ? Cast<AVeloxCharacter>(PC->GetPawn()) : nullptr;
+		}
+
+		AVeloxGameMode* GameMode = nullptr;
+		AVeloxPlayerController* PC = nullptr;
+		AVeloxPlayerState* PS = nullptr;
+	};
+
+	struct FDeathCameraCVarScope
+	{
+		IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.match.DeathCamera"));
+		explicit FDeathCameraCVarScope(int32 Value) { if (CVar) { CVar->Set(Value, ECVF_SetByCode); } }
+		~FDeathCameraCVarScope() { if (CVar) { CVar->Set(-1, ECVF_SetByCode); } }
+	};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxDeathSpectateTest, "Velox.GameMode.DeathSpectate", VeloxDeathTest::Flags)
+
+bool FVeloxDeathSpectateTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxDeathTest;
+
+	FSpectateWorld W;
+	if (!TestNotNull(TEXT("game mode"), W.GameMode) || !TestNotNull(TEXT("player controller"), W.PC) || !TestNotNull(TEXT("player state (game mode)"), W.PS))
+	{
+		return false;
+	}
+	TestTrue(TEXT("spectator class is the Velox spectator pawn"), W.World->GetGameState() && W.World->GetGameState()->SpectatorClass == AVeloxSpectatorPawn::StaticClass());
+	TestEqual(TEXT("rule without a definition: FreeSpectate (q16 default)"), static_cast<int32>(W.GameMode->GetDeathCamera()), static_cast<int32>(EVeloxDeathCamera::FreeSpectate));
+	AVeloxCharacter* Pawn = W.Respawn();
+	if (!TestNotNull(TEXT("pawn"), Pawn))
+	{
+		return false;
+	}
+	const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(W.PS->GetCombatSettings());
+	UVeloxAbilitySystemComponent* ASC = W.PS->GetVeloxAbilitySystemComponent();
+	W.Advance(2.f);
+
+	// 1. Death: spectating, no pawn, a spectator pawn at the death eye with the death view.
+	const FRotator DeathRotation(-10.0, 45.0, 0.0);
+	W.PC->SetControlRotation(DeathRotation);
+	const FVector Eye = Pawn->GetPawnViewLocation();
+	FDeathLogCapture StepLog(TEXT("VeloxDeath step=6"));
+	FDeathLogCapture SpectateLog(TEXT("VeloxSpectate "));
+	Damage(ASC, 1000);
+	W.Advance(0.05f);
+	TestTrue(TEXT("spectating after CompleteDeath"), W.PC->IsInState(NAME_Spectating));
+	TestTrue(TEXT("death spectate flag"), W.PC->IsDeathSpectating());
+	TestTrue(TEXT("no pawn while spectating"), W.PC->GetPawn() == nullptr);
+	AVeloxSpectatorPawn* Spectator = Cast<AVeloxSpectatorPawn>(W.PC->GetSpectatorPawn());
+	if (!TestNotNull(TEXT("an AVeloxSpectatorPawn (local controller)"), Spectator))
+	{
+		return false;
+	}
+	TestTrue(*FString::Printf(TEXT("spectator within 10 cm of the death eye (%s vs %s)"), *Spectator->GetActorLocation().ToCompactString(), *Eye.ToCompactString()),
+		FVector::Dist(Spectator->GetActorLocation(), Eye) <= 10.0);
+	TestTrue(TEXT("control rotation = rotation at death"), W.PC->GetControlRotation().Equals(DeathRotation, 0.01));
+	TestTrue(TEXT("view target = spectator pawn"), W.PC->GetViewTarget() == Spectator);
+	TestTrue(TEXT("pawn-or-spectator is the spectator"), W.PC->GetPawnOrSpectator() == Spectator);
+	TestTrue(TEXT("the corpse stays"), IsValid(Pawn) && Pawn->IsCorpse());
+	GLog->FlushThreadedLogs();
+	TestTrue(TEXT("step 6 logged spectate=free"), StepLog.Lines.Num() == 1 && StepLog.Lines[0].Contains(TEXT("spectate=free")));
+	TestTrue(TEXT("client begin logged"), SpectateLog.Lines.ContainsByPredicate([](const FString& L) { return L.Contains(TEXT("VeloxSpectate begin at=")); }));
+	{
+		// HUD: the free-look prompt until MinRespawnDelay (C11; UVeloxUISettings::DeathSpectatePrompt).
+		UVeloxHUDViewModel* ViewModel = NewObject<UVeloxHUDViewModel>(GetTransientPackage());
+		ViewModel->UpdateFromGame(*W.PC);
+		TestTrue(TEXT("HUD death overlay"), ViewModel->bShowDeath);
+		TestEqual(TEXT("HUD prompt = DeathSpectatePrompt"), ViewModel->DeathPrompt, UVeloxUISettings::Get().DeathSpectatePrompt);
+		TestFalse(TEXT("HUD: dead is no spectator"), ViewModel->bSpectator);
+		ViewModel->Unbind();
+	}
+
+	// 2. Free fly at <= DeathSpectateSpeedCmS.
+	const TWeakObjectPtr<AVeloxSpectatorPawn> WeakSpectator(Spectator);
+	float PeakSpeed = 0.f;
+	for (int32 Tick = 0; Tick < 20; ++Tick)
+	{
+		Spectator->AddMovementInput(FVector::ForwardVector, 1.f);
+		W.Advance(0.05f);
+		PeakSpeed = FMath::Max(PeakSpeed, static_cast<float>(Spectator->GetVelocity().Size()));
+	}
+	const float FinalSpeed = static_cast<float>(Spectator->GetVelocity().Size());
+	TestTrue(*FString::Printf(TEXT("peak speed %.1f <= 1.01 x DeathSpectateSpeedCmS"), PeakSpeed), PeakSpeed <= Settings.DeathSpectateSpeedCmS * 1.01f);
+	TestTrue(*FString::Printf(TEXT("speed after 1 s %.1f >= 0.9 x DeathSpectateSpeedCmS"), FinalSpeed), FinalSpeed >= Settings.DeathSpectateSpeedCmS * 0.9f);
+
+	// 3. A respawn request before MinRespawnDelay is ignored; after it the player is back with GE_SpawnInit.
+	TestTrue(TEXT("test reached the request before MinRespawnDelay"), 1.05f < Settings.MinRespawnDelay);
+	W.PC->ServerRequestRespawn();
+	TestTrue(TEXT("early request: still spectating"), W.PC->IsInState(NAME_Spectating) && W.PC->GetPawn() == nullptr);
+	W.Advance(Settings.MinRespawnDelay - 1.f);
+	W.PC->ServerRequestRespawn();
+	AVeloxCharacter* NewPawn = Cast<AVeloxCharacter>(W.PC->GetPawn());
+	if (!TestNotNull(TEXT("requested respawn after MinRespawnDelay"), NewPawn))
+	{
+		return false;
+	}
+	TestTrue(TEXT("a new pawn"), NewPawn != Pawn);
+	TestTrue(TEXT("playing"), W.PC->IsInState(NAME_Playing));
+	TestFalse(TEXT("death spectate over"), W.PC->IsDeathSpectating());
+	TestTrue(TEXT("spectator pawn destroyed"), !WeakSpectator.IsValid() && W.PC->GetSpectatorPawn() == nullptr);
+	TestFalse(TEXT("GE_SpawnInit: dead tag removed"), ASC->HasMatchingGameplayTag(VeloxGameplayTags::State_Dead));
+	TestEqual(TEXT("GE_SpawnInit: spawn health"), W.PS->GetHealthSet()->GetHealth(), 125.f);
+	TestTrue(TEXT("view target = the new pawn"), W.PC->GetViewTarget() == NewPawn);
+	GLog->FlushThreadedLogs();
+	TestTrue(TEXT("end_server reason=respawn logged"), SpectateLog.Lines.ContainsByPredicate([](const FString& L) { return L.Contains(TEXT("end_server")) && L.Contains(TEXT("reason=respawn")); }));
+	TestTrue(TEXT("end reason=respawn logged"), SpectateLog.Lines.ContainsByPredicate([](const FString& L) { return L.Contains(TEXT("VeloxSpectate end reason=respawn")); }));
+
+	// 4. Rule Corpse: today's view of the corpse, no spectating state.
+	W.Advance(2.f);
+	{
+		FDeathCameraCVarScope Corpse(0);
+		Damage(ASC, 1000);
+		W.Advance(0.05f);
+		TestTrue(TEXT("corpse rule: view target = corpse"), W.PC->GetViewTarget() == NewPawn);
+		TestFalse(TEXT("corpse rule: not spectating"), W.PC->IsInState(NAME_Spectating));
+		TestTrue(TEXT("corpse rule: no spectator pawn"), W.PC->GetSpectatorPawn() == nullptr);
+		GLog->FlushThreadedLogs();
+		TestTrue(TEXT("step 6 logged spectate=corpse"), StepLog.Lines.Num() == 2 && StepLog.Lines[1].Contains(TEXT("spectate=corpse")));
+		W.Advance(Settings.MinRespawnDelay + 0.1f);
+		W.PC->ServerRequestRespawn();
+	}
+	AVeloxCharacter* ThirdPawn = Cast<AVeloxCharacter>(W.PC->GetPawn());
+	if (!TestNotNull(TEXT("respawn after the corpse view"), ThirdPawn))
+	{
+		return false;
+	}
+
+	// 5. Intermission while spectating: Inactive, the spectator pawn gone.
+	W.Advance(2.f);
+	Damage(ASC, 1000);
+	W.Advance(0.05f);
+	TestTrue(TEXT("spectating again"), W.PC->IsInState(NAME_Spectating) && W.PC->GetSpectatorPawn() != nullptr);
+	const TWeakObjectPtr<ASpectatorPawn> SecondSpectator(W.PC->GetSpectatorPawn());
+	W.PC->EnterIntermission(nullptr);
+	TestTrue(TEXT("intermission: inactive"), W.PC->IsInState(NAME_Inactive));
+	TestTrue(TEXT("intermission: spectator pawn destroyed"), !SecondSpectator.IsValid() && W.PC->GetSpectatorPawn() == nullptr);
+	TestFalse(TEXT("intermission: death spectate over"), W.PC->IsDeathSpectating());
+	GLog->FlushThreadedLogs();
+	TestTrue(TEXT("end reason=intermission logged"), SpectateLog.Lines.ContainsByPredicate([](const FString& L) { return L.Contains(TEXT("VeloxSpectate end reason=intermission")); }));
 	return true;
 }
 

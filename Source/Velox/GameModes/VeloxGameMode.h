@@ -4,6 +4,7 @@
 #pragma once
 
 #include "GameFramework/GameMode.h"
+#include "GameModes/VeloxGameModeDefinition.h"
 #include "GameModes/VeloxMatchRules.h"
 #include "GameplayTagContainer.h"
 #include "Math/RandomStream.h"
@@ -33,9 +34,19 @@ public:
 	/**
 	 * Server, after the dead pawn was unpossessed: the controller now waits for a respawn. Humans respawn on a request
 	 * after MinRespawnDelay or forced after ForceRespawnDelay; AI controllers (dummies, M4 bots) respawn on their own
-	 * after MinRespawnDelay when bAutoRespawnAIControllers.
+	 * after MinRespawnDelay when bAutoRespawnAIControllers. Player controllers get the death camera of the mode rule
+	 * (ADR 0004 C11): Corpse = view the corpse, FreeSpectate = AVeloxPlayerController::BeginDeathSpectate.
 	 */
-	void NotifyControllerDied(AController* Controller);
+	void NotifyControllerDied(AController* Controller, AVeloxCharacter* Corpse);
+
+	/** The death camera rule: the mode definition's, the class default without one; non-shipping cvar velox.match.DeathCamera overrides. */
+	EVeloxDeathCamera GetDeathCamera() const;
+
+	/**
+	 * C11 server clamp: the AABB union of the map's ANavMeshBoundsVolumes (ADR 0005 D1), computed once on first use
+	 * (components are registered by then); invalid = no volume = unbounded. The margin is added by the caller.
+	 */
+	const FBox& GetSpectateBounds();
 
 	/** True while Controller has died and has not respawned yet. */
 	bool IsAwaitingRespawn(const AController* Controller) const { return PendingRespawns.Contains(Controller); }
@@ -180,6 +191,9 @@ private:
 	FTimerHandle PhaseEndTimer;
 	/** PlayerStates of controllers inside Logout (still in the PlayerArray until destroyed). */
 	TArray<TWeakObjectPtr<const APlayerState>> LeavingPlayerStates;
+
+	FBox SpectateBounds = FBox(ForceInit);
+	bool bSpectateBoundsCached = false;
 
 	TMap<TWeakObjectPtr<const AController>, FPendingRespawn> PendingRespawns;
 	FRandomStream SpawnRandom;

@@ -1,0 +1,12 @@
+{
+ "name": "DeathSpectateRun",
+ "note": "L_CombatTest, ADR 0004 C11 (task m4-followups/04). 5 s warm-up (2 s standing, 3 s strafing so the pre-death corrections are judged by FireRun's rule), then the server kills the pawn (serverKill: ServerKillSelfTest, environment damage = suicide). The dead client enters the free-spectate state (AVeloxSpectatorPawn, engine 4 Hz ServerSetSpectatorLocation) without input; infra/ci/nettest.sh starts the server with velox.combat.ForceRespawnDelay 4, so the forced respawn ends the spectate after 4 s. The script ends 0.5 s after the kill; the client then waits for the new pawn and quits 1.5 s after it (VeloxNetSoak event=respawn_seen).",
+ "startYaw": 0,
+ "startLocation": [-1700, 0, 100],
+ "rows": [
+  {"duration": 2.0, "label": "warm-up stand"},
+  {"duration": 1.5, "right": 1, "label": "warm-up strafe right"},
+  {"duration": 1.5, "right": -1, "label": "warm-up strafe left"},
+  {"duration": 0.5, "serverKill": true, "label": "kill"}
+ ]
+}

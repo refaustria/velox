@@ -4,6 +4,8 @@
 
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
+#include "Combat/VeloxCombatSettings.h"
+#include "Combat/VeloxGameplayEffects.h"
 #include "Combat/VeloxHitboxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Containers/Ticker.h"
@@ -39,6 +41,55 @@ namespace VeloxScriptedInput
 	constexpr float MaxKnockbackInGroundSpeeds = 20.f;
 	// Upper bound of the test Haste RPC (s): the move timeline holds at most 0.45 x the 240 s reset period.
 	constexpr float MaxTestHasteSeconds = 60.f;
+	// DeathSpectateRun: after the respawn was seen the client stays this long (the new pawn's first moves and shot-sequence
+	// reset reach the log), and gives up this long after the script ended.
+	constexpr double RespawnSettleSeconds = 1.5;
+	constexpr double RespawnWaitTimeoutSeconds = 60.0;
+
+	/** Quits with ExitCode once Controller possesses a live Velox character other than OldPawn (or after the timeout, with 1). */
+	void QuitAfterRespawn(UWorld* InWorld, TWeakObjectPtr<AController> Controller, AActor* OldPawn, int32 ExitCode)
+	{
+		struct FWait
+		{
+			TWeakObjectPtr<UWorld> World;
+			TWeakObjectPtr<AController> Controller;
+			TWeakObjectPtr<AActor> OldPawn;
+			int32 ExitCode = 0;
+			double Start = 0.0;
+			double SeenAt = -1.0;
+		};
+		TSharedRef<FWait> Wait = MakeShared<FWait>();
+		Wait->World = InWorld;
+		Wait->Controller = Controller;
+		Wait->OldPawn = OldPawn;
+		Wait->ExitCode = ExitCode;
+		Wait->Start = FPlatformTime::Seconds();
+		UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=await_respawn controller=%s old_pawn=%s"), *GetNameSafe(Controller.Get()), *GetNameSafe(OldPawn));
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Wait](float) -> bool
+		{
+			const double Now = FPlatformTime::Seconds();
+			AController* PC = Wait->Controller.Get();
+			const AVeloxCharacter* Pawn = PC ? Cast<AVeloxCharacter>(PC->GetPawn()) : nullptr;
+			if (Wait->SeenAt < 0.0 && Pawn && Pawn != Wait->OldPawn.Get() && !Pawn->IsCorpse())
+			{
+				Wait->SeenAt = Now;
+				UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=respawn_seen pawn=%s t=%.3f after_s=%.2f"), *Pawn->GetName(), Wait->World.IsValid() ? Wait->World->GetTimeSeconds() : 0.0,
+					Now - Wait->Start);
+			}
+			if (Wait->SeenAt >= 0.0 && Now - Wait->SeenAt >= RespawnSettleSeconds)
+			{
+				FPlatformMisc::RequestExitWithStatus(false, Wait->ExitCode);
+				return false;
+			}
+			if (!PC || Now - Wait->Start > RespawnWaitTimeoutSeconds)
+			{
+				UE_LOG(LogVeloxNet, Error, TEXT("VeloxNetSoak event=respawn_timeout controller=%s"), PC ? *PC->GetName() : TEXT("gone"));
+				FPlatformMisc::RequestExitWithStatus(false, 1);
+				return false;
+			}
+			return true;
+		}), 0.1f);
+	}
 
 	/** Seconds the locally controlled pawn must stand on the ground before a requested script starts (settle after spawn). */
 	constexpr double SettleTime = 0.5;
@@ -314,6 +365,7 @@ bool UVeloxScriptedInputComponent::LoadScriptFromJson(const FString& Json, const
 		}
 		VeloxScriptedInput::ReadVector(Obj, TEXT("serverKnockback"), Row.ServerKnockback);
 		Obj->TryGetNumberField(TEXT("serverHaste"), Row.ServerHasteSeconds);
+		Obj->TryGetBoolField(TEXT("serverKill"), Row.bServerKill);
 		Obj->TryGetNumberField(TEXT("weapon"), Row.WeaponSlot);
 		Obj->TryGetBoolField(TEXT("fire"), Row.bFire);
 		Obj->TryGetNumberField(TEXT("shots"), Row.Shots);
@@ -570,6 +622,10 @@ void UVeloxScriptedInputComponent::StepScript(float DeltaTime)
 		if (Entered.ServerHasteSeconds > 0.f)
 		{
 			RequestTestHaste(Entered.ServerHasteSeconds);
+		}
+		if (Entered.bServerKill)
+		{
+			RequestTestKill();
 		}
 		RowStartShotCount = VeloxFireDebug::GetLocalShotCount();
 		if (Entered.WeaponSlot > 0)
@@ -845,7 +901,12 @@ void UVeloxScriptedInputComponent::Finish(const TCHAR* Reason)
 #endif
 
 	OnScriptFinished.Broadcast();
-	if (bQuitOnFinish)
+	if (bQuitOnFinish && bKillRequested)
+	{
+		// DeathSpectateRun (ADR 0004 C11): the corpse's script ends during the death; stay for the spectate and the respawn.
+		VeloxScriptedInput::QuitAfterRespawn(GetWorld(), KilledController, GetOwner(), Result.bPassed ? 0 : 1);
+	}
+	else if (bQuitOnFinish)
 	{
 		FPlatformMisc::RequestExitWithStatus(false, Result.bPassed ? 0 : 1);
 	}
@@ -936,6 +997,63 @@ void UVeloxScriptedInputComponent::ServerGiveTestHaste_Implementation(float Seco
 	if (AVeloxCharacter* Character = GetVeloxCharacter())
 	{
 		Character->ServerGiveTestHaste(Seconds);
+	}
+#endif
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Test kill (ADR 0004 C11, DeathSpectateRun)
+
+void UVeloxScriptedInputComponent::RequestTestKill()
+{
+	AVeloxCharacter* Character = GetVeloxCharacter();
+	if (!Character)
+	{
+		return;
+	}
+	bKillRequested = true;
+	KilledController = Character->GetController();
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=kill t=%.3f st=%.3f pawn=%s"), GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, ScriptTime, *Character->GetName());
+	if (GetOwner()->HasAuthority())
+	{
+		ServerKillSelfTest_Implementation();
+	}
+	else
+	{
+		ServerKillSelfTest();
+	}
+}
+
+bool UVeloxScriptedInputComponent::ServerKillSelfTest_Validate()
+{
+#if UE_BUILD_SHIPPING
+	return false;
+#else
+	return true;
+#endif
+}
+
+void UVeloxScriptedInputComponent::ServerKillSelfTest_Implementation()
+{
+#if !UE_BUILD_SHIPPING
+	AVeloxCharacter* Character = GetVeloxCharacter();
+	UVeloxAbilitySystemComponent* ASC = Character && !Character->IsCorpse() ? Character->GetVeloxAbilitySystemComponent() : nullptr;
+	if (!ASC)
+	{
+		UE_LOG(LogVeloxNet, Warning, TEXT("VeloxNetSoak event=kill_server refused (no live pawn with an ASC)"));
+		return;
+	}
+	const AVeloxPlayerState* VeloxPS = Character->GetPlayerState<AVeloxPlayerState>();
+	FVeloxDamageSpecParams Params;
+	Params.Damage = UVeloxCombatSettings::GetOrDefault(VeloxPS ? VeloxPS->GetCombatSettings() : nullptr).EnvironmentKillDamage;
+	Params.DamageTag = VeloxGameplayTags::Damage_Environment;
+	Params.HitLocation = Character->GetActorLocation();
+	Params.bNoKnockback = true;
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNetSoak event=kill_server pawn=%s damage=%d"), *Character->GetName(), Params.Damage);
+	const FGameplayEffectSpecHandle Spec = VeloxEffects::MakeDamageSpec(ASC, Params);
+	if (Spec.IsValid())
+	{
+		ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 	}
 #endif
 }

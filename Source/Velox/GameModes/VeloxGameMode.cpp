@@ -22,6 +22,9 @@
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameModes/VeloxSpawnSelection.h"
+#include "GameModes/VeloxSpectatorPawn.h"
+#include "HAL/IConsoleManager.h"
+#include "NavMesh/NavMeshBoundsVolume.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "UI/VeloxHUD.h"
@@ -36,6 +39,19 @@ namespace VeloxGameModeBotsPrivate
 	const TCHAR* const BotDifficultyOption = TEXT("BotDifficulty");
 }
 
+#if !UE_BUILD_SHIPPING
+namespace VeloxGameModeDeathCameraPrivate
+{
+	// Headless checks of the Corpse rule (task m4-followups/04 step 5) and playtests without regenerating the assets.
+	static TAutoConsoleVariable<int32> CVarDeathCamera(TEXT("velox.match.DeathCamera"), -1,
+		TEXT("Override of UVeloxGameModeDefinition::DeathCamera: -1 = the mode definition, 0 = Corpse, 1 = FreeSpectate. Non-shipping."), ECVF_Default);
+	// UVeloxCombatSettings is a data asset, not a config class, so `-ini:Game:` cannot reach ForceRespawnDelay; the
+	// DeathSpectateRun soak shortens the forced respawn with this (C11 (2) fallback).
+	static TAutoConsoleVariable<float> CVarForceRespawnDelay(TEXT("velox.combat.ForceRespawnDelay"), -1.f,
+		TEXT("Override of UVeloxCombatSettings::ForceRespawnDelay in seconds (< 0 = the asset). Non-shipping."), ECVF_Default);
+}
+#endif
+
 AVeloxGameMode::AVeloxGameMode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -44,6 +60,8 @@ AVeloxGameMode::AVeloxGameMode(const FObjectInitializer& ObjectInitializer)
 	PlayerStateClass = AVeloxPlayerState::StaticClass();
 	DefaultPawnClass = AVeloxCharacter::StaticClass();
 	HUDClass = AVeloxHUD::StaticClass();
+	// C11: copied to AGameStateBase::SpectatorClass by InitGameState; spawned by the engine on owning clients only.
+	SpectatorClass = AVeloxSpectatorPawn::StaticClass();
 }
 
 const UVeloxCombatSettings& AVeloxGameMode::GetCombatSettingsFor(const AController* Controller)
@@ -103,12 +121,60 @@ void AVeloxGameMode::PlayerDied(AVeloxPlayerState* Victim, AVeloxPlayerState* Ki
 	RequestMatchEvaluation();
 }
 
-void AVeloxGameMode::NotifyControllerDied(AController* Controller)
+EVeloxDeathCamera AVeloxGameMode::GetDeathCamera() const
+{
+#if !UE_BUILD_SHIPPING
+	const int32 Override = VeloxGameModeDeathCameraPrivate::CVarDeathCamera.GetValueOnGameThread();
+	if (Override == 0 || Override == 1)
+	{
+		return Override == 0 ? EVeloxDeathCamera::Corpse : EVeloxDeathCamera::FreeSpectate;
+	}
+#endif
+	return GameModeDefinition ? GameModeDefinition->DeathCamera : GetDefault<UVeloxGameModeDefinition>()->DeathCamera;
+}
+
+const FBox& AVeloxGameMode::GetSpectateBounds()
+{
+	if (!bSpectateBoundsCached && GetWorld())
+	{
+		bSpectateBoundsCached = true;
+		SpectateBounds = FBox(ForceInit);
+		int32 NumVolumes = 0;
+		for (TActorIterator<ANavMeshBoundsVolume> It(GetWorld()); It; ++It)
+		{
+			const FBox Box = It->GetComponentsBoundingBox(true);
+			if (Box.IsValid)
+			{
+				SpectateBounds += Box;
+				++NumVolumes;
+			}
+		}
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxSpectate bounds volumes=%d box=%s"), NumVolumes, SpectateBounds.IsValid ? *SpectateBounds.ToString() : TEXT("unbounded"));
+	}
+	return SpectateBounds;
+}
+
+void AVeloxGameMode::NotifyControllerDied(AController* Controller, AVeloxCharacter* Corpse)
 {
 	UWorld* World = GetWorld();
 	if (!Controller || !World)
 	{
 		return;
+	}
+	// C11 death camera (humans only; AI controllers take neither branch, B28).
+	if (APlayerController* PC = Cast<APlayerController>(Controller))
+	{
+		const EVeloxDeathCamera Camera = GetDeathCamera();
+		AVeloxPlayerController* VeloxPC = Cast<AVeloxPlayerController>(PC);
+		if (Camera == EVeloxDeathCamera::FreeSpectate && VeloxPC)
+		{
+			VeloxPC->BeginDeathSpectate(Corpse);
+		}
+		else if (Corpse)
+		{
+			PC->SetViewTarget(Corpse);
+		}
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxDeath step=6 spectate=%s controller=%s"), Camera == EVeloxDeathCamera::FreeSpectate && VeloxPC ? TEXT("free") : TEXT("corpse"), *Controller->GetName());
 	}
 	const UVeloxCombatSettings& Settings = GetCombatSettingsFor(Controller);
 	const bool bAI = !Controller->IsPlayerController();
@@ -121,7 +187,14 @@ void AVeloxGameMode::NotifyControllerDied(AController* Controller)
 		return;
 	}
 	// Humans: forced respawn after ForceRespawnDelay unless they press earlier (any time after MinRespawnDelay).
-	const float Delay = bAI ? Settings.MinRespawnDelay : Settings.ForceRespawnDelay;
+	float ForceDelay = Settings.ForceRespawnDelay;
+#if !UE_BUILD_SHIPPING
+	if (const float Override = VeloxGameModeDeathCameraPrivate::CVarForceRespawnDelay.GetValueOnGameThread(); Override >= 0.f)
+	{
+		ForceDelay = Override;
+	}
+#endif
+	const float Delay = bAI ? Settings.MinRespawnDelay : ForceDelay;
 	World->GetTimerManager().SetTimer(Pending.Timer, FTimerDelegate::CreateUObject(this, &ThisClass::OnRespawnTimer, TWeakObjectPtr<AController>(Controller), true), Delay, false);
 	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxRespawn waiting controller=%s ai=%d min=%.2f s %s in %.2f s"), *Controller->GetName(), bAI ? 1 : 0, Settings.MinRespawnDelay, bAI ? TEXT("auto") : TEXT("forced"), Delay);
 }

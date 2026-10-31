@@ -5,12 +5,14 @@
 //                                    intermission end / all ready, empty server, phase names.
 //   Velox.GameMode.KillFeed          (task 06) sequence wrap, ordering, damage tag choice; PlayerDied -> Kills/Deaths/Score, feed
 //                                    entry with snapshotted names, trimming to KillFeedLength, Reset zeroes.
-//   Velox.GameMode.ModeDefinitions   DA_GameMode_FFA / DA_GameMode_Duel carry the ADR 0004 defaults and map to the rules.
+//   Velox.GameMode.ModeDefinitions   DA_GameMode_FFA / DA_GameMode_Duel carry the ADR 0004 defaults and map to the rules;
+//                                    C11: DeathCamera FreeSpectate, Duel ForceRespawnDelay 5 via DA_CombatSettings_Duel (drift guard).
 
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Combat/VeloxCombatSettings.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -320,7 +322,37 @@ bool FVeloxModeDefinitionsTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("rules frag limit"), Rules.FragLimit, Def->FragLimit);
 		TestEqual(TEXT("rules ready"), Rules.bRequireReady, Def->bRequireReady);
 		TestEqual(TEXT("rules forfeit"), Rules.bLeaverForfeits, Def->bLeaverForfeits);
+		// ADR 0004 C11 (q16): free spectate in both modes.
+		TestEqual(TEXT("death camera FreeSpectate"), static_cast<int32>(Def->DeathCamera), static_cast<int32>(EVeloxDeathCamera::FreeSpectate));
 	}
+
+	// C11 Duel decision (2026-10-31): Duel force-respawns after 5 s through its combat settings override; FFA keeps the
+	// default (null override, 20 s).
+	TestNull(TEXT("FFA has no combat settings override"), FFA->CombatSettingsOverride.Get());
+	TestEqual(TEXT("default ForceRespawnDelay (class defaults)"), UVeloxCombatSettings::GetOrDefault(nullptr).ForceRespawnDelay, 20.f);
+	const UVeloxCombatSettings* DefaultSettings = LoadObject<UVeloxCombatSettings>(nullptr, TEXT("/Game/Data/DA_CombatSettings_Default.DA_CombatSettings_Default"));
+	const UVeloxCombatSettings* DuelSettings = Duel->CombatSettingsOverride.Get();
+	if (!TestNotNull(TEXT("DA_CombatSettings_Default"), DefaultSettings) || !TestNotNull(TEXT("Duel combat settings override (DA_CombatSettings_Duel)"), DuelSettings))
+	{
+		return false;
+	}
+	TestEqual(TEXT("FFA (default asset) ForceRespawnDelay"), DefaultSettings->ForceRespawnDelay, 20.f);
+	TestEqual(TEXT("Duel override is DA_CombatSettings_Duel"), DuelSettings->GetName(), FString(TEXT("DA_CombatSettings_Duel")));
+	TestEqual(TEXT("Duel ForceRespawnDelay"), DuelSettings->ForceRespawnDelay, 5.f);
+	// Drift guard: the Duel copy differs from the default asset in ForceRespawnDelay only (create_bootstrap_content.py
+	// re-copies everything else on each run).
+	const FName ForceRespawnDelayName = GET_MEMBER_NAME_CHECKED(UVeloxCombatSettings, ForceRespawnDelay);
+	int32 NumCompared = 0;
+	for (TFieldIterator<FProperty> It(UVeloxCombatSettings::StaticClass(), EFieldIteratorFlags::ExcludeSuper); It; ++It)
+	{
+		if (It->GetFName() == ForceRespawnDelayName)
+		{
+			continue;
+		}
+		++NumCompared;
+		TestTrue(*FString::Printf(TEXT("Duel settings %s equal the default asset"), *It->GetName()), It->Identical_InContainer(DuelSettings, DefaultSettings));
+	}
+	TestTrue(TEXT("drift guard compared the settings"), NumCompared > 20);
 	return true;
 }
 

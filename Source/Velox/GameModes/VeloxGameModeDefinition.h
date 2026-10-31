@@ -12,6 +12,16 @@
 class UVeloxCombatSettings;
 class UVeloxPawnData;
 
+/** What a dead human sees until the respawn (ADR 0004 C11, ADR 0003 B43). */
+UENUM(BlueprintType)
+enum class EVeloxDeathCamera : uint8
+{
+	/** ADR 0003 section 8: the view target is the corpse (third person, looking down at the body). */
+	Corpse,
+	/** The engine's spectating state with an AVeloxSpectatorPawn (client-local free fly), the view point clamped by the server. */
+	FreeSpectate,
+};
+
 UCLASS(BlueprintType, Const)
 class VELOX_API UVeloxGameModeDefinition : public UPrimaryDataAsset
 {
@@ -84,6 +94,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Items")
 	EVeloxItemTimerVisibility ItemTimers = EVeloxItemTimerVisibility::Spectators;
+
+	/** Death camera of dead humans (C11; q16 default FreeSpectate in FFA and Duel). Bots and dummies are not affected. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Rules")
+	EVeloxDeathCamera DeathCamera = EVeloxDeathCamera::FreeSpectate;
 
 	/** ADR 0003 B1: replaces the default combat settings for this mode (null = default). Replicated by the GameState. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Overrides")
