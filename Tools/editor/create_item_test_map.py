@@ -133,7 +133,7 @@ STARTS = [  # (label, x, y, yaw)
 ERRORS = []
 COUNTS = {}
 EXPECTED = {
-    "ground": 1, "wall": 4, "cross": 2, "platform": 7 + 4 + 1 + 3, "ramp": 2, "roomfloor": 1, "roomwall": 4, "corridorwall": 2, "marker": 11,
+    "ground": 1, "wall": 4, "clip": 5, "cross": 2, "platform": 7 + 4 + 1 + 3, "ramp": 2, "roomfloor": 1, "roomwall": 4, "corridorwall": 2, "marker": 11,
     "pickup": 23, "jumppad": 2, "targetpoint": 2, "playerstart": 8, "camera": 1, "light": 2,
     "navbounds": 2,
     "navlink": 2 + 12 + 1,   # 2 JumpPad, 12 Drop (Mega 3, RA 3, rockets 4, ramp top 2), 1 RocketJump
@@ -491,6 +491,46 @@ def check_pads():
         log(f"{a.get_actor_label()}: compute_landing_point {a.compute_landing_point(world)}")
 
 
+KILL_Z = -1000.0       # lowest walkable floor is Z=0; anything below this has left the map and dies via FellOutOfWorld
+CLIP_H = 1800.0        # invisible clip walls / ceiling top (above any knockback apex: 1875 cm/s at 2000 cm/s^2 is about 880 cm)
+
+
+def clip_box(label, center, size):
+    """Invisible BlockAll volume, no navigation influence (M4-07f): seals the open-top arena against knockback."""
+    a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*center))
+    a.set_actor_label(label)
+    a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
+    c = a.static_mesh_component
+    c.set_editor_property("static_mesh", mesh(CUBE))
+    c.set_mobility(STATIC)
+    c.set_collision_profile_name("BlockAll")
+    c.set_editor_property("can_ever_affect_navigation", False)
+    c.set_editor_property("fill_collision_underneath_for_navmesh", False)
+    a.set_actor_hidden_in_game(True)
+    a.set_folder_path("Clip")
+    count("clip")
+    return a
+
+
+def build_clip(hx, hy, wall_t):
+    """Four clip walls coinciding with the visible perimeter walls (inner face at +-hx/+-hy), 1800 cm high, plus a ceiling."""
+    h = CLIP_H
+    clip_box("Clip_N", (0, hy + wall_t / 2, h / 2), (2 * hx + 2 * wall_t, wall_t, h))
+    clip_box("Clip_S", (0, -hy - wall_t / 2, h / 2), (2 * hx + 2 * wall_t, wall_t, h))
+    clip_box("Clip_E", (hx + wall_t / 2, 0, h / 2), (wall_t, 2 * hy, h))
+    clip_box("Clip_W", (-hx - wall_t / 2, 0, h / 2), (wall_t, 2 * hy, h))
+    clip_box("Clip_Ceiling", (0, 0, h + wall_t / 2), (2 * hx + 2 * wall_t, 2 * hy + 2 * wall_t, wall_t))
+
+
+def set_kill_z():
+    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
+    settings.set_editor_property("kill_z", KILL_Z)
+    got = settings.get_editor_property("kill_z")
+    log(f"WorldSettings.KillZ = {got}")
+    if abs(got - KILL_Z) > 0.01:
+        fail("could not set WorldSettings.KillZ")
+
+
 def build_map():
     global EAS
     les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -518,6 +558,8 @@ def build_map():
     build_starts_camera_lights()
     # Arena plus walls, floor slab to above the platforms (bots path on walkable surfaces only).
     nav_bounds("NavMeshBounds", (0.0, 0.0, 300.0), (2 * HALF_X + 400, 2 * HALF_Y + 400, 1000.0))
+    build_clip(HALF_X, HALF_Y, WALL_T)
+    set_kill_z()
     set_game_mode()
     check_pads()
 
