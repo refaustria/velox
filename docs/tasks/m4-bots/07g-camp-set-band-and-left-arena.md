@@ -2,7 +2,7 @@
 
 **Milestone:** M4 Bots
 **Agent:** dev
-**Status:** todo
+**Status:** done (runner; live acceptance D49 (3) pending 07f)
 **Depends on:** 07d (D48 runner), 07e (diagnosis), ADR 0005 D46 (1d, 4), D48, D49; independent of 07f (content), but the live acceptance of D49 (3) needs both
 
 ## Goal
@@ -98,4 +98,6 @@ verification (the five `--reeval` set lines, round 3 of a07d48 and round 2 of a0
 lines, the `diff` summary of step 3); open issues. State explicitly if Unreal was unavailable for step 5.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+Implemented in `infra/ci/nettest.sh` as specified (constants `ARENA_FLOOR_Z = 0.0`, `LEFT_ARENA_DZ = 1500.0`; 07f's KillZ not checked, not landed on this branch).
+`--reeval` results: D48 botduel/botrun/default unchanged except the new lines, `left_arena=none`, `world_kills=0`; a07d48 round 1 PASS + camp FLAG, round 3 FAIL with `left_arena=Celer@07.48.16 z=-4572` first, exit 1; a07final round 2 FAIL `left_arena=Celer@20.48.07 z=-3568`; D47 fixture: cost numbers unchanged, camp FAIL replaced by FLAG, set FAIL by the new episodes band (sum 0).
+Deviation: the task's expected `camp_episodes` sets (D48 [3,3,2] sum 8; a07d48 [0,1,2]; a07final [3,2,3]) differ from what the existing, unchanged episode counter prints ([3,4,2] sum 9; [0,2,2] sum 4; [3,3,7] sum 13; a07acc [1,2,3] sum 6 matches). The counter was not touched; all bands pass regardless.
