@@ -2,7 +2,7 @@
 
 **Milestone:** M4 follow-ups (human decisions q24 and q28, 2026-10-30)
 **Agent:** dev-hard (the lead may split step 1 — log fields + runner — to `dev`)
-**Status:** done (Medium near-human bands missed, reported; D51 open for the architect)
+**Status:** done (Medium near-human bands missed, reported; ruled in ADR 0005 D51 — knobs accepted, single-shot-weapon defect and runner changes in task `03b-single-shot-gate-and-d51-bands.md`)
 **Depends on:** ADR 0005 D50 (this task's ruling; also D14, D36, D39, D46 (4), D48, D49), STATUS questions 24 and 28, the M4 acceptance evidence `docs/adr/evidence/0005-D49-m4-final/`
 
 ## Goal
