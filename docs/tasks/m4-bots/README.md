@@ -25,7 +25,7 @@ Spec: `docs/adr/0005-bots.md` (ADR 0005; implementation notes list the tasks). T
 | 07c | [process-slow-class](07c-process-slow-class.md) | dev | 1-2 h | 07b, 08, ADR 0005 D47 | Wave 4 (before the D47 cost rerun) | done |
 | 07d | [transition-window-and-mega-band](07d-transition-window-and-mega-band.md) | dev | 1-2 h | 07c, the 046dabb acceptance logs (`a07d47`), ADR 0005 D48 | Wave 4 (closes M4 by `--reeval`; no UE run) | done |
 | 07e | [botduel-round-failures](07e-botduel-round-failures.md) | dev-hard | 1 h | 07d, the 421548c live BotDuel x3 (`a07d48`) | Wave 4 (diagnosis) | done (two causes: open-top arena without KillZ -> 07f content; camp band -> D49) |
-| 07g | [camp-set-band-and-left-arena](07g-camp-set-band-and-left-arena.md) | dev | 1-2 h | 07d, 07e, ADR 0005 D49; live acceptance also needs 07f (content: KillZ + clip walls) | Wave 4 (runner; verified by `--reeval`, no UE run; then the D49 (3) live acceptance closes M4) | done |
+| 07g | [camp-set-band-and-left-arena](07g-camp-set-band-and-left-arena.md) | dev | 1-2 h | 07d, 07e, ADR 0005 D49; live acceptance also needs 07f (content: KillZ + clip walls) | Wave 4 (runner; verified by `--reeval`, no UE run; then the D49 (3) live acceptance closes M4) | done; **07g-2 open** (camp counters gated on the Live phase, D49 (4); same file, spec appended) |
 
 ## Wave plan (from ADR 0005)
 - **Wave 1:** 01 || 02 || 03
