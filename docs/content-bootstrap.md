@@ -72,3 +72,11 @@ The script is idempotent: existing data assets (e.g. `DA_MovementSettings_Defaul
   -script="$PWD/Tools/editor/create_bot_content.py" -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput
 ```
 Idempotent: values are compared and an asset is only re-saved when something changed; the script then re-reads every asset and raises when a value differs from the table. Project-wide bot settings (`UVeloxBotSettings`: `DefaultDifficulty`, 16 Latin `BotNames`, `DefaultBotCount`, nav/goal tunables) are in `Config/DefaultGame.ini` `[/Script/Velox.VeloxBotSettings]`. Check that the registry sees the presets headless: `UnrealEditor-Cmd "$VELOX_PROJECT" L_Empty -game -nullrhi -ExecCmds="velox.bots.ListPresets" -stdout` logs `VeloxBotPreset asset=...` lines and `VeloxBotPreset count=4 names=16 default=...`. Non-shipping per-field overrides: `velox.bots.<Field> <value>` (`-1e30` = use the asset), applied by `UVeloxBotDifficulty::BuildParams()`.
+
+## Lighting bake
+
+**Result of the M5 task 01 probe: the VM cannot bake (path A fails); the human bakes on the Mac (fallback B).**
+
+- Run on the Mac: `infra/ci/build-mac.sh --bake /Game/Maps/<Map> <Preview|Medium|High|Production>` (Metal, same `ResavePackages -BuildLighting` commandlet as `infra/ci/bake.sh`; needs `UE_ROOT`/`VELOX_PROJECT` in `infra/.env`). Not runnable on the VM.
+- Commit the baked `.umap` (and its `_BuiltData` package) through Git LFS. The VM only verifies: `Velox.Maps.LightingBuilt` fails for any map in `MapsToCook` (other than `L_Empty`, `L_MovementTest`, `L_CombatTest`, `L_ItemTest`, `L_MainMenu`, `*_Blockout`) without a `UMapBuildDataRegistry`.
+- `infra/ci/bake.sh` stays in the repo for hosts with a real GPU or a Vulkan device that passes UE's SM5 profile check; on this VM it exits non-zero (see `docs/tasks/m5-map-characters/01-headless-lighting-probe.md`).
