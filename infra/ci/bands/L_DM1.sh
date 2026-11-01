@@ -18,9 +18,8 @@ BAND_BOTRUN_LINK_OK_MIN=5         # VeloxBotLink result=ok in every BotRun round
 
 # --- bot set (--repeat 3), E3
 BAND_BOTRUN_KILLS_MIN=11          # BotRun sum of kills by bots (rounds 6 8 5 | 4 4 11, set mean 19.0; P(fail) 1.8 %)
-# BAND_BOTRUN_MAJOR_REQUIRED=1    # every major item PRESENT ON THE MAP taken over the set (Mega, RA, YA, Quad in FFA). Set when
-#                                 # task 07b makes the runner judge map-present majors; the runner's fixed 7-item list would FAIL DM1
-#                                 # (no BattleSuit/Haste/Regen on this map, ADR 0006 section 3).
+BAND_BOTRUN_MAJOR_REQUIRED=1      # every major item PRESENT ON THE MAP taken over the set (Mega, RA, YA, Quad in FFA; Duel has no Quad); nettest.sh
+                                  # judges the majors with a VeloxPickupReset/Spawn line in the round logs (task 07b), not the seven of D51
 BAND_BOTDUEL_FRAGS_MIN=7          # BotDuel sum of frags (rounds 7 3 4 | 4 6 4, set mean 14.0; P(fail) 1.4 %)
 BAND_BOTDUEL_CAMP_MIN=21          # BotDuel sum of camp episodes, Live phase (rounds 11 12 7 | 10 8 14, set mean 31.0; P(fail) 2.4 %)
 BAND_MEGA_WITHIN3_MIN=1           # BotDuel timed Mega returns within 3 s of the respawn, sum over the set (D51 6; E3: p(<= 3 s) 0.42-0.53)

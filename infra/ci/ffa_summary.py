@@ -71,7 +71,7 @@ dwell = {}
 max_dwell, max_dwell_at = 0, '-'
 pocket = 0
 nav_secs = []
-no_nav = world_kills = 0
+no_nav = world_kills = not_at_goal = 0
 left_arena = None
 LINK_FAILED_REASONS = ('missed', 'timeout', 'noimpulse', 'tooslow')       # ADR 0006 E0.3 (b)
 # Task m5-06b: air_start / relaunched (a flight that was not the link's: begun in the air, or re-launched away from the end).
@@ -197,6 +197,8 @@ with open(path, 'rb') as f:
             continue
         if 'result=no_nav_point' in line:
             no_nav += 1
+        if 'VeloxBotPath' in line and 'result=not_at_goal' in line:
+            not_at_goal += 1  # ADR 0006 E3 / 06b D4: 3-D arrival refused a stacked-item goal; report-only, expected 0 on DM1
         if 'giveup' in line and 'LogVeloxBots' in line:
             giveup += 1
         m = re.search(r'VeloxBotLink bot=(\S+) .*result=(\S+) reason=(\S+) dt=([\d.]+) link=(\S+)', line)
@@ -346,7 +348,7 @@ print(f"{label}: {'PASS' if not fails else 'FAIL(' + ','.join(fails) + ')'} stuc
       f"long_links_not_timeout=[{','.join(long_not_timeout)}] bursts=[{','.join(bursts)}] pickups={pickups} mega={len(mega_times)} kills={kills} "
       f"suicides={suicides} refused={refused} giveup={giveup} errors={errors} supp1={supp_share:.1f}% fight_yields={fight_yields} fight_share={fight_share:.1f}% "
       f"armed_fight_share={armed_share:.1f}% ({vis_armed_fight}/{vis_armed}) allunreach_air={allun.get('air', 0)} allunreach_ground={allun.get('ground', 0)} "
-      f"budget_mean_us={budget:.1f} run_mean_us={run_mean} nav_s={max(nav_secs) if nav_secs else 'n/a'} world_kills={world_kills} no_nav_point={no_nav} left_arena={left_arena or 'none'}")
+      f"budget_mean_us={budget:.1f} run_mean_us={run_mean} nav_s={max(nav_secs) if nav_secs else 'n/a'} world_kills={world_kills} no_nav_point={no_nav} not_at_goal={not_at_goal} left_arena={left_arena or 'none'}")
 print(f"  strikes: {' '.join(strike_list) if strike_list else '-'}")
 for fl_ in wait_flags:
     print('  ' + fl_)
@@ -359,6 +361,6 @@ with open(path + '.json', 'w') as jf:
                'wait_max_s': round(wait_max[0], 1), 'wait_capped': wait_capped, 'wait_flags': len(wait_flags), 'link_max_dt': link_max_dt,
                'kills': kills, 'pickups': pickups, 'mega': len(mega_times), 'repaths': repath_total, 'fails': fails,
                'rules': dict(rules), 'speed_strikes': [x for x in strike_list if ':speed' in x],
-               'nav_seconds': max(nav_secs) if nav_secs else None, 'world_kills': world_kills, 'left_arena': left_arena, 'no_nav_point': no_nav,
+               'nav_seconds': max(nav_secs) if nav_secs else None, 'world_kills': world_kills, 'left_arena': left_arena, 'no_nav_point': no_nav, 'not_at_goal': not_at_goal,
                'giveup': giveup, 'link_types': dict(link_types), 'link_unknown': dict(link_unknown), 'resets': resets, 'spawns': spawns, 'taken': dict(taken),
                'resets_at': resets_at, 'takes_at': takes_at}, jf)
