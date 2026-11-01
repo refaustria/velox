@@ -15,7 +15,7 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 | 09 | [anomaly-counters](09-anomaly-counters.md) | dev-hard | 2–3 h | ADR §5.4; after 07 if both touch `VeloxPlayerController` (coordinate) | 0 | — | todo |
 | 10 | [replication-budget-measurement](10-replication-budget-measurement.md) | dev | 2 h (+ soak) | ADR §5.6; 02 | 2 | — | todo |
 | 11 | [mac-client-package](11-mac-client-package.md) | dev + human | 2 h + Mac time | ADR §4; 01 (shared script shape); the Apple Silicon Mac | 3 | 47 | todo |
-| 12 | [web-downloads-and-status-page](12-web-downloads-and-status-page.md) | dev | 2 h | ADR §3; schemas from 03/06 | 0 | 45 (privacy line), 47/46 wording | todo |
+| 12 | [web-downloads-and-status-page](12-web-downloads-and-status-page.md) | dev | 2 h | ADR §3; schemas from 03/06 | 0 | 45 (privacy line), 47/46 wording | done |
 | 13 | [release-smoke-and-playtest-checklist](13-release-smoke-and-playtest-checklist.md) | dev | 2 h | 01, 03, 04, 05, 06 | 2 | — | todo |
 | 14 | [windows-client](14-windows-client.md) | dev (script) / human (host) | 1 h + host | ADR §4 | — | **46** | blocked |
 | 15 | [server-capable-installed-build](15-server-capable-installed-build.md) | dev-hard | 1 day on a build box + swap | ADR §1 (c) | — | **41** | blocked |
