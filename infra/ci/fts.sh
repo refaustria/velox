@@ -15,6 +15,7 @@ GREP=/usr/bin/grep   # the interactive shell's grep is a ugrep wrapper; use the 
 PORT=7777
 FT_TIMEOUT="${VELOX_FTS_TIMEOUT:-240}"
 SEED=1
+DM1_MAP="${VELOX_DM1_MAP:-L_DM1_Blockout}"   # map of FtDm1Reachability (--dm1-map / VELOX_DM1_MAP; default stays the blockout until decision 40)
 
 # name | map | console command (quit is appended)
 FTS=(
@@ -25,15 +26,15 @@ FTS=(
   "FtOffMesh|L_ItemTest|velox.bots.FtOffMesh"
   "FtSegmentBlocked|L_ItemTest|velox.bots.FtSegmentBlocked"
   "FtCombatEvents|L_CombatTest|velox.bots.FtCombatEvents"
-  "FtDm1Reachability|L_DM1_Blockout|velox.bots.FtDm1Reachability"
+  "FtDm1Reachability|@DM1|velox.bots.FtDm1Reachability"
 )
 
 fts_usage() {
   cat <<USAGE
-Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b]
+Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b] [--dm1-map NAME]
 
 Runs, in order: FtItemPickup (L_ItemTest), FtNavigation (L_ItemTest), FtStrafeCorridor (L_MovementTest),
-FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (L_DM1_Blockout, FT_DM1_Reachability),
+FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (${DM1_MAP}, FT_DM1_Reachability),
 each as
   UnrealEditor-Cmd Velox.uproject <map> -game -nullrhi -unattended -nosound -UseFixedTimeStep -FPS=60 -log
       -port=N -ExecCmds="velox.bots.Seed ${SEED}, <command> quit"
@@ -45,6 +46,7 @@ Options:
                 port only keeps a stray process from taking the default one.
   --timeout S   Seconds per test before it is killed and counted as FAIL (default ${FT_TIMEOUT}, VELOX_FTS_TIMEOUT)
   --only a,b    Run only these test names
+  --dm1-map N   Map of FtDm1Reachability (default ${DM1_MAP}; env VELOX_DM1_MAP), e.g. L_DM1 for the art map
   -h, --help    Show this help
 
 Environment: UE_ROOT, VELOX_PROJECT, VELOX_OUT (as for build.sh).
@@ -80,6 +82,7 @@ main() {
       --port)    [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || die "--port needs a number"; PORT="$2"; shift 2 ;;
       --timeout) [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--timeout needs a positive integer"; FT_TIMEOUT="$2"; shift 2 ;;
       --only)    [[ $# -ge 2 ]] || die "--only needs a value"; only=",$2,"; shift 2 ;;
+      --dm1-map) [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9_]+$ ]] || die "--dm1-map needs a map name"; DM1_MAP="$2"; shift 2 ;;
       -h|--help) fts_usage; exit 0 ;;
       *) fts_usage >&2; die "unknown option: $1" ;;
     esac
@@ -98,6 +101,7 @@ main() {
   local total=0 passed=0 entry name map cmd
   for entry in "${FTS[@]}"; do
     IFS='|' read -r name map cmd <<< "$entry"
+    [[ "$map" == "@DM1" ]] && map="$DM1_MAP"
     if [[ -n "$only" && "$only" != *",$name,"* ]]; then continue; fi
     total=$((total + 1))
     if run_ft "$name" "$map" "$cmd" "$out_dir/fts-$name.log"; then passed=$((passed + 1)); fi

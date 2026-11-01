@@ -95,7 +95,7 @@ Options:
   --reeval DIR     Re-run the per-round summary and the set evaluation of the bot soaks on saved logs (a nettest
                    directory, with or without round-<k>/ subdirectories; needs no engine). Host columns are n/a where
                    no <script>-host.log sidecar exists; budget lines without frames=/stalls= degrade the same way.
-  --map NAME       Run BotRun and BotDuel on map NAME (ADR 0006 section 7; the ?game=...?Bots=... options stay). Other
+  --map NAME       Run BotRun, BotDuel and DM1Run (task 07d; DM1Run default L_DM1_Blockout) on map NAME (ADR 0006 section 7; the ?game=...?Bots=... options stay). Other
                    scripts ignore the flag (logged once). The bands are per map: infra/ci/bands/NAME.sh when it exists
                    (the default map L_ItemTest has one: bands=L_ItemTest), else the run is report-only (band=none) and
                    prints every metric. The map-independent invariants (left_arena, world_kill, no_nav_point, giveup, stuck
@@ -243,7 +243,7 @@ run_one() {
   PKT_ARGS=(-PktLag="$lag" -PktLagVariance=20 -PktLoss=2 -PktIncomingLagMin=$((lag - 20)) -PktIncomingLagMax=$((lag + 20)) -PktIncomingLoss=2)
   if [[ "$script" == LatchRun ]]; then cexec="velox.move.Preset Q3, $cexec"; sexec="velox.move.Preset Q3"; fi
   if [[ "$COMBAT_SCRIPTS" == *" $script "* ]]; then map="L_CombatTest"; fi
-  if [[ "$DM1_SCRIPTS" == *" $script "* ]]; then map="L_DM1_Blockout"; fi
+  if [[ "$DM1_SCRIPTS" == *" $script "* ]]; then map="${MAP_OVERRIDE:-L_DM1_Blockout}"; fi   # task 07d: --map L_DM1 runs DM1Run on the art map
   local connect_url="127.0.0.1:$PORT" client_timeout="$CLIENT_TIMEOUT"
   case "$script" in
     BotRun)
@@ -264,8 +264,9 @@ run_one() {
   if [[ -n "$MAP_OVERRIDE" ]]; then
     if [[ "$BOT_SCRIPTS" == *" $script "* ]]; then
       map="${MAP_OVERRIDE}?${map#*\?}"   # keep "game=...?Bots=..."; every BOT_SCRIPTS map URL carries options
+    elif [[ "$DM1_SCRIPTS" == *" $script "* ]]; then :   # DM1Run honours --map (task 07d)
     elif (( ! MAP_OVERRIDE_NOTED )); then
-      echo "[ci] --map $MAP_OVERRIDE applies to BotRun/BotDuel only; $script and the other scripts keep their own map (logged once)"
+      echo "[ci] --map $MAP_OVERRIDE applies to BotRun/BotDuel/DM1Run only; $script and the other scripts keep their own map (logged once)"
       MAP_OVERRIDE_NOTED=1
     fi
   fi
