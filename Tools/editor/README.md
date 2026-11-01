@@ -47,7 +47,7 @@ Regeneration (all with `-nullrhi -unattended -nopause -nosplash -stdout -FullStd
 
 ## DM1 "Praesidium": `maps/dm1_layout.py` and `create_dm1_map.py` (ADR 0006 sections 2 and 3, task M5-05)
 
-`maps/dm1_layout.py` is the declarative layout table (namedtuples and lists, no `unreal` import): rooms, solid boxes, wall strips with openings, stairs, the 15 degree ramp, the three pads, 35 items (with `disabled_in_modes`), 8 spawns, 22 nav links, light placeholders (task 15), clip volumes, nav bounds, `MAP_ID`, `DISPLAY_NAME = "Praesidium"` (E0.5), `FLOOR_Z = 0`, `KILL_Z = -1000`. Its docstring has the top-down sketch.
+`maps/dm1_layout.py` is the declarative layout table (namedtuples and lists, no `unreal` import): rooms, solid boxes, wall strips with openings, stairs, the 15 degree ramp, the three pads, 35 items (with `disabled_in_modes`), 8 spawns, 16 nav links (task 06: 22 in the first blockout; the drops that face a blank wall or land on PadD were removed, DROP_OUT_TALL 350 for the tall ones), light placeholders (task 15), clip volumes, nav bounds, `MAP_ID`, `DISPLAY_NAME = "Praesidium"` (E0.5), `FLOOR_Z = 0`, `KILL_Z = -1000`. Its docstring has the top-down sketch.
 
 `create_dm1_map.py --mode blockout` (default; the mode can also come from `VELOX_DM1_MODE`; `--mode art` raises "task 15") regenerates `/Game/Maps/DM1/L_DM1_Blockout` idempotently:
 `UnrealEditor-Cmd Velox.uproject -run=pythonscript -script="$PWD/Tools/editor/create_dm1_map.py --mode blockout" -nullrhi -unattended -nopause -nosplash -stdout -FullStdOutLogOutput`

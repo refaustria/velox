@@ -251,7 +251,7 @@ LINKS = [
     Link("RJ_East", "ROCKET_JUMP", (650, 0, 320), (0, 0, 640), None),
     # drops: 60 cm inside the free edge, 150 cm outside it. No link on the dock S edges, the slab N edge and the mid-bridge N edge (task 06): the wall
     # opposite is blank and only 500 cm away, a bot lands in its nav erosion margin (IsOnEndSurface false = "missed").
-    # No link on the slab S edge either: its flight through the gate lands on PadD (0,-950) and is launched back to the slab.
+    # No link on the slab S edge or the mid-bridge S edge either: the flight through the gate lands on PadD (0,-950) and is launched back to the slab.
     _drop("Drop_ALedge_N", -2100 + DROP_IN, 450, 320, -2100 - DROP_OUT_TALL, 450, 0),
     _drop("Drop_ALedge_S", -2100 + DROP_IN, -450, 320, -2100 - DROP_OUT_TALL, -450, 0),
     _drop("Drop_BBalcony", 2100 - DROP_IN, 0, 320, 2100 + DROP_OUT_TALL, 0, 0),
@@ -261,7 +261,6 @@ LINKS = [
     _drop("Drop_DBalcony_4", 1200, -1800 - DROP_IN, 320, 1200, -1800 + DROP_OUT, 0),
     _drop("Drop_DockW_N", -450, 200 - DROP_IN, 320, -450, 200 + DROP_OUT_TALL, 0),
     _drop("Drop_DockE_N", 450, 200 - DROP_IN, 320, 450, 200 + DROP_OUT_TALL, 0),
-    _drop("Drop_MidBridge_S", 0, -200 + DROP_IN, 320, 0, -200 - DROP_OUT_TALL, 0),
     _drop("Drop_Top_W", -200 + DROP_IN, 0, 640, -200 - DROP_OUT, 0, 320),
     _drop("Drop_Top_E", 200 - DROP_IN, 0, 640, 200 + DROP_OUT, 0, 320),
 ]
@@ -302,6 +301,6 @@ UPPER_RING_MIN_M, UPPER_RING_MAX_M = 45.0, 50.0       # Mega -> RA, measured wit
 
 # Per-kind actor counts that do not depend on the geometry expansion (the geometry kinds are counted by the generator).
 EXPECTED = {
-    "pickup": 35, "playerstart": 8, "jumppad": 3, "targetpoint": 3, "navbounds": 1, "navlink": 17,
+    "pickup": 35, "playerstart": 8, "jumppad": 3, "targetpoint": 3, "navbounds": 1, "navlink": 16,
     "camera": 1, "text": 1, "light": 2,
 }
