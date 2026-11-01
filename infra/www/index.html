@@ -4,24 +4,52 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Velox</title>
+<meta name="description" content="Velox: a fast arena FPS in the spirit of Quake 3, built on Unreal Engine 5.8. Open playtest.">
+<link rel="icon" href="img/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
+<header>
+<img src="img/logo.svg" alt="" width="48" height="48">
 <h1>Velox</h1>
-<p class="tagline">A fast arena FPS. Coming soon.</p>
-<h2>Milestones</h2>
-<ul>
-<li>M0 Infrastructure</li>
-<li>M1 Movement</li>
-<li>M2 Combat</li>
-<li>M3 Game loop</li>
-<li>M4 Bots</li>
-<li>M5 First real map + characters</li>
-<li>M6 Online</li>
-<li>M7 Polish</li>
-</ul>
-<nav><a href="/downloads/">Downloads</a><a href="/status/">Server status</a></nav>
+</header>
+<p class="tagline">A fast arena FPS in the spirit of Quake 3 Arena, built on Unreal Engine 5.8.</p>
+<p>Strafe-jumping, rocket jumps and six classic weapons, with server-authoritative netcode and bots that move like players. Velox is in open playtest: expect rough edges.</p>
+
+<section id="downloads" aria-labelledby="h-dl">
+<h2 id="h-dl">Downloads</h2>
+<div id="dl-body" class="block">
+<p>Download the latest build from <a href="/downloads/">the downloads page</a>.</p>
+</div>
+</section>
+
+<section id="servers" aria-labelledby="h-sv">
+<h2 id="h-sv">Servers</h2>
+<div id="sv-body" class="block">
+<p>The live server list needs JavaScript. Without it, open <a href="/status/servers.json">servers.json</a>, or use the direct-IP field in the game's main menu.</p>
+</div>
+</section>
+
+<section id="howto" aria-labelledby="h-how">
+<h2 id="h-how">How to play</h2>
+<h3>Linux (tested headless only)</h3>
+<p>This build has been tested headless only, not yet on a desktop with a GPU. Extract the archive (<code>tar --zstd -xf Velox-*-Linux.tar.zst</code>), then run <code>./Velox.sh</code>. You need a Vulkan driver and glibc 2.28 or newer.</p>
+<h3>macOS</h3>
+<p>The build is ad-hoc signed, not notarized. After unzipping, right-click &rarr; Open on <code>Velox.app</code>, or remove the quarantine flag: <code>xattr -dr com.apple.quarantine Velox.app</code>.</p>
+<h3>Windows</h3>
+<p>Not yet available. A Windows build is deferred to milestone M7.</p>
+<h3>Connecting</h3>
+<p>Pick a server in the in-game Servers menu, or paste an address from the list above into the direct-IP field.</p>
+</section>
+
+<section id="privacy" aria-labelledby="h-pv">
+<h2 id="h-pv">Privacy</h2>
+<p>The server logs connection IP addresses for 14 days to diagnose problems; the status page shows player counts only. This site sets no cookies and loads nothing from other hosts.</p>
+</section>
+
+<nav><a href="/downloads/">All downloads</a><a href="/status/servers.json">servers.json</a></nav>
 </main>
+<script src="app.js" defer></script>
 </body>
 </html>

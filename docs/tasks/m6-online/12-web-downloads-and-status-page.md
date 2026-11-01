@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev
-**Status:** todo
+**Status:** done (files only, not deployed)
 **Depends on:** ADR 0007 §3 (downloads layout, `latest.json`, `servers.json` schemas from tasks 03/06); answers 45 (privacy line), 46/47 (platform wording) can be filled in later
 
 ## Goal
@@ -38,3 +38,5 @@ Standard format plus: a text sketch of the page, the fixture files used, and the
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+Done 2026-11-01: see notes/12-report.md. Not deployed; no real-browser check.
