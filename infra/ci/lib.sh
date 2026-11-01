@@ -258,6 +258,7 @@ ci_main() {
 ci_load_bands() {
   local map="$1" f v
   for v in $(compgen -v BAND_); do unset "$v"; done
+  unset VELOX_BAND_FILE VELOX_BAND_LABEL
   f="$CI_LIB_DIR/bands/$map.sh"
   if [[ -n "$map" && -f "$f" ]]; then
     set -a
@@ -265,7 +266,14 @@ ci_load_bands() {
     source "$f"
     set +a
     export VELOX_BAND_NAME="$map"
+    # A band file may name the file whose values it applies (VELOX_BAND_FILE, e.g. L_DM1_Blockout.sh sources L_DM1.sh): the printed
+    # label then reads "<map> (file <F>)" so the set line says which file was applied. Otherwise the label is the map name.
+    if [[ -n "${VELOX_BAND_FILE:-}" && "$VELOX_BAND_FILE" != "$map" ]]; then
+      export VELOX_BAND_LABEL="$map (file $VELOX_BAND_FILE)"
+    else
+      export VELOX_BAND_LABEL="$map"
+    fi
   else
-    export VELOX_BAND_NAME=none
+    export VELOX_BAND_NAME=none VELOX_BAND_LABEL=none
   fi
 }

@@ -1496,7 +1496,8 @@ if script in ("BotRun", "BotDuel"):
     link_ok = link_total = 0
     link_max, link_max_desc = 0.0, "-"
     link_over = []
-    refused = giveup = no_nav = no_clear = recovered = repaths = hear = dodges = camp_lines = 0
+    refused = giveup = no_nav = no_clear = not_at_goal = recovered = repaths = hear = dodges = camp_lines = 0
+    major_present = set()   # ADR 0006 E3 / task 07b: the majors the map has (VeloxPickupReset/VeloxPickupSpawn lines of the round)
     allun = collections.Counter()
     errors = []
     goals = collections.Counter(); vis_armed = vis_armed_fight = supp1 = debug_lines = noammo = 0
@@ -1545,6 +1546,9 @@ if script in ("BotRun", "BotDuel"):
             errors.append(l.strip()[:160])
         if "VeloxMatch phase=Live" in l:
             live = True; dwell.clear(); continue
+        if "VeloxPickupSpawn item=" in l or "VeloxPickupReset item=" in l:
+            mp_ = MAJOR.search(l)
+            if mp_: major_present.add(mp_.group(1))
         wsm_ = WAIT_SPAWN_R.search(l)
         if wsm_:
             wait_spawn[wsm_.group(1)] = vec2(wsm_.group(2)); continue
@@ -1626,6 +1630,9 @@ if script in ("BotRun", "BotDuel"):
             if "result=no_clear_point" in l: no_clear += 1  # ADR 0005 D45: report-only, no band
             if "result=giveup" in l: giveup += 1
             if " recovered " in l: recovered += 1
+            continue
+        if "VeloxBotPath" in l and "result=not_at_goal" in l:
+            not_at_goal += 1  # ADR 0006 E3 / D4: the 3-D arrival refused a stacked-item goal; report-only, expected 0 on DM1
             continue
         if "VeloxBotLink bot=" in l and "result=" in l:
             d = kv(l); link_total += 1
@@ -2015,8 +2022,8 @@ if script in ("BotRun", "BotDuel"):
             " ".join("%s=%d" % (k.replace("DA_Item_", ""), v) for k, v in sorted(pickups.items())), ",".join(major_taken)),
         "links ok=%d/%d longest_dt=%.2f [%s] failed_reasons=[%s]" % (link_ok, link_total, link_max, link_max_desc, " ".join("%s=%d" % kv_ for kv_ in sorted(reasons.items()))),
         "stuck=%d rules=[%s] bursts=%d pocket_strikes=%d at: %s" % (len(stuck), " ".join("%s=%d" % kv_ for kv_ in sorted(rules.items())), len(bursts), len(pocket), pos_txt or "-"),
-        "max_dwell_s=%d [%s] %s repaths=%d%s offmesh recovered=%d no_nav_point=%d no_clear_point=%d giveup=%d refused=%d hear=%d dodge=%d camp_route_lines=%d" % (
-            max_dwell, max_dwell_at, wait_txt, repaths, " (FLAG > %d)" % int(duration) if repaths > duration else "", recovered, no_nav, no_clear, giveup, refused, hear, dodges, camp_lines),
+        "max_dwell_s=%d [%s] %s repaths=%d%s offmesh recovered=%d no_nav_point=%d no_clear_point=%d not_at_goal=%d giveup=%d refused=%d hear=%d dodge=%d camp_route_lines=%d" % (
+            max_dwell, max_dwell_at, wait_txt, repaths, " (FLAG > %d)" % int(duration) if repaths > duration else "", recovered, no_nav, no_clear, not_at_goal, giveup, refused, hear, dodges, camp_lines),
         "budget %s mean_us=%.1f run_mean_us=%.1f max_us=%.0f max_path_us=%.0f " % (
             "cost=%s (clean windows %d/%d P=%d)" % ("FAIL" if cost_w or (cost_judged and (budget_mean > BUDGET_MAX or (p_norm_mean or 0) > BUDGET_MAX or (rr_round or 0) > RR_ROUND_MAX)) else "PASS", len(clean_w), n_win, len(p_w)) if cost_judged
             else "cost not judged (contended; clean windows %d/%d P=%d)" % (len(clean_w), n_win, len(p_w)),
@@ -2087,7 +2094,7 @@ if script in ("BotRun", "BotDuel"):
     watch = [l for l in C if "VeloxBotWatch" in l]
     detail_lines.append("client watch lines=%d (feed=%d phase=%d pickup=%d)" % (len(watch), sum(1 for l in watch if " feed " in l), sum(1 for l in watch if " phase=" in l and "old=" in l), sum(1 for l in watch if " pickup " in l)))
     behaviour_fails = [fl for fl in fails if not (fl.startswith("cost window") or fl.startswith("round invalid") or fl.startswith("VeloxBotBudget mean_us") or fl.startswith("p_norm_mean_us") or fl.startswith("rr_round"))]
-    stats = {"script": script, "pass": not fails, "stuck": len(stuck), "kills": kills, "frags": frags_total, "pickups": nbots, "major": major_taken,
+    stats = {"script": script, "pass": not fails, "stuck": len(stuck), "kills": kills, "frags": frags_total, "pickups": nbots, "major": major_taken, "major_present": sorted(major_present), "not_at_goal": not_at_goal,
              "pocket": len(pocket), "bursts": len(bursts), "max_dwell": max_dwell, "timed_waits": timed_waits, "wait_samples": wait_samples,
              "wait_max_s": round(wait_max[0], 1), "wait_capped": wait_capped, "wait_flags": len(wait_flags), "repaths": repaths, "mega_fast": mega_fast,
              "timed": timed_lags, "timed_cycles": timed_cycles, "transition_windows": sum(1 for w in windows if w.get("transition")), "first_after_live": first_after_live, "invalid": invalid, "windows": n_win, "clean": len(clean_w),
@@ -2185,6 +2192,7 @@ def band(key_):
     v_ = os.environ.get(key_, "")
     return int(v_) if v_.strip() else None
 band_name = os.environ.get("VELOX_BAND_NAME", "none")
+band_label = os.environ.get("VELOX_BAND_LABEL", band_name)   # "<map> (file <F>)" when the map's file sources another map's (DM1)
 BOTRUN_KILLS_MIN = band("BAND_BOTRUN_KILLS_MIN")      # D51 (1): BotRun sum kills by bots (was 12, D36)
 BOTDUEL_FRAGS_MIN = band("BAND_BOTDUEL_FRAGS_MIN")    # D51 (1): BotDuel sum frags (was 9, D36)
 BOTDUEL_CAMP_MIN = band("BAND_BOTDUEL_CAMP_MIN")      # D51 (1), D49 (a)/(4): BotDuel sum camp episodes, Live phase (was 2)
@@ -2207,7 +2215,10 @@ invalid_rounds = [k + 1 for k, r in enumerate(runs) if r.get("invalid")]
 valid = [r for r in runs if not r.get("invalid")]
 S = lambda key: sum(r[key] for r in valid)
 major = sorted({m for r in valid for m in r["major"]})
-missing = [m for m in MAJOR_ALL if m not in major]
+# ADR 0006 E3 / task 07b: the majors judged are those PRESENT ON THE MAP (a VeloxPickupReset/Spawn line in some round of the set;
+# the FFA mode shows Quad on DM1, Duel does not). Stats written before the field existed fall back to the seven of D51.
+present = sorted({m for r in valid for m in r.get("major_present", [])}) or list(MAJOR_ALL)
+missing = [m for m in present if m not in major]
 fails, cost_fails = [], []
 judged = rounds == 3 and not invalid_rounds
 timed = [v for r in valid for v in r.get("timed", [])]
@@ -2298,15 +2309,15 @@ print("  per round: kills=%s frags=%s stuck=%s pickups=%s max_dwell_s=%s repaths
     [r["kills"] for r in valid], [r["frags"] for r in valid], [r["stuck"] for r in valid], [r["pickups"] for r in valid], [r["max_dwell"] for r in valid], [r["repaths"] for r in valid]))
 print("  dwell waits (ADR 0006 E2): timed_waits=%s wait_max_s=%s wait_capped=%d flags=%d" % (
     [r.get("timed_waits", 0) for r in valid], [r.get("wait_max_s", 0.0) for r in valid], sum(r.get("wait_capped", 0) for r in valid), sum(r.get("wait_flags", 0) for r in valid)))
-print("  sums: stuck=%d kills=%d frags=%d pocket_strikes=%d%s major_covered=%d/7 [%s]%s" % (
-    S("stuck"), S("kills"), S("frags"), S("pocket"), " (FLAG: pocket strike -> architect)" if S("pocket") else "", len(major) if not missing else 7 - len(missing), ",".join(major),
-    " missing=[%s]" % ",".join(missing) if missing else ""))
+print("  sums: stuck=%d kills=%d frags=%d pocket_strikes=%d%s major_covered=%d/%d [%s]%s not_at_goal=%d" % (
+    S("stuck"), S("kills"), S("frags"), S("pocket"), " (FLAG: pocket strike -> architect)" if S("pocket") else "", len(present) - len(missing), len(present), ",".join(major),
+    " missing=[%s]" % ",".join(missing) if missing else "", sum(r.get("not_at_goal", 0) for r in valid)))
 if script == "BotDuel":
     print("  camp: episodes=%s sum=%d lines=%s share_pct=%s max_lead_s=%s" % (
         [r.get("camp_episodes", 0) for r in valid], sum(r.get("camp_episodes", 0) for r in valid), [r.get("camp_lines", 0) for r in valid],
         ["%.1f" % (100.0 * r.get("camp_episodes", 0) / r["goal_changes"]) if r.get("goal_changes") else "0.0" for r in valid], ["%.1f" % r.get("camp_max_lead", 0.0) for r in valid]))
 print("  left_arena=[%s] world_kills=[%s]" % (",".join(r.get("left_arena") or "none" for r in runs), ",".join(str(r.get("world_kills", 0)) for r in runs)))
-print("  %s" % ("bands=%s" % band_name if band_name != "none" else "band=none (report-only: the per-map set bands are printed, not judged; the map-independent invariants are judged)"))
+print("  %s" % ("bands=%s" % band_label if band_name != "none" else "band=none (report-only: the per-map set bands are printed, not judged; the map-independent invariants are judged)"))
 # ADR 0006 section 7: link traversal success per link type over the valid rounds (ok / (ok + failed); "aborted" re-plans are not attempts).
 lt_ = {}
 lu_ = collections.Counter()
@@ -2525,7 +2536,7 @@ main() {
   local lag_desc
   if [[ -n "$LAG_OVERRIDE" ]]; then lag_desc="${LAG_OVERRIDE} ms (all scripts)"; else lag_desc="${LAG_MS} ms (FireRun/FireRunControl ${FIRE_LAG_MS} ms)"; fi
   info "Net soak: scripts=${scripts[*]} rounds=$REPEAT port=$PORT lag=${lag_desc} logs=$base_dir"
-  if [[ "$VELOX_BAND_NAME" == none ]]; then info "band=none (report-only) for map ${MAP_OVERRIDE:-$BAND_MAP_DEFAULT}"; else info "bands=$VELOX_BAND_NAME"; fi
+  if [[ "$VELOX_BAND_NAME" == none ]]; then info "band=none (report-only) for map ${MAP_OVERRIDE:-$BAND_MAP_DEFAULT}"; else info "bands=${VELOX_BAND_LABEL:-$VELOX_BAND_NAME}"; fi
   for s in "${scripts[@]}"; do
     case "$s" in
       FireRunControl|FireRunHold) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "$s needs FireRun.json" ;;

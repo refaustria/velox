@@ -2,7 +2,7 @@
 
 **Milestone:** M5 First real map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done (2026-11-01)
 **Depends on:** 07 (ADR 0006 E3; `infra/ci/bands/L_DM1.sh`, `L_DM1_Blockout.sh` landed), `docs/adr/reviews/0006-06b-review.md` (D3, D4)
 
 ## Goal
@@ -37,3 +37,9 @@ The DM1 band file can state `BAND_BOTRUN_MAJOR_REQUIRED=1` because the BotRun se
 Standard dev report: the printed set lines for the three DM1 sets, the fixture results, the diff summary of the D51/D49 re-evaluations.
 
 ## Notes / outcome
+
+**Outcome (2026-11-01, dev; no UE run, everything by `--reeval` / fixtures on gunzipped copies of the 06b evidence):**
+- `nettest.sh`: majors judged = those with a `VeloxPickupReset`/`VeloxPickupSpawn` line in the round (`major_present` in `stats.json`, fallback to the seven for old stats); `major_covered=n/m`; `not_at_goal` counted (detail line, `stats.json`, `sums:` line); `bands=<map> (file <F>)`. `ffa_summary.py` / `ffa_set.py`: `not_at_goal` per run, in `.json`, on the SET line; `SET bands=` label. `lib.sh` exports `VELOX_BAND_LABEL`. `bands/L_DM1.sh`: `BAND_BOTRUN_MAJOR_REQUIRED=1`. `fixtures/noise/` + README paragraph.
+- DM1 BotRun set: `bands=L_DM1_Blockout (file L_DM1)`, `major_covered=4/4 [Armor_Red,Armor_Yellow,Health_Mega,Powerup_Quad]`, set behaviour PASS, set PASS. BotDuel set: `major_covered=3/3`, set PASS. FFA x10: `SET bands=L_DM1_Blockout (file L_DM1)`, `sum_kills=47 PASS`, all invariants PASS, errors=0. D51 / D49 re-evaluations: identical verdict lines (only the new `not_at_goal=0` field); `0005-D49-m4-final/botduel` is a FAIL before and after (unchanged).
+- Noise fixture: round PASS with no `Error:` note, FFA `errors=0`; one-character-altered copy: `1 Error:` FAIL / `errors=1`.
+- **Deviation from the acceptance text "not_at_goal=0 on every 06b round and run":** the stored logs contain real `VeloxBotPath ... result=not_at_goal` lines: `dm1-botrun` round 3 has 2 (Celer, `failures=2` then `failures=3`, to=(108.66, 152.46, 157.46), t 04:16:57-58) and `dm1-ffa` run 8 has 1. The counter is right; E3's "expectation 0 on DM1" is not met by 06b's own evidence (report-only, no band). Left for the lead / architect.

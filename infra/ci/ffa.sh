@@ -47,7 +47,7 @@ if [ ${#POS[@]} -eq 4 ]; then PORT=${POS[0]}; SECS=${POS[1]}; RUNS=${POS[2]}; OU
 elif [ ${#POS[@]} -ne 0 ]; then die "positional form needs exactly <port> <seconds> <runs> <outdir>"; fi
 
 ci_load_bands "${MAP:-L_ItemTest}"
-if [ "$VELOX_BAND_NAME" = none ]; then echo "[ci] band=none (report-only) for map ${MAP:-L_ItemTest}"; else echo "[ci] bands=$VELOX_BAND_NAME"; fi
+if [ "$VELOX_BAND_NAME" = none ]; then echo "[ci] band=none (report-only) for map ${MAP:-L_ItemTest}"; else echo "[ci] bands=${VELOX_BAND_LABEL:-$VELOX_BAND_NAME}"; fi
 
 if [ -n "$REEVAL" ]; then
   # The saved ffa-*.log are re-summarised into a scratch copy (the saved .json and logs stay untouched).

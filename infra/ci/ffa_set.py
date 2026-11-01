@@ -36,6 +36,7 @@ def band(key):
 
 
 band_name = os.environ.get('VELOX_BAND_NAME', 'none')
+band_label = os.environ.get('VELOX_BAND_LABEL', band_name)   # '<map> (file <F>)' when the map's band file sources another map's
 SUM_KILLS_MIN = band('FFA_KILLS_MIN')    # D51 (1)/(7): was 70 (D49); largest k with P(sum < k) <= 2.5 % at 10 runs
 
 runs = [json.load(open(p)) for p in sorted(glob.glob(sys.argv[1] + '/ffa-*.log.json'), key=lambda p: int(p.split('ffa-')[-1].split('.')[0]))]
@@ -162,13 +163,13 @@ for r in runs:
 print(f"SET runs={len(runs)} {'PASS' if not fails else 'FAIL(' + ';'.join(fails) + ')'} sum_stuck={st} max_run_stuck={max((r['stuck'] for r in runs), default=0)} "
       f"bursts={bursts} pocket={pk} dwell_ge6_runs={d6} max_dwell={max_dwell} wait_max_s={max_wait:.1f} "
       f"max_link_dt={max((r['link_max_dt'] for r in runs), default=0):.2f} sum_kills={ki} min_kills={min((r['kills'] for r in runs), default=0)} "
-      f"sum_repaths={rp} max_run_repaths={max((r['repaths'] for r in runs), default=0)} rules={rules}")
+      f"sum_repaths={rp} max_run_repaths={max((r['repaths'] for r in runs), default=0)} not_at_goal={sum(r.get('not_at_goal', 0) for r in runs)} rules={rules}")
 sp = [s for r in runs for s in r['speed_strikes']]
 print(f"SET speed strikes: {' '.join(sp) if sp else '-'}")
 if band_name == 'none':
     print(f"SET band=none (report-only): sum_kills={ki} not judged; the per-run kills / pickups / Mega bands are not judged either")
 else:
-    print(f"SET bands={band_name}: sum_kills >= {SUM_KILLS_MIN}" + ('' if kills_judged else f' (judged for {D51_KILLS_RUNS} runs only; {len(runs)} run(s): reported)'))
+    print(f"SET bands={band_label}: sum_kills >= {SUM_KILLS_MIN}" + ('' if kills_judged else f' (judged for {D51_KILLS_RUNS} runs only; {len(runs)} run(s): reported)'))
 print('SET invariants (ADR 0006 section 7, every map):')
 for n, v, lim, ok in inv:
     print(f'  {n:<28} {v:<44} limit {lim:<8} {"PASS" if ok else "FAIL"}')
