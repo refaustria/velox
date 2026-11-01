@@ -239,10 +239,15 @@ public:
 	static bool CanPlayAudio(const UWorld* World);
 
 	/**
-	 * Loads every referenced sound once so a first shot does not hitch (clients only; keeps them referenced).
+	 * Loads every referenced sound once so a first shot does not hitch (clients only). The strong references live in
+	 * UVeloxAudioPreloadSubsystem (an engine subsystem), never on this CDO: in a cooked build the CDO sits in the
+	 * Disregard-for-GC pool, so references it gains at runtime are invisible to GC (task M6-01b).
 	 * Logs `VeloxAudio dedicated server: no audio assets loaded` at Verbose on a dedicated server instead.
 	 */
 	static void EnsureLoaded(const UWorld* World);
+
+	/** Every non-null soft reference above that EnsureLoaded preloads (attenuation, concurrency, mix, announcer lines, sounds). */
+	void GetPreloadPaths(TArray<FSoftObjectPath>& OutPaths) const;
 
 	/** 3D one-shot at Location with the attenuation asset and concurrency group; returns whether a sound was started. */
 	static bool PlayAt(const UWorld* World, const TSoftObjectPtr<USoundBase>& Sound, const FVector& Location, EVeloxAudioAttenuation Attenuation,
@@ -265,13 +270,8 @@ public:
 	static int32 GetNumPlayed() { return NumPlayed; }
 
 private:
-	/** Strong references to the loaded sounds (client). */
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UObject>> LoadedAssets;
-
-	bool bLoadedOnce = false;
-	bool bLoggedServer = false;
+	// No runtime state that references UObjects here: this class's CDO is Disregard-for-GC in cooked builds (task M6-01b,
+	// guarded by Velox.Core.SettingsCdoNoRuntimeRefs).
+	static bool bLoggedServer;
 	static int32 NumPlayed;
-
-	void LoadAll();
 };
