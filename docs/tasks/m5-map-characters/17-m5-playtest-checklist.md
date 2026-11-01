@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 15, 16 (map), 08–13 (character, weapons, audio); ADR 0006 §10
 
 ## Goal
@@ -31,3 +31,4 @@
 Standard format; path of the checklist.
 
 ## Notes / outcome
+Done 2026-11-01 (dev, docs only): `docs/playtests/m5-map-characters-checklist.md` (51 rows in 7 tables plus sign-off). Commands checked against `Source/Velox` (`velox.vis.PlaceholderBody`, `velox.settings.Dump`, `velox.bots.*`, `velox.combat.*`, `velox.move.LogCorrections`, the "Force enemy skin" settings row; no teleport cheat exists). Bake and ServerDefaultMap are stated as task 16 part B.
