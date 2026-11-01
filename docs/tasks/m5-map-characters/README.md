@@ -30,7 +30,7 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 | 14 | [modular-kit](14-modular-kit.md) | dev | 3 h | 11, Q4 | 3 | done |
 | 15 | [dm1-art-pass](15-dm1-art-pass.md) | dev | 3 h | 07, 14 | 4 | done (confirmation sets PASS; `notes/15-report.md`) |
 | 16 | [lighting-bake-and-perf-audit](16-lighting-bake-and-perf-audit.md) | dev (A) / human + dev (B) | A 3 h; B bake 1–3 h on the Apple Silicon Mac | A: 05 (tool), 15; B: 15, the Mac (E0.1) | 4 | A done; B waits for the Mac |
-| 16c | [audit-exit-hang](16c-audit-exit-hang.md) | dev | 1–2 h | 16A, 15 | 4 | todo |
+| 16c | [audit-exit-hang](16c-audit-exit-hang.md) | dev | 1–2 h | 16A, 15 | 4 | done |
 | 17 | [m5-playtest-checklist](17-m5-playtest-checklist.md) | dev | 1 h | 15, 16, 08–13 | 4 | done (`docs/playtests/m5-map-characters-checklist.md`) |
 | 18 | [architect-review-cosmetics](18-architect-review-cosmetics.md) | architect | 1–2 h | 08, 09, 10 merged | 4 | done (approve with follow-ups, E1) |
 | 18b | [cosmetics-review-fixes](18b-cosmetics-review-fixes.md) | dev | 2–3 h | 18 (D1–D3, D5–D7); before 17 runs on the Mac | 4 | done |
