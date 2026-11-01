@@ -9,7 +9,8 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 | 01c | [shipping-client-headless-join](01c-shipping-client-headless-join.md) | dev | 2 h | 01, 01b | 1 | — | todo |
 | 02 | [headless-listen-server-gate](02-headless-listen-server-gate.md) | dev-hard | 3 h (+ soak time) | ADR §1 gate; editor part now, packaged part after 01 | 0 / 1 | — | todo |
 | 03 | [directory-service-rust](03-directory-service-rust.md) | dev | 3 h | ADR §2 | 0 | — | done |
-| 04 | [server-heartbeat-and-map-registry](04-server-heartbeat-and-map-registry.md) | dev | 3 h | ADR §2; schema shared with 03/05 | 0 | — | todo |
+| 04 | [server-heartbeat-and-map-registry](04-server-heartbeat-and-map-registry.md) | dev | 3 h | ADR §2; schema shared with 03/05 | 0 | — | done |
+| 04b | [heartbeat-only-with-server-id](04b-heartbeat-only-with-server-id.md) | dev | 1 h | 04 | 0 | — | todo |
 | 05 | [server-browser](05-server-browser.md) | dev | 3 h | ADR §2; 04's `VeloxServerStatus.h` schema | 0 | — | todo |
 | 06 | [deploy-systemd-firewall](06-deploy-systemd-firewall.md) | dev | 3 h (files) + 1 h (apply) | ADR §3; files now; apply after 02 PASS | 1 / 2 | **43, 44** (apply only) | todo |
 | 07 | [server-hardening-rpc-gate-and-connection-policy](07-server-hardening-rpc-gate-and-connection-policy.md) | dev-hard | 3 h (+ soak) | ADR §5.1–5.3 | 0 | 45 (password default only) | todo |
