@@ -159,9 +159,79 @@ def verify_character_cosmetics():
 # ---- end task 08
 
 
+# ---- task 13: weapon meshes, view offsets, rocket light (the meshes come from import_art.py --static)
+WEAPON_MESH_DIR = "/Game/Weapons/Meshes"
+WEAPON_COSMETICS_DIR = "/Game/Weapons"
+# Camera-space placement of the view model (x forward, y right, z up, cm), grip at the mesh origin. FirstPersonScale 0.6 shrinks
+# the placement toward the camera, so the muzzle is seen at 0.6 * (x + muzzle_x). Rule (ADR 0006 section 4.6, task 13): visible
+# lower-right (y 15, z -15), muzzle at ~45 cm forward => x = 75 - muzzle_x, but never so far back that the rear of the mesh sits
+# closer than 2 cm to the eye plane => x >= 2 - rear_x. muzzle_x / rear_x from weapons-spec.md (MG 47/-20, SG 58/-26, PG 49.5/-10,
+# RL 58/-12, LG 46/-16, RG 74/-12). Human tuning replaces these numbers (STATUS question: Mac playtest).
+VIEW_OFFSETS = {
+    "MachineGun": (28.0, 15.0, -15.0),
+    "Shotgun": (28.0, 15.0, -15.0),
+    "PlasmaGun": (26.0, 15.0, -15.0),
+    "RocketLauncher": (17.0, 15.0, -15.0),
+    "LightningGun": (29.0, 15.0, -15.0),
+    "Railgun": (14.0, 15.0, -15.0),
+}
+# The rocket's light in flight (ADR 0006 E1.3): colour, candela, radius. Other weapons keep ProjectileLightIntensity 0.
+ROCKET_LIGHT = {"RocketLauncher": (unreal.LinearColor(1.0, 0.55, 0.2, 1.0), 3000.0, 450.0)}
+
+
+def build_weapon_meshes():
+    for name, (x, y, z) in VIEW_OFFSETS.items():
+        path = f"{WEAPON_COSMETICS_DIR}/DA_WeaponCosmetics_{name}"
+        if not EAL.does_asset_exist(path):
+            fail(f"{path} missing: run create_bootstrap_content.py first")
+            continue
+        da = EAL.load_asset(path)
+        mesh_path = f"{WEAPON_MESH_DIR}/SM_Weapon_{name}"
+        if EAL.does_asset_exist(mesh_path):
+            mesh = EAL.load_asset(mesh_path)
+            da.set_editor_property("world_mesh", mesh)
+            da.set_editor_property("view_mesh", mesh)
+            log(f"{path}: WorldMesh = ViewMesh = {mesh_path}")
+        else:
+            log(f"{mesh_path} not imported yet: {path} keeps its meshes")
+        da.set_editor_property("view_offset", unreal.Transform(location=[x, y, z]))
+        da.set_editor_property("view_scale", 1.0)
+        if name in ROCKET_LIGHT:
+            color, intensity, radius = ROCKET_LIGHT[name]
+            da.set_editor_property("projectile_light_color", color)
+            da.set_editor_property("projectile_light_intensity", intensity)
+            da.set_editor_property("projectile_light_radius", radius)
+        save(da)
+
+
+def verify_weapon_meshes():
+    for name, (x, y, z) in VIEW_OFFSETS.items():
+        da = EAL.load_asset(f"{WEAPON_COSMETICS_DIR}/DA_WeaponCosmetics_{name}")
+        if da is None:
+            continue
+        mesh_path = f"{WEAPON_MESH_DIR}/SM_Weapon_{name}"
+        if EAL.does_asset_exist(mesh_path):
+            wm, vm = da.get_editor_property("world_mesh"), da.get_editor_property("view_mesh")
+            if wm is None or vm is None or wm.get_path_name() != vm.get_path_name() or wm.get_name() != f"SM_Weapon_{name}":
+                fail(f"verify: {name} WorldMesh/ViewMesh {wm} / {vm}")
+            elif wm.find_socket(str(da.get_editor_property("muzzle_socket"))) is None:
+                fail(f"verify: {wm.get_name()} has no {da.get_editor_property('muzzle_socket')} socket")
+        loc = da.get_editor_property("view_offset").translation
+        if abs(loc.x - x) > 0.01 or abs(loc.y - y) > 0.01 or abs(loc.z - z) > 0.01:
+            fail(f"verify: {name} ViewOffset {loc}")
+        if abs(da.get_editor_property("view_scale") - 1.0) > 1e-6:
+            fail(f"verify: {name} ViewScale")
+    rocket = EAL.load_asset(f"{WEAPON_COSMETICS_DIR}/DA_WeaponCosmetics_RocketLauncher")
+    if rocket is not None and rocket.get_editor_property("projectile_light_intensity") <= 0.0:
+        fail("verify: RocketLauncher has no ProjectileLightIntensity")
+# ---- end task 13
+
+
 def main():
     build_character_cosmetics()
     verify_character_cosmetics()
+    build_weapon_meshes()
+    verify_weapon_meshes()
     if ERRORS:
         raise RuntimeError(f"create_cosmetics_content.py: {len(ERRORS)} error(s): {ERRORS}")
     log("done")

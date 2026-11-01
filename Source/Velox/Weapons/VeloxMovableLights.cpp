@@ -24,6 +24,35 @@ namespace VeloxMovableLights
 		return ActiveLights.Num();
 	}
 
+	UPointLightComponent* AcquireAttached(AActor* Owner, USceneComponent* Parent, const FLinearColor& Color, float Intensity, float Radius)
+	{
+		const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();
+		if (!Owner || Settings.MaxMovableLights <= 0 || Intensity <= 0.f)
+		{
+			return nullptr;
+		}
+		Prune();
+		if (ActiveLights.Num() >= Settings.MaxMovableLights)
+		{
+			return nullptr;
+		}
+		USceneComponent* AttachTo = Parent ? Parent : Owner->GetRootComponent();
+		UPointLightComponent* Light = NewObject<UPointLightComponent>(Owner, NAME_None, RF_Transient);
+		Light->SetMobility(EComponentMobility::Movable);
+		Light->SetCastShadows(false);
+		Light->SetIntensityUnits(ELightUnits::Candelas);
+		Light->SetIntensity(Intensity);
+		Light->SetLightColor(Color);
+		Light->SetAttenuationRadius(Radius);
+		if (AttachTo)
+		{
+			Light->SetupAttachment(AttachTo);
+		}
+		Light->RegisterComponent();
+		ActiveLights.Add(Light);
+		return Light;
+	}
+
 	bool Acquire(UWorld* World, AActor* Owner, const FVector& Location, const FLinearColor& Color, float Intensity, float Radius, float Seconds)
 	{
 		const UVeloxAudioSettings& Settings = UVeloxAudioSettings::Get();

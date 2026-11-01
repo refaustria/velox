@@ -29,6 +29,9 @@
 #include "Net/UnrealNetwork.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
 #include "TimerManager.h"
+#include "Components/PointLightComponent.h"
+#include "Core/VeloxWeaponCosmetics.h"
+#include "Weapons/VeloxMovableLights.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxProjectile)
@@ -333,6 +336,7 @@ void AVeloxProjectile::Tick(float DeltaSeconds)
 	{
 		return;
 	}
+	UpdateFlightLight();
 	if (bFake)
 	{
 		TickFake(DeltaSeconds);
@@ -344,6 +348,30 @@ void AVeloxProjectile::Tick(float DeltaSeconds)
 	else
 	{
 		TickProxy(DeltaSeconds);
+	}
+}
+
+void AVeloxProjectile::UpdateFlightLight()
+{
+	// Task M5-13 / ADR 0006 E1.3: the rocket's light rides the projectile on every machine that renders it (the owner's fake,
+	// other clients' proxies, a listen host's real one), never on a dedicated server, counted against MaxMovableLights through
+	// VeloxMovableLights. The cosmetics are only read when resident (the pawn's weapon-cosmetics batch); a refused or early
+	// attempt is retried for a few ticks, then given up so a full budget costs nothing afterwards.
+	if (FlightLight || FlightLightTries >= MaxFlightLightTries || IsNetMode(NM_DedicatedServer) || !Definition)
+	{
+		return;
+	}
+	++FlightLightTries;
+	const UVeloxWeaponCosmetics* Cosmetics = Definition->Cosmetics.Get();
+	if (!Cosmetics || Cosmetics->ProjectileLightIntensity <= 0.f)
+	{
+		return;
+	}
+	FlightLight = VeloxMovableLights::AcquireAttached(this, GetRootComponent(), Cosmetics->ProjectileLightColor, Cosmetics->ProjectileLightIntensity, Cosmetics->ProjectileLightRadius);
+	if (FlightLight)
+	{
+		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileLight seq=%u fake=%d attached intensity=%.0f radius=%.0f active=%d tries=%d"), ShotSeq, bFake ? 1 : 0, Cosmetics->ProjectileLightIntensity,
+			Cosmetics->ProjectileLightRadius, VeloxMovableLights::NumActive(), FlightLightTries);
 	}
 }
 

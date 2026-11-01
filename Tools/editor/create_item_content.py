@@ -109,6 +109,19 @@ def powerup_effect_class(item):
     return cls
 
 
+def item_mesh_path(item):
+    """Task 13: weapon pickups show the weapon's own mesh, every other item SM_Item_<Type>_<Name> (import_art.py --static)."""
+    if item["type"] == WEAPON:
+        return f"{WEAPON_DIR}/Meshes/SM_Weapon_{item['name']}"
+    return f"/Game/Items/Meshes/SM_Item_{TYPE_NAMES[item['type']]}_{item['name']}"
+
+
+def item_mesh(item):
+    """The imported static mesh, or None before the meshes were imported (the pickup then keeps its placeholder cube)."""
+    path = item_mesh_path(item)
+    return EAL.load_asset(path) if EAL.does_asset_exist(path) else None
+
+
 def item_values(item):
     type_name = TYPE_NAMES[item["type"]]
     initial = POWERUP_INITIAL_DELAY if item["type"] == POWERUP else (0.0, 0.0)
@@ -132,6 +145,9 @@ def item_values(item):
         "placeholder_color": item["color"],
         "placeholder_scale": unreal.Vector(*item["scale"]),
     }
+    mesh = item_mesh(item)
+    if mesh is not None:
+        values["mesh"] = mesh
     if item.get("disabled_in_modes"):
         container = unreal.GameplayTagContainer()
         container.import_text("(GameplayTags=(" + ",".join('(TagName="%s")' % t for t in item["disabled_in_modes"]) + "))")
@@ -179,6 +195,10 @@ def verify_items():
                 fail(f"{path}.{k} = {got}, expected {want}")
         if ("weapon" in item) != (da.get_editor_property("weapon") is not None):
             fail(f"{path}.weapon mismatch")
+        want_mesh = item_mesh(item)
+        got_mesh = da.get_editor_property("mesh")
+        if want_mesh is not None and (got_mesh is None or got_mesh.get_path_name() != want_mesh.get_path_name()):
+            fail(f"{path}.mesh = {got_mesh}, expected {want_mesh.get_path_name()}")
         want_modes = sorted(item.get("disabled_in_modes", ()))
         got_modes = sorted(str(t.get_editor_property("tag_name")) for t in da.get_editor_property("disabled_in_modes").gameplay_tags) \
             if hasattr(da.get_editor_property("disabled_in_modes"), "gameplay_tags") else None
