@@ -16,6 +16,7 @@
 #include "GameFramework/Actor.h"
 #include "GameFramework/WorldSettings.h"
 #include "Items/VeloxItemDefinition.h"
+#include "Materials/MaterialInterface.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "StaticMeshResources.h"
 #include "Weapons/VeloxMovableLights.h"
@@ -24,6 +25,7 @@ namespace VeloxArtContentTest
 {
 	constexpr int32 MaxWeaponTriangles = 1500;
 	constexpr int32 MaxItemTriangles = 400;
+	constexpr int32 MaxProjectileTriangles = 150;
 	constexpr float MaxItemHeightCm = 60.f;
 
 	const TCHAR* WeaponNames[] = { TEXT("MachineGun"), TEXT("Shotgun"), TEXT("PlasmaGun"), TEXT("RocketLauncher"), TEXT("LightningGun"), TEXT("Railgun") };
@@ -96,6 +98,61 @@ bool FVeloxWeaponMeshesTest::RunTest(const FString& Parameters)
 	if (TestNotNull(TEXT("rocket cosmetics"), Rocket))
 	{
 		TestTrue(TEXT("the rocket carries a flight light"), Rocket->ProjectileLightIntensity > 0.f && Rocket->ProjectileLightRadius > 0.f);
+	}
+	return true;
+}
+
+// Task M5-13b: rocket and plasma fly with a mesh (<= 150 triangles, unlit material) and a trail; the four hitscan weapons draw a tracer whose
+// lifetime comes from data (rail ~0.5 s, MG / SG ~0.05 s); the soft references are part of the resident batch.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxProjectileVisualsTest, "Velox.Art.ProjectileVisuals",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FVeloxProjectileVisualsTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxArtContentTest;
+	const auto Load = [](const TCHAR* Name) { return LoadObject<UVeloxWeaponCosmetics>(nullptr, *FString::Printf(TEXT("/Game/Weapons/DA_WeaponCosmetics_%s.DA_WeaponCosmetics_%s"), Name, Name)); };
+	for (const TCHAR* Name : { TEXT("RocketLauncher"), TEXT("PlasmaGun") })
+	{
+		const UVeloxWeaponCosmetics* Data = Load(Name);
+		if (!TestNotNull(*FString::Printf(TEXT("%s cosmetics"), Name), Data))
+		{
+			continue;
+		}
+		const UStaticMesh* Mesh = Data->ProjectileMesh.LoadSynchronous();
+		if (TestNotNull(*FString::Printf(TEXT("%s ProjectileMesh"), Name), Mesh))
+		{
+			CheckCommon(*this, FString::Printf(TEXT("%s projectile"), Name), *Mesh, MaxProjectileTriangles);
+			const UMaterialInterface* Material = Mesh->GetMaterial(0);
+			TestTrue(*FString::Printf(TEXT("%s projectile material is unlit"), Name), Material && Material->GetShadingModels().HasShadingModel(MSM_Unlit));
+		}
+		TestTrue(*FString::Printf(TEXT("%s has a trail"), Name), Data->ProjectileTrailLength > 0.f);
+		TestEqual(*FString::Printf(TEXT("%s draws no hitscan tracer"), Name), Data->TracerLifetime, 0.f);
+		TArray<FSoftObjectPath> Paths;
+		Data->GetSoftReferences(Paths);
+		TestTrue(*FString::Printf(TEXT("%s soft references include the projectile mesh and the trail mesh/material"), Name),
+			Paths.Contains(Data->ProjectileMesh.ToSoftObjectPath()) && Paths.Contains(Data->TracerMesh.ToSoftObjectPath()) && Paths.Contains(Data->TracerMaterial.ToSoftObjectPath()));
+	}
+	struct FTracerRow { const TCHAR* Name; float MinLife; float MaxLife; };
+	for (const FTracerRow& Row : { FTracerRow{ TEXT("Railgun"), 0.4f, 0.6f }, FTracerRow{ TEXT("MachineGun"), 0.02f, 0.1f }, FTracerRow{ TEXT("Shotgun"), 0.02f, 0.1f },
+		FTracerRow{ TEXT("LightningGun"), 0.02f, 0.15f } })
+	{
+		const UVeloxWeaponCosmetics* Data = Load(Row.Name);
+		if (!TestNotNull(*FString::Printf(TEXT("%s cosmetics"), Row.Name), Data))
+		{
+			continue;
+		}
+		TestTrue(*FString::Printf(TEXT("%s TracerLifetime %.2f in [%.2f, %.2f]"), Row.Name, Data->TracerLifetime, Row.MinLife, Row.MaxLife), Data->TracerLifetime >= Row.MinLife && Data->TracerLifetime <= Row.MaxLife);
+		TestTrue(*FString::Printf(TEXT("%s TracerWidth > 0"), Row.Name), Data->TracerWidth > 0.f);
+		const UStaticMesh* Mesh = Data->TracerMesh.LoadSynchronous();
+		if (TestNotNull(*FString::Printf(TEXT("%s TracerMesh"), Row.Name), Mesh))
+		{
+			CheckCommon(*this, FString::Printf(TEXT("%s tracer"), Row.Name), *Mesh, MaxProjectileTriangles);
+		}
+		const UMaterialInterface* Material = Data->TracerMaterial.LoadSynchronous();
+		if (TestNotNull(*FString::Printf(TEXT("%s TracerMaterial"), Row.Name), Material))
+		{
+			TestTrue(*FString::Printf(TEXT("%s tracer material is unlit"), Row.Name), Material->GetShadingModels().HasShadingModel(MSM_Unlit));
+		}
 	}
 	return true;
 }

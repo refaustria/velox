@@ -2,7 +2,7 @@
 
 **Milestone:** M5 First real map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done (pending lead merge; nothing viewed on a real render)
 **Depends on:** 13 (weapon/item models, rocket flight light), 18c (`UVeloxWeaponCosmetics`, `UVeloxAssetManager::LoadWeaponCosmetics`), ADR 0006 E1
 
 ## Goal
@@ -42,4 +42,12 @@ Task 13 found that `AVeloxProjectile` has no mesh: a flying rocket shows only it
 Standard format; note that nothing was viewed on a real render (Mac playtest item).
 
 ## Notes / outcome
-(Filled by the agent.)
+Baseline on the fresh head (13 + 15 merged): `build.sh` CI OK, 122 tests passed, 0 failed. After this task: 123 (new `Velox.Art.ProjectileVisuals`).
+
+- Blender (`weapons_items.py`): `SM_Projectile_Rocket` (90 tris, 17 cm), `SM_Projectile_Plasma` (48 tris, 8 cm), `SM_Fx_Tracer` (20 tris, unit bar 100 cm x 1 cm radius along +X); manifest key `projectiles`. FBX export is not byte-deterministic, so only the three new FBXs were committed (the 23 existing FBXs were restored).
+- Import (`import_art.py --static`): new unlit materials `M_Projectile_Unlit` (palette x 2.0 emissive) and `M_Tracer_Unlit` (`Color` vector parameter x `Intensity` 4, opaque); meshes in `/Game/Weapons/Meshes`. The import rewrites every existing asset; only the new assets and the six `DA_WeaponCosmetics_*` were kept, the rest restored (LFS growth about 0.4 MB).
+- `UVeloxWeaponCosmetics`: `ProjectileMesh`, `ProjectileTrailLength`, `TracerMesh`, `TracerMaterial`, `TracerColor`, `TracerWidth`, `TracerLifetime` (all soft, all in `GetSoftReferences`, so the one resident batch carries them). Data: rocket trail 60 cm, plasma 28 cm; tracers rail 0.5 s, MG/SG 0.05 s, LG 0.06 s.
+- `AVeloxProjectile::UpdateProjectileVisuals`: lazily creates mesh + trail components from `Get()` (retry 30 ticks), never on a dedicated server, real/fake/proxy alike. Verbose `VeloxProjectileMesh seq= fake= mesh= trail_cm= tries=`.
+- `UVeloxCombatFeedbackComponent::SpawnTracer` on the executed `.Fire` cue of weapons with `TracerLifetime > 0`: transient stretched-bar component destroyed by a weak timer, tinted through a MID. The own pawn starts at the view model's muzzle socket scaled by `FirstPersonScale`; everyone else at the cue origin (the eye), because the pawn has no world weapon mesh yet. The LG gets a per-shot segment (no beam mesh existed). Verbose `VeloxTracer weapon= pawn= from= to= len_cm= life= muzzle=`.
+- `nettest.sh` server-log gate now also rejects `VeloxProjectileMesh ` and `VeloxTracer `.
+- Not viewed on a real render (Mac playtest item): colours, widths and the first-person tracer origin are untested by eye. The L_DM1 audit prints `LIGHTING FAIL` (map not baked), takes about 15 min, and its UE process then hangs at exit (killed by hand); both are independent of this task.

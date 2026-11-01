@@ -19,6 +19,9 @@ void UVeloxWeaponCosmetics::GetSoftReferences(TArray<FSoftObjectPath>& OutPaths)
 	};
 	Add(WorldMesh.ToSoftObjectPath());
 	Add(ViewMesh.ToSoftObjectPath());
+	Add(ProjectileMesh.ToSoftObjectPath());
+	Add(TracerMesh.ToSoftObjectPath());
+	Add(TracerMaterial.ToSoftObjectPath());
 	Add(FireSound.ToSoftObjectPath());
 	Add(ImpactSound.ToSoftObjectPath());
 	Add(BeamStart.ToSoftObjectPath());

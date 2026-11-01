@@ -5,6 +5,11 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Character/VeloxAnimInstance.h"
+#include "Character/VeloxViewModelComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Core/VeloxViewModelSettings.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "Combat/VeloxCombatLog.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxGameplayEffectContext.h"
@@ -171,6 +176,7 @@ void UVeloxCombatFeedbackComponent::HandleCue(const FGameplayTag& CueTag, EGamep
 		PlayCueAudio(CueTag, TagName, Start, Parameters.Location);
 		if (TagName.EndsWith(TEXT(".Fire")))
 		{
+			SpawnTracer(CueTag, Start, Parameters.Location);
 			++NumFireCues;
 			OnFireCue.Broadcast();
 			// ADR 0006 section 4.5 (task 08): one-frame bFiring for the AnimGraph's Fire_Upper slot.
@@ -312,6 +318,75 @@ void UVeloxCombatFeedbackComponent::PlayCueAudio(const FGameplayTag& CueTag, con
 		// Impacts come from the hit point.
 		UVeloxAudioSettings::PlayAt(World, Cosmetics->ImpactSound, End, Cosmetics->ImpactAttenuation, EVeloxAudioConcurrency::Impacts, *TagName);
 	}
+}
+
+void UVeloxCombatFeedbackComponent::SpawnTracer(const FGameplayTag& CueTag, const FVector& Start, const FVector& End)
+{
+	UWorld* World = GetWorld();
+	AActor* Owner = GetOwner();
+	if (!World || !Owner || World->GetNetMode() == NM_DedicatedServer)
+	{
+		return;
+	}
+	const UVeloxWeaponDefinition* Definition = FindCueDefinition(CueTag);
+	const UVeloxWeaponCosmetics* Cosmetics = Definition ? Definition->Cosmetics.Get() : nullptr;
+	if (!Cosmetics || Cosmetics->TracerLifetime <= 0.f || CueTag != Definition->FireCueTag)
+	{
+		return;
+	}
+	UStaticMesh* Mesh = Cosmetics->TracerMesh.Get();
+	UMaterialInterface* Material = Cosmetics->TracerMaterial.Get();
+	if (!Mesh || !Material)
+	{
+		return;
+	}
+
+	FVector From = Start;
+	bool bFromViewModel = false;
+	if (UVeloxAudioSettings::IsLocalPlayerPawn(Cast<APawn>(Owner)))
+	{
+		const UVeloxViewModelComponent* ViewModel = Owner->FindComponentByClass<UVeloxViewModelComponent>();
+		const UStaticMeshComponent* ViewMesh = ViewModel ? ViewModel->GetViewMeshComponent() : nullptr;
+		if (ViewMesh && ViewMesh->IsVisible() && ViewMesh->DoesSocketExist(Cosmetics->MuzzleSocket))
+		{
+			// The view model is rendered with FirstPersonScale (it shrinks toward the camera): scale the socket the same way, from the eye.
+			const FVector Socket = ViewMesh->GetSocketLocation(Cosmetics->MuzzleSocket);
+			From = Start + (Socket - Start) * ViewModel->GetSettings().FirstPersonScale;
+			bFromViewModel = true;
+		}
+	}
+	const FVector Delta = End - From;
+	const float Length = static_cast<float>(Delta.Size());
+	if (Length < 1.f || !Owner->GetRootComponent())
+	{
+		return;
+	}
+
+	LiveTracers.RemoveAll([](const UStaticMeshComponent* Tracer) { return !IsValid(Tracer); });
+	UStaticMeshComponent* Tracer = NewObject<UStaticMeshComponent>(Owner, NAME_None, RF_Transient);
+	Tracer->SetStaticMesh(Mesh);
+	Tracer->SetMobility(EComponentMobility::Movable);
+	Tracer->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Tracer->SetGenerateOverlapEvents(false);
+	Tracer->SetCastShadow(false);
+	Tracer->bAffectDynamicIndirectLighting = false;
+	Tracer->SetCanEverAffectNavigation(false);
+	Tracer->SetupAttachment(Owner->GetRootComponent());
+	Tracer->SetUsingAbsoluteLocation(true);
+	Tracer->SetUsingAbsoluteRotation(true);
+	Tracer->SetUsingAbsoluteScale(true);
+	Tracer->RegisterComponent();
+	// The unit beam runs from its origin along +X, 100 cm long, 1 cm radius.
+	Tracer->SetWorldTransform(FTransform(Delta.ToOrientationQuat(), From, FVector(Length / 100.f, Cosmetics->TracerWidth, Cosmetics->TracerWidth)));
+	if (UMaterialInstanceDynamic* Mid = Tracer->CreateDynamicMaterialInstance(0, Material))
+	{
+		Mid->SetVectorParameterValue(TEXT("Color"), Cosmetics->TracerColor);
+	}
+	LiveTracers.Add(Tracer);
+	FTimerHandle Handle;
+	World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(Tracer, [Tracer]() { Tracer->DestroyComponent(); }), Cosmetics->TracerLifetime, false);
+	UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxTracer weapon=%s pawn=%s from=%s to=%s len_cm=%.0f life=%.2f muzzle=%d"), *GetNameSafe(Definition), *GetNameSafe(Owner), *From.ToCompactString(),
+		*End.ToCompactString(), Length, Cosmetics->TracerLifetime, bFromViewModel ? 1 : 0);
 }
 
 void UVeloxCombatFeedbackComponent::UpdateBeamAudio(const FGameplayTag& CueTag, bool bStart)

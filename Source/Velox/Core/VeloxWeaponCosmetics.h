@@ -12,6 +12,7 @@
 
 class UStaticMesh;
 class USoundBase;
+class UMaterialInterface;
 
 UCLASS(BlueprintType, Const, Meta = (DisplayName = "Velox Weapon Cosmetics"))
 class VELOX_API UVeloxWeaponCosmetics : public UPrimaryDataAsset
@@ -73,6 +74,33 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Light", Meta = (ClampMin = "0", Units = "cm"))
 	float ProjectileLightRadius = 400.f;
+
+	/** Projectile weapons: the mesh that flies (unlit, bright; task M5-13b). Empty = the projectile shows only its light. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Projectile")
+	TSoftObjectPtr<UStaticMesh> ProjectileMesh;
+
+	/** Length of the trail behind a projectile (cm, a stretched TracerMesh in TracerColor / TracerWidth); 0 = no trail. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Projectile", Meta = (ClampMin = "0", Units = "cm"))
+	float ProjectileTrailLength = 0.f;
+
+	/** Unit beam (100 cm along +X, 1 cm radius; SM_Fx_Tracer) stretched per shot into the hitscan tracer and the projectile trail. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Tracer")
+	TSoftObjectPtr<UStaticMesh> TracerMesh;
+
+	/** Unlit material with a `Color` vector parameter (M_Tracer_Unlit). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Tracer")
+	TSoftObjectPtr<UMaterialInterface> TracerMaterial;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Tracer")
+	FLinearColor TracerColor = FLinearColor::White;
+
+	/** Radius scale of the unit beam (1 = 1 cm radius). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Tracer", Meta = (ClampMin = "0"))
+	float TracerWidth = 0.5f;
+
+	/** Seconds a hitscan tracer stays (rail ~0.5, MG / shotgun ~0.05); 0 = this weapon draws no tracer (projectile weapons). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapon|Tracer", Meta = (ClampMin = "0", Units = "s"))
+	float TracerLifetime = 0.f;
 
 	/** Every soft reference of this asset (meshes, sounds), for the asset manager's resident load (UVeloxAssetManager::LoadWeaponCosmetics). */
 	void GetSoftReferences(TArray<FSoftObjectPath>& OutPaths) const;

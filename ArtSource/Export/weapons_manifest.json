@@ -403,7 +403,54 @@
    ]
   }
  ],
- "total_tris": 2052,
+ "projectiles": [
+  {
+   "bounds_max": [
+    11.0,
+    2.03,
+    5.5
+   ],
+   "bounds_min": [
+    -6.0,
+    -2.03,
+    -5.5
+   ],
+   "fbx": "SM_Projectile_Rocket.fbx",
+   "name": "SM_Projectile_Rocket",
+   "tris": 90
+  },
+  {
+   "bounds_max": [
+    4.0,
+    4.0,
+    4.0
+   ],
+   "bounds_min": [
+    -4.0,
+    -4.0,
+    -4.0
+   ],
+   "fbx": "SM_Projectile_Plasma.fbx",
+   "name": "SM_Projectile_Plasma",
+   "tris": 48
+  },
+  {
+   "bounds_max": [
+    100.0,
+    0.87,
+    1.0
+   ],
+   "bounds_min": [
+    0.0,
+    -0.87,
+    -1.0
+   ],
+   "fbx": "SM_Fx_Tracer.fbx",
+   "name": "SM_Fx_Tracer",
+   "tris": 20
+  }
+ ],
+ "total_tris": 2210,
  "weapons": [
   {
    "bounds_max": [
