@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev
-**Status:** todo
+**Status:** done (see notes/01-report.md; two caveats: iterative-cook speedup <2x, Development server GC crash after ~61 s)
 **Depends on:** ADR 0007 §1 (a), §2 (versioning rule), §4
 
 ## Goal
@@ -43,4 +43,4 @@
 Standard format plus: wall times of the first and the iterative cook, archive sizes, the UAT path that worked (`-skipcook` vs `+` configs), the exact `Listening`/`Initialized` log line used for the smoke, free space before/after, and anything the Shipping client printed to the log in its 20 s.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+Done by dev agent; details, timings and findings in `docs/tasks/m6-online/notes/01-report.md`.

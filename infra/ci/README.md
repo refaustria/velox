@@ -68,6 +68,19 @@ After a green build and tests, `build.sh` audits the DM1 maps that exist (`Tools
 
 **`DM1Run`** (M5 task 06, ADR 0006 section 7; in the default list after `PadRun`, on `L_DM1_Blockout`, 100 ms / 2 % like `PadRun`, judged like it: 3 pads launched live with equal client/server `ts`, Σ strays <= 2.5 cm, but `checks=7/7`). `Content/Data/MoveScripts/DM1Run.json` is a dead-reckoned walk (800 cm/s legs, 0.45 s coasts) from C's west end along C to the east, south through B's north door, over pad B to the balcony, bridge E to the D balcony, drop to D lower, D lower east to west, north through A's south door, over pad A to the ledge, bridge W to the D balcony, drop, and over pad D to the tower top. The bot rounds also print a report-only `ra returns (s, respawn->take)` line (Red Armor, M5 task 06). A layout change that moves a door, wall or pad edge on that route moves a checkpoint: re-run it and re-tune the leg lengths (the client log prints every row's position).
 
+## Release package (`infra/ci/package.sh`, M6 task 01)
+
+`infra/ci/package.sh [--platform Linux] [--version vX.Y.Z | --dev] [--out DIR] [--skip-build]` builds, cooks once and produces
+`Velox-<ver>-Linux.tar.zst` (Shipping client, no symbols) and `Velox-<ver>-LinuxServer.tar.zst` (Development binary + symbols; a headless
+*listen* host, see ADR 0007), plus `SHA256SUMS` and `MANIFEST.json` (version, net_version, sha256, size, built_at, commit) in
+`${VELOX_OUT:-Saved/CI}/packages/<ver>/`. `build.sh --package` runs it after a green build and tests.
+
+- **Version rule (ADR 0007 section 2):** without `--dev` HEAD must be tagged exactly `vX.Y.Z` and `ProjectVersion=X.Y.Z` in `Config/DefaultGame.ini`, else exit 2. `--dev` yields `<ProjectVersion>+<sha>` and prints `DEV BUILD - do not publish`.
+- **Disk rule:** refuses to start below 12 GB free; `Saved/StagedBuilds` is deleted after each UAT pass; `Saved/Cooked` is deleted only if free space is below 15 GB after archiving (otherwise kept so `--skip-build` can cook iteratively). The raw UAT archive dirs are deleted once tarred.
+- **Smoke:** the server archive is extracted and its Development binary run 30 s as `L_ItemTest?listen?game=FFA?SpectatorOnly=1` on port 7797 (`-nullrhi`); a Development client from the same archive joins it (`Welcomed by server`, and the server logs `LogNetVersion: Velox <ver>, ... (Checksum: N)`, recorded as `net_version` in `MANIFEST.json`); the Shipping binary runs 20 s with `-game -nullrhi` and must stay alive. Processes are started as the engine binary directly (not through `Velox.sh`, which does not `exec`, so signalling it would orphan the engine) and stopped by PID with SIGTERM, which must end them within 30 s.
+- `~/.local/bin/env` (a non-executable shell snippet) shadows `/usr/bin/env` and breaks UAT staging; the script drops such PATH entries for its UAT run.
+- Run under the shared lock on the CI VM: `flock -o <lock> infra/ci/package.sh ...`.
+
 ## Caveats
 
 Not executed against a real engine: Unreal Engine is not installed on the dev VM. Only `--dry-run` and error paths have been verified. The `index.json` field names (`tests[].fullTestPath`, `state`) follow the UE automation report format and must be confirmed on first real run.
