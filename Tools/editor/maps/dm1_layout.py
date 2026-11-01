@@ -50,7 +50,7 @@ Pad = namedtuple("Pad", "id x y target land")                                  #
 Item = namedtuple("Item", "id definition x y z disabled_in_modes")
 Spawn = namedtuple("Spawn", "id x y yaw")
 Link = namedtuple("Link", "id type start end pad")                              # type: JUMP_PAD | ROCKET_JUMP | DROP | JUMP | JUMP_FAST
-Light = namedtuple("Light", "id kind x y z")                                    # placeholder for task 15 (ignored in blockout mode)
+Light = namedtuple("Light", "id kind x y z lumens rgb radius ceiling")        # art mode only (task 15): Static point light; `ceiling` = z of the ceiling underside the Light_Fixture hangs from (None: no fixture)
 Clip = namedtuple("Clip", "id x0 x1 y0 y1 z0 z1")                               # invisible BlockAll, no nav influence
 
 # Kinds: floor/wall/platform/step stand on the ground (fill_collision_underneath_for_navmesh on); ramp, bridge, bridgewall and
@@ -265,14 +265,34 @@ LINKS = [
     _drop("Drop_Top_E", 200 - DROP_IN, 0, 640, 200 + DROP_OUT, 0, 320),
 ]
 
-# ---------------------------------------------------------------- lights (task 15 placeholders; not spawned in blockout mode)
-LIGHTS = [
-    Light("L_A", "point", -2600, 0, 700),
-    Light("L_B", "point", 2600, 0, 700),
-    Light("L_E", "point", 0, 0, 1100),
-    Light("L_C", "rect", 0, 1100, 380),
-    Light("L_D", "rect", 0, -1500, 880),
-]
+# ---------------------------------------------------------------- lights (task 15; art mode only, never spawned in blockout mode)
+# Static point lights, one per ceiling fixture (kit piece Light_Fixture). Colours stay inside the style guide's environment palette
+# (warm A, cool B, neutral C/D, cold white E); lumens / attenuation radius are the authored look, to be judged on the Mac bake.
+WARM, COOL, NEUTRAL, COLD = (1.0, 0.86, 0.68), (0.72, 0.84, 1.0), (1.0, 0.97, 0.9), (0.85, 0.92, 1.0)
+
+
+def _row(prefix, xs, y, z, lumens, rgb, radius, ceiling):
+    return [Light(f"{prefix}{i + 1}", "point", x, y, z, lumens, rgb, radius, ceiling) for i, x in enumerate(xs)]
+
+
+LIGHTS = (
+    _row("L_A_N", (-3000, -2400), 350, 740, 3200, WARM, 1700, 800) + _row("L_A_S", (-3000, -2400), -350, 740, 3200, WARM, 1700, 800)
+    + [Light("L_A_Ledge", "point", -1850, 0, 740, 3000, WARM, 1500, 800)]
+    + _row("L_B_N", (3000, 2400), 350, 740, 3200, COOL, 1700, 800) + _row("L_B_S", (3000, 2400), -350, 740, 3200, COOL, 1700, 800)
+    + [Light("L_B_Ledge", "point", 1850, 0, 740, 3000, COOL, 1500, 800)]
+    + _row("L_C", (-3000, -2000, -1000, 0, 1000, 2000, 3000), 1100, 360, 1800, NEUTRAL, 1200, 400)
+    + _row("L_D", (-3000, -2250, -1500, -750, 0, 750, 1500, 2250, 3000), -1500, 840, 2800, NEUTRAL, 1600, 900)
+    + [Light("L_E_W", "point", -350, 0, 1180, 4200, COLD, 1800, 1240), Light("L_E_C", "point", 0, 0, 1180, 4200, COLD, 1800, 1240),
+       Light("L_E_E", "point", 350, 0, 1180, 4200, COLD, 1800, 1240),
+       Light("L_WalkW", "point", -1100, 0, 1180, 2200, COLD, 1300, 1240), Light("L_WalkE", "point", 1100, 0, 1180, 2200, COLD, 1300, 1240)]
+)
+
+# Sphere reflection captures (128 px): id, x, y, z, influence radius
+CAPTURES = (
+    ("RC_A", -2600, 0, 350, 1800), ("RC_B", 2600, 0, 350, 1800), ("RC_C", 0, 1100, 200, 1900), ("RC_DW", -1800, -1500, 300, 1600),
+    ("RC_DE", 1800, -1500, 300, 1600), ("RC_E", 0, 0, 350, 900), ("RC_ETop", 0, 0, 800, 700),
+)
+LIGHTMASS_VOLUME = ((0.0, -400.0, 650.0), (7200.0, 4000.0, 1500.0))      # LightmassImportanceVolume centre, size
 
 # ---------------------------------------------------------------- clip: perimeter flush outside the walls, global roof, a ceiling per room
 # (a room ceiling covers the walls' full thickness so no wall top is exposed)

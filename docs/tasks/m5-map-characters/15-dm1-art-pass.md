@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 06/07 (blockout accepted with bands), 14 (kit), 16's `audit_map.py` may be developed in parallel but must exist before acceptance; ADR 0006 §2, §5
 
 ## Goal
@@ -34,3 +34,7 @@
 Standard format; the audit table, the soak summary lines, the kit instance count.
 
 ## Notes / outcome
+
+**Outcome (2026-11-01, dev):** done. `L_DM1` generated (518 kit instances); audit PASS (draw calls 568/600, collision diff 0, protrusion 0); navlint clusters=0; FT_DM1_Reachability PASS on L_DM1;
+BotRun x3, BotDuel x3, FFA x10 and DM1Run PASS under `bands/L_DM1.sh`. Not baked, not in `+MapsToCook`. Deviations (wedge pieces unusable under the bounding-box audit, scaled tiles, runner map
+hard-coding) and the per-record link table are in `notes/15-report.md`; evidence in `docs/adr/evidence/0006-dm1-art/`.
