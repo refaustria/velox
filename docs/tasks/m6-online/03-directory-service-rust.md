@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** ADR 0007 §2 (protocol and schemas), §3 (`veloxmaster.service`)
 
 ## Goal
@@ -40,4 +40,4 @@ A small Rust service receives heartbeats from game servers on loopback, keeps an
 Standard format plus: crate dependency list with versions, binary size, idle RSS, the golden `servers.json`, and any schema detail the ADR left open that you had to decide (report, do not improvise silently).
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+Done; see notes/03-report.md. Verified live on loopback 8421/8422: 204, addresses substituted, TTL expiry rewrites file, 400/401, bound to 127.0.0.1 only.

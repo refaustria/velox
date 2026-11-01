@@ -20,3 +20,9 @@ TLS (first time; certbot rewrites the installed copy to add 443 and the redirect
 Renewal is automatic via `certbot.timer` (`systemctl list-timers | grep certbot`);
 test with `sudo certbot renew --dry-run`. Note: certbot modifies the installed
 file, so the repo copy is the pre-certbot template.
+
+Status directory ownership (ADR 0007 section 2/3): `/var/www/games.inceptum.at/status/`
+is owned by the `veloxmaster` system user (`chown veloxmaster:www-data`, mode 2755),
+which is the only writer of `servers.json` (see `infra/master/README.md`). nginx only
+reads it; the existing `/status/` location (JSON, `no-cache`) needs no change and the
+heartbeat port (127.0.0.1:8790) is not proxied.
