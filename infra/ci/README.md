@@ -68,3 +68,5 @@ Add tests: put `IMPLEMENT_SIMPLE_AUTOMATION_TEST` tests named `Velox.<Area>.<Nam
 
 Not executed against a real engine: Unreal Engine is not installed on the dev VM. Only `--dry-run` and error paths have been verified. The `index.json` field names (`tests[].fullTestPath`, `state`) follow the UE automation report format and must be confirmed on first real run.
 shellcheck: no suppressions.
+
+**DM1 map override (M5 task 07d).** `fts.sh --dm1-map <Map>` (or env `VELOX_DM1_MAP`) runs `FtDm1Reachability` on another map (default `L_DM1_Blockout`; `--dm1-map L_DM1` for the art map). `nettest.sh --map <Map>` now also applies to `DM1Run` (default `L_DM1_Blockout`; `--scripts DM1Run --map L_DM1`); DM1Run has no band file, it is judged like PadRun. Both defaults stay on the blockout until decision 40.
