@@ -1,0 +1,12 @@
+== start 00:19:32
+ 00:19:32 up 18 days, 11:10,  2 users,  load average: 3.75, 3.49, 2.93
+214232 /opt/UnrealEngine-5.8/Engine/Binaries/Linux/UnrealEditor-Cmd /home/bojan/velox/.claude/worktrees/agent-aef158e55e4aa9a6f/Velox.uproje
+221015 /opt/UnrealEngine-5.8/Engine/Binaries/Linux/UnrealEditor-Cmd /home/bojan/velox/.claude/worktrees/agent-aef158e55e4aa9a6f/Velox.uproje
+228048 /opt/UnrealEngine-5.8/Engine/Binaries/Linux/UnrealEditor-Cmd /home/bojan/velox/.claude/worktrees/agent-aef158e55e4aa9a6f/Velox.uproje
+/dev/vdb        125G  103G   17G  87% /
+== end 00:31:14
+ 00:31:14 up 18 days, 11:21,  2 users,  load average: 2.18, 2.58, 2.75
+214232 /opt/UnrealEngine-5.8/Engine/Binaries/Linux/UnrealEditor-Cmd /home/bojan/velox/.claude/worktrees/agent-aef158e55e4aa9a6f/Velox.uproje
+221015 /opt/UnrealEngine-5.8/Engine/Binaries/Linux/UnrealEditor-Cmd /home/bojan/velox/.claude/worktrees/agent-aef158e55e4aa9a6f/Velox.uproje
+228048 /opt/UnrealEngine-5.8/Engine/Binaries/Linux/UnrealEditor-Cmd /home/bojan/velox/.claude/worktrees/agent-aef158e55e4aa9a6f/Velox.uproje
+/dev/vdb        125G  103G   17G  87% /

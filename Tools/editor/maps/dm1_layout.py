@@ -149,7 +149,7 @@ RAMPS = [
 PADS = [
     Pad("PadA", -2600, -450, (-2100, -450, 420), (-1954, -450, 320)),   # lower A -> ledge
     Pad("PadB", 2600, 0, (2100, 0, 420), (1954, 0, 320)),                # lower B -> balcony
-    Pad("PadD", 0, -1150, (0, -250, 740), (0, -60, 640)),                 # lower D -> E top (the RG pad), over the south gate
+    Pad("PadD", 0, -950, (0, -250, 740), (0, -98, 640)),                 # lower D -> E top (the RG pad), over the south gate; off the x = 0 RL line and the lane centre (task 06)
 ]
 
 # ---------------------------------------------------------------- items
@@ -177,7 +177,7 @@ ITEMS = [
     _it("Mega", "Health.Mega", -2050, 660, 320),
     _it("PG", "Weapon.PlasmaGun", -2800, 500),
     _it("CellsAmmo", "Ammo.Cells", -2900, -550),
-    _it("A_H25_1", "Health.Medium", -3300, -300),
+    _it("A_H25_1", "Health.Medium", -3000, 350),
     _it("A_H25_2", "Health.Medium", -2500, 450),
     _it("A_Shard_1", "Armor.Shard", -2800, 0, ramp_z(_R, -2800)),
     _it("A_Shard_2", "Armor.Shard", -2500, 0, ramp_z(_R, -2500)),
@@ -188,22 +188,22 @@ ITEMS = [
     _it("ShellsAmmo", "Ammo.Shells", 3250, -500),
     _it("B_H25_1", "Health.Medium", 2900, -150),
     _it("B_H25_2", "Health.Medium", 3250, -150),
-    _it("B_Shard_1", "Armor.Shard", 2775, 500, stair_z(2900, -1, 2775)),
-    _it("B_Shard_2", "Armor.Shard", 2575, 500, stair_z(2900, -1, 2575)),
-    _it("B_Shard_3", "Armor.Shard", 2375, 500, stair_z(2900, -1, 2375)),
+    _it("B_Shard_1", "Armor.Shard", 2775, -500, stair_z(2900, -1, 2775)),
+    _it("B_Shard_2", "Armor.Shard", 2575, -500, stair_z(2900, -1, 2575)),
+    _it("B_Shard_3", "Armor.Shard", 2375, -500, stair_z(2900, -1, 2375)),
     # C North Lane
     _it("LG", "Weapon.LightningGun", 0, 1300, 80),
     _it("YA_N", "Armor.Yellow", 800, 1000),
     _it("LightningAmmo", "Ammo.Lightning", 1100, 1300),
-    _it("C_H5_1", "Health.Small", -3300, 900),
-    _it("C_H5_2", "Health.Small", -3300, 1300),
-    _it("C_H5_3", "Health.Small", -3100, 900),
-    _it("C_H5_4", "Health.Small", -3100, 1300),
+    _it("C_H5_1", "Health.Small", -2500, 900),
+    _it("C_H5_2", "Health.Small", -2500, 1300),
+    _it("C_H5_3", "Health.Small", -2200, 900),
+    _it("C_H5_4", "Health.Small", -2200, 1300),
     # D South Hall
-    _it("RL", "Weapon.RocketLauncher", 0, -1500),
+    _it("RL", "Weapon.RocketLauncher", 450, -1500),
     _it("YA_S", "Armor.Yellow", 0, -2000, 320),
-    _it("RocketsAmmo", "Ammo.Rockets", -900, -1500),
-    _it("D_H50", "Health.Large", 900, -1500),
+    _it("RocketsAmmo", "Ammo.Rockets", 1250, -1500),
+    _it("D_H50", "Health.Large", -900, -1500),
     _it("D_H5_1", "Health.Small", -900, -2000, 320),
     _it("D_H5_2", "Health.Small", -450, -2000, 320),
     _it("D_H5_3", "Health.Small", 450, -2000, 320),
@@ -212,7 +212,7 @@ ITEMS = [
     _it("RG", "Weapon.Railgun", 0, 0, 640),
     _it("E_H25", "Health.Medium", 0, 100, 320),
     _it("SlugsAmmo", "Ammo.Slugs", 450, -450),
-    _it("Quad", "Powerup.Quad", 0, 0, 0, (DUEL,)),
+    _it("Quad", "Powerup.Quad", 0, -450, 0, (DUEL,)),
 ]
 WEAPON_IDS = ("PG", "SG", "LG", "RL", "RG")
 MEGA_ID, RA_ID = "Mega", "RA"
@@ -225,7 +225,7 @@ SPAWNS = [
     Spawn("S2_LGW", -750, 1350, 0),      # LG
     Spawn("S3_LGE", 750, 1350, 180),     # LG
     Spawn("S4_CE", 3000, 1100, 180),     # SG, north door of B
-    Spawn("S5_RLW", -700, -1500, 0),     # RL
+    Spawn("S5_RLW", -330, -1500, 0),     # RL
     Spawn("S6_RLE", 700, -1500, 180),    # RL
     Spawn("S7_E1", -400, -400, 45),      # RG (ground of E)
     Spawn("S8_E2", 400, 400, 225),       # RG
@@ -236,6 +236,7 @@ EYE_Z = 160.0
 
 # ---------------------------------------------------------------- nav links (ADR 0005 section 4; Tools/editor/README.md)
 DROP_IN, DROP_OUT = 60.0, 150.0
+DROP_OUT_TALL = 350.0      # 320 cm and 640 cm drops: a bot leaves the edge at 400..800 cm/s and lands 250..600 cm out; LinkEndAcceptanceCm is 150 (task 06)
 
 
 def _drop(i, sx, sy, sz, ex, ey, ez):
@@ -245,27 +246,23 @@ def _drop(i, sx, sy, sz, ex, ey, ez):
 LINKS = [
     Link("PadLink_A", "JUMP_PAD", (-2600, -450, 0), PADS[0].land, "PadA"),
     Link("PadLink_B", "JUMP_PAD", (2600, 0, 0), PADS[1].land, "PadB"),
-    Link("PadLink_D", "JUMP_PAD", (0, -1150, 0), PADS[2].land, "PadD"),
+    Link("PadLink_D", "JUMP_PAD", (PADS[2].x, PADS[2].y, 0), PADS[2].land, "PadD"),
     Link("RJ_West", "ROCKET_JUMP", (-650, 0, 320), (0, 0, 640), None),   # run-up 450 cm from the top slab edge (x -200)
     Link("RJ_East", "ROCKET_JUMP", (650, 0, 320), (0, 0, 640), None),
-    # drops: 60 cm inside the free edge, 150 cm outside it
-    _drop("Drop_ALedge_N", -2100 + DROP_IN, 450, 320, -2100 - DROP_OUT, 450, 0),
-    _drop("Drop_ALedge_S", -2100 + DROP_IN, -450, 320, -2100 - DROP_OUT, -450, 0),
-    _drop("Drop_BBalcony", 2100 - DROP_IN, 0, 320, 2100 + DROP_OUT, 0, 0),
+    # drops: 60 cm inside the free edge, 150 cm outside it. No link on the dock S edges, the slab N edge and the mid-bridge N edge (task 06): the wall
+    # opposite is blank and only 500 cm away, a bot lands in its nav erosion margin (IsOnEndSurface false = "missed").
+    # No link on the slab S edge or the mid-bridge S edge either: the flight through the gate lands on PadD (0,-950) and is launched back to the slab.
+    _drop("Drop_ALedge_N", -2100 + DROP_IN, 450, 320, -2100 - DROP_OUT_TALL, 450, 0),
+    _drop("Drop_ALedge_S", -2100 + DROP_IN, -450, 320, -2100 - DROP_OUT_TALL, -450, 0),
+    _drop("Drop_BBalcony", 2100 - DROP_IN, 0, 320, 2100 + DROP_OUT_TALL, 0, 0),
     _drop("Drop_DBalcony_1", -1200, -1800 - DROP_IN, 320, -1200, -1800 + DROP_OUT, 0),
     _drop("Drop_DBalcony_2", -400, -1800 - DROP_IN, 320, -400, -1800 + DROP_OUT, 0),
     _drop("Drop_DBalcony_3", 400, -1800 - DROP_IN, 320, 400, -1800 + DROP_OUT, 0),
     _drop("Drop_DBalcony_4", 1200, -1800 - DROP_IN, 320, 1200, -1800 + DROP_OUT, 0),
-    _drop("Drop_DockW_N", -450, 200 - DROP_IN, 320, -450, 200 + DROP_OUT, 0),
-    _drop("Drop_DockW_S", -450, -200 + DROP_IN, 320, -450, -200 - DROP_OUT, 0),
-    _drop("Drop_DockE_N", 450, 200 - DROP_IN, 320, 450, 200 + DROP_OUT, 0),
-    _drop("Drop_DockE_S", 450, -200 + DROP_IN, 320, 450, -200 - DROP_OUT, 0),
-    _drop("Drop_MidBridge_N", 0, 200 - DROP_IN, 320, 0, 200 + DROP_OUT, 0),
-    _drop("Drop_MidBridge_S", 0, -200 + DROP_IN, 320, 0, -200 - DROP_OUT, 0),
+    _drop("Drop_DockW_N", -450, 200 - DROP_IN, 320, -450, 200 + DROP_OUT_TALL, 0),
+    _drop("Drop_DockE_N", 450, 200 - DROP_IN, 320, 450, 200 + DROP_OUT_TALL, 0),
     _drop("Drop_Top_W", -200 + DROP_IN, 0, 640, -200 - DROP_OUT, 0, 320),
     _drop("Drop_Top_E", 200 - DROP_IN, 0, 640, 200 + DROP_OUT, 0, 320),
-    _drop("Drop_Top_N", 0, 250 - DROP_IN, 640, 0, 250 + DROP_OUT, 0),
-    _drop("Drop_Top_S", 0, -250 + DROP_IN, 640, 0, -250 - DROP_OUT, 0),
 ]
 
 # ---------------------------------------------------------------- lights (task 15 placeholders; not spawned in blockout mode)
@@ -304,6 +301,6 @@ UPPER_RING_MIN_M, UPPER_RING_MAX_M = 45.0, 50.0       # Mega -> RA, measured wit
 
 # Per-kind actor counts that do not depend on the geometry expansion (the geometry kinds are counted by the generator).
 EXPECTED = {
-    "pickup": 35, "playerstart": 8, "jumppad": 3, "targetpoint": 3, "navbounds": 1, "navlink": 22,
+    "pickup": 35, "playerstart": 8, "jumppad": 3, "targetpoint": 3, "navbounds": 1, "navlink": 16,
     "camera": 1, "text": 1, "light": 2,
 }

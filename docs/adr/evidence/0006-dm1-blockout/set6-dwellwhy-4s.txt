@@ -1,0 +1,111 @@
+=== b-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-10.log | Celer dwell=4 at (788,928) span=3.0s goals=['fight', 'item'] items=['-', 'DA_Item_Armor_Yellow'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=1111 speed=[914,30,320,166]
+    route@-2.8s: goal=Item item=Armor.Yellow camp=0 score=7.38 travel=2.97 available=0 respawn_in=3.1 lead=0.1 fight=18.00 t=94.87
+    +0.1s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_RocketLauncher t=97.705 at=V(X=450.00, Y=-1500.00)
+    +0.3s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Yellow t=97.957 at=V(X=800.00, Y=1000.00)
+    +0.4s VeloxBots: VeloxBotRoute bot=Celer goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=98.01
+    +1.3s VeloxBots: VeloxBotRoute bot=Celer goal=Item item=Armor.Yellow camp=0 score=3.32 travel=10.19 available=1 respawn_in=0.0 lead=-10.2 fight=18.00 t=98.93
+    +1.4s VeloxBots: VeloxBotRoute bot=Celer goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=99.00
+    +2.2s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Railgun t=99.820 at=V(Z=640.00)
+    +3.1s VeloxBots: VeloxBotRoute bot=Celer goal=Fight item=- camp=0 score=6.90 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=10.35 t=100.71
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-2.log | Rapidus dwell=5 at (1638,-784) span=4.0s goals=['fight', 'item'] items=['-', 'DA_Item_Health_Mega'] class=other (wait samples 0/5)
+    arrived=00110 stuck=00000 vis=10000 speed=[88,637,0,0,599]
+    route@-0.6s: goal=Fight item=- camp=0 score=9.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=13.50 t=24.52
+    +1.0s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_LightningGun t=26.086 at=V(Y=1300.00, Z=80.00)
+    +1.8s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Railgun t=26.858 at=V(Z=640.00)
+    +1.8s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Shotgun t=26.874 at=V(X=3100.00, Y=500.00)
+    +3.9s VeloxBots: VeloxBotRoute bot=Rapidus goal=Item item=Health.Mega camp=0 score=11.45 travel=6.25 available=1 respawn_in=0.0 lead=-6.2 fight=13.50 t=29.02
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-3.log | Rapidus dwell=5 at (-1407,838) span=4.0s goals=['fight'] items=['-'] class=other (wait samples 0/5)
+    arrived=00000 stuck=00000 vis=11111 speed=[532,3,12,3,82]
+    route@-2.2s: goal=Fight item=- camp=0 score=9.80 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=14.70 t=29.95
+    +2.7s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_LightningGun t=34.825 at=V(Y=1300.00, Z=80.00)
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-5.log | Celer dwell=10 at (-1706,662) span=9.1s goals=['fight'] items=['-'] class=other (wait samples 0/10)
+    arrived=0000000000 stuck=0000000000 vis=1110000111 speed=[368,0,151,37,0,54,16,0,0,0]
+    route@-2.2s: goal=Fight item=- camp=0 score=11.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=16.50 t=30.95
+    +4.0s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_PlasmaGun t=37.128 at=V(X=-2800.00, Y=500.00)
+    +9.5s VeloxBots: VeloxBotRoute bot=Celer goal=Item item=Armor.Red camp=0 score=12.29 travel=6.05 available=0 respawn_in=6.3 lead=0.3 fight=15.51 t=42.63
+    +9.6s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Railgun t=42.699 at=V(Z=640.00)
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-5.log | Rapidus dwell=4 at (1687,838) span=3.0s goals=['fight', 'item'] items=['-', 'DA_Item_Weapon_Shotgun'] class=other (wait samples 0/4)
+    arrived=1110 stuck=0000 vis=0000 speed=[619,0,0,80]
+    route@-8.6s: goal=Fight item=- camp=0 score=11.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=16.50 t=76.88
+    +2.9s VeloxBots: VeloxBotRoute bot=Rapidus goal=Item item=Weapon.Shotgun camp=0 score=4.55 travel=2.32 available=1 respawn_in=0.0 lead=-2.3 fight=16.50 t=88.42
+    +3.3s VeloxBots: VeloxBotRoute bot=Rapidus goal=Fight item=- camp=0 score=11.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=16.50 t=88.82
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-6.log | Celer dwell=4 at (441,553) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=1111 stuck=0000 vis=1000 speed=[802,0,0,0]
+    route@-7.0s: goal=Fight item=- camp=0 score=9.80 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=14.70 t=41.21
+    +0.2s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Shard t=48.414 at=V(X=2575.00, Y=-500.00, Z=140.00)
+    +0.4s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Shard t=48.649 at=V(X=2375.00, Y=-500.00, Z=220.00)
+    +0.9s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Red t=49.186 at=V(X=2050.00, Y=-660.00, Z=320.00)
+    +1.5s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_RocketLauncher t=49.707 at=V(X=450.00, Y=-1500.00)
+    +3.2s VeloxBots: VeloxBotRoute bot=Celer goal=Item item=Weapon.RocketLauncher camp=0 score=6.95 travel=3.07 available=1 respawn_in=0.0 lead=-3.1 fight=14.70 t=51.44
+    +3.5s VeloxBots: VeloxBotRoute bot=Celer goal=Fight item=- camp=0 score=9.80 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=14.70 t=51.70
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-6.log | Rapidus dwell=4 at (1674,546) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0111 stuck=0000 vis=0000 speed=[601,0,0,0]
+    route@-3.1s: goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=82.43
+    +2.3s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Railgun t=87.831 at=V(Z=640.00)
+    +3.2s VeloxBots: VeloxBotRoute bot=Rapidus goal=Item item=Armor.Yellow camp=0 score=4.32 travel=5.56 available=0 respawn_in=3.0 lead=-2.6 fight=18.00 t=88.72
+    +4.3s VeloxBots: VeloxBotRoute bot=Rapidus goal=Item item=Health.Mega camp=0 score=7.84 travel=5.74 available=0 respawn_in=5.9 lead=0.1 fight=18.00 t=89.84
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-6.log | Celer dwell=10 at (1638,662) span=9.1s goals=['fight'] items=['-'] class=other (wait samples 0/10)
+    arrived=0000000000 stuck=0000000000 vis=1101111111 speed=[0,66,54,285,0,344,100,0,0,27]
+    route@-9.8s: goal=Fight item=- camp=0 score=11.52 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=17.28 t=77.67
+    +0.3s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Railgun t=87.831 at=V(Z=640.00)
+    +3.4s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_LightningGun t=90.888 at=V(Y=1300.00, Z=80.00)
+    +4.2s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Yellow t=91.695 at=V(Y=-2000.00, Z=320.00)
+    +7.3s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_PlasmaGun t=94.800 at=V(X=-2800.00, Y=500.00)
+    +8.2s VeloxItems: VeloxPickupRespawn item=DA_Item_Health_Mega t=95.738 at=V(X=-2050.00, Y=660.00, Z=320.00)
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-6.log | Rapidus dwell=4 at (1641,-1082) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0110 stuck=0000 vis=1111 speed=[77,90,230,459]
+    route@-9.4s: goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=90.23
+    +0.8s VeloxItems: VeloxPickupRespawn item=DA_Item_Health_Small t=100.405 at=V(X=-450.00, Y=-2000.00, Z=320.00)
+    +2.1s VeloxItems: VeloxPickupRespawn item=DA_Item_Health_Small t=101.748 at=V(X=-2200.00, Y=900.00)
+    +2.5s VeloxItems: VeloxPickupRespawn item=DA_Item_Health_Small t=102.134 at=V(X=-2500.00, Y=900.00)
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-7.log | Rapidus dwell=4 at (-2829,544) span=3.0s goals=['fight', 'item'] items=['-', 'DA_Item_Weapon_PlasmaGun'] class=other (wait samples 1/4)
+    arrived=0000 stuck=0000 vis=0110 speed=[372,804,810,800]
+    route@-0.4s: goal=Item item=Weapon.PlasmaGun camp=0 score=10.36 travel=0.39 available=0 respawn_in=1.3 lead=0.9 fight=11.54 t=27.75
+    +0.9s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_PlasmaGun t=29.021 at=V(X=-2800.00, Y=500.00)
+    +0.9s VeloxItems: VeloxPickup item=DA_Item_Weapon_PlasmaGun by=Rapidus gain=50 powerup_s=0.0 respawn_in=5.00 t=29.021 take=4 at=V(X=-2800.00, Y=500.00)
+    +0.9s VeloxBots: VeloxBotGoal bot=Rapidus item=VeloxPickup_1 taken_by=Rapidus reached after=1.28 s
+    +1.0s VeloxBots: VeloxBotRoute bot=Rapidus goal=Fight item=- camp=0 score=6.62 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=9.92 t=29.09
+    +1.0s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_LightningGun t=29.105 at=V(Y=1300.00, Z=80.00)
+    +3.2s VeloxItems: VeloxPickupRefused item=DA_Item_Health_Medium by=Rapidus reason=rule health=112 armor=21 ammo=0
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-7.log | Celer dwell=4 at (-1537,-159) span=3.0s goals=['fight', 'item'] items=['-', 'DA_Item_Armor_Red'] class=other (wait samples 0/4)
+    arrived=0110 stuck=0000 vis=0000 speed=[154,0,0,669]
+    route@-3.1s: goal=Fight item=- camp=0 score=8.58 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=12.87 t=68.31
+    +2.9s VeloxBots: VeloxBotRoute bot=Celer goal=Item item=Armor.Red camp=0 score=9.80 travel=5.02 available=0 respawn_in=5.0 lead=-0.0 fight=12.87 t=74.30
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-8.log | Celer dwell=4 at (-110,620) span=3.0s goals=['fight', 'item'] items=['-', 'DA_Item_Armor_Yellow'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=0110 speed=[545,264,26,592]
+    route@-0.3s: goal=Fight item=- camp=0 score=8.88 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=13.32 t=40.92
+    +1.8s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_PlasmaGun t=42.964 at=V(X=-2800.00, Y=500.00)
+    +2.9s VeloxBots: VeloxBotRoute bot=Celer goal=Item item=Armor.Yellow camp=0 score=17.03 travel=2.19 available=0 respawn_in=2.2 lead=-0.0 fight=13.05 t=44.09
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-8.log | Celer dwell=4 at (-29,-516) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=0001 speed=[410,417,595,515]
+    route@-5.5s: goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=60.91
+=== fb-b88f-343439b061f3/scratchpad/m506/sets/ffa6/out/ffa-9.log | Celer dwell=4 at (-323,781) span=3.0s goals=['fight', 'item'] items=['-', 'DA_Item_Armor_Yellow'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=0100 speed=[652,244,371,205]
+    route@-0.2s: goal=Item item=Armor.Yellow camp=0 score=7.66 travel=1.83 available=1 respawn_in=0.0 lead=-1.8 fight=18.00 t=75.25
+    +0.2s VeloxBots: VeloxBotRoute bot=Celer goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=75.63
+    +0.9s VeloxBots: VeloxBotRoute bot=Celer goal=Item item=Armor.Yellow camp=0 score=8.63 travel=1.56 available=1 respawn_in=0.0 lead=-1.6 fight=18.00 t=76.36
+    +1.1s VeloxBots: VeloxBotRoute bot=Celer goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=76.51
+    +2.1s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Shard t=77.582 at=V(X=2575.00, Y=-500.00, Z=140.00)
+    +2.4s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Shard t=77.817 at=V(X=2375.00, Y=-500.00, Z=220.00)
+    +2.9s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Red t=78.312 at=V(X=2050.00, Y=-660.00, Z=320.00)
+    +3.2s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Shard t=78.598 at=V(X=-2800.00, Z=132.37)
+    +3.2s VeloxBots: VeloxBotRoute bot=Celer goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=78.63
+=== ut/20261101-032827-724499/nettest/round-1/BotDuel-server.log | Rapidus dwell=4 at (707,975) span=3.0s goals=['item'] items=['DA_Item_Armor_Yellow'] class=other (wait samples 0/4)
+    arrived=0111 stuck=0000 vis=0000 speed=[567,0,0,0]
+    route@-0.2s: goal=Item item=Armor.Yellow camp=0 score=12.99 travel=0.39 available=0 respawn_in=3.3 lead=2.9 fight=13.32 t=44.99
+    +3.1s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Yellow t=48.312 at=V(X=800.00, Y=1000.00)
+    +3.1s VeloxItems: VeloxPickup item=DA_Item_Armor_Yellow by=Rapidus gain=50 powerup_s=0.0 respawn_in=25.00 t=48.312 take=3 at=V(X=800.00, Y=1000.00)
+    +3.1s VeloxBots: VeloxBotGoal bot=Rapidus item=VeloxPickup_17 taken_by=Rapidus reached after=3.32 s
+    +3.1s VeloxBots: VeloxBotGoal bot=Celer item=VeloxPickup_17 taken_by=Rapidus lost after=2.53 s
+    +3.2s VeloxBots: VeloxBotRoute bot=Rapidus goal=Roam item=Armor.Red camp=1 score=6.76 travel=5.37 available=0 respawn_in=9.7 lead=4.3 fight=13.32 t=48.45
+=== ut/20261101-032827-724499/nettest/round-1/BotDuel-server.log | Rapidus dwell=7 at (611,970) span=6.0s goals=['roam'] items=['DA_Item_Armor_Yellow'] class=camp (wait samples 0/7)
+    arrived=1111111 stuck=0000000 vis=0000000 speed=[0,0,0,0,0,0,0]
+    route@-0.5s: goal=Roam item=Armor.Yellow camp=1 score=0.00 travel=0.37 available=0 respawn_in=14.3 lead=13.9 fight=14.40 t=115.16
+    +6.9s VeloxBots: VeloxBotRoute bot=Rapidus goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=14.40 t=122.52
+    +6.9s VeloxItems: VeloxPickup item=DA_Item_Ammo_Lightning by=Rapidus gain=60 powerup_s=0.0 respawn_in=40.00 t=122.535 take=1 at=V(X=1100.00, Y=1300.00)
+    +7.1s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_RocketLauncher t=122.786 at=V(X=450.00, Y=-1500.00)
+=== ut/20261101-032827-724499/nettest/round-3/BotDuel-server.log | Celer dwell=4 at (3348,-653) span=3.0s goals=['fight', 'item'] items=['-', 'DA_Item_Weapon_Shotgun'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=1111 speed=[155,44,169,23]
+    route@-8.3s: goal=Fight item=- camp=0 score=11.10 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=13.32 t=93.77
+    +2.3s VeloxBots: VeloxBotRoute bot=Celer goal=Item item=Weapon.Shotgun camp=0 score=16.00 travel=1.15 available=1 respawn_in=0.0 lead=-1.1 fight=4.26 t=104.41
