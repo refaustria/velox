@@ -1533,10 +1533,13 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 			const FVeloxManeuverOutput O = M.Tick(DropIn(0.9, 400.f, true, 0.f));
 			TestTrue(TEXT("06b: drop from the ground, landing 400 cm off -> Missed (genuine)"), O.bAbort && O.Reason == EVeloxManeuverResult::Missed);
 		}
-		// Begun in the air (no ground tick, no launch of its own), landing away from End: not the link's flight.
+		// Begun in a foreign flight (06c: bBeganInFlight; no ground tick, no launch of its own), landing away from End:
+		// not the link's flight.
 		{
 			FVeloxBotManeuver M;
-			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			FVeloxManeuverInput BeginIn = DropIn(0.0, 600.f, false, 300.f);
+			BeginIn.bBeganInFlight = true;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), BeginIn);
 			M.Tick(DropIn(0.0, 600.f, false, 300.f));
 			TestTrue(TEXT("06b: drop begun airborne -> Airborne phase"), M.Phase == EVeloxManeuverPhase::Airborne);
 			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 700.f, true, 0.f));
@@ -1551,14 +1554,69 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 80.f, true, 0.f));
 			TestTrue(TEXT("06b: drop begun in the air, landing at End -> Ok"), O.bDone && O.Reason == EVeloxManeuverResult::Ok);
 		}
-		// A pad under the drop's landing: the impulse at the end's level is the landing (Ok) even 400 cm from End.
+		// Task m5-06c (review D1): AirStart only for a traversal begun in a foreign flight; one begun in the bot's own hop
+		// (bBeganInFlight false, no ground tick) is an ordinary attempt.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), DropIn(0.0, 600.f, false, 300.f));
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 400.f, true, 0.f));
+			TestFalse(TEXT("06c (a): hop-begun drop never saw the ground"), M.bGroundSeen);
+			TestTrue(TEXT("06c (a): drop begun in a hop (bBeganInFlight=false), landing 400 cm off -> Missed"), O.bAbort && O.Reason == EVeloxManeuverResult::Missed);
+		}
+		{
+			FVeloxBotManeuver M;
+			FVeloxManeuverInput BeginIn = DropIn(0.0, 600.f, false, 300.f);
+			BeginIn.bBeganInFlight = true;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), BeginIn);
+			TestTrue(TEXT("06c (b): Begin stores bBeganInFlight"), M.bBeganInFlight);
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 400.f, true, 0.f));
+			TestTrue(TEXT("06c (b): drop begun in a flight (bBeganInFlight=true), landing 400 cm off -> AirStart"), O.bAbort && O.Reason == EVeloxManeuverResult::AirStart);
+		}
+		for (const bool bFlight : {false, true})
+		{
+			FVeloxBotManeuver M;
+			FVeloxManeuverInput BeginIn = DropIn(0.0, 600.f, false, 300.f);
+			BeginIn.bBeganInFlight = bFlight;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), BeginIn);
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 80.f, true, 0.f));
+			TestTrue(FString::Printf(TEXT("06c (c): drop begun %s, landing at End -> Ok"), bFlight ? TEXT("in a flight") : TEXT("in a hop")),
+				O.bDone && O.Reason == EVeloxManeuverResult::Ok);
+		}
+		{
+			// The plain Begin(Time) clears a previous traversal's flag.
+			FVeloxBotManeuver M;
+			M.bBeganInFlight = true;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			TestFalse(TEXT("06c: Begin(Time) resets bBeganInFlight"), M.bBeganInFlight);
+		}
+		// Task m5-06c (review D2): an impulse at the end's level counts as the landing only next to End (2 x acceptance).
 		{
 			FVeloxBotManeuver M;
 			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
 			M.Tick(DropIn(0.0, 380.f, true, 320.f));
 			M.Tick(DropIn(Dt, 370.f, false, 315.f));
 			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 400.f, false, 20.f, true));
-			TestTrue(TEXT("06b: drop re-launched at the end level -> Ok"), O.bDone && O.Reason == EVeloxManeuverResult::Ok);
+			TestTrue(TEXT("06c (d): drop, ground start, impulse at the end level 400 cm from End -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
+		}
+		{
+			FVeloxManeuverParams DropNear = DropP;
+			DropNear.EndAcceptanceCm = 80.f;
+			FVeloxBotManeuver M;
+			M.Begin(DropNear, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 380.f, true, 320.f));
+			M.Tick(DropIn(Dt, 370.f, false, 315.f));
+			FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 150.f, false, 20.f, true));
+			TestTrue(TEXT("06c (e): drop, impulse at the end level 150 cm from End (acceptance 80) -> Ok"), O.bDone && O.Reason == EVeloxManeuverResult::Ok);
+			// Same distance, above the end level (> acceptance / 2): re-launched.
+			FVeloxBotManeuver High;
+			High.Begin(DropNear, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			High.Tick(DropIn(0.0, 380.f, true, 320.f));
+			High.Tick(DropIn(Dt, 370.f, false, 315.f));
+			O = High.Tick(DropIn(0.6, 150.f, false, 60.f, true));
+			TestTrue(TEXT("06c: drop, impulse 60 cm above the end level 150 cm from End (acceptance 80) -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
 		}
 		// A rocket hit in mid-fall, 250 cm above the end level and 400 cm from End: re-launched, not a miss.
 		{

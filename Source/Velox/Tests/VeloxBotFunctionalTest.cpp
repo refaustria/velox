@@ -255,6 +255,12 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		const FVector2D Target(1000.0, 0.0);
 		// HopAir 0.675 s (675 cm/s, 2000 cm/s^2) + 0.15 slack.
 		const float HopAir = 2.f * 675.f / 2000.f + 0.15f;
+		// Task 06c: the shared helper (controller progress rule, follower bBeganInFlight).
+		TestTrue(TEXT("06c: HopAirSeconds(675, -2000, 0.15) = 0.825 s"), FMath::IsNearlyEqual(VeloxBotRules::HopAirSeconds(675.f, -2000.f, 0.15f), 0.825f, 1e-5f));
+		TestTrue(TEXT("06c: HopAirSeconds without gravity = the slack"), FMath::IsNearlyEqual(VeloxBotRules::HopAirSeconds(675.f, 0.f, 0.15f), 0.15f, 1e-6f));
+		TestTrue(TEXT("06c: hop 0.3 s in -> no flight; 1.0 s in -> flight (HopAirSeconds threshold)"),
+			!VeloxBotRules::IsFlight(false, 4.7, 5.0, VeloxBotRules::HopAirSeconds(675.f, -2000.f, 0.15f)) &&
+			VeloxBotRules::IsFlight(false, 4.0, 5.0, VeloxBotRules::HopAirSeconds(675.f, -2000.f, 0.15f)));
 		TestFalse(TEXT("06b: on the ground is no flight"), VeloxBotRules::IsFlight(true, 1.0, 5.0, HopAir));
 		TestFalse(TEXT("06b: airborne 0.5 s (a hop) is no flight"), VeloxBotRules::IsFlight(false, 4.5, 5.0, HopAir));
 		TestTrue(TEXT("06b: airborne 1.0 s is a flight"), VeloxBotRules::IsFlight(false, 4.0, 5.0, HopAir));

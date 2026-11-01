@@ -136,6 +136,24 @@ UVeloxMovementComponent* UVeloxBotPathFollowingComponent::GetBotMovement() const
 void UVeloxBotPathFollowingComponent::StepFollow(float DeltaTime)
 {
 	NavOutput = FVeloxBotNavOutput();
+	// Task 06c: airborne-since for the flight test at BeginManeuver (before the follow step, which may begin a link).
+	if (const UVeloxMovementComponent* Movement = GetBotMovement())
+	{
+		const UWorld* World = GetWorld();
+		const double Now = World ? World->GetTimeSeconds() : 0.0;
+		if (Movement->IsOnGround())
+		{
+			AirborneSince = -1.0;
+		}
+		else if (AirborneSince < 0.0)
+		{
+			AirborneSince = Now;
+		}
+	}
+	else
+	{
+		AirborneSince = -1.0;
+	}
 	// The engine's TickComponent body (Super::TickComponent itself does nothing for this class).
 	if (GetStatus() == EPathFollowingStatus::Moving)
 	{
@@ -348,10 +366,22 @@ void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 
 void UVeloxBotPathFollowingComponent::BeginManeuver(double Now)
 {
-	Maneuver.Begin(PendingParams, LinkStart, LinkEnd, Now);
+	// Task 06c (review D1): a traversal begun inside a foreign flight (longer than the bot's own hop) may end AirStart;
+	// one begun on the ground or in the bot's own hop is an ordinary attempt.
+	FVeloxManeuverInput In;
+	In.Time = Now;
+	const UVeloxMovementComponent* Movement = GetBotMovement();
+	const AVeloxBotController* Bot = GetBotController();
+	if (Movement && Bot)
+	{
+		const float HopAir = VeloxBotRules::HopAirSeconds(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), Bot->StuckProgressFlightSlackSeconds);
+		In.bBeganInFlight = VeloxBotRules::IsFlight(Movement->IsOnGround(), AirborneSince, Now, HopAir);
+	}
+	Maneuver.Begin(PendingParams, LinkStart, LinkEnd, In);
 	bLinkPending = false;
-	UE_LOG(LogVeloxBots, Verbose, TEXT("VeloxBotLink bot=%s begin type=%s link=%s from=%s to=%s"), *GetNameSafe(GetOwner()),
-		VeloxBotFollowPrivate::ManeuverName(PendingParams.Type), *GetNameSafe(CurrentLink.Get()), *LinkStart.ToCompactString(), *LinkEnd.ToCompactString());
+	UE_LOG(LogVeloxBots, Verbose, TEXT("VeloxBotLink bot=%s begin type=%s link=%s from=%s to=%s flight=%d"), *GetNameSafe(GetOwner()),
+		VeloxBotFollowPrivate::ManeuverName(PendingParams.Type), *GetNameSafe(CurrentLink.Get()), *LinkStart.ToCompactString(), *LinkEnd.ToCompactString(),
+		In.bBeganInFlight ? 1 : 0);
 }
 
 void UVeloxBotPathFollowingComponent::FinishManeuver(EVeloxManeuverResult Result, double Now)

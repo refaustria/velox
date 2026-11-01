@@ -20,7 +20,14 @@ void FVeloxBotManeuver::Begin(const FVeloxManeuverParams& InParams, const FVecto
 	bSeenAirborne = false;
 	bGroundSeen = false;
 	bLaunchImpulseSeen = false;
+	bBeganInFlight = false;
 	EnterPhase(EVeloxManeuverPhase::Approach, Time);
+}
+
+void FVeloxBotManeuver::Begin(const FVeloxManeuverParams& InParams, const FVector& InStart, const FVector& InEnd, const FVeloxManeuverInput& In)
+{
+	Begin(InParams, InStart, InEnd, In.Time);
+	bBeganInFlight = In.bBeganInFlight;
 }
 
 void FVeloxBotManeuver::EnterPhase(EVeloxManeuverPhase NewPhase, double Time)
@@ -47,13 +54,15 @@ FVeloxManeuverOutput FVeloxBotManeuver::TickAirborne(const FVeloxManeuverInput& 
 	{
 		// Task m5-06b: the first impulse of a pad traversal is the pad's own launch; any other impulse in the flight is an
 		// external re-launch (a pad under the drop's landing, a rocket hit). At End it is the landing (Ok); a drop that
-		// reached its end's level has done what the link asks; anywhere else the flight is no longer this link's.
+		// reached its end's level next to End (task m5-06c, review D2: within 2 x EndAcceptanceCm) has done what the link
+		// asks; anywhere else the flight is no longer this link's.
 		const bool bOwn = Type == EVeloxManeuverType::JumpPad && !bLaunchImpulseSeen;
 		bLaunchImpulseSeen = true;
 		if (!bOwn)
 		{
-			const bool bAtEnd = In.DistToEnd <= Params.EndAcceptanceCm ||
-				(Type == EVeloxManeuverType::Drop && In.HeightAboveEndCm <= Params.EndAcceptanceCm * 0.5f);
+			const bool bAtEndLevel = Type == EVeloxManeuverType::Drop && In.HeightAboveEndCm <= Params.EndAcceptanceCm * 0.5f &&
+				In.DistToEnd <= Params.EndAcceptanceCm * 2.f;
+			const bool bAtEnd = In.DistToEnd <= Params.EndAcceptanceCm || bAtEndLevel;
 			return Finish(bAtEnd ? EVeloxManeuverResult::Ok : EVeloxManeuverResult::Relaunched, In.Time);
 		}
 	}
@@ -67,9 +76,11 @@ FVeloxManeuverOutput FVeloxBotManeuver::TickAirborne(const FVeloxManeuverInput& 
 		{
 			return Finish(EVeloxManeuverResult::Ok, In.Time);
 		}
-		// Task m5-06b: a traversal that began in the air (no ground tick before the flight, no own launch) did not choose
-		// this flight; its landing away from End is not a miss. Begun on the ground (or launched by the link), it is.
-		return Finish(bGroundSeen || bLaunchImpulseSeen ? EVeloxManeuverResult::Missed : EVeloxManeuverResult::AirStart, In.Time);
+		// Task m5-06b / 06c (review D1): a traversal that began inside a foreign flight (bBeganInFlight: longer than the
+		// bot's own hop) with no ground tick and no own launch did not choose this flight; its landing away from End is
+		// not a miss. Begun on the ground, in the bot's own hop, or launched by the link, it is.
+		const bool bForeignFlight = bBeganInFlight && !bGroundSeen && !bLaunchImpulseSeen;
+		return Finish(bForeignFlight ? EVeloxManeuverResult::AirStart : EVeloxManeuverResult::Missed, In.Time);
 	}
 	FVeloxManeuverOutput Out;
 	Out.WishToward = EVeloxManeuverWish::End;
