@@ -11,6 +11,8 @@ Webroot sync:
     sudo mkdir -p /var/www/games.inceptum.at/{downloads,status}
     sudo rsync -a infra/www/ /var/www/games.inceptum.at/
 
+Ownership: `status/` belongs to the `veloxmaster` user (writes `servers.json`); `downloads/` is written by `infra/deploy/publish-download.sh`. The rsync above never deletes either.
+
 TLS (first time; certbot rewrites the installed copy to add 443 and the redirect):
 
     sudo certbot --nginx -d games.inceptum.at --non-interactive --agree-tos -m bojan@referee.at --redirect
