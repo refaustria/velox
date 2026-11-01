@@ -12,8 +12,11 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 | 04b | [runner-per-instance-coverage-and-link-definition](04b-runner-per-instance-coverage-and-link-definition.md) | dev | 1–2 h | 04, E0.3 | 0b (before 06's final sets) | done |
 | 04c | [runner-dwell-timed-wait-exclusion](04c-runner-dwell-timed-wait-exclusion.md) | dev | 2 h | 04b, E2, `notes/dwell-report.md` | 0b (before 06's final sets) | done |
 | 05 | [dm1-blockout](05-dm1-blockout.md) | dev | 3 h (may split: layout+map / FT+gating) | 02, 03, E0.2/E0.5 (final lint with 03b) | 1 | todo |
-| 06 | [dm1-bot-iteration](06-dm1-bot-iteration.md) | dev | 3 h (+ soak time) | 04, 04b, 05 | 1 | todo |
-| 07 | [dm1-band-ruling](07-dm1-band-ruling.md) | architect | 1 h | 06, E2 | 1 | todo |
+| 06 | [dm1-bot-iteration](06-dm1-bot-iteration.md) | dev | 3 h (+ soak time) | 04, 04b, 05 | 1 | done (contended host; findings → 06b) |
+| 06b | [dm1-bot-defects](06b-dm1-bot-defects.md) | dev-hard | 3 h (+ soak time) | 06 | 1 | done (reviewed: `docs/adr/reviews/0006-06b-review.md`, approve with follow-ups) |
+| 06c | [link-outcome-symmetry](06c-link-outcome-symmetry.md) | dev-hard | 1–2 h | 06b review D1/D2 | 1b | todo (no soak) |
+| 07 | [dm1-band-ruling](07-dm1-band-ruling.md) | architect | 1 h | 06, 06b, E2 | 1 | done (ADR 0006 E3; `bands/L_DM1.sh`, `L_DM1_Blockout.sh`) |
+| 07b | [dm1-runner-followups](07b-dm1-runner-followups.md) | dev | 2 h | 07, 06b review D3/D4 | 1b | todo (no UE run) |
 | 08 | [character-cosmetics-and-anim-instance](08-character-cosmetics-and-anim-instance.md) | dev-hard | 3 h | ADR §4 | 2 (parallel with 1) | todo |
 | 09 | [view-model-and-weapon-cosmetics](09-view-model-and-weapon-cosmetics.md) | dev | 3 h | 08 | 2 | todo |
 | 10 | [audio-foundation](10-audio-foundation.md) | dev | 3 h (may split: content script / hooks+announcer) | 09 | 2 | todo |
