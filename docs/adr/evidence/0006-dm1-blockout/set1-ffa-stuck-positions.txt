@@ -1,0 +1,26 @@
+Rapidus  ( 2606,  838,  72) goal=fight rule=fight_stall  ground=1  Layout:Ground (2 cm)  ffa1
+Rapidus  (  238, 1362,  72) goal=fight rule=fight_stall  ground=1  Layout:Ground (2 cm)  ffa1
+Fulgur   ( 1968,  923, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Celer    (   14, -436, 181) goal=item  rule=progress     ground=0  Layout:Ground (111 cm)  ffa1
+Celer    ( 1638,  662, 392) goal=fight rule=fight_stall  ground=1  Layout:B_Balcony (2 cm)  ffa1
+Celer    (   -2, -477, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Celer    (    2, -418, 174) goal=item  rule=progress     ground=0  Layout:Ground (104 cm)  ffa1
+Celer    (   -3, -461, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Fulgur   (   -2, -475, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Fulgur   (    2, -426, 176) goal=item  rule=progress     ground=0  Layout:Ground (106 cm)  ffa1
+Rapidus  (  -14, -436, 177) goal=item  rule=progress     ground=0  Layout:Ground (107 cm)  ffa1
+Rapidus  (   19, -477, 185) goal=item  rule=progress     ground=0  Layout:Ground (115 cm)  ffa1
+Celer    (   -2, -475, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Celer    (    3, -477, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Celer    (   -2, -429, 174) goal=item  rule=progress     ground=0  Layout:Ground (104 cm)  ffa1
+Celer    (    3, -465, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Fulgur   (   -5, -432, 177) goal=item  rule=progress     ground=0  Layout:Ground (107 cm)  ffa1
+Fulgur   (    7, -478, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Fulgur   (   -8, -487, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Fulgur   (    4, -434, 173) goal=item  rule=progress     ground=0  Layout:Ground (103 cm)  ffa1
+Fulgur   (   -7, -488, 182) goal=item  rule=progress     ground=0  Layout:Ground (112 cm)  ffa1
+Fulgur   ( -150, -286, 692) goal=item  rule=progress     ground=0  Layout:E_TopSlab (36 cm)  ffa1
+Fulgur   (-2951,  979,  72) goal=item  rule=progress     ground=1  Layout:Ground (2 cm)  ffa1
+Fulgur   (   10, -469, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Fulgur   (  -12, -487, 186) goal=item  rule=progress     ground=0  Layout:Ground (116 cm)  ffa1
+Rapidus  ( 2097,  865, 185) goal=item  rule=progress     ground=0  Layout:Ground (115 cm)  ffa1

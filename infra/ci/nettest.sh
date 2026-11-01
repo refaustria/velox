@@ -1481,6 +1481,7 @@ if script in ("BotRun", "BotDuel"):
     pickups = collections.Counter()
     mega = []                      # (t, by, respawn_in)
     mega_resp = []                 # t of every explicit "VeloxPickupRespawn item=DA_Item_Health_Mega t=" line (D42)
+    ra_resp, ra_take = [], []      # M5 task 06: Red Armor respawn t / bot take t (report-only return lags, the DM1 RA is on a balcony)
     kills = frags_total = suicides = 0
     stuck = []                     # (bot, t, x, y, rule, goal)
     rules = collections.Counter(); reasons = collections.Counter(); offmesh = collections.Counter()
@@ -1543,6 +1544,12 @@ if script in ("BotRun", "BotDuel"):
         if wrm_:                                                        # E2 (b): closes the episodes of that item; no continue (Mega below)
             for n_, w_ in list(wait_ep.items()):
                 if w_["X"] == wrm_.group(1): wait_capped += wait_close(n_, utc(l), True)
+        if "VeloxPickupRespawn item=DA_Item_Armor_Red" in l:
+            ra_resp.append(num(kv(l), "t"))
+        elif "VeloxPickup item=DA_Item_Armor_Red" in l:
+            ra_by_ = re.search(r"by=(\S+)", l)
+            if ra_by_ and ra_by_.group(1) in bots:
+                ra_take.append(num(kv(l), "t"))
         if "VeloxPickupRespawn item=DA_Item_Health_Mega" in l:
             mega_resp.append(num(kv(l), "t")); mega_resp_stamp.append((num(kv(l), "t"), utc(l))); continue
         if "VeloxPickup item=" in l:
@@ -2029,6 +2036,13 @@ if script in ("BotRun", "BotDuel"):
             " ".join("%s=%d" % kv_ for kv_ in sorted(goals.items())), fight_share, armed_share, vis_armed_fight, vis_armed, supp_share, noammo, debug_lines,
             allun.get("air", 0), allun.get("ground", 0)),
     ]
+    ra_lags = []
+    for r_ in sorted(ra_resp):
+        nxt_ = [t_ for t_ in sorted(ra_take) if t_ >= r_ - 1e-6]
+        if nxt_:
+            ra_lags.append(nxt_[0] - r_)
+    detail_lines.append("ra returns (s, respawn->take, report-only): n=%d lags=[%s] within_3s=%d within_6s=%d" % (
+        len(ra_lags), ",".join("%.1f" % v for v in ra_lags), sum(1 for v in ra_lags if v <= 3.0), sum(1 for v in ra_lags if v <= 6.0)))
     if duel:
         detail_lines.append("phases=%s mega_takes=%d first_after_live_s=%s timed_returns_s=[%s] within_3s=%d within_4s=%d" % (
             ">".join(phases), len(mega), "%.1f" % first_after_live if first_after_live is not None else "-", ",".join("%.1f" % v for v in timed_lags), mega_fast, mega_4))

@@ -1,0 +1,12 @@
+[ci] Net soak: scripts=DM1Run rounds=1 port=8182 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m506/dm1run/20261101-040224-773368/nettest
+[ci] bands=L_ItemTest
+[ci] [DM1Run] load gate: load1=1.62 at round start (gate 2.0, waited 0s)
+[ci] [DM1Run] starting dedicated server (60 Hz), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m506/dm1run/20261101-040224-773368/nettest/DM1Run-server.log
+[ci] [DM1Run] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m506/dm1run/20261101-040224-773368/nettest/DM1Run-client.log
+Terminated
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+DM1Run             moves=5059  C=0   echoes=0   gaps=1   repaired=52  repaired_extra=12  resent=2573  resent_extra=2573 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=101.2 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_2'] replays=4 acks_ignored=0 rpcs=2587  
+Rounds passed: 1/1 (requested 1)
+Logs: /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m506/dm1run/20261101-040224-773368/nettest
+[ci] NET SOAK OK

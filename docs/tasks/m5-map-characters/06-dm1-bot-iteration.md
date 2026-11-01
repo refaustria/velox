@@ -2,7 +2,7 @@
 
 **Milestone:** M5 Map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** partially done (evidence and layout fixes in; final FFA set still FAILs Σ stuck / dwell / Drop link success on a contended host, see notes/06-report.md)
 **Depends on:** 04 (runner), **04b** (per-instance coverage, link definition — the final sets must run with it), 05 (blockout), ADR 0006 §7 and **E0.3**
 
 ## Goal
@@ -37,3 +37,5 @@ Bots play `L_DM1_Blockout` credibly: the map-independent invariants hold on thre
 Standard format plus the metric tables of the final set, the list of layout changes with their motivating numbers, and any bot defect with evidence lines (for the lead to route to dev-hard/architect).
 
 ## Notes / outcome
+
+**Outcome (dev, 2026-11-01, branch `m5-map-characters`).** Step 0 (BotDuel x3 on L_ItemTest, fresh build): behaviour PASS 3/3, the 04c failures did not recur. DM1: 18 report sets (6 layout states x BotRun/BotDuel/FFA), 7 layout commits (PadD x2, tall drop ends, drop links removed where the wall or PadD defeats the landing, RL/Quad/stub items moved), `DM1Run` registered and PASS (7/7, 3 pads, strays 0), RA return lags added to the runner (report-only). Final layout: coverage 35/35, left_arena / world_kill / no_nav_point / giveup 0, bursts 0, nav build 1.1 s, JumpPad 100 %; **not green**: ffa6 Σ stuck 7 (4 `fight_stall`, 3 airborne `progress`), max dwell 10 s (fight stand-offs at the ledge/balcony corners), Drop link success 89.2 % (97.9 % in the identical-layout ffa5). No set ran on a quiet host (three orphaned UE clients of worktree agent-aef158e55e4aa9a6f, ~2 cores, for the whole task), so cost is unjudged. Bot findings (fight stand-offs, airborne `progress` strikes, maneuver started in the air judged missed, 2-D arrival under stacked items) are in `notes/06-report.md` for the lead; no `Source/Velox/Bots/` change. Evidence: `docs/adr/evidence/0006-dm1-blockout/`.
