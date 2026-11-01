@@ -188,9 +188,9 @@ ITEMS = [
     _it("ShellsAmmo", "Ammo.Shells", 3250, -500),
     _it("B_H25_1", "Health.Medium", 2900, -150),
     _it("B_H25_2", "Health.Medium", 3250, -150),
-    _it("B_Shard_1", "Armor.Shard", 2775, 500, stair_z(2900, -1, 2775)),
-    _it("B_Shard_2", "Armor.Shard", 2575, 500, stair_z(2900, -1, 2575)),
-    _it("B_Shard_3", "Armor.Shard", 2375, 500, stair_z(2900, -1, 2375)),
+    _it("B_Shard_1", "Armor.Shard", 2775, -500, stair_z(2900, -1, 2775)),
+    _it("B_Shard_2", "Armor.Shard", 2575, -500, stair_z(2900, -1, 2575)),
+    _it("B_Shard_3", "Armor.Shard", 2375, -500, stair_z(2900, -1, 2375)),
     # C North Lane
     _it("LG", "Weapon.LightningGun", 0, 1300, 80),
     _it("YA_N", "Armor.Yellow", 800, 1000),
@@ -212,7 +212,7 @@ ITEMS = [
     _it("RG", "Weapon.Railgun", 0, 0, 640),
     _it("E_H25", "Health.Medium", 0, 100, 320),
     _it("SlugsAmmo", "Ammo.Slugs", 450, -450),
-    _it("Quad", "Powerup.Quad", 0, 0, 0, (DUEL,)),
+    _it("Quad", "Powerup.Quad", 0, -450, 0, (DUEL,)),
 ]
 WEAPON_IDS = ("PG", "SG", "LG", "RL", "RG")
 MEGA_ID, RA_ID = "Mega", "RA"
