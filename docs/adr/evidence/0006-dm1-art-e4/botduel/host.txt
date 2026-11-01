@@ -1,0 +1,8 @@
+== start 09:37:44
+ 09:37:44 up 18 days, 20:28,  1 user,  load average: 1.14, 1.31, 1.35
+/dev/vdb        125G  102G   18G  86% /
+-- foreign UE processes at start:
+== end 09:45:06
+ 09:45:06 up 18 days, 20:35,  1 user,  load average: 1.20, 1.19, 1.26
+/dev/vdb        125G  102G   18G  86% /
+-- foreign UE processes at end:

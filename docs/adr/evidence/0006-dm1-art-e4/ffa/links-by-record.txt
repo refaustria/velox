@@ -1,0 +1,15 @@
+Drop     Drop_ALedge_N      {'ok': 10, 'aborted': 2}
+Drop     Drop_BBalcony      {'ok': 2}
+Drop     Drop_DBalcony_1    {'aborted': 1, 'ok': 2}
+Drop     Drop_DBalcony_2    {'ok': 3}
+Drop     Drop_DBalcony_3    {'ok': 19, 'aborted': 1}
+Drop     Drop_DBalcony_4    {'aborted': 1, 'ok': 2}
+Drop     Drop_DockE_N       {'ok': 11, 'missed': 1, 'aborted': 1}
+Drop     Drop_DockW_N       {'ok': 16, 'aborted': 5}
+Drop     Drop_Top_E         {'ok': 25}
+Drop     Drop_Top_W         {'ok': 38, 'aborted': 3}
+JumpPad  PadLink_A          {'ok': 10, 'aborted': 1}
+JumpPad  PadLink_B          {'ok': 15}
+JumpPad  PadLink_D          {'ok': 60, 'aborted': 6}
+TOTAL Drop     ok=128 attempts=129 (99.2 %)
+TOTAL JumpPad  ok=85 attempts=85 (100.0 %)

@@ -9,6 +9,11 @@ Per-round figures are read from the committed `.stats.json` / `.log.json` where 
 committed console output `run.out.gz` where they do not (the task-15 BotRun/BotDuel sets carry only the last round's stats.json); task 06
 set 5/6 figures are typed in from `../0006-dm1-blockout/<set>/run.out.gz` (cross-checked against E3's `e3_bands.py`).
 
+Task 07e (2026-11-01) appends the live confirmation on L_DM1 (`../0006-dm1-art-e4/{botrun,botduel,ffa}`, the D48 (4)(ii) recipe, read from the
+committed `.stats.json` / `.log.json`): +3 BotRun, +3 BotDuel, +10 FFA rounds on the same layout with the same bots, so basis A is 9 / 9 / 30
+and basis B 12 / 12 / 40. The first attempts that failed a per-round or per-run dwell check (D49 one rerun) are NOT in that basis; run with a
+second argument `with-attempt1` to append them (sensitivity: `e4_bands.with-attempt1.out`).
+
 Lower band k on a set sum: largest k with P(sum < k | unchanged bots and layout) <= 2.5 % under Poisson(n x per-round mean) and under a
 bootstrap of n rounds drawn with replacement from the observed rounds; the smaller of the two (D51 1). Run from this directory:
 python3 -I e4_bands.py [evidence root, default ..]"""
@@ -21,6 +26,7 @@ import statistics as st
 import sys
 
 ROOT = sys.argv[1] if len(sys.argv) > 1 else '..'
+WITH_A1 = len(sys.argv) > 2 and sys.argv[2] == 'with-attempt1'
 random.seed(6)
 B = 200000
 
@@ -149,6 +155,12 @@ art_run = console_rounds(ROOT + '/0006-dm1-art/botrun/run.out.gz', 'BotRun')
 art_duel = console_rounds(ROOT + '/0006-dm1-art/botduel/run.out.gz', 'BotDuel')
 art_ffa = ffa_runs(ROOT + '/0006-dm1-art/ffa/ffa-%d.log.json')
 assert len(art_run) == 3 and len(art_duel) == 3, (art_run, art_duel)
+e4_run = stats_rounds(ROOT + '/0006-dm1-art-e4/botrun/logs/round-%d/%s.stats.json', 'BotRun')
+e4_duel = stats_rounds(ROOT + '/0006-dm1-art-e4/botduel/logs/round-%d/%s.stats.json', 'BotDuel')
+e4_ffa = ffa_runs(ROOT + '/0006-dm1-art-e4/ffa/logs/ffa-%d.log.json')
+if WITH_A1:
+    e4_run += stats_rounds(ROOT + '/0006-dm1-art-e4/attempt1-botrun-FAIL/logs/round-%d/%s.stats.json', 'BotRun')
+    e4_ffa += ffa_runs(ROOT + '/0006-dm1-art-e4/attempt1-ffa-FAIL/logs/ffa-%d.log.json')
 
 # task 06 sets 6 and 5 (../0006-dm1-blockout/<set>/run.out.gz; typed in, cross-checked against e3_bands.py and the set-6 console)
 s6_run = dict(kills=[4, 4, 11], pickups=[58, 56, 72], links_ok=[28, 30, 13], mega=[4, 3, 4])
@@ -164,37 +176,40 @@ print('06b BotDuel :', b06_duel)
 print('art BotDuel :', art_duel)
 print('06b FFA     :', b06_ffa)
 print('art FFA     :', art_ffa)
+print('07e BotRun  :', e4_run)
+print('07e BotDuel :', e4_duel)
+print('07e FFA     :', e4_ffa)
 print('Rounds on the final layout with the current (post-06b) bots on a quiet host: BotRun %d, BotDuel %d, FFA %d (basis A); with task 06 '
-      'set 6 (pre-06b bots, D40 host): %d / %d / %d (basis B). D51 asks for >= 12 fresh rounds per bot script: NOT met for BotRun/BotDuel.'
-      % (len(b06_run) + len(art_run), len(b06_duel) + len(art_duel), len(b06_ffa) + len(art_ffa),
-         len(b06_run) + len(art_run) + 3, len(b06_duel) + len(art_duel) + 3, len(b06_ffa) + len(art_ffa) + 10))
+      'set 6 (pre-06b bots, D40 host): %d / %d / %d (basis B). D51 asks for >= 12 fresh rounds per bot script: met on basis B (12).'
+      % (len(b06_run) + len(art_run) + len(e4_run), len(b06_duel) + len(art_duel) + len(e4_duel), len(b06_ffa) + len(art_ffa) + len(e4_ffa),
+         len(b06_run) + len(art_run) + len(e4_run) + 3, len(b06_duel) + len(art_duel) + len(e4_duel) + 3, len(b06_ffa) + len(art_ffa) + len(e4_ffa) + 10))
 print()
 
 # ---------------------------------------------------------------- BotRun
 print('== BotRun x3 (FFA, 3 Medium bots, 90 s) ==')
-kills_a = [r['kills'] for r in b06_run] + [r['kills'] for r in art_run]
+kills_a = [r['kills'] for r in b06_run] + [r['kills'] for r in art_run] + [r['kills'] for r in e4_run]
 kills_b = kills_a + s6_run['kills']
 band('BotRun sum kills (A)', kills_a, 3, 11, check_rounds=s5_run['kills'])
 K_BOTRUN = band('BotRun sum kills (B)', kills_b, 3, 11, check_rounds=s5_run['kills'])
 per_round('BotRun kills per round (B)', kills_b, 1)
-sd_band('BotRun pickups per round (B)', [r['pickups'] for r in b06_run] + [r['pickups'] for r in art_run] + s6_run['pickups'], 30)
-per_round('BotRun links ok per round (B)', [r['links_ok'] for r in b06_run] + [r['links_ok'] for r in art_run] + s6_run['links_ok'], 5)
+sd_band('BotRun pickups per round (B)', [r['pickups'] for r in b06_run] + [r['pickups'] for r in art_run] + [r['pickups'] for r in e4_run] + s6_run['pickups'], 30)
+per_round('BotRun links ok per round (B)', [r['links_ok'] for r in b06_run] + [r['links_ok'] for r in art_run] + [r['links_ok'] for r in e4_run] + s6_run['links_ok'], 5)
 print('BotRun Mega takes per round: 06b %s, art %s, set 6 %s (35 s respawn, 90 s: <= 4 incl. the Live reset) -> BAND_BOTRUN_MEGA_REQUIRED=1 '
-      'stays a presence band' % ([r['mega'] for r in b06_run], [r['mega'] for r in art_run], s6_run['mega']))
+      'stays a presence band' % ([r['mega'] for r in b06_run], [r['mega'] for r in art_run] + [r['mega'] for r in e4_run], s6_run['mega']))
 print()
 
 # ---------------------------------------------------------------- BotDuel
 print('== BotDuel x3 (Duel, 2 Hard, 120 s) ==')
-frags_a = [r['kills'] for r in b06_duel] + [r['kills'] for r in art_duel]
+frags_a = [r['kills'] for r in b06_duel] + [r['kills'] for r in art_duel] + [r['kills'] for r in e4_duel]
 frags_b = frags_a + s6_duel['frags']
 band('BotDuel sum frags (A)', frags_a, 3, 7, check_rounds=s5_duel['frags'])
 K_FRAGS = band('BotDuel sum frags (B)', frags_b, 3, 7, check_rounds=s5_duel['frags'])
 per_round('BotDuel frags per round (B)', frags_b, 1)
-camp_a = [r['camp'] for r in b06_duel] + [r['camp'] for r in art_duel]
+camp_a = [r['camp'] for r in b06_duel] + [r['camp'] for r in art_duel] + [r['camp'] for r in e4_duel]
 camp_b = camp_a + s6_duel['camp']
 band('BotDuel sum camp episodes (A)', camp_a, 3, 21, check_rounds=s5_duel['camp'])
 K_CAMP = band('BotDuel sum camp episodes (B)', camp_b, 3, 21, check_rounds=s5_duel['camp'])
-mega_a = [r['timed'] for r in b06_duel] + [r['timed'] for r in art_duel]
+mega_a = [r['timed'] for r in b06_duel] + [r['timed'] for r in art_duel] + [r['timed'] for r in e4_duel]
 mega_b = mega_a + s6_duel['timed']
 for label, rounds in (('A: 06b + art', mega_a), ('B: A + set 6', mega_b), ('B + set 5 (check)', mega_b + s5_duel['timed'])):
     flat = sum(rounds, [])
@@ -211,20 +226,20 @@ for label, rounds in (('A: 06b + art', mega_a), ('B: A + set 6', mega_b), ('B + 
               label, len(flat), len(rounds), rounds, p3, p10, n_ret, 100 * binom_lt(1, n_ret, p3), 100 * binom_lt(2, n_ret, p10),
               100 * f3 / B, 100 * f10 / B))
 print('first takes after Live (s): 06b %s, art %s -> the Live reset stays uncounted (E3 b)' % (
-    [r['first_after_live'] for r in b06_duel], [r['first_after_live'] for r in art_duel]))
+    [r['first_after_live'] for r in b06_duel], [r['first_after_live'] for r in art_duel] + [r['first_after_live'] for r in e4_duel]))
 print()
 
 # ---------------------------------------------------------------- FFA
 print('== FFA x10 (3 Medium, 120 s, seeds 1-10) ==')
-fk_a = [r['kills'] for r in b06_ffa] + [r['kills'] for r in art_ffa]
+fk_a = [r['kills'] for r in b06_ffa] + [r['kills'] for r in art_ffa] + [r['kills'] for r in e4_ffa]
 fk_b = fk_a + s6_ffa['kills']
 band('FFA sum kills, 10 runs (A)', fk_a, 10, 34)
 K_FFA = band('FFA sum kills, 10 runs (B)', fk_b, 10, 34)
 per_round('FFA kills per run (B)', fk_b, 1)
 per_round('FFA kills per run >= 2? (B)', fk_b, 2)
-sd_band('FFA pickups per run (B)', [r['pickups'] for r in b06_ffa] + [r['pickups'] for r in art_ffa] + s6_ffa['pickups'], 40)
+sd_band('FFA pickups per run (B)', [r['pickups'] for r in b06_ffa] + [r['pickups'] for r in art_ffa] + [r['pickups'] for r in e4_ffa] + s6_ffa['pickups'], 40)
 print('FFA Mega takes per run: 06b %s, art %s, set 6 all 4 -> band >= 2 stays (half the cycles; a dead ledge route gives 0)' % (
-    [r['mega'] for r in b06_ffa], [r['mega'] for r in art_ffa]))
+    [r['mega'] for r in b06_ffa], [r['mega'] for r in art_ffa] + [r['mega'] for r in e4_ffa]))
 print()
 
 # ---------------------------------------------------------------- links (E3 c demand at the observed attempt counts)
@@ -250,14 +265,32 @@ drop_06b_run = (sum(sum(v[0] for k, v in json.load(open(ROOT + '/0006-dm1-blocko
 drop_06b_duel = (sum(sum(v[0] for k, v in json.load(open(ROOT + '/0006-dm1-blockout-06b/dm1-botduel/logs/round-%d/BotDuel.stats.json' % i))['link_types'].items() if k == 'Drop') for i in (1, 2, 3)),
                  sum(sum(v[0] + v[1] for k, v in json.load(open(ROOT + '/0006-dm1-blockout-06b/dm1-botduel/logs/round-%d/BotDuel.stats.json' % i))['link_types'].items() if k == 'Drop') for i in (1, 2, 3)))
 drop_art_run, drop_art_duel = (35, 36), (27, 30)          # 0006-dm1-art/<set>/links-by-record.txt TOTAL Drop
+drop_e4_ffa = (sum(r['drop'][0] for r in e4_ffa), sum(sum(r['drop']) for r in e4_ffa))
+pad_e4_ffa = (sum(r['pad'][0] for r in e4_ffa), sum(sum(r['pad']) for r in e4_ffa))
+
+
+def bot_drop(path_fmt, script):
+    ok = n = 0
+    for i in (1, 2, 3):
+        d = json.load(open(path_fmt % (i, script)))['link_types']
+        if 'Drop' in d:
+            ok += d['Drop'][0]
+            n += d['Drop'][0] + d['Drop'][1]
+    return ok, n
+
+
+drop_e4_run = bot_drop(ROOT + '/0006-dm1-art-e4/botrun/logs/round-%d/%s.stats.json', 'BotRun')
+drop_e4_duel = bot_drop(ROOT + '/0006-dm1-art-e4/botduel/logs/round-%d/%s.stats.json', 'BotDuel')
+pooled_e4 = (drop_e4_ffa[0] + drop_e4_run[0] + drop_e4_duel[0], drop_e4_ffa[1] + drop_e4_run[1] + drop_e4_duel[1])
 pooled_06b = (drop_06b_ffa[0] + drop_06b_run[0] + drop_06b_duel[0], drop_06b_ffa[1] + drop_06b_run[1] + drop_06b_duel[1])
 pooled_art = (drop_art_ffa[0] + drop_art_run[0] + drop_art_duel[0], drop_art_ffa[1] + drop_art_run[1] + drop_art_duel[1])
-pooled_all = (pooled_06b[0] + pooled_art[0], pooled_06b[1] + pooled_art[1])
+pooled_all = (pooled_06b[0] + pooled_art[0] + pooled_e4[0], pooled_06b[1] + pooled_art[1] + pooled_e4[1])
 p_pooled = pooled_all[0] / pooled_all[1]
 for label, (ok, n) in (('FFA x10 Drop (06b)', drop_06b_ffa), ('FFA x10 Drop (art)', drop_art_ffa), ('BotRun x3 Drop (06b)', drop_06b_run),
                        ('BotRun x3 Drop (art)', drop_art_run), ('BotDuel x3 Drop (06b)', drop_06b_duel), ('BotDuel x3 Drop (art)', drop_art_duel),
-                       ('pooled Drop (06b, 3 sets)', pooled_06b), ('pooled Drop (art, 3 sets)', pooled_art), ('pooled Drop (final layout, 6 sets)', pooled_all),
-                       ('FFA x10 JumpPad (06b)', pad_06b_ffa), ('FFA x10 JumpPad (art)', pad_art_ffa)):
+                       ('pooled Drop (06b, 3 sets)', pooled_06b), ('pooled Drop (art, 3 sets)', pooled_art), ('FFA x10 Drop (07e)', drop_e4_ffa), ('BotRun x3 Drop (07e)', drop_e4_run), ('BotDuel x3 Drop (07e)', drop_e4_duel),
+                       ('pooled Drop (07e, 3 sets)', pooled_e4), ('pooled Drop (final layout, 9 sets)', pooled_all),
+                       ('FFA x10 JumpPad (06b)', pad_06b_ffa), ('FFA x10 JumpPad (art)', pad_art_ffa), ('FFA x10 JumpPad (07e)', pad_e4_ffa)):
     f = fails_needed(n)
     judged = 'judged' if n >= 30 else 'n < 30: not judged'
     print('%-38s %d/%d = %.1f %%; %s; set FAILs at >= %d failed of %d; P(FAIL | true %.1f %%) = %.2f %%; lowest true rate with <= 10 %% false FAIL at n=%d: %.1f %%'
@@ -294,17 +327,48 @@ for key, fmt, script in (('06b BotRun x3', ROOT + '/0006-dm1-blockout-06b/dm1-bo
                 elif m.group(3) in FAILED:
                     failed += 1
     dock[key] = (ok, failed)
+# 07e sets: tally from the committed (gzipped) server / ffa logs, same pattern
+def tally(paths):
+    ok = failed = 0
+    for p in paths:
+        with gzip.open(p, 'rt', errors='replace') as fh:
+            for line in fh:
+                m = pat.search(line)
+                if not m:
+                    continue
+                if m.group(2) == 'ok':
+                    ok += 1
+                elif m.group(3) in FAILED:
+                    failed += 1
+    return ok, failed
+
+
+E4D = ROOT + '/0006-dm1-art-e4/'
+dock['07e FFA x10'] = tally([E4D + 'ffa/logs/ffa-%d.log.gz' % i for i in range(1, 11)])
+dock['07e BotRun x3'] = tally([E4D + 'botrun/logs/round-%d/BotRun-server.log.gz' % i for i in (1, 2, 3)])
+dock['07e BotDuel x3'] = tally([E4D + 'botduel/logs/round-%d/BotDuel-server.log.gz' % i for i in (1, 2, 3)])
+dock_a1 = {}
+if WITH_A1:
+    dock_a1['07e FFA x10 (attempt 1, FAIL)'] = tally([E4D + 'attempt1-ffa-FAIL/logs/ffa-%d.log.gz' % i for i in range(1, 11)])
+    dock_a1['07e BotRun x3 (attempt 1, FAIL)'] = tally([E4D + 'attempt1-botrun-FAIL/logs/round-%d/BotRun-server.log.gz' % i for i in (1, 2, 3)])
+    dock.update(dock_a1)
 for k, (ok, f) in dock.items():
     print('  %-16s dock N ok/failed %d/%d = %.1f %%' % (k, ok, f, 100 * ok / (ok + f) if ok + f else float('nan')))
 o06 = sum(dock[k][0] for k in dock if k.startswith('06b')); f06 = sum(dock[k][1] for k in dock if k.startswith('06b'))
-oart = sum(dock[k][0] for k in dock if k.startswith('art')); fart = sum(dock[k][1] for k in dock if k.startswith('art'))
-lo, hi = wilson(o06 + oart, o06 + f06 + oart + fart)
+oart = sum(dock[k][0] for k in dock if k.startswith('art'))
+o07 = sum(dock[k][0] for k in dock if k.startswith('07e')); f07 = sum(dock[k][1] for k in dock if k.startswith('07e')); fart = sum(dock[k][1] for k in dock if k.startswith('art'))
+lo, hi = wilson(o06 + oart + o07, o06 + f06 + oart + fart + o07 + f07)
 print('06b all sets %d/%d = %.1f %%; art all sets %d/%d = %.1f %%; Fisher exact two-sided p = %.2f (the two rounds do not differ beyond noise)' % (
     o06, o06 + f06, 100 * o06 / (o06 + f06), oart, oart + fart, 100 * oart / (oart + fart), fisher_two_sided(o06, f06, oart, fart)))
-pooled_ok, pooled_n = o06 + oart, o06 + f06 + oart + fart
+pooled_ok, pooled_n = o06 + oart + o07, o06 + f06 + oart + fart + o07 + f07
 p_dock = pooled_ok / pooled_n
-print('pooled dock N on the final layout: %d/%d = %.1f %% (Wilson 95 %%: %.1f-%.1f %%); dock N carries %d of the %d Drop misses on %d of %d Drop attempts' % (
-    pooled_ok, pooled_n, 100 * p_dock, lo, hi, f06 + fart, pooled_all[1] - pooled_all[0], pooled_n, pooled_all[1]))
+print('07e all sets %d/%d = %.1f %%' % (o07, o07 + f07, 100 * o07 / (o07 + f07)))
+# E4 (d)(ii): pooled over the two most recent confirmation rounds (task 15 + 07e), n >= 120 required
+two_ok, two_n = oart + o07, oart + fart + o07 + f07
+print('E4 (d)(ii) pooled over the two most recent confirmation rounds (task 15 + 07e): %d/%d = %.1f %% (trigger: < 85 %% with n >= 120; n %s 120 -> %s); false trigger at this n with dock N unchanged at 90.2 %%: %.1f %%' % (
+    two_ok, two_n, 100 * two_ok / two_n, '>=' if two_n >= 120 else '<', 'evaluable' if two_n >= 120 else 'NOT evaluable as written', 100 * binom_le(math.ceil(0.85 * two_n) - 1, two_n, 0.902)))
+print('pooled dock N on the final layout (06b + task 15 + 07e): %d/%d = %.1f %% (Wilson 95 %%: %.1f-%.1f %%); dock N carries %d of the %d Drop misses on %d of %d Drop attempts' % (
+    pooled_ok, pooled_n, 100 * p_dock, lo, hi, f06 + fart + f07, pooled_all[1] - pooled_all[0], pooled_n, pooled_all[1]))
 others_ok = pooled_all[0] - pooled_ok
 others_n = pooled_all[1] - pooled_n
 p_others = others_ok / others_n
