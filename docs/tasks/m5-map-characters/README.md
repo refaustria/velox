@@ -7,26 +7,28 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 | 01 | [headless-lighting-probe](01-headless-lighting-probe.md) | dev | 2 h | ADR §5 | 0 | done — PATH A FAILS; bake on the Apple Silicon Mac (E0.1) |
 | 02 | [map-library-refactor](02-map-library-refactor.md) | dev | 2–3 h | ADR §2 | 0 | done (maps committed by 03b) |
 | 03 | [nav-coverage-lint](03-nav-coverage-lint.md) | dev-hard | 3 h | ADR §6, ADR 0005 D41 | 0 | done (deviations accepted, E0.2) |
-| 03b | [test-maps-lint-baseline-and-regen](03b-test-maps-lint-baseline-and-regen.md) | dev | 2–3 h | 02, 03, E0.2 (e), E0.4 | 0b (parallel with 05) | todo |
+| 03b | [test-maps-lint-baseline-and-regen](03b-test-maps-lint-baseline-and-regen.md) | dev | 2–3 h | 02, 03, E0.2 (e), E0.4 | 0b (parallel with 05) | done |
 | 04 | [soak-runner-map-override-and-bands](04-soak-runner-map-override-and-bands.md) | dev | 2–3 h | ADR §7 | 0 | done (findings ruled, E0.3) |
 | 04b | [runner-per-instance-coverage-and-link-definition](04b-runner-per-instance-coverage-and-link-definition.md) | dev | 1–2 h | 04, E0.3 | 0b (before 06's final sets) | done |
 | 04c | [runner-dwell-timed-wait-exclusion](04c-runner-dwell-timed-wait-exclusion.md) | dev | 2 h | 04b, E2, `notes/dwell-report.md` | 0b (before 06's final sets) | done |
-| 05 | [dm1-blockout](05-dm1-blockout.md) | dev | 3 h (may split: layout+map / FT+gating) | 02, 03, E0.2/E0.5 (final lint with 03b) | 1 | todo |
+| 05 | [dm1-blockout](05-dm1-blockout.md) | dev | 3 h (may split: layout+map / FT+gating) | 02, 03, E0.2/E0.5 (final lint with 03b) | 1 | done |
 | 06 | [dm1-bot-iteration](06-dm1-bot-iteration.md) | dev | 3 h (+ soak time) | 04, 04b, 05 | 1 | done (contended host; findings → 06b) |
 | 06b | [dm1-bot-defects](06b-dm1-bot-defects.md) | dev-hard | 3 h (+ soak time) | 06 | 1 | done (reviewed: `docs/adr/reviews/0006-06b-review.md`, approve with follow-ups) |
-| 06c | [link-outcome-symmetry](06c-link-outcome-symmetry.md) | dev-hard | 1–2 h | 06b review D1/D2 | 1b | todo (no soak) |
+| 06c | [link-outcome-symmetry](06c-link-outcome-symmetry.md) | dev-hard | 1–2 h | 06b review D1/D2 | 1b | done |
 | 07 | [dm1-band-ruling](07-dm1-band-ruling.md) | architect | 1 h | 06, 06b, E2 | 1 | done (ADR 0006 E3; `bands/L_DM1.sh`, `L_DM1_Blockout.sh`) |
-| 07b | [dm1-runner-followups](07b-dm1-runner-followups.md) | dev | 2 h | 07, 06b review D3/D4 | 1b | todo (no UE run) |
-| 08 | [character-cosmetics-and-anim-instance](08-character-cosmetics-and-anim-instance.md) | dev-hard | 3 h | ADR §4 | 2 (parallel with 1) | todo |
-| 09 | [view-model-and-weapon-cosmetics](09-view-model-and-weapon-cosmetics.md) | dev | 3 h | 08 | 2 | todo |
-| 10 | [audio-foundation](10-audio-foundation.md) | dev | 3 h (may split: content script / hooks+announcer) | 09 | 2 | todo |
+| 07b | [dm1-runner-followups](07b-dm1-runner-followups.md) | dev | 2 h | 07, 06b review D3/D4 | 1b | done |
+| 07c | [dm1-band-rederivation](07c-dm1-band-rederivation.md) | architect | 1 h | 07, 15 | 4 | todo |
+| 07d | [dm1-runner-map-override](07d-dm1-runner-map-override.md) | dev | 1 h | 15 | 4 | todo |
+| 08 | [character-cosmetics-and-anim-instance](08-character-cosmetics-and-anim-instance.md) | dev-hard | 3 h | ADR §4 | 2 (parallel with 1) | done |
+| 09 | [view-model-and-weapon-cosmetics](09-view-model-and-weapon-cosmetics.md) | dev | 3 h | 08 | 2 | done |
+| 10 | [audio-foundation](10-audio-foundation.md) | dev | 3 h (may split: content script / hooks+announcer) | 09 | 2 | done |
 | 11 | [character-asset-pipeline](11-character-asset-pipeline.md) | dev | 3 h | 08, Q1, Q3 | 3 | done |
 | 12 | [animation-set](12-animation-set.md) | dev | 2–3 h | 11 | 3 | done |
 | 13 | [weapon-and-item-models](13-weapon-and-item-models.md) | dev | 3 h | 09, 10, 11 | 3 | done |
 | 13b | [projectile-visuals](13b-projectile-visuals.md) | dev | 2 h | 13, 18c | 4 | todo |
 | 14 | [modular-kit](14-modular-kit.md) | dev | 3 h | 11, Q4 | 3 | done |
-| 15 | [dm1-art-pass](15-dm1-art-pass.md) | dev | 3 h | 07, 14 | 4 | todo |
-| 16 | [lighting-bake-and-perf-audit](16-lighting-bake-and-perf-audit.md) | dev (A) / human + dev (B) | A 3 h; B bake 1–3 h on the Apple Silicon Mac | A: 05 (tool), 15; B: 15, the Mac (E0.1) | 4 | todo |
+| 15 | [dm1-art-pass](15-dm1-art-pass.md) | dev | 3 h | 07, 14 | 4 | done (confirmation sets PASS; `notes/15-report.md`) |
+| 16 | [lighting-bake-and-perf-audit](16-lighting-bake-and-perf-audit.md) | dev (A) / human + dev (B) | A 3 h; B bake 1–3 h on the Apple Silicon Mac | A: 05 (tool), 15; B: 15, the Mac (E0.1) | 4 | A done; B waits for the Mac |
 | 17 | [m5-playtest-checklist](17-m5-playtest-checklist.md) | dev | 1 h | 15, 16, 08–13 | 4 | todo |
 | 18 | [architect-review-cosmetics](18-architect-review-cosmetics.md) | architect | 1–2 h | 08, 09, 10 merged | 4 | done (approve with follow-ups, E1) |
 | 18b | [cosmetics-review-fixes](18b-cosmetics-review-fixes.md) | dev | 2–3 h | 18 (D1–D3, D5–D7); before 17 runs on the Mac | 4 | done |
