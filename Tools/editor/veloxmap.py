@@ -203,15 +203,23 @@ def save_map(les, map_check=True):
 
 # ---------------------------------------------------------------- geometry
 def box(name, center, size, material, kind, rot=None, collide=True, tags=(), folder=None, mesh_path=CUBE,
-        fill_nav=None, layout=None):
-    """Static mesh box. size = full extents in cm (cube/cylinder is 100 cm, so scale = size / 100)."""
+        fill_nav=None, layout=None, clip=False):
+    """Static mesh box. size = full extents in cm (cube/cylinder is 100 cm, so scale = size / 100).
+    clip=True (art mode, ADR 0006 section 2): the same box as invisible collision: no material, hidden in game, not rendered, no shadow,
+    collision and navigation influence exactly as the visible box (BlockAll, same fill_collision_underneath_for_navmesh)."""
     a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*center), rot or unreal.Rotator(0, 0, 0))
     a.set_actor_label(name)
     a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
     c = a.static_mesh_component
     c.set_editor_property("static_mesh", mesh(mesh_path))
     c.set_mobility(STATIC)
-    c.set_material(0, MATS[material])
+    if clip:
+        a.set_actor_hidden_in_game(True)
+        c.set_editor_property("hidden_in_game", True)
+        c.set_editor_property("visible", False)
+        c.set_editor_property("cast_shadow", False)
+    else:
+        c.set_material(0, MATS[material])
     if fill_nav is None:
         fill_nav = kind in FILL_NAV_KINDS
     if fill_nav:
@@ -227,14 +235,14 @@ def box(name, center, size, material, kind, rot=None, collide=True, tags=(), fol
     return a
 
 
-def ramp(name, origin, length, width, thickness, deg, material, kind="ramp", tags=(), folder=None, layout=None):
+def ramp(name, origin, length, width, thickness, deg, material, kind="ramp", tags=(), folder=None, layout=None, clip=False):
     """Thin slab whose top surface runs from `origin` (x, y, z) rising along +X at `deg` degrees over `length` cm
     (the slab centre is offset half a thickness along -normal)."""
     th = math.radians(deg)
     cx = origin[0] + length / 2 * math.cos(th) + thickness / 2 * math.sin(th)
     cz = origin[2] + length / 2 * math.sin(th) - thickness / 2 * math.cos(th)
     return box(name, (cx, origin[1], cz), (length, width, thickness), material, kind, rot=unreal.Rotator(0, deg, 0),
-               tags=tags, folder=folder, layout=layout)
+               tags=tags, folder=folder, layout=layout, clip=clip)
 
 
 def stairs(name, x0, y, tread, width, riser, steps, material, kind="step", tags=(), folder=None, layout=None):
@@ -396,3 +404,112 @@ def static_sun_and_sky():
     sun.get_component_by_class(unreal.DirectionalLightComponent).set_mobility(STATIC)
     sky = spawn(unreal.SkyLight, "SkyLight", (0, 0, 900), None, None, "light")
     sky.get_component_by_class(unreal.SkyLightComponent).set_mobility(STATIC)
+
+
+# ---------------------------------------------------------------- art mode helpers (task M5-15)
+def kit_piece(name, mesh_path, location, yaw=0.0, pitch=0.0, scale=(1.0, 1.0, 1.0), layout=None, lm_res=None, folder="Kit"):
+    """Visual-only kit mesh instance: NoCollision, no navigation influence, Static, optional lightmap resolution override.
+    Counted under kind "kit". Unreal's Rotator argument order is (roll, pitch, yaw)."""
+    a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*location), unreal.Rotator(0.0, pitch, yaw))
+    a.set_actor_label(name)
+    a.set_actor_scale3d(unreal.Vector(*scale))
+    c = a.static_mesh_component
+    m = mesh(mesh_path)
+    if m is None:
+        fail("missing kit mesh " + mesh_path)
+        return a
+    c.set_editor_property("static_mesh", m)
+    c.set_mobility(STATIC)
+    # The kit meshes already default to NoCollision, so setting it again is a no-op and is not serialised: a reloaded component
+    # would fall back to the actor class default (BlockAll). Force a real change first, then set the final value.
+    c.set_collision_profile_name("BlockAll")
+    c.set_collision_profile_name("NoCollision")
+    c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    c.set_editor_property("can_ever_affect_navigation", False)
+    if lm_res:
+        c.set_editor_property("override_light_map_res", True)
+        c.set_editor_property("overridden_light_map_res", int(lm_res))
+    a.set_folder_path(folder)
+    tag_actor(a, name, layout)
+    count("kit")
+    return a
+
+
+def _srgb8(rgb):
+    return unreal.Color(*[max(0, min(255, int(round(c * 255.0)))) for c in rgb], 255)
+
+
+def static_point_light(name, location, lumens, rgb, radius, layout=None, folder="Lights"):
+    """Static (baked) point light in lumens. Counted under kind "pointlight"."""
+    a = spawn(unreal.PointLight, name, location, None, folder, "pointlight", (), layout)
+    comp = a.get_component_by_class(unreal.PointLightComponent)
+    comp.set_mobility(STATIC)
+    comp.set_editor_property("intensity_units", unreal.LightUnits.LUMENS)
+    comp.set_editor_property("intensity", float(lumens))
+    comp.set_editor_property("light_color", _srgb8(rgb))
+    comp.set_editor_property("attenuation_radius", float(radius))
+    comp.set_editor_property("cast_shadows", True)
+    return a
+
+
+def static_spot_light(name, location, rotation, lumens, rgb, radius, outer_cone=44.0, layout=None, folder="Lights"):
+    """Static spot light; rotation = (roll, pitch, yaw). Counted under kind "spotlight"."""
+    a = spawn(unreal.SpotLight, name, location, unreal.Rotator(*rotation), folder, "spotlight", (), layout)
+    comp = a.get_component_by_class(unreal.SpotLightComponent)
+    comp.set_mobility(STATIC)
+    comp.set_editor_property("intensity_units", unreal.LightUnits.LUMENS)
+    comp.set_editor_property("intensity", float(lumens))
+    comp.set_editor_property("light_color", _srgb8(rgb))
+    comp.set_editor_property("attenuation_radius", float(radius))
+    comp.set_editor_property("outer_cone_angle", float(outer_cone))
+    return a
+
+
+def sphere_reflection_capture(name, location, radius, layout=None, folder="Lights"):
+    """SphereReflectionCapture (the capture resolution is the project's r.ReflectionCaptureResolution). Kind "reflection"."""
+    a = spawn(unreal.SphereReflectionCapture, name, location, None, folder, "reflection", (), layout)
+    comp = a.get_component_by_class(unreal.SphereReflectionCaptureComponent)
+    comp.set_editor_property("influence_radius", float(radius))
+    return a
+
+
+def sky_light(cubemap_path, name="SkyLight", location=(0, 0, 900)):
+    """Static SkyLight with a specified cubemap (TC_Sky_DM1). Kind "skylight"."""
+    a = spawn(unreal.SkyLight, name, location, None, None, "skylight")
+    comp = a.get_component_by_class(unreal.SkyLightComponent)
+    comp.set_mobility(STATIC)
+    cube = unreal.load_asset(cubemap_path)
+    if cube is None:
+        fail("missing sky cubemap " + cubemap_path)
+    else:
+        comp.set_editor_property("source_type", unreal.SkyLightSourceType.SLS_SPECIFIED_CUBEMAP)
+        comp.set_editor_property("cubemap", cube)
+    return a
+
+
+def lightmass_importance_volume(center, size, name="LightmassImportance"):
+    """LightmassImportanceVolume over the playable space (scale = size / default 200 cm brush). Kind "lightmassvolume"."""
+    v = spawn(unreal.LightmassImportanceVolume, name, center, None, "Lights", "lightmassvolume")
+    v.set_actor_scale3d(unreal.Vector(size[0] / NAV_BOUNDS_BRUSH, size[1] / NAV_BOUNDS_BRUSH, size[2] / NAV_BOUNDS_BRUSH))
+    origin, extent = v.get_actor_bounds(False)
+    log(f"{name}: origin {origin} extent {extent}")
+    return v
+
+
+def lightmass_world_settings(bounces=3, quality=1.0, level_scale=1.0, compress=True, vlm_cell=200.0):
+    """ADR 0006 section 5: 3 bounces, indirect quality 1, level scale 1, compressed lightmaps, volumetric lightmap detail cell 200."""
+    ws = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
+    ls = ws.get_editor_property("lightmass_settings")
+    ls.set_editor_property("num_indirect_lighting_bounces", int(bounces))
+    ls.set_editor_property("indirect_lighting_quality", float(quality))
+    ls.set_editor_property("static_lighting_level_scale", float(level_scale))
+    ls.set_editor_property("compress_lightmaps", bool(compress))
+    ls.set_editor_property("volumetric_lightmap_detail_cell_size", float(vlm_cell))
+    ws.set_editor_property("lightmass_settings", ls)
+    got = ws.get_editor_property("lightmass_settings")
+    log("Lightmass: bounces=%s quality=%s scale=%s compress=%s vlm_cell=%s" % (
+        got.get_editor_property("num_indirect_lighting_bounces"), got.get_editor_property("indirect_lighting_quality"),
+        got.get_editor_property("static_lighting_level_scale"), got.get_editor_property("compress_lightmaps"),
+        got.get_editor_property("volumetric_lightmap_detail_cell_size")))
+    if int(got.get_editor_property("num_indirect_lighting_bounces")) != int(bounces) or abs(got.get_editor_property("volumetric_lightmap_detail_cell_size") - vlm_cell) > 0.01:
+        fail("could not set the Lightmass world settings")

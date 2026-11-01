@@ -1,0 +1,103 @@
+{
+ "breaches": [],
+ "budget": {
+  "draw_calls_est": 600,
+  "kit_meshes": 25,
+  "lfs_mb": 600.0,
+  "lightmap_mb": 48.0,
+  "lm_gt64": 120,
+  "materials_per_kit_mesh": 8,
+  "texture_mb": 256.0,
+  "translucent": 0,
+  "triangles_total": 300000
+ },
+ "collision_diff": {
+  "a": "/Game/Maps/DM1/L_DM1_Blockout",
+  "b": "/Game/Maps/DM1/L_DM1",
+  "blocking_a": 150,
+  "blocking_b": 150,
+  "count": 0,
+  "differences": [],
+  "gameplay_a": 68,
+  "gameplay_b": 68
+ },
+ "figures": {
+  "components_total": 706,
+  "components_visible": 568,
+  "distinct_materials": 9,
+  "distinct_meshes": 10,
+  "draw_calls_est": 568,
+  "kit_meshes": 8,
+  "lightmap_mb": 12.35,
+  "lightmap_resolutions": {
+   "128": 50,
+   "32": 100,
+   "64": 383
+  },
+  "lm_components": 533,
+  "lm_gt64": 50,
+  "materials_per_mesh": {
+   "SM_Kit_Bridge_400": 1,
+   "SM_Kit_Ceiling_400": 1,
+   "SM_Kit_Floor_400": 1,
+   "SM_Kit_Light_Fixture": 1,
+   "SM_Kit_Pad_Ring": 1,
+   "SM_Kit_Wall_400": 1,
+   "SM_Kit_Wall_Door400": 1,
+   "SM_Kit_Wall_Trim": 1
+  },
+  "texture_mb": 1.333,
+  "top_meshes_by_tris": [
+   {
+    "mesh": "Cylinder",
+    "tris": 512
+   },
+   {
+    "mesh": "SM_Kit_Bridge_400",
+    "tris": 72
+   },
+   {
+    "mesh": "SM_Kit_Wall_Trim",
+    "tris": 60
+   },
+   {
+    "mesh": "SM_Kit_Pad_Ring",
+    "tris": 48
+   },
+   {
+    "mesh": "Cube",
+    "tris": 48
+   },
+   {
+    "mesh": "SM_Kit_Light_Fixture",
+    "tris": 36
+   },
+   {
+    "mesh": "SM_Kit_Wall_Door400",
+    "tris": 24
+   },
+   {
+    "mesh": "SM_Kit_Wall_400",
+    "tris": 12
+   }
+  ],
+  "translucent": 0,
+  "translucent_list": [],
+  "triangles_total": 18180
+ },
+ "lfs_mb": 12.6,
+ "lighting": {
+  "components": 671,
+  "lightmapped": 0,
+  "pass": false,
+  "probe": "ok",
+  "registry": 0,
+  "vlm": 0
+ },
+ "map": "/Game/Maps/DM1/L_DM1",
+ "protrusion": {
+  "flagged": [],
+  "kit_instances": 518
+ },
+ "short": "L_DM1"
+}

@@ -1,0 +1,24 @@
+[VeloxAudit] map /Game/Maps/DM1/L_DM1: 777 actors, 706 static mesh components (568 visible)
+[VeloxAudit] draw_calls_est      568 / 600
+[VeloxAudit] triangles_total   18180 / 300000
+[VeloxAudit] lightmap_mb       12.35 / 48   (533 lightmapped components, resolutions {'32': 100, '64': 383, '128': 50})
+[VeloxAudit] texture_mb         1.33 / 256
+[VeloxAudit] lm_res_gt_64         50 / 120
+[VeloxAudit] kit_meshes            8 / 25   (distinct meshes 10, distinct materials 9)
+[VeloxAudit] translucent           0 / 0
+[VeloxAudit]   mesh Cylinder                            512 tris
+[VeloxAudit]   mesh SM_Kit_Bridge_400                    72 tris
+[VeloxAudit]   mesh SM_Kit_Wall_Trim                     60 tris
+[VeloxAudit]   mesh SM_Kit_Pad_Ring                      48 tris
+[VeloxAudit]   mesh Cube                                 48 tris
+[VeloxAudit]   mesh SM_Kit_Light_Fixture                 36 tris
+[VeloxAudit]   mesh SM_Kit_Wall_Door400                  24 tris
+[VeloxAudit]   mesh SM_Kit_Wall_400                      12 tris
+[VeloxAudit] lfs_total_mb     12.6 (informational; M5 new-object budget 600 MB, section 1)
+[VeloxAudit] protrusion       518 kit instances checked, 0 intrude > 5 cm
+[VeloxAudit] collision diff   L_DM1_Blockout vs L_DM1: 0 differences (blocking 150/150, gameplay actors 68/68)
+[VeloxAudit] lighting         registry=0 lightmapped=0/671 vlm=0  (probe: ok)
+[VeloxAudit] lighting         NOT BAKED (E0.1 d needs registry=1, lightmapped>=1, vlm=1)
+[VeloxAudit] json             /home/bojan/velox/.claude/worktrees/agent-ad116e7805382bfe7/Saved/Audit/L_DM1.json
+[VeloxAudit] LIGHTING FAIL
+[VeloxAudit] RESULT PASS

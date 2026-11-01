@@ -1,0 +1,7 @@
+[2026.11.01-06.14.54:335][  0]LogVeloxBots: VeloxReachabilityFt test=FT_DM1_Reachability waiting for the nav build
+[2026.11.01-06.14.54:355][  3]LogVeloxBots: VeloxReachabilityFt check=playerstarts ok=1 n=8 expected=8
+[2026.11.01-06.14.54:355][  3]LogVeloxBots: VeloxReachabilityFt check=pickups ok=1 n=35 min=30
+[2026.11.01-06.14.54:359][  3]LogVeloxBots: VeloxReachabilityFt check=start_to_pickup_all ok=1 pairs=280 failed=0
+[2026.11.01-06.14.54:359][  3]LogVeloxBots: VeloxReachabilityFt check=major_items ok=1 n=6
+[2026.11.01-06.14.54:359][  3]LogVeloxBots: VeloxReachabilityFt check=major_to_major_all ok=1 pairs=30 failed=0
+[2026.11.01-06.14.54:359][  3]LogVeloxBots: VeloxReachabilityFt test=FT_DM1_Reachability result=PASS checks=5 failed=0

@@ -1,0 +1,35 @@
+[VeloxDM1] figure PadA_landing = (-1952, -450, 319.4)
+[VeloxDM1] figure PadB_landing = (1952, 0, 319.4)
+[VeloxDM1] figure PadD_landing = (0, -98, 638.6)
+[VeloxDM1] figure RJ_East_clearance = 920
+[VeloxDM1] figure RJ_West_clearance = 920
+[VeloxDM1] figure S1_CW_weapon_m = 6.0
+[VeloxDM1] figure S2_LGW_weapon_m = 7.5
+[VeloxDM1] figure S3_LGE_weapon_m = 7.5
+[VeloxDM1] figure S4_CE_weapon_m = 6.1
+[VeloxDM1] figure S5_RLW_weapon_m = 7.8
+[VeloxDM1] figure S6_RLE_weapon_m = 2.5
+[VeloxDM1] figure S7_E1_weapon_m = 5.7
+[VeloxDM1] figure S8_E2_weapon_m = 5.7
+[VeloxDM1] figure ammo_LG_m = 11.0
+[VeloxDM1] figure ammo_PG_m = 10.5
+[VeloxDM1] figure ammo_RG_m = 6.4
+[VeloxDM1] figure ammo_RL_m = 8.0
+[VeloxDM1] figure ammo_SG_m = 10.1
+[VeloxDM1] layout valid: 137 solids, 35 items, 8 spawns, 16 links
+[VeloxDM1] art plan: 518 kit instances {'Floor_400': 147, 'Wall_400': 135, 'Bridge_400': 26, 'Wall_Trim': 116, 'Wall_Door400': 16, 'Ceiling_400': 44, 'Light_Fixture': 31, 'Pad_Ring': 3}; 0 protrude > 5 cm
+[VeloxDM1] map exists, clearing it for rebuild
+[VeloxDM1] LightmassImportance: origin <Struct 'Vector' (0x7fc4f2dd4100) {x: 0.000000, y: -400.000000, z: 650.000000}> extent <Struct 'Vector' (0x7fc4f2dd5140) {x: 3600.000000, y: 2000.000000, z: 750.000000}>
+[VeloxDM1] Lightmass: bounces=3 quality=1.0 scale=1.0 compress=True vlm_cell=200.0
+[VeloxDM1] NavMeshBounds: origin <Struct 'Vector' (0x7fc4f2dd4100) {x: 0.000000, y: -400.000000, z: 600.000000}> extent <Struct 'Vector' (0x7fc4f2dd5140) {x: 3700.000000, y: 2100.000000, z: 900.000000}>
+[VeloxDM1] WorldSettings.KillZ = -1000.0
+[VeloxDM1] WorldSettings.DefaultGameMode = VeloxGameMode_FFA
+[VeloxDM1] PadA: compute_landing_point <Struct 'Vector' (0x7fc4f2dd4f10) {x: -1953.774898, y: -450.000000, z: 320.000000}>
+[VeloxDM1] PadA: launch <Struct 'Vector' (0x7fc4f2dd4f10) {x: 845.154255, y: 0.000000, z: 1183.215957}> |v|=1454 cm/s
+[VeloxDM1] PadB: compute_landing_point <Struct 'Vector' (0x7fc4f2dd5140) {x: 1953.774898, y: 0.000000, z: 320.000000}>
+[VeloxDM1] PadB: launch <Struct 'Vector' (0x7fc4f2dd5140) {x: -845.154255, y: 0.000000, z: 1183.215957}> |v|=1454 cm/s
+[VeloxDM1] PadD: compute_landing_point <Struct 'Vector' (0x7fc4f2dd4f10) {x: 0.000000, y: -102.039228, z: 640.000000}>
+[VeloxDM1] PadD: launch <Struct 'Vector' (0x7fc4f2dd4f10) {x: 0.000000, y: 855.186110, z: 1637.070554}> |v|=1847 cm/s
+[VeloxDM1] spawned: bridge=4, bridgewall=4, camera=1, clip=12, floor=1, jumppad=3, kit=518, lightmassvolume=1, lintel=9, navbounds=1, navlink=16, pickup=35, platform=13, playerstart=8, pointlight=31, ramp=1, reflection=7, skylight=1, step=63, targetpoint=3, text=1, wall=43
+[VeloxDM1] kit instances=518 by mesh {'Floor_400': 147, 'Wall_400': 135, 'Bridge_400': 26, 'Wall_Trim': 116, 'Wall_Door400': 16, 'Ceiling_400': 44, 'Light_Fixture': 31, 'Pad_Ring': 3}
+[VeloxDM1] done
