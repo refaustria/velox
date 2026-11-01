@@ -17,7 +17,8 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 | 06c | [link-outcome-symmetry](06c-link-outcome-symmetry.md) | dev-hard | 1–2 h | 06b review D1/D2 | 1b | done |
 | 07 | [dm1-band-ruling](07-dm1-band-ruling.md) | architect | 1 h | 06, 06b, E2 | 1 | done (ADR 0006 E3; `bands/L_DM1.sh`, `L_DM1_Blockout.sh`) |
 | 07b | [dm1-runner-followups](07b-dm1-runner-followups.md) | dev | 2 h | 07, 06b review D3/D4 | 1b | done |
-| 07c | [dm1-band-rederivation](07c-dm1-band-rederivation.md) | architect | 1 h | 07, 15 | 4 | todo |
+| 07c | [dm1-band-rederivation](07c-dm1-band-rederivation.md) | architect | 1 h | 07, 15 | 4 | done (ADR 0006 E4) |
+| 07e | [dm1-art-live-confirmation](07e-dm1-art-live-confirmation.md) | dev | 2 h (soak time) | 07c, 07d, 13b | 4 | todo |
 | 07d | [dm1-runner-map-override](07d-dm1-runner-map-override.md) | dev | 1 h | 15 | 4 | todo |
 | 08 | [character-cosmetics-and-anim-instance](08-character-cosmetics-and-anim-instance.md) | dev-hard | 3 h | ADR §4 | 2 (parallel with 1) | done |
 | 09 | [view-model-and-weapon-cosmetics](09-view-model-and-weapon-cosmetics.md) | dev | 3 h | 08 | 2 | done |
