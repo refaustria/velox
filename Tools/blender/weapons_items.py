@@ -32,6 +32,7 @@ except ImportError:
 
 MAX_WEAPON_TRIS = 1500
 MAX_ITEM_TRIS = 400
+MAX_PROJECTILE_TRIS = 150
 MAX_ITEM_HEIGHT = 60.0
 PALETTE_SIZE = 16
 
@@ -368,6 +369,34 @@ ITEMS = [  # asset stem (SM_Item_<stem>), builder, DA_Item_* asset the mesh is w
 ]
 
 
+# ---------------------------------------------------------------- projectiles and the tracer beam (task 13b)
+# Origin at the centre, flight direction +X, drawn with an unlit emissive material (M_Projectile_Unlit). Gameplay never reads them.
+def p_rocket(b):
+    """Rocket in flight: a white body with a red nose cone and four yellow tail fins; about 17 cm long."""
+    b.tube((-6, 0, 0), (5, 0, 0), 2.2, 2.2, 8, C["white"], cap_color=C["orange"], offset=math.pi / 8)
+    b.tube((5, 0, 0), (11, 0, 0), 2.2, 0, 8, C["red"], offset=math.pi / 8)
+    b.extrude_yz(-6, -1, [(-0.5, 2.0), (0.5, 2.0), (0.5, 5.5), (-0.5, 4.0)], C["yellow"])
+    b.extrude_yz(-6, -1, [(-0.5, -2.0), (0.5, -2.0), (0.5, -5.5), (-0.5, -4.0)], C["yellow"])
+    b.extrude_xz([(-6, 2.0), (-1, 2.0), (-1, 5.5), (-6, 4.0)], -0.5, 0.5, C["yellow"])
+    b.extrude_xz([(-6, -2.0), (-1, -2.0), (-1, -5.5), (-6, -4.0)], -0.5, 0.5, C["yellow"])
+
+
+def p_plasma(b):
+    """Plasma ball: a bright cyan / pale-blue faceted sphere, 8 cm across."""
+    b.sphere((0, 0, 0), 4.0, 4, 8, [C["pale_blue"], C["cyan"]])
+
+
+def p_tracer(b):
+    """Unit beam: a thin hexagonal bar from the origin along +X, 100 cm long, 1 cm radius. Scaled per shot (X by length / 100, YZ by the
+    width) and tinted through the material's Color parameter, so it is white here."""
+    b.tube((0, 0, 0), (100, 0, 0), 1.0, 1.0, 6, C["white"], offset=math.pi / 6)
+
+
+PROJECTILES = [  # asset name, builder
+    ("SM_Projectile_Rocket", p_rocket), ("SM_Projectile_Plasma", p_plasma), ("SM_Fx_Tracer", p_tracer),
+]
+
+
 # ---------------------------------------------------------------- checks, texture, Blender objects
 def validate_weapon(name, b, muzzle):
     tris = b.tri_count()
@@ -385,6 +414,14 @@ def validate_item(name, b):
     assert tris <= MAX_ITEM_TRIS, f"{name}: {tris} tris"
     assert abs(lo[2]) < 1e-3, f"{name}: origin not at the base ({lo[2]})"
     assert hi[2] <= MAX_ITEM_HEIGHT + 1e-3, f"{name}: {hi[2]} cm tall"
+    return tris, lo, hi
+
+
+def validate_projectile(name, b):
+    tris = b.tri_count()
+    lo, hi = b.bounds()
+    assert tris <= MAX_PROJECTILE_TRIS, f"{name}: {tris} tris"
+    assert hi[0] > 1.0 and hi[0] - lo[0] <= 110, f"{name}: bad extent along the flight axis ({lo}, {hi})"
     return tris, lo, hi
 
 
@@ -508,7 +545,7 @@ def main(argv):
     write_palette(tex_path)
     mat = make_palette_material(tex_path)
 
-    manifest = {"palette": [{"name": n, "srgb": list(rgb)} for n, rgb in PALETTE], "weapons": [], "items": []}
+    manifest = {"palette": [{"name": n, "srgb": list(rgb)} for n, rgb in PALETTE], "weapons": [], "items": [], "projectiles": []}
     names = []
     total = 0
     for stem, fn in WEAPONS:
@@ -537,6 +574,16 @@ def main(argv):
         names.append(name)
         total += tris
         print(f"[weapons] {name}: tris={tris} bounds={lo.round(1).tolist()}..{hi.round(1).tolist()}")
+    for name, fn in PROJECTILES:
+        b = Builder()
+        fn(b)
+        tris, lo, hi = validate_projectile(name, b)
+        export_fbx(os.path.join(args.out, name + ".fbx"), make_object(name, b, mat))
+        manifest["projectiles"].append({"name": name, "fbx": name + ".fbx", "tris": tris,
+                                        "bounds_min": [round(float(x), 2) + 0.0 for x in lo], "bounds_max": [round(float(x), 2) + 0.0 for x in hi]})
+        names.append(name)
+        total += tris
+        print(f"[weapons] {name}: tris={tris} bounds={lo.round(1).tolist()}..{hi.round(1).tolist()}")
     manifest["total_tris"] = total
     with open(os.path.join(args.out, "weapons_manifest.json"), "w") as fh:
         json.dump(manifest, fh, indent=1, sort_keys=True)
@@ -544,7 +591,7 @@ def main(argv):
     if args.preview:
         render_preview(args.preview, names)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.blend), compress=True)
-    print(f"[weapons] done weapons={len(WEAPONS)} items={len(ITEMS)} tris={total}")
+    print(f"[weapons] done weapons={len(WEAPONS)} items={len(ITEMS)} projectiles={len(PROJECTILES)} tris={total}")
 
 
 if __name__ == "__main__":
@@ -557,5 +604,9 @@ if __name__ == "__main__":
             bb = Builder()
             fn(bb)
             print(stem, validate_item(stem, bb)[0])
+        for stem, fn in PROJECTILES:
+            bb = Builder()
+            fn(bb)
+            print(stem, validate_projectile(stem, bb)[0])
     else:
         main(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])

@@ -30,6 +30,10 @@
 #include "Net/VeloxLagCompensationSubsystem.h"
 #include "TimerManager.h"
 #include "Components/PointLightComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Core/VeloxWeaponCosmetics.h"
 #include "Weapons/VeloxMovableLights.h"
 #include "Weapons/VeloxWeaponDefinition.h"
@@ -337,6 +341,7 @@ void AVeloxProjectile::Tick(float DeltaSeconds)
 		return;
 	}
 	UpdateFlightLight();
+	UpdateProjectileVisuals();
 	if (bFake)
 	{
 		TickFake(DeltaSeconds);
@@ -373,6 +378,71 @@ void AVeloxProjectile::UpdateFlightLight()
 		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxProjectileLight seq=%u fake=%d attached intensity=%.0f radius=%.0f active=%d tries=%d"), ShotSeq, bFake ? 1 : 0, Cosmetics->ProjectileLightIntensity,
 			Cosmetics->ProjectileLightRadius, VeloxMovableLights::NumActive(), FlightLightTries);
 	}
+}
+
+void AVeloxProjectile::UpdateProjectileVisuals()
+{
+	if (bVisualsDone || VisualsTries >= MaxFlightLightTries || IsNetMode(NM_DedicatedServer) || !Definition)
+	{
+		return;
+	}
+	++VisualsTries;
+	const UVeloxWeaponCosmetics* Cosmetics = Definition->Cosmetics.Get();
+	if (!Cosmetics)
+	{
+		return;
+	}
+	const bool bWantMesh = !Cosmetics->ProjectileMesh.IsNull();
+	const bool bWantTrail = Cosmetics->ProjectileTrailLength > 0.f && !Cosmetics->TracerMesh.IsNull();
+	UStaticMesh* FlightMesh = Cosmetics->ProjectileMesh.Get();
+	UStaticMesh* TrailMesh = Cosmetics->TracerMesh.Get();
+	UMaterialInterface* TrailMaterial = Cosmetics->TracerMaterial.Get();
+	if ((bWantMesh && !FlightMesh) || (bWantTrail && (!TrailMesh || !TrailMaterial)))
+	{
+		return; // the weapon-cosmetics batch is not resident yet: try again next tick
+	}
+	bVisualsDone = true;
+	if (!bWantMesh && !bWantTrail)
+	{
+		return;
+	}
+
+	const FVector Direction = LaunchVelocity.GetSafeNormal();
+	const FQuat Rotation = Direction.IsNearlyZero() ? GetActorQuat() : Direction.ToOrientationQuat();
+	const FVector Location = GetActorLocation();
+	auto MakeComponent = [this](const TCHAR* Name, UStaticMesh* Mesh)
+	{
+		UStaticMeshComponent* Component = NewObject<UStaticMeshComponent>(this, Name);
+		Component->SetStaticMesh(Mesh);
+		Component->SetMobility(EComponentMobility::Movable);
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Component->SetGenerateOverlapEvents(false);
+		Component->SetCastShadow(false);
+		Component->bAffectDynamicIndirectLighting = false;
+		Component->SetCanEverAffectNavigation(false);
+		Component->SetupAttachment(GetRootComponent());
+		Component->RegisterComponent();
+		return Component;
+	};
+	if (bWantMesh)
+	{
+		ProjectileMeshComponent = MakeComponent(TEXT("ProjectileMesh"), FlightMesh);
+		ProjectileMeshComponent->SetWorldTransform(FTransform(Rotation, Location));
+	}
+	if (bWantTrail)
+	{
+		// The unit beam runs from its origin along +X (100 cm): stretched to the trail length and set so it ends at the projectile.
+		TrailMeshComponent = MakeComponent(TEXT("ProjectileTrail"), TrailMesh);
+		const float Length = Cosmetics->ProjectileTrailLength;
+		TrailMeshComponent->SetWorldTransform(FTransform(Rotation, Location - Rotation.GetForwardVector() * Length, FVector(Length / 100.f, Cosmetics->TracerWidth, Cosmetics->TracerWidth)));
+		UMaterialInstanceDynamic* Material = TrailMeshComponent->CreateDynamicMaterialInstance(0, TrailMaterial);
+		if (Material)
+		{
+			Material->SetVectorParameterValue(TEXT("Color"), Cosmetics->TracerColor);
+		}
+	}
+	UE_LOG(LogVeloxCombat, Verbose, TEXT("VeloxProjectileMesh seq=%u fake=%d mesh=%s trail_cm=%.0f tries=%d"), ShotSeq, bFake ? 1 : 0, *GetNameSafe(FlightMesh),
+		bWantTrail ? Cosmetics->ProjectileTrailLength : 0.f, VisualsTries);
 }
 
 bool AVeloxProjectile::SweepWorld(const FVector& Start, const FVector& End, double& OutDist, FVector& OutNormal) const

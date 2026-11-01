@@ -179,6 +179,77 @@ VIEW_OFFSETS = {
 ROCKET_LIGHT = {"RocketLauncher": (unreal.LinearColor(1.0, 0.55, 0.2, 1.0), 3000.0, 450.0)}
 
 
+# ---- task 13b: projectile meshes, trails and hitscan tracers (meshes/materials from import_art.py --static)
+# weapon -> (projectile mesh asset, trail length cm, trail/tracer colour, trail/tracer width = radius scale of the 1 cm unit bar)
+PROJECTILE_VISUALS = {
+    "RocketLauncher": ("SM_Projectile_Rocket", 60.0, (1.0, 0.55, 0.15), 1.4),
+    "PlasmaGun": ("SM_Projectile_Plasma", 28.0, (0.2, 0.9, 1.0), 1.6),
+}
+# weapon -> (colour, width, lifetime s): rail ~0.5 s, MG / SG ~0.05 s, LG's per-shot beam segment just outlives its fire interval.
+TRACER_VISUALS = {
+    "MachineGun": ((1.0, 0.9, 0.35), 0.35, 0.05),
+    "Shotgun": ((1.0, 0.65, 0.25), 0.3, 0.05),
+    "LightningGun": ((0.65, 0.8, 1.0), 0.8, 0.06),
+    "Railgun": ((0.3, 1.0, 0.95), 1.3, 0.5),
+}
+TRACER_MESH_PATH = WEAPON_MESH_DIR + "/SM_Fx_Tracer"
+TRACER_MATERIAL_PATH = WEAPON_MESH_DIR + "/M_Tracer_Unlit"
+
+
+def lin(rgb):
+    return unreal.LinearColor(rgb[0], rgb[1], rgb[2], 1.0)
+
+
+def build_projectile_visuals():
+    tracer_mesh = EAL.load_asset(TRACER_MESH_PATH) if EAL.does_asset_exist(TRACER_MESH_PATH) else None
+    tracer_mat = EAL.load_asset(TRACER_MATERIAL_PATH) if EAL.does_asset_exist(TRACER_MATERIAL_PATH) else None
+    if tracer_mesh is None or tracer_mat is None:
+        log(f"{TRACER_MESH_PATH} / {TRACER_MATERIAL_PATH} not imported yet: projectile visuals skipped")
+        return
+    for name in sorted(set(PROJECTILE_VISUALS) | set(TRACER_VISUALS)):
+        path = f"{WEAPON_COSMETICS_DIR}/DA_WeaponCosmetics_{name}"
+        if not EAL.does_asset_exist(path):
+            fail(f"{path} missing: run create_bootstrap_content.py first")
+            continue
+        da = EAL.load_asset(path)
+        da.set_editor_property("tracer_mesh", tracer_mesh)
+        da.set_editor_property("tracer_material", tracer_mat)
+        if name in PROJECTILE_VISUALS:
+            mesh_name, trail, color, width = PROJECTILE_VISUALS[name]
+            mesh_path = f"{WEAPON_MESH_DIR}/{mesh_name}"
+            if EAL.does_asset_exist(mesh_path):
+                da.set_editor_property("projectile_mesh", EAL.load_asset(mesh_path))
+            else:
+                fail(f"{mesh_path} missing")
+            da.set_editor_property("projectile_trail_length", trail)
+            da.set_editor_property("tracer_color", lin(color))
+            da.set_editor_property("tracer_width", width)
+            da.set_editor_property("tracer_lifetime", 0.0)
+        else:
+            color, width, life = TRACER_VISUALS[name]
+            da.set_editor_property("tracer_color", lin(color))
+            da.set_editor_property("tracer_width", width)
+            da.set_editor_property("tracer_lifetime", life)
+        save(da)
+        log(f"{path}: projectile/tracer visuals set")
+
+
+def verify_projectile_visuals():
+    if not EAL.does_asset_exist(TRACER_MESH_PATH):
+        return
+    for name in sorted(set(PROJECTILE_VISUALS) | set(TRACER_VISUALS)):
+        da = EAL.load_asset(f"{WEAPON_COSMETICS_DIR}/DA_WeaponCosmetics_{name}")
+        if da is None:
+            continue
+        if da.get_editor_property("tracer_mesh") is None or da.get_editor_property("tracer_material") is None:
+            fail(f"verify: {name} has no tracer mesh/material")
+        if name in PROJECTILE_VISUALS and da.get_editor_property("projectile_mesh") is None:
+            fail(f"verify: {name} has no projectile mesh")
+        if name in TRACER_VISUALS and da.get_editor_property("tracer_lifetime") <= 0.0:
+            fail(f"verify: {name} tracer lifetime")
+# ---- end task 13b
+
+
 def build_weapon_meshes():
     for name, (x, y, z) in VIEW_OFFSETS.items():
         path = f"{WEAPON_COSMETICS_DIR}/DA_WeaponCosmetics_{name}"
@@ -232,6 +303,8 @@ def main():
     verify_character_cosmetics()
     build_weapon_meshes()
     verify_weapon_meshes()
+    build_projectile_visuals()
+    verify_projectile_visuals()
     if ERRORS:
         raise RuntimeError(f"create_cosmetics_content.py: {len(ERRORS)} error(s): {ERRORS}")
     log("done")

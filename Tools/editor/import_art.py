@@ -681,11 +681,17 @@ PALETTE_TEX_NAME = "T_Items_Palette"
 STATIC_FIXTURE_DIR = SCRATCH + "/Static"
 MAX_WEAPON_TRIS = 1500
 MAX_ITEM_TRIS = 400
+MAX_PROJECTILE_TRIS = 150
 MAX_ITEM_HEIGHT = 60.0
 MUZZLE_SOCKET = "muzzle"
 # material name -> (folder, EmissiveStrength): lit, but every texel also glows a little so the pickups and the view model stay
 # readable in baked-dark corners (ADR 0006 section 4.3 readability rule).
-STATIC_MATERIALS = {"M_Items_Palette": (ITEM_MESH_DIR, 0.45), "M_Weapon_Flat": (WEAPON_MESH_DIR, 0.3)}
+STATIC_MATERIALS = {"M_Items_Palette": (ITEM_MESH_DIR, 0.45), "M_Weapon_Flat": (WEAPON_MESH_DIR, 0.3), "M_Projectile_Unlit": (WEAPON_MESH_DIR, 2.0)}
+# task 13b: unlit materials (emissive only, no lighting contribution): the rocket / plasma meshes sample the palette, the tracer and
+# trail meshes take a per-shot colour from the Color vector parameter (UVeloxCombatFeedbackComponent / AVeloxProjectile make the MID).
+UNLIT_MATERIALS = {"M_Projectile_Unlit"}
+TRACER_MATERIAL = "M_Tracer_Unlit"
+TRACER_INTENSITY = 4.0
 
 
 def build_palette_material(name, folder, tex, emissive):
@@ -700,7 +706,11 @@ def build_palette_material(name, folder, tex, emissive):
     MEL.delete_all_material_expressions(mat)
     sample = MEL.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -800, 0)
     sample.set_editor_property("texture", tex)
-    MEL.connect_material_property(sample, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
+    if name in UNLIT_MATERIALS:
+        mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    else:
+        mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+        MEL.connect_material_property(sample, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
     strength = MEL.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -800, 250)
     strength.set_editor_property("parameter_name", "EmissiveStrength")
     strength.set_editor_property("default_value", emissive)
@@ -717,6 +727,33 @@ def build_palette_material(name, folder, tex, emissive):
     MEL.recompile_material(mat)
     EAL.save_loaded_asset(mat, False)
     log(f"material {path} built (EmissiveStrength {emissive})")
+    return mat
+
+
+def build_tracer_material():
+    """M_Tracer_Unlit: unlit, emissive = Color (vector parameter, default white) * Intensity. Opaque: a 0.05 s MG streak or a 0.5 s rail
+    beam is a thin solid bar (no translucency sorting cost, readable on any background)."""
+    folder = WEAPON_MESH_DIR
+    path = f"{folder}/{TRACER_MATERIAL}"
+    mat = EAL.load_asset(path) if EAL.does_asset_exist(path) else ATOOLS.create_asset(TRACER_MATERIAL, folder, unreal.Material, unreal.MaterialFactoryNew())
+    if mat is None:
+        fail("could not create " + path)
+        return None
+    MEL.delete_all_material_expressions(mat)
+    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    color = MEL.create_material_expression(mat, unreal.MaterialExpressionVectorParameter, -800, 0)
+    color.set_editor_property("parameter_name", "Color")
+    color.set_editor_property("default_value", unreal.LinearColor(1.0, 1.0, 1.0, 1.0))
+    intensity = MEL.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -800, 250)
+    intensity.set_editor_property("parameter_name", "Intensity")
+    intensity.set_editor_property("default_value", TRACER_INTENSITY)
+    glow = MEL.create_material_expression(mat, unreal.MaterialExpressionMultiply, -500, 100)
+    MEL.connect_material_expressions(color, "", glow, "A")
+    MEL.connect_material_expressions(intensity, "", glow, "B")
+    MEL.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    MEL.recompile_material(mat)
+    EAL.save_loaded_asset(mat, False)
+    log(f"material {path} built (unlit, Intensity {TRACER_INTENSITY})")
     return mat
 
 
@@ -741,7 +778,9 @@ def import_palette(png_path):
     tex.set_editor_property("never_stream", True)
     tex.set_editor_property("filter", unreal.TextureFilter.TF_NEAREST)
     EAL.save_loaded_asset(tex, False)
-    return {name: build_palette_material(name, folder, tex, strength) for name, (folder, strength) in STATIC_MATERIALS.items()}
+    materials = {name: build_palette_material(name, folder, tex, strength) for name, (folder, strength) in STATIC_MATERIALS.items()}
+    materials[TRACER_MATERIAL] = build_tracer_material()
+    return materials
 
 
 def import_static_fbx(fbx_path, dest_dir, name):
@@ -860,25 +899,29 @@ def import_static(static_dir, verify):
     materials = import_palette(png)
     if ERRORS:
         return
-    total_w = total_i = 0
-    for kind, dest, mat_name, max_tris in (("weapons", WEAPON_MESH_DIR, "M_Weapon_Flat", MAX_WEAPON_TRIS), ("items", ITEM_MESH_DIR, "M_Items_Palette", MAX_ITEM_TRIS)):
-        for entry in manifest[kind]:
+    total_w = total_i = total_p = 0
+    for kind, dest, mat_name, max_tris in (("weapons", WEAPON_MESH_DIR, "M_Weapon_Flat", MAX_WEAPON_TRIS), ("items", ITEM_MESH_DIR, "M_Items_Palette", MAX_ITEM_TRIS),
+                                           ("projectiles", WEAPON_MESH_DIR, "M_Projectile_Unlit", MAX_PROJECTILE_TRIS)):
+        for entry in manifest.get(kind, []):
             mesh = import_static_fbx(os.path.join(static_dir, entry["fbx"]), dest, entry["name"])
             if mesh is None:
                 continue
-            configure_static(mesh, materials.get(mat_name))
+            mat_name_entry = TRACER_MATERIAL if entry["name"] == "SM_Fx_Tracer" else mat_name
+            configure_static(mesh, materials.get(mat_name_entry))
             tris = 0
             if verify:
                 is_weapon = kind == "weapons"
                 tris = verify_static_mesh(
                     mesh, max_tris, expect_tris=entry["tris"], expect_bounds=(entry["bounds_min"], entry["bounds_max"]),
-                    expect_socket=(MUZZLE_SOCKET, entry["muzzle"]) if is_weapon else None, max_height=None if is_weapon else MAX_ITEM_HEIGHT)
-                check(mesh.get_material(0) == materials.get(mat_name), f"{entry['name']}: slot 0 is not {mat_name}")
+                    expect_socket=(MUZZLE_SOCKET, entry["muzzle"]) if is_weapon else None, max_height=MAX_ITEM_HEIGHT if kind == "items" else None)
+                check(mesh.get_material(0) == materials.get(mat_name_entry), f"{entry['name']}: slot 0 is not {mat_name_entry}")
             if kind == "weapons":
                 total_w += tris
+            elif kind == "projectiles":
+                total_p += tris
             else:
                 total_i += tris
-    log(f"static: {len(manifest['weapons'])} weapons ({total_w} tris), {len(manifest['items'])} items ({total_i} tris) verified={verify}")
+    log(f"static: {len(manifest['weapons'])} weapons ({total_w} tris), {len(manifest['items'])} items ({total_i} tris), {len(manifest.get('projectiles', []))} projectile/fx meshes ({total_p} tris) verified={verify}")
     for script in ("create_cosmetics_content.py", "create_item_content.py"):  # point DA_WeaponCosmetics_* / DA_Item_* at the meshes
         runpy.run_path(os.path.join(SCRIPT_DIR, script), run_name="__velox_import__")
     if verify:

@@ -24,6 +24,7 @@ struct FVeloxDamageDirection
 class UAbilitySystemComponent;
 class UAudioComponent;
 class UGameplayAbility;
+class UStaticMeshComponent;
 class UVeloxWeaponCosmetics;
 class UVeloxWeaponDefinition;
 class UVeloxWeaponTable;
@@ -86,6 +87,14 @@ private:
 	void UpdateBeamAudio(const FGameplayTag& CueTag, bool bStart);
 
 	/**
+	 * Task M5-13b: a short-lived stretched-bar tracer from the muzzle to End on an executed hitscan Fire cue (rail, MG, shotgun and the
+	 * Lightning Gun's per-shot beam segment; projectile weapons have TracerLifetime 0). Cosmetics are read with Get() only (silent until
+	 * resident); never on a dedicated server. The own pawn starts at the view model's muzzle socket (scaled like the first-person
+	 * rendering), everyone else at the cue's origin.
+	 */
+	void SpawnTracer(const FGameplayTag& CueTag, const FVector& Start, const FVector& End);
+
+	/**
 	 * The weapon definition whose Fire / Impact / Beam cue tag is CueTag, from the owner's inventory table (review 0006 D4);
 	 * null without an inventory or for other tags. The tag map is built once per table. Cosmetics are read with Get() only:
 	 * until the asset manager's resident load completes the cue is silent.
@@ -111,6 +120,10 @@ private:
 	/** The looping beam sound of this pawn's Lightning Gun while the beam cue is active. */
 	UPROPERTY(Transient)
 	TObjectPtr<UAudioComponent> BeamAudio;
+
+	/** The tracers alive right now (destroyed by timer; the owner owns the components). */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> LiveTracers;
 
 	/** Looping powerup cue: OnActive/WhileActive add, Removed removes; returns false for any other cue. */
 	bool HandlePowerupCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType);
