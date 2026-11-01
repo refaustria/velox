@@ -26,6 +26,10 @@ Runs `UnrealEditor-Cmd <project> -ExecCmds="Automation RunTests Velox; Quit" -Te
 
 Add tests: put `IMPLEMENT_SIMPLE_AUTOMATION_TEST` tests named `Velox.<Area>.<Name>` in `Source/Velox/Tests/*Test.cpp` (wrapped in `#if WITH_DEV_AUTOMATION_TESTS`). The `Velox` filter picks them up automatically.
 
+## Map audit (`ci_audit` in `build.sh`)
+
+After a green build and tests, `build.sh` audits the DM1 maps that exist (`Tools/editor/audit_map.py`, ADR 0006 section 8): about 15 s for `L_DM1_Blockout`, about 45 s for `L_DM1`. The commandlet is started in the background and polled. Once its `[VeloxAudit] RESULT` line is in the log, the editor gets `VELOX_AUDIT_GRACE` seconds (default 60) to exit by itself; if it is still alive (the engine-shutdown hang seen in the M5 task 13b run), that one PID gets TERM and, 15 s later, KILL (never by name). `VELOX_AUDIT_TIMEOUT` (default 1500 s) bounds the whole run; a run that ends without a RESULT line prints a WARNING and falls under the usual rule (non-fatal until `L_DM1` is in `MapsToCook`, FAILED afterwards). The elapsed time and the RESULT time are printed as `[ci] audit run took ...`.
+
 ## Settings restart (`infra/ci/settings-restart.sh`)
 
 `infra/ci/settings-restart.sh [--map L_CombatTest] [--timeout S]` (M3-09, ADR 0004 section 7) checks that player settings and key rebinding survive a restart: three headless `-game -nullrhi` processes, `write` (non-default profile, Fire rebound to `RightMouseButton`), `verify` in a new process (values and the rebound key read back from disk, `r.AntiAliasingMethod=1`), `reset` (defaults again); it also checks `GameUserSettings.ini` and the Enhanced Input save slot file. Needs `UE_ROOT` / `VELOX_PROJECT` (environment or `infra/.env`); logs in `<VELOX_OUT|Saved/CI>/settings-restart-<pid>/`. Not part of `build.sh`; run it after changes to `UVeloxGameUserSettings` or the input assets.

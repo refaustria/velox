@@ -159,8 +159,9 @@ def sample_points(box, step=25.0, cap=2500):
     return pts
 
 
-def walkable_air(p, clip_boxes):
-    """True if p is in free space a pawn can occupy: outside every clip solid and within PROTRUSION_CEILING_CM above a clip top
+def _walkable_air_ref(p, clip_boxes):
+    """Reference implementation (slow, O(boxes) per probe), kept for the selftest equivalence check.
+    True if p is in free space a pawn can occupy: outside every clip solid and within PROTRUSION_CEILING_CM above a clip top
     surface that lies below it (the point's column hits a floor)."""
     for b in clip_boxes:
         if point_box_distance(p, b) <= 0.0:
@@ -176,15 +177,127 @@ def walkable_air(p, clip_boxes):
     return False
 
 
-def protrusion_depth(mesh_box, clip_boxes):
+def _protrusion_depth_ref(mesh_box, clip_boxes):
     """Largest distance (cm) by which sample points of the kit instance's bounds stand in walkable air away from every clip solid.
     The bounds are an upper bound for the mesh, so the check is conservative; exact flushness is verified in the editor."""
     worst = 0.0
     for p in sample_points(mesh_box):
-        if walkable_air(p, clip_boxes):
+        if _walkable_air_ref(p, clip_boxes):
             d = min(point_box_distance(p, b) for b in clip_boxes) if clip_boxes else 0.0
             if d > worst:
                 worst = d
+    return worst
+
+
+class ClipIndex(object):
+    """Prepared clip boxes with a 2D spatial hash, so the protrusion pass does not scan every box for every sample point.
+    Every shortcut is a conservative bounding-sphere reject in front of the exact point_box_distance test, so the results are
+    identical to the reference functions (_walkable_air_ref / _protrusion_depth_ref); the selftest checks that."""
+    CELL = 256.0
+    EPS = 1e-6
+
+    def __init__(self, clip_boxes):
+        self.items = []
+        self.cells = {}
+        for b in clip_boxes:
+            m = _rot_matrix(*b["r"])
+            h = b["h"]
+            radius = math.sqrt(h[0] * h[0] + h[1] * h[1] + h[2] * h[2]) + self.EPS
+            it = (b["c"], h, m, radius)
+            self.items.append(it)
+            c = b["c"]
+            for ix in range(int(math.floor((c[0] - radius) / self.CELL)), int(math.floor((c[0] + radius) / self.CELL)) + 1):
+                for iy in range(int(math.floor((c[1] - radius) / self.CELL)), int(math.floor((c[1] + radius) / self.CELL)) + 1):
+                    self.cells.setdefault((ix, iy), []).append(it)
+
+    def _near(self, x, y, margin):
+        """Boxes whose bounding sphere may come within `margin` of (x, y) horizontally (superset)."""
+        c = self.CELL
+        out = []
+        for ix in range(int(math.floor((x - margin) / c)), int(math.floor((x + margin) / c)) + 1):
+            for iy in range(int(math.floor((y - margin) / c)), int(math.floor((y + margin) / c)) + 1):
+                out.extend(self.cells.get((ix, iy), ()))
+        return out
+
+    @staticmethod
+    def _inside(p, it):
+        c, h, m, radius = it
+        dx, dy, dz = p[0] - c[0], p[1] - c[1], p[2] - c[2]
+        if dx * dx + dy * dy + dz * dz > radius * radius:
+            return False
+        if abs(m[0][0] * dx + m[1][0] * dy + m[2][0] * dz) > h[0]:
+            return False
+        if abs(m[0][1] * dx + m[1][1] * dy + m[2][1] * dz) > h[1]:
+            return False
+        return abs(m[0][2] * dx + m[1][2] * dy + m[2][2] * dz) <= h[2]
+
+    def walkable_air(self, p):
+        cand = self._near(p[0], p[1], 0.0)
+        for it in cand:
+            if self._inside(p, it):
+                return False
+        z = 0.0
+        while z <= PROTRUSION_CEILING_CM:
+            q = (p[0], p[1], p[2] - z)
+            for it in cand:
+                if self._inside(q, it):
+                    return True
+            z += 10.0
+        return False
+
+    def min_distance(self, p):
+        best = None
+        for it in self.items:
+            c = it[0]
+            lb = math.sqrt((p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2 + (p[2] - c[2]) ** 2) - it[3]
+            if best is not None and lb >= best:
+                continue
+            d = _box_distance_m(p, it)
+            if best is None or d < best:
+                best = d
+        return best if best is not None else 0.0
+
+    def any_within(self, p, dist):
+        """True if some box is at distance <= dist from p (exact)."""
+        for it in self._near(p[0], p[1], dist + 1.0):
+            c = it[0]
+            if math.sqrt((p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2 + (p[2] - c[2]) ** 2) - it[3] > dist:
+                continue
+            if _box_distance_m(p, it) <= dist:
+                return True
+        return False
+
+
+def _box_distance_m(p, it):
+    c, h, m, _r = it
+    d = [p[i] - c[i] for i in range(3)]
+    local = [sum(m[j][i] * d[j] for j in range(3)) for i in range(3)]
+    q = [max(abs(local[i]) - h[i], 0.0) for i in range(3)]
+    return math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2])
+
+
+def walkable_air(p, clip_boxes):
+    """True if p is in free space a pawn can occupy (see ClipIndex.walkable_air). clip_boxes may be a ClipIndex."""
+    idx = clip_boxes if isinstance(clip_boxes, ClipIndex) else ClipIndex(clip_boxes)
+    return idx.walkable_air(p)
+
+
+def protrusion_depth(mesh_box, clip_boxes):
+    """Largest distance (cm) by which sample points of the kit instance's bounds stand in walkable air away from every clip solid.
+    The bounds are an upper bound for the mesh, so the check is conservative; exact flushness is verified in the editor.
+    clip_boxes may be a ClipIndex (build it once per map)."""
+    idx = clip_boxes if isinstance(clip_boxes, ClipIndex) else ClipIndex(clip_boxes)
+    worst = 0.0
+    for p in sample_points(mesh_box):
+        if not idx.walkable_air(p):
+            continue
+        if not idx.items:
+            continue
+        if worst > 0.0 and idx.any_within(p, worst):
+            continue  # nearest solid is no farther than the current worst: cannot raise it
+        d = idx.min_distance(p)
+        if d > worst:
+            worst = d
     return worst
 
 
@@ -236,6 +349,19 @@ def selftest():
     assert protrusion_depth(high, clips) == 0.0
     inside = oriented_box((520, 0, 100), (20, 400, 20), (0, 0, 0))  # inside the wall solid
     assert protrusion_depth(inside, clips) == 0.0
+    # the indexed implementation must agree exactly with the reference on a random scene (rotated boxes included)
+    import random
+    rnd = random.Random(7)
+    scene = [oriented_box((rnd.uniform(-600, 600), rnd.uniform(-600, 600), rnd.uniform(-20, 300)),
+                          (rnd.uniform(20, 300), rnd.uniform(20, 300), rnd.uniform(5, 120)),
+                          (rnd.choice((0, 0, 30, -20)), rnd.uniform(0, 360), rnd.choice((0, 0, 15)))) for _ in range(25)]
+    idx = ClipIndex(scene)
+    for _ in range(10):
+        kit = oriented_box((rnd.uniform(-500, 500), rnd.uniform(-500, 500), rnd.uniform(0, 250)),
+                           (rnd.uniform(2, 150), rnd.uniform(2, 150), rnd.uniform(2, 80)), (0, rnd.uniform(0, 360), 0))
+        assert protrusion_depth(kit, idx) == _protrusion_depth_ref(kit, scene)
+        for pt in sample_points(kit, step=60.0, cap=60):
+            assert idx.walkable_air(pt) == _walkable_air_ref(pt, scene)
     # rotated ramp box: its own centre is inside
     ramp = oriented_box((0, 0, 100), (200, 100, 10), (30, 0, 0))
     assert point_box_distance((0, 0, 100), ramp) == 0.0
@@ -558,7 +684,7 @@ def main(argv):
 
     if args.protrusion:
         flagged = []
-        clips = data["clip_boxes"]
+        clips = ClipIndex(data["clip_boxes"])
         for label, box in data["kit_instances"]:
             d = protrusion_depth(box, clips)
             if d > PROTRUSION_LIMIT_CM:
