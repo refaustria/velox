@@ -5,7 +5,7 @@ ADR 0006 section 7: per-map bands come from BAND_FFA_* environment variables (in
 report-only), the map-independent invariants are fixed here: left_arena, world_kill, no_nav_point, giveup, bursts, max dwell <= 5 s, nav
 build <= 2 s; the json also carries the item and link figures for ffa_set.py (item coverage, link success per type).
 Link outcomes are judged by reason= (ADR 0006 E0.3 b): failed = missed, timeout, noimpulse, tooslow (and any unknown reason, printed by
-ffa_set.py); not an attempt = replaced, below_start, ineligible (counted as aborted per type). link_types[type] = [ok, failed, aborted].
+ffa_set.py); not an attempt = replaced, below_start, ineligible, air_start, relaunched (task m5-06b; counted as aborted per type). link_types[type] = [ok, failed, aborted].
 Pickup lines carry a trailing at=<X,Y,Z> (E0.3 c): resets_at / takes_at list [definition, at] pairs so ffa_set.py can judge every pickup
 instance; a log without at= leaves at = null and ffa_set.py falls back to per definition.
 Dwell (ADR 0006 section 7, E2): the 5 s run rule excludes camp=1 samples and timed-wait samples (a bot standing at the spawn point of an
@@ -64,6 +64,7 @@ link_max_dt, link_max_desc = 0.0, '-'
 long_not_timeout = []
 strike_times = collections.defaultdict(list)
 supp1 = debug_lines = 0
+fight_yields = 0   # task m5-06b: VeloxBotFightYield lines (fight stand-off rule; report-only)
 live = False
 camp = {}
 dwell = {}
@@ -73,7 +74,8 @@ nav_secs = []
 no_nav = world_kills = 0
 left_arena = None
 LINK_FAILED_REASONS = ('missed', 'timeout', 'noimpulse', 'tooslow')       # ADR 0006 E0.3 (b)
-LINK_NOT_ATTEMPT_REASONS = ('replaced', 'below_start', 'ineligible')      # re-plans (D28): not attempts
+# Task m5-06b: air_start / relaunched (a flight that was not the link's: begun in the air, or re-launched away from the end).
+LINK_NOT_ATTEMPT_REASONS = ('replaced', 'below_start', 'ineligible', 'air_start', 'relaunched')      # re-plans (D28): not attempts
 link_types = collections.defaultdict(lambda: [0, 0, 0])   # type -> [ok, failed, aborted]
 link_unknown = collections.Counter()   # result/reason outside both lists: counted failed
 resets = []
@@ -111,12 +113,16 @@ def wait_close(name, now, respawn):
     return int(bool(respawn and now is not None and w['t0'] is not None and now - w['t0'] > w['R'] + WAIT_SLACK_S))
 
 
+# Task m5-06b: engine noise, not a Velox error: UE 5.8 prints this once on the first launch of a fresh binary (the Dataflow
+# plugin's reflected struct). Exactly this message is not counted in errors=.
+ENGINE_NOISE_RE = re.compile(r'LogClass: Error: StructProperty FDataflowToolNodeSnapshot::Date ')
+
 STUCK_AT = re.compile(r'VeloxBotStuck bot=(\S+) at=V\(X=([-\d.]+), Y=([-\d.]+), Z=([-\d.]+)\)')
 
 with open(path, 'rb') as f:
     for raw in f:
         line = raw.decode('utf-8', 'replace').rstrip()
-        if 'Error:' in line or 'Ensure condition' in line or 'ensure(' in line.lower() and 'LogOutputDevice' in line:
+        if ('Error:' in line or 'Ensure condition' in line or 'ensure(' in line.lower() and 'LogOutputDevice' in line) and not ENGINE_NOISE_RE.search(line):
             errors += 1
         if 'VeloxMatch phase=Live' in line:
             live = True
@@ -166,6 +172,8 @@ with open(path, 'rb') as f:
             elif 'suicide=1' in line:
                 suicides += 1
             continue
+        if 'VeloxBotFightYield ' in line:
+            fight_yields += 1
         if 'VeloxBotStuck' in line:
             stuck += 1
             r = re.search(r'rule=(\S+)', line)
@@ -336,7 +344,7 @@ print(f"{label}: {'PASS' if not fails else 'FAIL(' + ','.join(fails) + ')'} stuc
       f"rules=[{' '.join(f'{k}={v}' for k, v in sorted(rules.items()))}] max_dwell_s={max_dwell} [{max_dwell_at}] {wait_txt} "
       f"link_max_dt={link_max_dt:.2f} [{link_max_desc}] link_fail_reasons=[{' '.join(f'{k}={v}' for k, v in sorted(reasons.items()))}] "
       f"long_links_not_timeout=[{','.join(long_not_timeout)}] bursts=[{','.join(bursts)}] pickups={pickups} mega={len(mega_times)} kills={kills} "
-      f"suicides={suicides} refused={refused} giveup={giveup} errors={errors} supp1={supp_share:.1f}% fight_share={fight_share:.1f}% "
+      f"suicides={suicides} refused={refused} giveup={giveup} errors={errors} supp1={supp_share:.1f}% fight_yields={fight_yields} fight_share={fight_share:.1f}% "
       f"armed_fight_share={armed_share:.1f}% ({vis_armed_fight}/{vis_armed}) allunreach_air={allun.get('air', 0)} allunreach_ground={allun.get('ground', 0)} "
       f"budget_mean_us={budget:.1f} run_mean_us={run_mean} nav_s={max(nav_secs) if nav_secs else 'n/a'} world_kills={world_kills} no_nav_point={no_nav} left_arena={left_arena or 'none'}")
 print(f"  strikes: {' '.join(strike_list) if strike_list else '-'}")

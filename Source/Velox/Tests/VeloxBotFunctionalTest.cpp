@@ -250,6 +250,109 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("D30: an active move is the plain rule's"), VeloxBotRules::IsFightWatched(EVeloxBotGoal::Fight, true, true, true, false));
 	}
 
+	// Task m5-06b: the progress rule never strikes in the air, and a flight (longer than a hop) pauses the window.
+	{
+		const FVector2D Target(1000.0, 0.0);
+		// HopAir 0.675 s (675 cm/s, 2000 cm/s^2) + 0.15 slack.
+		const float HopAir = 2.f * 675.f / 2000.f + 0.15f;
+		TestFalse(TEXT("06b: on the ground is no flight"), VeloxBotRules::IsFlight(true, 1.0, 5.0, HopAir));
+		TestFalse(TEXT("06b: airborne 0.5 s (a hop) is no flight"), VeloxBotRules::IsFlight(false, 4.5, 5.0, HopAir));
+		TestTrue(TEXT("06b: airborne 1.0 s is a flight"), VeloxBotRules::IsFlight(false, 4.0, 5.0, HopAir));
+		TestFalse(TEXT("06b: no airborne start -> no flight"), VeloxBotRules::IsFlight(false, -1.0, 5.0, HopAir));
+		// Ticks: GroundAt / DistAt per tick, airborne-since tracked like the controller; returns strikes and the ground flag at each strike.
+		auto Run = [&](TFunctionRef<bool(int32)> GroundAt, TFunctionRef<float(int32)> DistAt, int32 Ticks, int32& OutAirStrikes)
+		{
+			double Since = -1.0;
+			float StartDist = 0.f;
+			FVector2D WindowTarget = FVector2D::ZeroVector;
+			float PausedSeconds = 0.f;
+			double AirSince = -1.0;
+			int32 Strikes = 0;
+			OutAirStrikes = 0;
+			for (int32 Tick = 0; Tick <= Ticks; ++Tick)
+			{
+				const double T = Tick / 60.0;
+				const bool bGround = GroundAt(Tick);
+				AirSince = bGround ? -1.0 : (AirSince < 0.0 ? T : AirSince);
+				const bool bFlight = VeloxBotRules::IsFlight(bGround, AirSince, T, HopAir);
+				if (VeloxBotRules::UpdateStuckProgress(Since, StartDist, WindowTarget, PausedSeconds, true, false, Target, DistAt(Tick), 100.f, T, 1.f / 60.f, 2.f, 4.f,
+						bGround, bFlight))
+				{
+					++Strikes;
+					OutAirStrikes += bGround ? 0 : 1;
+				}
+			}
+			return Strikes;
+		};
+		int32 AirStrikes = 0;
+		// Walking at 320 cm/s, a pad launch at 1.5 s: 2.5 s of flight carrying the bot away (distance grows), landing at 4.0 s,
+		// then walking on at 320 cm/s. Before 06b the window expired in the air (ground=0 strikes of task 06).
+		const int32 Pad = Run([](int32 Tk) { return Tk < 90 || Tk >= 240; },
+			[](int32 Tk) { return Tk < 90 ? 1100.f - Tk * (320.f / 60.f) : Tk < 240 ? 620.f + (Tk - 90) * 4.f : FMath::Max(0.f, 1220.f - (Tk - 240) * (320.f / 60.f)); }, 420,
+			AirStrikes);
+		TestEqual(TEXT("06b: a 2.5 s pad flight straddling the window -> no strike"), Pad, 0);
+		// Bunny hop under the slab (D18): ground one tick in 40 (0.67 s hops), oscillating 300 +- 80 cm: still strikes, on the ground.
+		const int32 Hop = Run([](int32 Tk) { return Tk % 40 == 0; }, [](int32 Tk) { return 300.f + 80.f * FMath::Sin(Tk * 0.3f); }, 300, AirStrikes);
+		TestTrue(TEXT("06b: D18 hop oscillation still strikes"), Hop >= 1);
+		TestEqual(TEXT("06b: ... and only on ground ticks"), AirStrikes, 0);
+		// Standing 0.5 s, a 3 s fall without progress, then standing 2 s: the flight part of the fall is paused, so the one strike
+		// comes after the landing (window time = 0.5 s + the first 0.825 s of the fall + 0.675 s on the ground), never in the air.
+		const int32 Fall = Run([](int32 Tk) { return Tk < 30 || Tk >= 210; }, [](int32) { return 400.f; }, 330, AirStrikes);
+		TestEqual(TEXT("06b: a fall pauses the window; one strike, after the landing"), Fall, 1);
+		TestEqual(TEXT("06b: ... on the ground"), AirStrikes, 0);
+	}
+
+	// Task m5-06b: fight stand-off rule (3 s inside a 150 cm circle while the Fight goal is watched).
+	{
+		auto RunStandoff = [](TFunctionRef<FVector2D(int32)> PosAt, TFunctionRef<bool(int32)> WatchedAt, int32 Ticks)
+		{
+			FVeloxStandoffWindow Window;
+			double FirstAt = -1.0;
+			int32 Fires = 0;
+			for (int32 Tick = 0; Tick <= Ticks; ++Tick)
+			{
+				if (VeloxBotRules::UpdateFightStandoff(Window, WatchedAt(Tick), PosAt(Tick), Tick / 60.0, 150.f, 3.f))
+				{
+					++Fires;
+					FirstAt = FirstAt < 0.0 ? Tick / 60.0 : FirstAt;
+				}
+			}
+			return TPair<int32, double>(Fires, FirstAt);
+		};
+		auto Always = [](int32) { return true; };
+		// Standing at a ledge corner, dodge-strafing +-60 cm: fires at 3 s.
+		const TPair<int32, double> Corner = RunStandoff([](int32 Tk) { return FVector2D(60.0 * FMath::Sin(Tk * 0.1), 0.0); }, Always, 200);
+		TestEqual(TEXT("06b: stand-off within 60 cm -> fires once in 3.3 s"), Corner.Key, 1);
+		TestTrue(TEXT("06b: ... at 3.0 s"), FMath::Abs(Corner.Value - 3.0) <= 1.0 / 60.0 + 1e-6);
+		// A fight that strafes 400 cm per flip (leaves the circle) never fires.
+		const TPair<int32, double> Strafe = RunStandoff([](int32 Tk) { return FVector2D(400.0 * FMath::Sin(Tk * 0.05), 0.0); }, Always, 600);
+		TestEqual(TEXT("06b: strafing out of the circle -> never fires"), Strafe.Key, 0);
+		// Watched only 2 s at a time (the goal changes in between): never fires.
+		const TPair<int32, double> Broken = RunStandoff([](int32) { return FVector2D::ZeroVector; }, [](int32 Tk) { return (Tk % 150) < 120; }, 600);
+		TestEqual(TEXT("06b: not watched clears the window"), Broken.Key, 0);
+		// Standing still for 7 s: fires at 3 s and 6 s (the window restarts).
+		const TPair<int32, double> Long = RunStandoff([](int32) { return FVector2D(5.0, 5.0); }, Always, 420);
+		TestEqual(TEXT("06b: 7 s still -> two windows"), Long.Key, 2);
+		// Arrives from 1000 cm away at 400 cm/s (2.5 s), then drifts 75 cm: fires 3 s after the arrival, not later (the
+		// approach is outside the circle around where the bot stands, whatever it passed on the way in).
+		const TPair<int32, double> Arrive = RunStandoff(
+			[](int32 Tk) { return Tk < 150 ? FVector2D(1000.0 - Tk * (400.0 / 60.0), 0.0) : FVector2D(0.0, FMath::Min(75.0, (Tk - 150) * 0.5)); }, Always, 600);
+		TestTrue(TEXT("06b: arrival then drift -> fires about 3 s after the arrival"), Arrive.Key >= 1 && Arrive.Value >= 5.0 && Arrive.Value <= 5.5);
+		TestEqual(TEXT("06b: FightStandoffSeconds 3 (ini)"), GetDefault<AVeloxBotController>()->FightStandoffSeconds, 3.f);
+		TestEqual(TEXT("06b: FightStandoffRadiusCm 150 (ini)"), GetDefault<AVeloxBotController>()->FightStandoffRadiusCm, 150.f);
+		TestEqual(TEXT("06b: StuckProgressFlightSlackSeconds 0.15 (ini)"), GetDefault<AVeloxBotController>()->StuckProgressFlightSlackSeconds, 0.15f);
+	}
+
+	// Task m5-06b: arrival is 3-D (agent height 140 as the vertical tolerance).
+	{
+		const FVector Item(0.0, 0.0, 640.0);
+		TestFalse(TEXT("06b: 640 cm under the item -> not arrived"), VeloxBotRules::IsAtGoal(FVector(2.0, 39.0, 2.0), Item, 80.f, 140.f));
+		TestTrue(TEXT("06b: on the item's platform (feet 650, item 640) -> arrived"), VeloxBotRules::IsAtGoal(FVector(2.0, 39.0, 650.0), Item, 80.f, 140.f));
+		TestTrue(TEXT("06b: floor item 80 cm above the feet (LG pedestal) -> arrived"), VeloxBotRules::IsAtGoal(FVector(0.0, 1300.0, 2.0), FVector(0.0, 1300.0, 80.0), 80.f, 140.f));
+		TestFalse(TEXT("06b: on the ledge 320 cm above a floor item -> not arrived"), VeloxBotRules::IsAtGoal(FVector(0.0, 0.0, 330.0), FVector(0.0, 0.0, 10.0), 80.f, 140.f));
+		TestFalse(TEXT("06b: 2-D outside the radius -> not arrived"), VeloxBotRules::IsAtGoal(FVector(100.0, 0.0, 0.0), FVector::ZeroVector, 80.f, 140.f));
+	}
+
 	// D18 hop headroom: JumpVelocity^2 / (2 |g|) + margin (675 cm/s, -2000 cm/s^2 -> 113.9 + 10).
 	{
 		TestTrue(TEXT("Velox defaults: 123.9 cm"), FMath::IsNearlyEqual(VeloxBotFollow::HopHeadroomCm(675.f, -2000.f, 10.f), 675.f * 675.f / 4000.f + 10.f, 1e-3f));

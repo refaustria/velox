@@ -5,7 +5,7 @@ report-only, `band=none`). The map-independent invariants are judged on every ma
 left_arena 0, world_kill 0, no_nav_point 0, giveup 0, sum of stuck strikes <= 5, bursts 0, max dwell <= 5 s, nav build <= 2 s,
 link traversal success >= 90 % per link type, and item coverage (every pickup present at Live start taken at least once over the set).
 Link success (ADR 0006 E0.3 b): ok / (ok + failed) per type pooled over the set; failed = reason missed, timeout, noimpulse, tooslow (and
-unknown reasons, printed); replaced, below_start, ineligible are re-plans, not attempts, printed as aborted=<n>; judged from 30 attempts
+unknown reasons, printed); replaced, below_start, ineligible, air_start, relaunched (task m5-06b) are re-plans, not attempts, printed as aborted=<n>; judged from 30 attempts
 (INV_LINK_MIN_ATTEMPTS); FLAG (report-only) when aborted >= ok. Item coverage (E0.3 c): per instance, keyed (definition, at=) from the
 VeloxPickupReset / VeloxPickup lines, when every run's log has at=; else per definition (old logs). BAND_FFA_COVERAGE_EXEMPT (definitions,
 space separated) is honoured only on L_ItemTest, L_CombatTest and L_MovementTest (E0.3 a); on any other map it is ignored with a warning.

@@ -54,6 +54,16 @@ enum class EVeloxManeuverResult : uint8
 	Timeout,
 	/** ADR 0005 D28: on the ground in Approach / BackUp more than BelowStartAbortCm below the link start (another surface). */
 	BelowStart,
+	/**
+	 * Task m5-06b: the traversal began in flight and never touched the ground before its landing (no own launch either):
+	 * the flight that ended away from End was not this link's. Not an attempt (the path is re-queried).
+	 */
+	AirStart,
+	/**
+	 * Task m5-06b: an external impulse (a pad under the landing, a rocket hit) re-launched the pawn during the flight
+	 * before it reached End (at End it is Ok). Not an attempt (the path is re-queried).
+	 */
+	Relaunched,
 };
 
 /** `result=` value of the VeloxBotLink log line (ok | missed | aborted, ADR section 4) and a detail reason. */
@@ -68,6 +78,8 @@ inline const TCHAR* LexToString(EVeloxManeuverResult Result)
 	case EVeloxManeuverResult::Ineligible: return TEXT("ineligible");
 	case EVeloxManeuverResult::Timeout: return TEXT("timeout");
 	case EVeloxManeuverResult::BelowStart: return TEXT("below_start");
+	case EVeloxManeuverResult::AirStart: return TEXT("air_start");
+	case EVeloxManeuverResult::Relaunched: return TEXT("relaunched");
 	default: return TEXT("none");
 	}
 }
@@ -125,6 +137,8 @@ struct FVeloxManeuverInput
 	bool bEligible = true;
 	/** D28: link start z - feet z (cm; positive = the pawn is below the start). */
 	float HeightBelowStartCm = 0.f;
+	/** Task m5-06b: feet z - link end z (cm; positive = the pawn is above the end). */
+	float HeightAboveEndCm = 0.f;
 	/** Seconds (world time). */
 	double Time = 0.0;
 };
@@ -161,6 +175,10 @@ struct VELOX_API FVeloxBotManeuver
 	FVeloxManeuverParams Params;
 	/** Airborne phase: the pawn has been seen off the ground (a landing needs a preceding flight). */
 	bool bSeenAirborne = false;
+	/** Task m5-06b: the pawn stood on the ground in a pre-flight phase of this traversal (else a landing away from End is AirStart). */
+	bool bGroundSeen = false;
+	/** Task m5-06b: the link's own launch impulse arrived (the pad's AddKnockback, the rocket jump's splash); a later one re-launches. */
+	bool bLaunchImpulseSeen = false;
 
 	/** Starts a traversal (Start / End are stored for the follower; the machine itself only uses the input distances). */
 	void Begin(const FVeloxManeuverParams& InParams, const FVector& InStart, const FVector& InEnd, double Time);

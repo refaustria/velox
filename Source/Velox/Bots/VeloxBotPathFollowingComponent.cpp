@@ -540,6 +540,7 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 	In.DistToStart = static_cast<float>(FVector::Dist2D(Feet, LinkStart));
 	In.DistToEnd = static_cast<float>(FVector::Dist(Feet, LinkEnd));
 	In.HeightBelowStartCm = static_cast<float>(LinkStart.Z - Feet.Z);
+	In.HeightAboveEndCm = static_cast<float>(Feet.Z - LinkEnd.Z);
 	if (Maneuver.Phase == EVeloxManeuverPhase::Airborne && Maneuver.bSeenAirborne && bOnGround && In.DistToEnd > Maneuver.Params.EndAcceptanceCm && IsOnEndSurface(Feet))
 	{
 		// Landed on the end's nav surface (the platform), only farther than the acceptance radius from the authored end

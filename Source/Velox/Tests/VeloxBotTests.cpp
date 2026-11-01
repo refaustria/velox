@@ -1512,6 +1512,112 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 		O = M.Tick(ManeuverIn(0.31, 10.f, 400.f));
 		TestTrue(TEXT("D28: RJ Launched at 0.31 s without impulse -> NoImpulse"), O.bAbort && O.Reason == EVeloxManeuverResult::NoImpulse);
 	}
+
+	// Task m5-06b: a flight that is not the link's is not a miss; a genuine miss stays one.
+	{
+		FVeloxManeuverParams DropP;
+		DropP.Type = EVeloxManeuverType::Drop;
+		auto DropIn = [](double T, float DistToEnd, bool bOnGround, float AboveEnd, bool bImpulse = false)
+		{
+			FVeloxManeuverInput In = VeloxBotTestsShared::ManeuverIn(T, 0.f, DistToEnd, bOnGround);
+			In.HeightAboveEndCm = AboveEnd;
+			In.bImpulseReceived = bImpulse;
+			return In;
+		};
+		// Walked off the edge (ground first), landed 400 cm from End off its surface: a genuine miss.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 380.f, true, 320.f));
+			M.Tick(DropIn(Dt, 370.f, false, 315.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.9, 400.f, true, 0.f));
+			TestTrue(TEXT("06b: drop from the ground, landing 400 cm off -> Missed (genuine)"), O.bAbort && O.Reason == EVeloxManeuverResult::Missed);
+		}
+		// Begun in the air (no ground tick, no launch of its own), landing away from End: not the link's flight.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			TestTrue(TEXT("06b: drop begun airborne -> Airborne phase"), M.Phase == EVeloxManeuverPhase::Airborne);
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 700.f, true, 0.f));
+			TestTrue(TEXT("06b: drop begun in the air, landing away -> AirStart"), O.bAbort && O.Reason == EVeloxManeuverResult::AirStart);
+			TestEqual(TEXT("06b: AirStart label"), FString(LexToString(EVeloxManeuverResult::AirStart)), FString(TEXT("air_start")));
+		}
+		// Begun in the air, landing at End: still ok.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 80.f, true, 0.f));
+			TestTrue(TEXT("06b: drop begun in the air, landing at End -> Ok"), O.bDone && O.Reason == EVeloxManeuverResult::Ok);
+		}
+		// A pad under the drop's landing: the impulse at the end's level is the landing (Ok) even 400 cm from End.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 380.f, true, 320.f));
+			M.Tick(DropIn(Dt, 370.f, false, 315.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 400.f, false, 20.f, true));
+			TestTrue(TEXT("06b: drop re-launched at the end level -> Ok"), O.bDone && O.Reason == EVeloxManeuverResult::Ok);
+		}
+		// A rocket hit in mid-fall, 250 cm above the end level and 400 cm from End: re-launched, not a miss.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 380.f, true, 320.f));
+			M.Tick(DropIn(Dt, 370.f, false, 315.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.3, 400.f, false, 250.f, true));
+			TestTrue(TEXT("06b: drop re-launched mid-flight away from End -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
+			TestEqual(TEXT("06b: Relaunched label"), FString(LexToString(EVeloxManeuverResult::Relaunched)), FString(TEXT("relaunched")));
+		}
+
+		FVeloxManeuverParams PadP;
+		PadP.Type = EVeloxManeuverType::JumpPad;
+		// Pad: the pad's own launch (on the ground tick) is not a re-launch; the landing far away stays a miss.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(PadP, FVector::ZeroVector, FVector(0.0, 1200.0, 400.0), 0.0);
+			M.Tick(VeloxBotTestsShared::ManeuverIn(0.0, 100.f, 1300.f));
+			FVeloxManeuverInput Launch = VeloxBotTestsShared::ManeuverIn(Dt, 5.f, 1250.f, true);
+			Launch.bImpulseReceived = true;
+			FVeloxManeuverOutput O = M.Tick(Launch);
+			TestFalse(TEXT("06b: pad launch tick -> running"), O.bDone || O.bAbort);
+			O = M.Tick(VeloxBotTestsShared::ManeuverIn(2.0 * Dt, 30.f, 1200.f, false));
+			TestFalse(TEXT("06b: pad flight -> running"), O.bDone || O.bAbort);
+			O = M.Tick(VeloxBotTestsShared::ManeuverIn(1.5, 900.f, 500.f, true));
+			TestTrue(TEXT("06b: pad landing 500 cm off -> Missed (genuine)"), O.bAbort && O.Reason == EVeloxManeuverResult::Missed);
+		}
+		// Pad: launch seen in the air (the impulse arrives on the first airborne tick), then a second impulse mid-flight.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(PadP, FVector::ZeroVector, FVector(0.0, 1200.0, 400.0), 0.0);
+			M.Tick(VeloxBotTestsShared::ManeuverIn(0.0, 100.f, 1300.f));
+			FVeloxManeuverInput Launch = VeloxBotTestsShared::ManeuverIn(Dt, 5.f, 1250.f, false);
+			Launch.bImpulseReceived = true;
+			FVeloxManeuverOutput O = M.Tick(Launch);
+			TestFalse(TEXT("06b: pad launch in the air is the pad's own -> running"), O.bDone || O.bAbort);
+			FVeloxManeuverInput Hit = VeloxBotTestsShared::ManeuverIn(0.6, 400.f, 800.f, false);
+			Hit.bImpulseReceived = true;
+			O = M.Tick(Hit);
+			TestTrue(TEXT("06b: second impulse in the pad flight -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
+		}
+		// Rocket jump: the launch impulse is its own; a later one mid-flight re-launches.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(RJ, FVector::ZeroVector, FVector(0.0, 0.0, 350.0), 0.0);
+			M.Phase = EVeloxManeuverPhase::Launched;
+			M.PhaseStartTime = 0.0;
+			M.bGroundSeen = true;
+			FVeloxManeuverInput Kick = VeloxBotTestsShared::ManeuverIn(0.05, 10.f, 340.f, false);
+			Kick.bImpulseReceived = true;
+			FVeloxManeuverOutput O = M.Tick(Kick);
+			TestFalse(TEXT("06b: RJ own launch -> running"), O.bDone || O.bAbort);
+			FVeloxManeuverInput Hit = VeloxBotTestsShared::ManeuverIn(0.5, 200.f, 300.f, false);
+			Hit.bImpulseReceived = true;
+			O = M.Tick(Hit);
+			TestTrue(TEXT("06b: RJ second impulse away from End -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
+		}
+	}
 	return true;
 }
 
