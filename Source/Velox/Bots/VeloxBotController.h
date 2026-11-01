@@ -26,6 +26,23 @@ class APlayerState;
 class UNavigationQueryFilter;
 class UVeloxBotDifficulty;
 
+/**
+ * Task m5-06b: the fight stand-off window - the bot's 2-D positions sampled every SampleSeconds over the last
+ * FightStandoffSeconds (the first kept sample is the latest one at or before the window start).
+ */
+struct FVeloxStandoffWindow
+{
+	TArray<FVector2D, TInlineAllocator<24>> Positions;
+	TArray<double, TInlineAllocator<24>> Times;
+	void Reset()
+	{
+		Positions.Reset();
+		Times.Reset();
+	}
+	/** Seconds covered by the kept samples (0 when empty). */
+	double Span(double Now) const { return Times.Num() > 0 ? Now - Times[0] : 0.0; }
+};
+
 /** The bot's current goal (ADR 0005 section 2). */
 struct FVeloxBotGoal
 {
@@ -77,6 +94,12 @@ struct FVeloxBotState
 	float ProgressPausedSeconds = 0.f;
 	/** D30: after a fight_stall strike the decision does not see the enemy until then (world time; -1 = never). */
 	double FightSuppressedUntil = -1.0;
+	/** Task 06b: fight stand-off rule window (feet positions). */
+	FVeloxStandoffWindow FightStandoff;
+	/** Task 06b: fight stand-offs that yielded the Fight goal this life (VeloxBotFightYield). */
+	int32 FightYields = 0;
+	/** Task 06b: world time the pawn left the ground (-1 = on the ground); a flight longer than a hop pauses the progress window. */
+	double AirborneSince = -1.0;
 
 	// --- Off-mesh recovery (task 04b): feet on the ground but off the nav mesh, so no path can start here ---
 	/** First check that found the feet off the mesh (-1 = on the mesh). */
@@ -154,7 +177,35 @@ namespace VeloxBotRules
 	 * overlay active. Not tracking clears the window (Since = -1) and returns false.
 	 */
 	VELOX_API bool UpdateStuckProgress(double& Since, float& StartDist, FVector2D& WindowTarget, float& PausedSeconds, bool bTracking, bool bPaused,
-		const FVector2D& Target, float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds, float MaxPauseSeconds);
+		const FVector2D& Target, float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds, float MaxPauseSeconds,
+		bool bOnGround = true, bool bFlight = false);
+	// Task 06b (the two trailing parameters): a window never expires while airborne (bOnGround false: the strike waits for
+	// the next ground tick, a bunny hop touches the ground once per hop), and during a flight (bFlight: airborne longer
+	// than the bot's own hop - a pad launch, a drop, a fall, knockback) the window is paused like under the overlay but
+	// without the D27 cap (the flight is bounded by gravity): the clock stops and the start distance follows the bot,
+	// so the follower is measured from where it lands.
+
+	/**
+	 * Task 06b: the airborne stretch that started at AirborneSince (-1 = on the ground) is a flight, not the bot's own
+	 * hop: airborne for longer than HopAirSeconds (2 x JumpVelocity / |g| plus a slack, the controller computes it).
+	 */
+	VELOX_API bool IsFlight(bool bOnGround, double AirborneSince, double Now, float HopAirSeconds);
+
+	/**
+	 * Task 06b fight stand-off rule (beside D30): true (a stand-off: the Fight goal yields) when, while bWatched (Fight
+	 * goal, not on a link, not suppressed), every position the bot had over the last Seconds lies within RadiusCm (2-D)
+	 * of where it is now. Positions are sampled every SampleSeconds into Window; not watched or firing clears it, so a
+	 * goal change or a yield starts a fresh Seconds. Airborne time counts (jumping in place is no progress).
+	 */
+	VELOX_API bool UpdateFightStandoff(FVeloxStandoffWindow& Window, bool bWatched, const FVector2D& Pos, double Now, float RadiusCm, float Seconds,
+		float SampleSeconds = 0.25f);
+
+	/**
+	 * Task 06b: 3-D arrival test at a goal target (item location, roam / chase point): within Radius2D horizontally and
+	 * within MaxDzCm vertically (feet vs target; the controller passes the nav agent height, so a bot on another floor
+	 * level - under or over the item - is not at it).
+	 */
+	VELOX_API bool IsAtGoal(const FVector& Feet, const FVector& Target, float Radius2D, float MaxDzCm);
 
 	/**
 	 * D30 fight-stall predicate: the speed rule also watches a pathless fight (Goal == Fight, no active move, the goal's
@@ -292,6 +343,23 @@ public:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
 	float FightStallCooldownSeconds = 4.f;
 
+	/**
+	 * Task 06b: a Fight goal whose bot stays within FightStandoffRadiusCm (2-D) for FightStandoffSeconds yields (the
+	 * D30 suppression for FightStallCooldownSeconds, then the decision routes to an item or a roam point; aim and fire
+	 * are untouched). Covers what D30's speed rule does not: dodge hops at a ledge corner, a chase whose last seen point
+	 * is reached or unreachable, a target on another level (s).
+	 */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float FightStandoffSeconds = 3.f;
+
+	/** Task 06b: radius of the fight stand-off circle (cm, 2-D; the soak's dwell radius). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "cm"))
+	float FightStandoffRadiusCm = 150.f;
+
+	/** Task 06b: an airborne stretch longer than the bot's own hop (2 x JumpVelocity / |g|) plus this is a flight (s). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float StuckProgressFlightSlackSeconds = 0.15f;
+
 	/** Stuck strikes before a non-forced goal is dropped for a roam point. */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1"))
 	int32 StuckStrikesToRoam = 3;
@@ -420,6 +488,10 @@ private:
 	bool IsGoalEnemyVisible() const;
 	/** Where the current goal wants the bot, false when it wants no path. */
 	bool GetGoalTarget(FVector& OutTarget, float& OutAcceptance) const;
+	/** Task 06b: vertical arrival tolerance (cm): the nav agent height (fallback: the capsule height). */
+	float GetArrivalMaxDzCm() const;
+	/** Task 06b: 3-D arrival at the current goal target (true when the goal has no point, e.g. a visible fight). */
+	bool IsAtGoalTarget() const;
 	void ResetLifeState();
 	void ReleaseAllInput();
 	void LogDebugLine(double Now);

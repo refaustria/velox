@@ -12,7 +12,8 @@
 # of an unavailable item it chose as an Item goal, ADR 0005 section 7 item timing); the round prints timed_waits / wait_samples /
 # wait_max_s / wait_capped and three FLAGs (log-format drift, wait beyond the 16 s gate, late respawn). infra/ci/dwellwhy.py triages.
 # Link success (ADR 0006 E0.3 b): judged by VeloxBotLink reason=, ok / (ok + failed) per type pooled over the set. Failed = missed,
-# timeout, noimpulse, tooslow (unknown reasons count as failed and are printed); not an attempt = replaced, below_start, ineligible
+# timeout, noimpulse, tooslow (unknown reasons count as failed and are printed); not an attempt = replaced, below_start, ineligible,
+# air_start, relaunched (task m5-06b)
 # (printed as aborted=<n>; FLAG, report-only, when aborted >= ok). A type is judged from 30 attempts on (LINK_MIN_ATTEMPTS).
 set -uo pipefail
 
@@ -362,7 +363,14 @@ analyze_round() {
 import collections, math, os, re, statistics, sys
 # E0.3 (b): a link outcome is judged by reason= (NotifyLinkFinished writes result=aborted for every outcome that is neither ok nor missed).
 LINK_FAILED_REASONS = ("missed", "timeout", "noimpulse", "tooslow")          # failed attempts
-LINK_NOT_ATTEMPT_REASONS = ("replaced", "below_start", "ineligible")         # re-plans (D28): not attempts, counted as aborted=<n>
+# Task m5-06b: air_start (a traversal begun in flight that never touched the ground) and relaunched (an external impulse
+# mid-flight, away from the end) are re-plans too; a pad under the drop's end or a drop that reached the end level is ok.
+LINK_NOT_ATTEMPT_REASONS = ("replaced", "below_start", "ineligible", "air_start", "relaunched")   # re-plans (D28): not attempts, counted as aborted=<n>
+# Task m5-06b: engine noise that is not a Velox error. UE 5.8 prints this once on the first launch of a fresh binary
+# (the Dataflow plugin's reflected struct, not our code); exactly this message is ignored by the Error: counts below.
+ENGINE_NOISE_RE = re.compile(r"LogClass: Error: StructProperty FDataflowToolNodeSnapshot::Date ")
+def is_error_line(l):
+    return ("Error:" in l or "Ensure condition" in l) and not ENGINE_NOISE_RE.search(l)
 def link_class(result, reason):
     if result == "ok": return "ok"
     if reason in LINK_FAILED_REASONS: return "failed"
@@ -1175,7 +1183,7 @@ elif script == "DeathSpectateRun":
     if not any("VeloxNetSoak event=respawn_seen" in l for l in C):
         fails.append("client never saw the respawned pawn")
     for name, lines in (("server", S), ("client", C)):
-        errs = [l for l in lines if ERR_RE.search(l)]
+        errs = [l for l in lines if ERR_RE.search(l) and not ENGINE_NOISE_RE.search(l)]
         if errs:
             fails.append("%d Error: line(s) in the %s log: %s" % (len(errs), name, errs[0].strip()[:140]))
     detail.append("spectate=%s respawn=%s syncs=%s clamps=%s spectator_pawn=%s client=%s/%s" % (
@@ -1533,7 +1541,7 @@ if script in ("BotRun", "BotDuel"):
     WEAPON_ABBR = {"MachineGun": "MG", "Shotgun": "SG", "LightningGun": "LG", "Railgun": "RG", "RocketLauncher": "RL", "PlasmaGun": "PG", "Gauntlet": "GT"}
     presets = collections.Counter()
     for l in S:
-        if "Error:" in l or "Ensure condition" in l:
+        if is_error_line(l):
             errors.append(l.strip()[:160])
         if "VeloxMatch phase=Live" in l:
             live = True; dwell.clear(); continue
@@ -2032,9 +2040,9 @@ if script in ("BotRun", "BotDuel"):
         "host sidecar: %s; load_start=%s load_end=%s gate=%s waited_s=%s%s" % (
             "%d samples" % len(host) if host else "n/a (no sidecar)", gate.get("load_start", "n/a"), gate.get("load_end", "n/a"), gate.get("gate", "n/a"),
             gate.get("gate_waited_s", "n/a"), " TIMEOUT (started above the gate)" if gate.get("gate_timeout") == "1" else ""),
-        "goals=[%s] fight_share=%.1f%% armed_fight_share=%.1f%% (%d/%d) supp1=%.1f%% fire_noammo=%d/%d allunreachable air=%d ground=%d" % (
+        "goals=[%s] fight_share=%.1f%% armed_fight_share=%.1f%% (%d/%d) supp1=%.1f%% fire_noammo=%d/%d allunreachable air=%d ground=%d fight_yields=%d" % (
             " ".join("%s=%d" % kv_ for kv_ in sorted(goals.items())), fight_share, armed_share, vis_armed_fight, vis_armed, supp_share, noammo, debug_lines,
-            allun.get("air", 0), allun.get("ground", 0)),
+            allun.get("air", 0), allun.get("ground", 0), sum(1 for l_ in S if "VeloxBotFightYield " in l_)),
     ]
     ra_lags = []
     for r_ in sorted(ra_resp):
@@ -2314,7 +2322,7 @@ if lt_:
         parts_.append("%s=%d/%d (%.1f %%, aborted=%d%s)" % (t_, ok_, n_, pct_, ab_, "" if n_ >= LINK_MIN_ATTEMPTS else ", < %d attempts: not judged" % LINK_MIN_ATTEMPTS))
         if ab_ >= ok_ and ab_ > 0: parts_.append("FLAG(%s: aborted %d >= ok %d, report-only)" % (t_, ab_, ok_))
         if n_ >= LINK_MIN_ATTEMPTS and pct_ < LINK_SUCCESS_MIN_PCT: link_fail_types.append("%s %.1f %% < %.0f %%" % (t_, pct_, LINK_SUCCESS_MIN_PCT))
-    print("  link success by type (invariant >= %.0f %%, min %d attempts; failed = missed/timeout/noimpulse/tooslow, aborted = replaced/below_start/ineligible): %s" % (LINK_SUCCESS_MIN_PCT, LINK_MIN_ATTEMPTS, " ".join(parts_)))
+    print("  link success by type (invariant >= %.0f %%, min %d attempts; failed = missed/timeout/noimpulse/tooslow, aborted = replaced/below_start/ineligible/air_start/relaunched): %s" % (LINK_SUCCESS_MIN_PCT, LINK_MIN_ATTEMPTS, " ".join(parts_)))
     if lu_: print("  link unknown reasons (counted failed): %s" % " ".join("%s=%d" % kv_ for kv_ in sorted(lu_.items())))
 if link_fail_types: fails.append("link traversal success per type: " + "; ".join(link_fail_types))
 # ADR 0005 D51 (11): near-human quantities pooled over the valid rounds (sums of numerators over sums of denominators), per
