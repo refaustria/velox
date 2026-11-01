@@ -203,6 +203,13 @@ private:
 	/** Knockback grace of the previous step (an impulse = the grace rising from 0). */
 	float LastKnockbackGrace = 0.f;
 
+	/**
+	 * Task 06c: world time the pawn left the ground (-1 = on the ground), the follower's own copy (updated every
+	 * StepFollow from the movement component, independent of the controller's tick order); BeginManeuver turns it into
+	 * FVeloxManeuverInput::bBeganInFlight (VeloxBotRules::IsFlight with VeloxBotRules::HopAirSeconds).
+	 */
+	double AirborneSince = -1.0;
+
 	double NextHopHeadroomCheckTime = -1.0;
 	bool bHopHeadroomClear = true;
 	int32 HopHeadroomBlockedTicks = 0;

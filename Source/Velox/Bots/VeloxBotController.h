@@ -192,6 +192,13 @@ namespace VeloxBotRules
 	VELOX_API bool IsFlight(bool bOnGround, double AirborneSince, double Now, float HopAirSeconds);
 
 	/**
+	 * Task 06c: the bot's own hop air time plus a slack, the IsFlight threshold: 2 x JumpVelocity / |GravityZ| +
+	 * SlackSeconds (just SlackSeconds without gravity). Shared by the controller's progress rule and the path follower's
+	 * FVeloxManeuverInput::bBeganInFlight.
+	 */
+	VELOX_API float HopAirSeconds(float JumpVelocity, float GravityZ, float SlackSeconds);
+
+	/**
 	 * Task 06b fight stand-off rule (beside D30): true (a stand-off: the Fight goal yields) when, while bWatched (Fight
 	 * goal, not on a link, not suppressed), every position the bot had over the last Seconds lies within RadiusCm (2-D)
 	 * of where it is now. Positions are sampled every SampleSeconds into Window; not watched or firing clears it, so a

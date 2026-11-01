@@ -239,6 +239,12 @@ namespace VeloxBotRules
 		return !bOnGround && AirborneSince >= 0.0 && Now - AirborneSince > HopAirSeconds;
 	}
 
+	float HopAirSeconds(float JumpVelocity, float GravityZ, float SlackSeconds)
+	{
+		const float Gravity = FMath::Abs(GravityZ);
+		return (Gravity > UE_KINDA_SMALL_NUMBER ? 2.f * JumpVelocity / Gravity : 0.f) + SlackSeconds;
+	}
+
 	bool UpdateFightStandoff(FVeloxStandoffWindow& Window, bool bWatched, const FVector2D& Pos, double Now, float RadiusCm, float Seconds, float SampleSeconds)
 	{
 		if (!bWatched)
@@ -1231,8 +1237,7 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 	{
 		State.AirborneSince = T;
 	}
-	const float Gravity = FMath::Abs(Movement->GetGravityZ());
-	const float HopAirSeconds = (Gravity > UE_KINDA_SMALL_NUMBER ? 2.f * Movement->GetSimParams().JumpVelocity / Gravity : 0.f) + StuckProgressFlightSlackSeconds;
+	const float HopAirSeconds = VeloxBotRules::HopAirSeconds(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), StuckProgressFlightSlackSeconds);
 	const bool bFlight = VeloxBotRules::IsFlight(bOnGround, State.AirborneSince, T, HopAirSeconds);
 	const bool bTracking = State.bMoveActive && !State.bGoalArrived && !Follow->IsOnLink() && Follow->GetStatus() == EPathFollowingStatus::Moving;
 	// D30: a pathless fight (enemy visible, D12: no path) pressed against a wall is watched by the speed rule too.
