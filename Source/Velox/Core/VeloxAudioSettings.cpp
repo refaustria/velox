@@ -7,6 +7,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CoreMisc.h"
+#include "Core/VeloxAudioPreloadSubsystem.h"
 #include "Sound/SoundAttenuation.h"
 #include "Sound/SoundBase.h"
 #include "Sound/SoundClass.h"
@@ -18,6 +19,7 @@
 DEFINE_LOG_CATEGORY(LogVeloxAudio);
 
 int32 UVeloxAudioSettings::NumPlayed = 0;
+bool UVeloxAudioSettings::bLoggedServer = false;
 
 UVeloxAudioSettings::UVeloxAudioSettings()
 {
@@ -66,21 +68,13 @@ bool UVeloxAudioSettings::CanPlayAudio(const UWorld* World)
 	return World && World->IsGameWorld() && World->GetNetMode() != NM_DedicatedServer && !IsRunningDedicatedServer() && !IsRunningCommandlet();
 }
 
-void UVeloxAudioSettings::LoadAll()
+void UVeloxAudioSettings::GetPreloadPaths(TArray<FSoftObjectPath>& OutPaths) const
 {
-	bLoadedOnce = true;
-	auto Add = [this](const auto& Soft)
+	auto Add = [&OutPaths](const auto& Soft)
 	{
 		if (!Soft.IsNull())
 		{
-			if (UObject* Object = Soft.LoadSynchronous())
-			{
-				LoadedAssets.Add(Object);
-			}
-			else
-			{
-				UE_LOG(LogVeloxAudio, Warning, TEXT("VeloxAudio asset %s could not be loaded"), *Soft.ToString());
-			}
+			OutPaths.Add(Soft.ToSoftObjectPath());
 		}
 	};
 	Add(AttenuationWeaponFire);
@@ -115,24 +109,26 @@ void UVeloxAudioSettings::LoadAll()
 	Add(JumpPadSound);
 	Add(ItemRespawnSound);
 	Add(UIClickSound);
-	UE_LOG(LogVeloxAudio, Verbose, TEXT("VeloxAudio preloaded %d assets"), LoadedAssets.Num());
 }
 
 void UVeloxAudioSettings::EnsureLoaded(const UWorld* World)
 {
-	UVeloxAudioSettings* Settings = GetMutableDefault<UVeloxAudioSettings>();
 	if (!CanPlayAudio(World))
 	{
-		if (World && !Settings->bLoggedServer && World->GetNetMode() == NM_DedicatedServer)
+		if (World && !bLoggedServer && World->GetNetMode() == NM_DedicatedServer)
 		{
-			Settings->bLoggedServer = true;
+			bLoggedServer = true;
 			UE_LOG(LogVeloxAudio, Verbose, TEXT("VeloxAudio dedicated server: no audio assets loaded"));
 		}
 		return;
 	}
-	if (!Settings->bLoadedOnce)
+	if (UVeloxAudioPreloadSubsystem* Preload = UVeloxAudioPreloadSubsystem::Get())
 	{
-		Settings->LoadAll();
+		Preload->PreloadOnce(Get());
+	}
+	else
+	{
+		UE_LOG(LogVeloxAudio, Warning, TEXT("VeloxAudio no engine subsystem: assets load on first play"));
 	}
 }
 

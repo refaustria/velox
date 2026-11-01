@@ -26,7 +26,9 @@ Cooks once, then stages/archives a Shipping client and a Development server pack
   --skip-build       Do not compile (-build); the cook is iterative and reuses Saved/Cooked.
   --dry-run          Print the UAT commands only.
 Disk: refuses to start below 12 GB free; deletes Saved/StagedBuilds always and Saved/Cooked only when
-free space is below 15 GB after archiving. Environment: UE_ROOT, VELOX_PROJECT, VELOX_OUT (infra/.env).
+free space is below 15 GB after archiving. Environment: UE_ROOT, VELOX_PROJECT, VELOX_OUT (infra/.env),
+VELOX_SMOKE_SECONDS (smoke window, default 120, min 30; the server and Development client GC every 20 s in it),
+VELOX_SMOKE_PORT (smoke listen port, default 7797).
 Exit codes: 0 ok, 1 failure, 2 version rule violated.
 USAGE
 }
@@ -179,39 +181,56 @@ ci_smoke_stop() {
   wait "$pid" 2>/dev/null || true
 }
 
-# Smoke (ADR 0007 fact 8): server archive runs as a headless listen host on port 7797 for 30 s; a Development client from the same
-# archive joins it (proves the join handshake and makes the server log its network version); the Shipping binary from the player
-# archive runs 20 s with -game -nullrhi and must stay alive (a Shipping build has no log and cannot be made to join headless, see
-# the task notes). Then every process gets SIGTERM by PID and must exit within 30 s. Sets SMOKE_NETVER.
+# Smoke (ADR 0007 fact 8, task M6-01b): server archive runs as a headless listen host on port 7797 for VELOX_SMOKE_SECONDS (default
+# 120 s); a Development client from the same archive joins it (proves the join handshake and makes the server log its network
+# version) and stays for the whole window; the Shipping binary from the player archive runs 20 s with -game -nullrhi and must stay
+# alive (a Shipping build has no log and cannot be made to join headless, see the task notes). GC: gc.CollectGarbageEveryFrame stays
+# at its default 0; both Development processes force a GC at start (`obj gc`) and run periodic GC every 20 s instead of 61 s, so the
+# window holds several GCs after the audio preload, each with VerifyGCAssumptions (Development default). The first periodic GC is
+# where a Disregard-for-GC violation used to be fatal (task 01 finding 2). Then every process gets SIGTERM by PID and must exit
+# within 30 s. Sets SMOKE_NETVER.
 ci_smoke() {
-  local d="$1" ok=1 line i spid dpid cpid
+  local d="$1" ok=1 line i spid dpid cpid secs="${VELOX_SMOKE_SECONDS:-120}" port="${VELOX_SMOKE_PORT:-7797}" gcs dgcs
   local slog="$d/server.log" dlog="$d/devclient.log" clog="$d/client.log"
-  info "smoke: Development server on port 7797 (30 s), Development client joining, Shipping client -game (20 s)"
+  local gcexec="t.MaxFPS 60, gc.TimeBetweenPurgingPendingKillObjects 20, obj gc"
+  (( secs >= 30 )) || secs=30
+  info "smoke: Development server on port ${port} (${secs} s, periodic GC 20 s), Development client joining, Shipping client -game (20 s)"
   ci_smoke_start "$d/server" "$slog" "L_ItemTest?listen?game=FFA?SpectatorOnly=1?Name=Server" \
-    -nullrhi -nosound -unattended -nopause -nosplash -log -port=7797 -LogCmds="LogNetVersion Log" -UserDir="$d/saved" -ExecCmds="t.MaxFPS 60"
+    -nullrhi -nosound -unattended -nopause -nosplash -log -port="$port" -LogCmds="LogNetVersion Log, LogGarbage Log" -UserDir="$d/saved" -ExecCmds="$gcexec"
   spid=$SMOKE_PID
+  local tstart=$SECONDS
   for i in $(seq 1 30); do /usr/bin/grep -a -q 'Game Engine Initialized' "$slog" 2>/dev/null && break; kill -0 "$spid" 2>/dev/null || break; sleep 1; done
-  ci_smoke_start "$d/server" "$dlog" 127.0.0.1:7797 -nullrhi -nosound -unattended -nopause -nosplash -log -UserDir="$d/saved-devclient"
+  ci_smoke_start "$d/server" "$dlog" "127.0.0.1:$port" -nullrhi -nosound -unattended -nopause -nosplash -log -LogCmds="LogVeloxAudio Verbose, LogGarbage Log" \
+    -UserDir="$d/saved-devclient" -ExecCmds="$gcexec"
   dpid=$SMOKE_PID
   ci_smoke_start "$d/client" "$clog" /Game/Maps/L_MainMenu -game -nullrhi -nosound -unattended -nopause -nosplash -log -UserDir="$d/saved-client"
   cpid=$SMOKE_PID
   for i in $(seq 1 20); do kill -0 "$cpid" 2>/dev/null || break; sleep 1; done
   local c_alive=0 s_alive=0 d_alive=0
   kill -0 "$cpid" 2>/dev/null && c_alive=1
+  ci_smoke_stop "$cpid"
+  while (( SECONDS - tstart < secs )); do kill -0 "$spid" 2>/dev/null || break; kill -0 "$dpid" 2>/dev/null || break; sleep 2; done
   kill -0 "$spid" 2>/dev/null && s_alive=1
   kill -0 "$dpid" 2>/dev/null && d_alive=1
-  ci_smoke_stop "$cpid"; ci_smoke_stop "$dpid"; ci_smoke_stop "$spid"; local sterm=$SMOKE_TERM_S
+  ci_smoke_stop "$dpid"; ci_smoke_stop "$spid"; local sterm=$SMOKE_TERM_S
   /usr/bin/grep -a -q 'Game Engine Initialized' "$slog" || { echo "smoke: no 'Game Engine Initialized' in server log" >&2; ok=0; }
-  line="$(/usr/bin/grep -a -E 'IpNetDriver listening on port 7797|LogNet: .*Listening' "$slog" | head -1 || true)"
-  if [[ -n "$line" ]]; then info "smoke: listen line: ${line:0:200}"; else echo "smoke: no net driver listen line on 7797" >&2; ok=0; fi
+  line="$(/usr/bin/grep -a -E "IpNetDriver listening on port ${port}|LogNet: .*Listening" "$slog" | head -1 || true)"
+  if [[ -n "$line" ]]; then info "smoke: listen line: ${line:0:200}"; else echo "smoke: no net driver listen line on ${port}" >&2; ok=0; fi
   /usr/bin/grep -a -q 'Welcomed by server' "$dlog" || { echo "smoke: Development client was not welcomed by the server (see $dlog)" >&2; ok=0; }
   if /usr/bin/grep -a -E 'Error:|ensure|Fatal error' "$slog" | head -5 | /usr/bin/grep -a .; then echo "smoke: Error:/ensure in server log" >&2; ok=0; fi
+  if /usr/bin/grep -a -E 'Fatal error|breaking Disregard for GC' "$dlog" | head -5 | /usr/bin/grep -a .; then echo "smoke: fatal in Development client log" >&2; ok=0; fi
+  # One "Verify GC Assumptions" line per GC (LogGarbage, Development builds; LogGarbage defaults to Warning, hence -LogCmds);
+  # need the forced one plus at least two periodic ones.
+  gcs="$(/usr/bin/grep -a -c 'for Verify GC Assumptions' "$slog" || true)"; dgcs="$(/usr/bin/grep -a -c 'for Verify GC Assumptions' "$dlog" || true)"
+  (( ${gcs:-0} >= 3 )) || { echo "smoke: only ${gcs:-0} verified GCs in the server log (need >= 3)" >&2; ok=0; }
+  (( ${dgcs:-0} >= 3 )) || { echo "smoke: only ${dgcs:-0} verified GCs in the Development client log (need >= 3)" >&2; ok=0; }
+  /usr/bin/grep -a -q 'VeloxAudio preloaded [1-9]' "$dlog" || { echo "smoke: Development client did not preload its audio assets (see $dlog)" >&2; ok=0; }
   [[ "$s_alive" == 1 ]] || { echo "smoke: server exited on its own (crash?)" >&2; ok=0; }
   [[ "$d_alive" == 1 ]] || { echo "smoke: Development client exited on its own" >&2; ok=0; }
   [[ "$c_alive" == 1 ]] || { echo "smoke: Shipping client exited on its own within 20 s (see $clog)" >&2; ok=0; }
   (( sterm <= 30 )) || { echo "smoke: server did not exit within 30 s of SIGTERM" >&2; ok=0; }
   SMOKE_NETVER="$(/usr/bin/grep -a 'LogNetVersion: Velox' "$slog" | /usr/bin/grep -a -o 'Checksum: [0-9]*' | head -1 | tr -dc '0-9' || true)"
-  info "smoke: server exit ${sterm}s after SIGTERM; net version checksum='${SMOKE_NETVER:-none}'; Shipping client log lines: $(wc -l < "$clog")"
+  info "smoke: ${secs} s window; verified GCs server=${gcs:-0} devclient=${dgcs:-0}; server exit ${sterm}s after SIGTERM; net version checksum='${SMOKE_NETVER:-none}'; Shipping client log lines: $(wc -l < "$clog")"
   [[ "$ok" == 1 ]]
 }
 
