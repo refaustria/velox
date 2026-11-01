@@ -32,15 +32,20 @@ Layout:
   sky light, WorldSettings.DefaultGameMode = AVeloxGameMode_FFA (AVeloxGameMode until task 05 adds the FFA class).
 """
 import math
+import os
+import sys
+
 import unreal
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import veloxmap as vm  # noqa: E402
 
 EAL = unreal.EditorAssetLibrary
 
 MAP_PATH = "/Game/Maps/L_ItemTest"
-MAT_DIR = "/Game/Materials"
 ITEM_DIR = "/Game/Items"
-CUBE = "/Engine/BasicShapes/Cube.Cube"              # 100 cm cube, pivot at centre
-CYLINDER = "/Engine/BasicShapes/Cylinder.Cylinder"  # 100 cm diameter, 100 cm high, pivot at centre
+CYLINDER = vm.CYLINDER
+PAD_LAUNCH_Z = vm.PAD_LAUNCH_Z
 
 HALF_X = 3000.0
 HALF_Y = 2000.0
@@ -62,6 +67,7 @@ GRID = [
 GRID_MOVED = {"Ammo.Rockets": "moved to the rocket-jump\nplatform (south-east)"}
 
 PLATFORM_TOP = 300.0
+NORTH_FILL_D = 100.0               # corridor wall Y 1500 minus platform north face Y 1400 (E0.2 (e) seal)
 MEGA_PAD = (-2300.0, 1200.0)      # (pad x, y): platform x -1700..-1300, y 1000..1400
 RA_PAD = (1300.0, 1200.0)         # platform x 1900..2300, y 1000..1400
 
@@ -72,15 +78,9 @@ ROCKETS_SIZE = 400.0
 ROCKET_JUMP_RUNUP = 450.0         # link start east of the platform's east edge (run-up + rise before the edge)
 
 # Nav link conventions (Tools/editor/README.md): drop start 60 cm inside the edge, end on the floor 150 cm out.
-DROP_INSET = 60.0
-DROP_OUT = 150.0
 PLATFORM_SIZE = 400.0
 PAD_TO_EDGE = 600.0      # pad centre to the platform's near edge (pad A of the movement map)
-PAD_LAUNCH_Z = 70.0      # trigger centre above the floor
 PAD_TARGET_Z = PLATFORM_TOP + 70.0 + 30.0   # capsule-centre apex: capsule bottom 30 cm above the platform top
-PAD_TRIGGER_EXTENT = (50.0, 50.0, 70.0)
-PAD_MAX_LAUNCH_SPEED = 4000.0
-VALIDATION_GRAVITY_Z = -2000.0
 
 RAMP_DEG = 15.0
 RAMP_LEN = 800.0
@@ -130,105 +130,26 @@ STARTS = [  # (label, x, y, yaw)
     ("PlayerStart_8", 1000, 500, 180),
 ]
 
-ERRORS = []
-COUNTS = {}
 EXPECTED = {
-    "ground": 1, "wall": 4, "clip": 5, "cross": 2, "platform": 7 + 4 + 1 + 3, "ramp": 2, "roomfloor": 1, "roomwall": 4, "corridorwall": 2, "marker": 11,
+    "ground": 1, "wall": 4, "clip": 5, "cross": 2, "platform": 7 + 4 + 1 + 3 + 2, "ramp": 2, "roomfloor": 1, "roomwall": 4, "corridorwall": 2, "marker": 11,
     "pickup": 23, "jumppad": 2, "targetpoint": 2, "playerstart": 8, "camera": 1, "light": 2,
     "navbounds": 2,
     "navlink": 2 + 12 + 1,   # 2 JumpPad, 12 Drop (Mega 3, RA 3, rockets 4, ramp top 2), 1 RocketJump
 }
-MATS = {}
-EAS = None
-LINKS = []
-STATIC = unreal.ComponentMobility.STATIC
-_MESH = {}
-PADS = []
 
-
-def log(msg):
-    unreal.log("[VeloxItemMap] " + msg)
-
-
-def fail(msg):
-    unreal.log_error("[VeloxItemMap] " + msg)
-    ERRORS.append(msg)
-
-
-def load_materials():
-    for key in ("Floor", "Wall", "Platform", "MarkerA", "MarkerB", "Pad", "Target", "RampWalkable"):
-        path = f"{MAT_DIR}/M_Greybox_{key}"
-        mat = EAL.load_asset(path) if EAL.does_asset_exist(path) else None
-        if mat is None:
-            fail(f"missing {path}: run create_movement_test_map.py first")
-        MATS[key] = mat
-
-
-def mesh(path):
-    if path not in _MESH:
-        _MESH[path] = unreal.load_asset(path)
-    return _MESH[path]
-
-
-def count(kind):
-    COUNTS[kind] = COUNTS.get(kind, 0) + 1
-
-
-FILL_NAV_KINDS = ("platform", "cross")   # solid boxes that must not carry nav inside them
-
-
-def box(kind, label, center, size, mat, rot=None, collide=True, folder=None, mesh_path=CUBE):
-    """Static mesh box. size = full extents in cm (cube/cylinder is 100 cm, so scale = size / 100)."""
-    a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*center), rot or unreal.Rotator(0, 0, 0))
-    a.set_actor_label(label)
-    a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
-    c = a.static_mesh_component
-    c.set_editor_property("static_mesh", mesh(mesh_path))
-    c.set_mobility(STATIC)
-    c.set_material(0, MATS[mat])
-    if kind in FILL_NAV_KINDS:
-        # Solid box standing on the ground: without this Recast leaves a walkable island at floor level inside it (M4-04e).
-        c.set_editor_property("fill_collision_underneath_for_navmesh", True)
-    if not collide:
-        c.set_collision_profile_name("NoCollision")
-        c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
-    if folder:
-        a.set_folder_path(folder)
-    count(kind)
-    return a
+# Thin adapters from this script's historical argument order to the veloxmap helpers.
+def box(kind, label, center, size, mat, **kw):
+    return vm.box(label, center, size, mat, kind, **kw)
 
 
 def text(label, loc, msg, yaw, size=36.0, folder="Labels"):
     """Text label; the front of a TextRenderActor faces its local +X, so yaw 90 faces +Y (north), 180 faces -X."""
-    a = EAS.spawn_actor_from_class(unreal.TextRenderActor, unreal.Vector(*loc), unreal.Rotator(0, 0, yaw))  # (roll, pitch, yaw)
-    a.set_actor_label(label)
-    comp = a.text_render
-    comp.set_editor_property("text", msg)
-    comp.set_editor_property("world_size", size)
-    comp.set_editor_property("horizontal_alignment", unreal.HorizTextAligment.EHTA_CENTER)
-    a.set_folder_path(folder)
-    count("text")
-    return a
-
-
-def item_asset(name):
-    path = f"{ITEM_DIR}/DA_Item_{name.replace('.', '_')}"
-    da = EAL.load_asset(path) if EAL.does_asset_exist(path) else None
-    if da is None:
-        fail(f"missing {path}: run create_item_content.py first")
-    return da
+    return vm.text_label(label, loc, msg, yaw=yaw, size=size, folder=folder)
 
 
 def place_item(name, floor_point, label=None, folder="Items"):
     """AVeloxPickup with its origin on the floor point (ADR 0004 section 1)."""
-    da = item_asset(name)
-    a = EAS.spawn_actor_from_class(unreal.VeloxPickup, unreal.Vector(*floor_point))
-    a.set_actor_label(label or ("Pickup_" + name.replace(".", "_")))
-    a.set_folder_path(folder)
-    if da is not None:
-        a.set_editor_property("definition", da)
-    count("pickup")
-    return a, da
+    return vm.pickup(f"{ITEM_DIR}/DA_Item_{name.replace('.', '_')}", floor_point, name=label, folder=folder)
 
 
 def respawn_text(name, da):
@@ -269,59 +190,20 @@ def build_platform_item(tag, item, pad_x, y):
     edge = pad_x + PAD_TO_EDGE
     cx = edge + PLATFORM_SIZE / 2
     box("platform", f"{tag}_Platform", (cx, y, PLATFORM_TOP / 2), (PLATFORM_SIZE, PLATFORM_SIZE, PLATFORM_TOP), "Platform", folder=tag)
-    tp = EAS.spawn_actor_from_class(unreal.TargetPoint, unreal.Vector(edge, y, PAD_TARGET_Z))
-    tp.set_actor_label(f"{tag}_PadTarget")
-    tp.set_folder_path(tag)
-    count("targetpoint")
-    a = EAS.spawn_actor_from_class(unreal.VeloxJumpPad, unreal.Vector(pad_x, y, PAD_LAUNCH_Z))
-    a.set_actor_label(f"{tag}_JumpPad")
-    a.set_folder_path(tag)
-    a.set_editor_property("mode", unreal.VeloxJumpPadMode.AIM_AT_TARGET)
-    a.set_editor_property("target", tp)
-    a.set_editor_property("override_velocity", True)
-    a.set_editor_property("max_launch_speed", PAD_MAX_LAUNCH_SPEED)
-    a.get_editor_property("trigger").set_box_extent(unreal.Vector(*PAD_TRIGGER_EXTENT), False)
-    pm = a.get_editor_property("pad_mesh")
-    pm.set_static_mesh(mesh(CYLINDER))
-    pm.set_material(0, MATS["Pad"])
-    pm.set_relative_location(unreal.Vector(0, 0, 5 - PAD_LAUNCH_Z), False, False)
-    pm.set_relative_scale3d(unreal.Vector(PAD_TRIGGER_EXTENT[0] / 50.0, PAD_TRIGGER_EXTENT[1] / 50.0, 0.1))
-    count("jumppad")
-    PADS.append(a)
+    # ADR 0006 E0.2 (e): the 100 cm slot between the platform's north face (Y 1400) and the corridor wall (Y 1500) is a D17
+    # bed of the D41/D46 shape; seal it flush with the platform top (D46's remedy, as for the YA slot). Drop links are
+    # untouched (the north edge never had one).
+    box("platform", f"{tag}_NorthFill", (cx, y + PLATFORM_SIZE / 2 + NORTH_FILL_D / 2, PLATFORM_TOP / 2), (PLATFORM_SIZE, NORTH_FILL_D, PLATFORM_TOP),
+        "Platform", folder=tag)
+    a = vm.jump_pad(f"{tag}_JumpPad", (pad_x, y), (edge, y, PAD_TARGET_Z), pad_label=f"{tag}_JumpPad",
+                    target_label=f"{tag}_PadTarget", folder=tag)
     _, da = place_item(item, (cx, y, PLATFORM_TOP), folder=tag)
     text(f"Label_{tag}", (pad_x - 150, y, 140), respawn_text(item, da) + "\n3 m platform, jump pad", 0, folder=tag)
     # Bots: pad trigger centre on the floor -> the item at the platform centre (the authored landing point).
-    nav_link(f"{tag}_PadLink", unreal.VeloxNavLinkType.JUMP_PAD, (pad_x, y, 0.0), (cx, y, PLATFORM_TOP), pad=a)
-    drop_links(tag, cx, y, PLATFORM_SIZE, PLATFORM_TOP, "SEW")
+    vm.nav_link(f"{tag}_PadLink", unreal.VeloxNavLinkType.JUMP_PAD, (pad_x, y, 0.0), (cx, y, PLATFORM_TOP), pad=a)
+    vm.drop_links(tag, cx, y, PLATFORM_SIZE, PLATFORM_TOP, "SEW")
     box("marker", f"{tag}_PadTargetMarker", (edge, y, PLATFORM_TOP + 2), (120, 120, 4), "Target", collide=False,
         folder=tag, mesh_path=CYLINDER)
-
-
-def nav_link(label, link_type, start, end, pad=None, both_ways=False, required_speed=0.0, folder="NavLinks"):
-    """AVeloxNavLink at the start point (LinkStart = 0), LinkEnd relative; ADR 0005 section 4."""
-    a = EAS.spawn_actor_from_class(unreal.VeloxNavLink, unreal.Vector(*start))
-    a.set_actor_label(label)
-    a.set_folder_path(folder)
-    a.set_editor_property("type", link_type)
-    a.set_editor_property("link_start", unreal.Vector(0.0, 0.0, 0.0))
-    a.set_editor_property("link_end", unreal.Vector(end[0] - start[0], end[1] - start[1], end[2] - start[2]))
-    a.set_editor_property("both_ways", both_ways)
-    a.set_editor_property("required_speed_cm_s", required_speed)
-    if pad is not None:
-        a.set_editor_property("jump_pad", pad)
-    count("navlink")
-    LINKS.append(a)
-    return a
-
-
-def drop_links(tag, cx, cy, size, top, edges):
-    """Drop links from the platform top (DROP_INSET inside the edge) to the floor (DROP_OUT outside), edge midpoints."""
-    h = size / 2
-    for e in edges:
-        d = {"N": (0.0, 1.0), "S": (0.0, -1.0), "E": (1.0, 0.0), "W": (-1.0, 0.0)}[e]
-        start = (cx + d[0] * (h - DROP_INSET), cy + d[1] * (h - DROP_INSET), top)
-        end = (cx + d[0] * (h + DROP_OUT), cy + d[1] * (h + DROP_OUT), 0.0)
-        nav_link(f"{tag}_Drop{e}", unreal.VeloxNavLinkType.DROP, start, end)
 
 
 def build_rockets_platform():
@@ -332,26 +214,8 @@ def build_rockets_platform():
     _, da = place_item("Ammo.Rockets", (cx, cy, ROCKETS_TOP), folder=tag)
     east = cx + ROCKETS_SIZE / 2
     text(f"Label_{tag}", (east + 60, cy, 200), respawn_text("Ammo.Rockets", da) + "\n3.5 m platform, rocket jump", 0, folder=tag)
-    nav_link(f"{tag}_RocketJumpLink", unreal.VeloxNavLinkType.ROCKET_JUMP, (east + ROCKET_JUMP_RUNUP, cy, 0.0), (cx, cy, ROCKETS_TOP))
-    drop_links(tag, cx, cy, ROCKETS_SIZE, ROCKETS_TOP, "NSEW")
-
-
-NAV_BOUNDS_BRUSH = 200.0   # a Python-spawned NavMeshBoundsVolume gets the default 200 cm cube brush; scale = size / 200
-
-
-def nav_bounds(label, center, size):
-    """NavMeshBoundsVolume over the whole map (ADR 0005 section 3; bWholeWorldNavigable is not a config property in 5.8)."""
-    v = EAS.spawn_actor_from_class(unreal.NavMeshBoundsVolume, unreal.Vector(*center))
-    v.set_actor_label(label)
-    v.set_folder_path("Navigation")
-    v.set_actor_scale3d(unreal.Vector(size[0] / NAV_BOUNDS_BRUSH, size[1] / NAV_BOUNDS_BRUSH, size[2] / NAV_BOUNDS_BRUSH))
-    origin, extent = v.get_actor_bounds(False)
-    log(f"{label}: origin {origin} extent {extent}")
-    want = unreal.Vector(size[0] / 2, size[1] / 2, size[2] / 2)
-    if abs(extent.x - want.x) > 1.0 or abs(extent.y - want.y) > 1.0 or abs(extent.z - want.z) > 1.0:
-        fail(f"{label}: bounds extent {extent} differs from {want} (brush is not the default 200 cm cube)")
-    count("navbounds")
-    return v
+    vm.nav_link(f"{tag}_RocketJumpLink", unreal.VeloxNavLinkType.ROCKET_JUMP, (east + ROCKET_JUMP_RUNUP, cy, 0.0), (cx, cy, ROCKETS_TOP))
+    vm.drop_links(tag, cx, cy, ROCKETS_SIZE, ROCKETS_TOP, "NSEW")
 
 
 def build_platforms():
@@ -365,10 +229,7 @@ def build_ramp():
     run, rise = RAMP_LEN * math.cos(rad), RAMP_LEN * math.sin(rad)
     thick = 20.0
     # Same construction as the movement map: pitch about Y, rising along +X from (RAMP_X0, y, 0).
-    cx = RAMP_X0 + RAMP_LEN / 2 * math.cos(rad) + thick / 2 * math.sin(rad)
-    cz = RAMP_LEN / 2 * math.sin(rad) - thick / 2 * math.cos(rad)
-    box("ramp", "Ramp_YellowArmor", (cx, RAMP_Y, cz), (RAMP_LEN, RAMP_W, thick), "RampWalkable",
-        rot=unreal.Rotator(0, RAMP_DEG, 0), folder="YellowArmor")
+    vm.ramp("Ramp_YellowArmor", (RAMP_X0, RAMP_Y, 0.0), RAMP_LEN, RAMP_W, thick, RAMP_DEG, "RampWalkable", folder="YellowArmor")
     box("platform", "Ramp_TopPlatform", (RAMP_X0 + run + 200, RAMP_Y, rise / 2), (400, RAMP_W, rise), "Platform", folder="YellowArmor")
     # D41: seal the void under the ramp so no floor-level nav exists below the ramp surface (underside at the low-X end
     # of each box = (X + 600) * tan(15 deg) - thick / cos(15 deg); residual clearance < 60 cm).
@@ -380,15 +241,12 @@ def build_ramp():
     ny = NSLOT_Y0 + NSLOT_W / 2
     zs = (NSLOT_X0 - RAMP_X0) * math.tan(rad)
     nlen = (RAMP_X0 + run - NSLOT_X0) / math.cos(rad)
-    ncx = NSLOT_X0 + nlen / 2 * math.cos(rad) + thick / 2 * math.sin(rad)
-    ncz = zs + nlen / 2 * math.sin(rad) - thick / 2 * math.cos(rad)
-    box("ramp", "Ramp_NorthSlotSlab", (ncx, ny, ncz), (nlen, NSLOT_W, thick), "RampWalkable",
-        rot=unreal.Rotator(0, RAMP_DEG, 0), folder="YellowArmor")
+    vm.ramp("Ramp_NorthSlotSlab", (NSLOT_X0, ny, zs), nlen, NSLOT_W, thick, RAMP_DEG, "RampWalkable", folder="YellowArmor")
     for i, (x0, x1, top) in enumerate(NSLOT_FILL_TOPS + ((0.0, run + RAMP_X0, 140.0),), start=1):
         box("platform", f"Ramp_NorthFill_{i}", ((x0 + x1) / 2, ny, top / 2), (x1 - x0, NSLOT_W, top), "Platform", folder="YellowArmor")
     box("platform", "Ramp_NorthTopPlatform", (RAMP_X0 + run + 200, ny, rise / 2), (400, NSLOT_W, rise), "Platform", folder="YellowArmor")
     # Bots: east and south edges of the ramp top (north faces the corridor wall, west is the ramp).
-    drop_links("RampTop", RAMP_X0 + run + 200, RAMP_Y, 400.0, rise, "SE")
+    vm.drop_links("RampTop", RAMP_X0 + run + 200, RAMP_Y, 400.0, rise, "SE")
     mid = RAMP_LEN / 2
     _, da = place_item("Armor.Yellow", (RAMP_X0 + mid * math.cos(rad), RAMP_Y, mid * math.sin(rad)), folder="YellowArmor")
     text("Label_YellowArmor", (RAMP_X0 - 100, RAMP_Y, 140), respawn_text("Armor.Yellow", da) + "\n15 deg ramp", 0, folder="YellowArmor")
@@ -415,7 +273,7 @@ def build_d17_room():
     # Slot B: 207 cm block (the ramp top's height) north of the slot, the room's south wall on the other side.
     b_y0 = ROOM_Y0 + ROOM_SLOT_W
     box("platform", "Room_TallBlockB", (sx, b_y0 + ROOM_BLOCK_D / 2, ROOM_TALL_H / 2), (sl, ROOM_BLOCK_D, ROOM_TALL_H), "Platform", folder="D17Room")
-    nav_bounds("NavMeshBounds_D17Room", (cx, cy, 300.0), (lx + 2 * t + 200, ly + 2 * t + 200, 1000.0))
+    vm.nav_bounds((cx, cy, 300.0), (lx + 2 * t + 200, ly + 2 * t + 200, 1000.0), name="NavMeshBounds_D17Room")
     text("Label_D17Room", (ROOM_X0 + 5, cy, 150), "D17 test room (FtOffMesh slots)\nnot reachable in play", 0, folder="D17Room")
 
 
@@ -447,23 +305,10 @@ def build_quad():
 
 def build_starts_camera_lights():
     for label, x, y, yaw in STARTS:
-        ps = EAS.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(x, y, 100), unreal.Rotator(0, 0, yaw))
-        ps.set_actor_label(label)
-        ps.set_folder_path("Starts")
-        count("playerstart")
-    cam = EAS.spawn_actor_from_class(unreal.CameraActor, unreal.Vector(0, -2600, 2200), unreal.Rotator(0, -40, 90))
-    cam.set_actor_label("IntermissionCamera")
-    cam.set_editor_property("tags", [unreal.Name("Intermission")])
-    cam.set_folder_path("Starts")
-    count("camera")
-    sun = EAS.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 800), unreal.Rotator(0, -45, 30))
-    sun.set_actor_label("Sun")
-    sun.get_component_by_class(unreal.DirectionalLightComponent).set_mobility(STATIC)
-    count("light")
-    sky = EAS.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 900))
-    sky.set_actor_label("SkyLight")
-    sky.get_component_by_class(unreal.SkyLightComponent).set_mobility(STATIC)
-    count("light")
+        vm.player_start(label, (x, y, 100), yaw, folder="Starts")
+    vm.spawn(unreal.CameraActor, "IntermissionCamera", (0, -2600, 2200), unreal.Rotator(0, -40, 90), "Starts", "camera",
+             tags=("Intermission",))
+    vm.static_sun_and_sky()
 
 
 def set_game_mode():
@@ -471,83 +316,24 @@ def set_game_mode():
     settings = world.get_world_settings()
     cls = getattr(unreal, "VeloxGameMode_FFA", None)
     if cls is None:
-        log("VeloxGameMode_FFA not available yet (task 05): using VeloxGameMode")
+        vm.log("VeloxGameMode_FFA not available yet (task 05): using VeloxGameMode")
         cls = unreal.VeloxGameMode
     settings.set_editor_property("default_game_mode", cls)
     got = settings.get_editor_property("default_game_mode")
-    log(f"WorldSettings.DefaultGameMode = {got.get_name() if got else None}")
+    vm.log(f"WorldSettings.DefaultGameMode = {got.get_name() if got else None}")
     if got is None:
-        fail("could not set WorldSettings.DefaultGameMode")
+        vm.fail("could not set WorldSettings.DefaultGameMode")
 
 
-def check_pads():
-    world = unreal.EditorLevelLibrary.get_editor_world()
-    for a in PADS:
-        v = a.compute_launch_velocity(VALIDATION_GRAVITY_Z)
-        log(f"{a.get_actor_label()}: launch {v} |v|={v.length():.0f} cm/s")
-        if v.length() <= 0.0 or v.length() > PAD_MAX_LAUNCH_SPEED:
-            fail(f"{a.get_actor_label()}: launch speed {v.length():.0f} out of range")
-        # Informational; the runtime check is velox.bots.DumpPadLandings on the server.
-        log(f"{a.get_actor_label()}: compute_landing_point {a.compute_landing_point(world)}")
 
 
 KILL_Z = -1000.0       # lowest walkable floor is Z=0; anything below this has left the map and dies via FellOutOfWorld
-CLIP_H = 1800.0        # invisible clip walls / ceiling top (above any knockback apex: 1875 cm/s at 2000 cm/s^2 is about 880 cm)
-
-
-def clip_box(label, center, size):
-    """Invisible BlockAll volume, no navigation influence (M4-07f): seals the open-top arena against knockback."""
-    a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*center))
-    a.set_actor_label(label)
-    a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
-    c = a.static_mesh_component
-    c.set_editor_property("static_mesh", mesh(CUBE))
-    c.set_mobility(STATIC)
-    c.set_collision_profile_name("BlockAll")
-    c.set_editor_property("can_ever_affect_navigation", False)
-    c.set_editor_property("fill_collision_underneath_for_navmesh", False)
-    a.set_actor_hidden_in_game(True)
-    a.set_folder_path("Clip")
-    count("clip")
-    return a
-
-
-def build_clip(hx, hy, wall_t):
-    """Four clip walls coinciding with the visible perimeter walls (inner face at +-hx/+-hy), 1800 cm high, plus a ceiling."""
-    h = CLIP_H
-    clip_box("Clip_N", (0, hy + wall_t / 2, h / 2), (2 * hx + 2 * wall_t, wall_t, h))
-    clip_box("Clip_S", (0, -hy - wall_t / 2, h / 2), (2 * hx + 2 * wall_t, wall_t, h))
-    clip_box("Clip_E", (hx + wall_t / 2, 0, h / 2), (wall_t, 2 * hy, h))
-    clip_box("Clip_W", (-hx - wall_t / 2, 0, h / 2), (wall_t, 2 * hy, h))
-    clip_box("Clip_Ceiling", (0, 0, h + wall_t / 2), (2 * hx + 2 * wall_t, 2 * hy + 2 * wall_t, wall_t))
-
-
-def set_kill_z():
-    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
-    settings.set_editor_property("kill_z", KILL_Z)
-    got = settings.get_editor_property("kill_z")
-    log(f"WorldSettings.KillZ = {got}")
-    if abs(got - KILL_Z) > 0.01:
-        fail("could not set WorldSettings.KillZ")
 
 
 def build_map():
-    global EAS
-    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-    EAS = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-    if not EAL.does_directory_exist("/Game/Maps"):
-        EAL.make_directory("/Game/Maps")
-    if EAL.does_asset_exist(MAP_PATH):
-        log("map exists, clearing it for rebuild")
-        if not les.load_level(MAP_PATH):
-            fail("could not load existing " + MAP_PATH)
-            return
-        for a in EAS.get_all_level_actors():
-            EAS.destroy_actor(a)
-    elif not les.new_level(MAP_PATH, False):
-        fail("new_level failed for " + MAP_PATH)
+    les = vm.rebuild_map(MAP_PATH)
+    if les is None:
         return
-
     build_arena()
     build_grid()
     build_platforms()
@@ -557,45 +343,40 @@ def build_map():
     build_quad()
     build_starts_camera_lights()
     # Arena plus walls, floor slab to above the platforms (bots path on walkable surfaces only).
-    nav_bounds("NavMeshBounds", (0.0, 0.0, 300.0), (2 * HALF_X + 400, 2 * HALF_Y + 400, 1000.0))
-    build_clip(HALF_X, HALF_Y, WALL_T)
-    set_kill_z()
+    vm.nav_bounds((0.0, 0.0, 300.0), (2 * HALF_X + 400, 2 * HALF_Y + 400, 1000.0))
+    vm.clip_walls(HALF_X, HALF_Y, wall_t=WALL_T)
+    vm.set_kill_z(KILL_Z)
     set_game_mode()
-    check_pads()
+    vm.check_pads()
 
     # Markers: 18 grid + 11 corridor + 2 pad targets = 31; platforms: 2 item platforms + ramp top + rockets platform = 4.
     expected = dict(EXPECTED)
     expected["marker"] = len(GRID) + 11 + 2
-    log("spawned: " + ", ".join(f"{k}={v}" for k, v in sorted(COUNTS.items())))
-    for k, v in expected.items():
-        if COUNTS.get(k, 0) != v:
-            fail(f"{k}: spawned {COUNTS.get(k, 0)}, expected {v}")
-    actors = EAS.get_all_level_actors()
+    vm.assert_counts(expected, exact=False)
+    actors = vm.EAS.get_all_level_actors()
     pickups = [a for a in actors if isinstance(a, unreal.VeloxPickup)]
     defs = {a.get_editor_property("definition").get_name() for a in pickups if a.get_editor_property("definition")}
-    log(f"VeloxPickups={len(pickups)} distinct definitions={len(defs)} (expected 23/23)")
+    vm.log(f"VeloxPickups={len(pickups)} distinct definitions={len(defs)} (expected 23/23)")
     if len(pickups) != 23 or len(defs) != 23:
-        fail("pickup count or distinct definition count differs from 23")
+        vm.fail("pickup count or distinct definition count differs from 23")
     links = [a for a in actors if isinstance(a, unreal.VeloxNavLink)]
     kinds = {}
     for a in links:
         k = str(a.get_editor_property("type"))
         kinds[k] = kinds.get(k, 0) + 1
-    log(f"VeloxNavLinks={len(links)} by type {kinds} (expected {EXPECTED['navlink']}: 2 JumpPad, 12 Drop, 1 RocketJump)")
+    vm.log(f"VeloxNavLinks={len(links)} by type {kinds} (expected {EXPECTED['navlink']}: 2 JumpPad, 12 Drop, 1 RocketJump)")
     if len(links) != EXPECTED["navlink"]:
-        fail(f"nav link count {len(links)} differs from {EXPECTED['navlink']}")
-    unreal.SystemLibrary.execute_console_command(unreal.EditorLevelLibrary.get_editor_world(), "MAP CHECK")
-    if not les.save_current_level():
-        fail("save_current_level failed")
+        vm.fail(f"nav link count {len(links)} differs from {EXPECTED['navlink']}")
+    vm.save_map(les)
 
 
 def main():
-    load_materials()
-    if not ERRORS:
+    vm.configure(log_prefix="[VeloxItemMap]", fill_nav_kinds=("platform", "cross"))
+    vm.greybox_materials(keys=("Floor", "Wall", "Platform", "MarkerA", "MarkerB", "Pad", "Target", "RampWalkable"))
+    if not vm.ERRORS:
         build_map()
-    if ERRORS:
-        raise RuntimeError("item test map failed: " + "; ".join(ERRORS))
-    log("done")
+    vm.raise_if_errors("item test map")
+    vm.log("done")
 
 
 main()

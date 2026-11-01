@@ -307,8 +307,45 @@ FIRE_ABILITIES = {
 }
 
 
+# ADR 0006 section 4.6 / task M5-09. Per weapon: placement of the view model relative to the camera (x forward, y right,
+# z up, cm) and its scale. Meshes and sounds stay empty until the art tasks fill them (the assets are only created here,
+# existing ones keep their art references; only the placement is re-applied when the asset is new).
+VIEW_OFFSETS = {
+    "MachineGun": (22.0, 11.0, -12.0),
+    "Shotgun": (22.0, 11.0, -12.0),
+    "RocketLauncher": (20.0, 12.0, -13.0),
+    "LightningGun": (22.0, 11.0, -12.0),
+    "Railgun": (22.0, 11.0, -12.0),
+    "PlasmaGun": (22.0, 11.0, -12.0),
+}
+VIEW_MODEL_SETTINGS_PATH = "/Game/Characters/Velox"
+
+
+def build_weapon_cosmetics(name):
+    """DA_WeaponCosmetics_<name> (empty meshes and sounds). Created once; art tasks own the references afterwards."""
+    ensure_dir("/Game/Weapons")
+    da, created = get_or_create("/Game/Weapons", "DA_WeaponCosmetics_" + name, unreal.VeloxWeaponCosmetics, None)
+    if da is not None and created:
+        x, y, z = VIEW_OFFSETS[name]
+        da.set_editor_property("view_offset", unreal.Transform(location=[x, y, z]))
+        da.set_editor_property("view_scale", 1.0)
+        save(da)
+    return da
+
+
+def build_view_model_settings():
+    """DA_ViewModelSettings_Default: the C++ class defaults are the shipped values (the asset is the tuning surface)."""
+    ensure_dir("/Game/Characters")
+    ensure_dir(VIEW_MODEL_SETTINGS_PATH)
+    da, created = get_or_create(VIEW_MODEL_SETTINGS_PATH, "DA_ViewModelSettings_Default", unreal.VeloxViewModelSettings, None)
+    if da is not None and created:
+        save(da)
+    return da
+
+
 def build_weapons():
     ensure_dir("/Game/Weapons")
+    build_view_model_settings()
     defs = {}
     for w in WEAPONS:
         da, _ = get_or_create("/Game/Weapons", "DA_Weapon_" + w["name"], unreal.VeloxWeaponDefinition, None)
@@ -342,6 +379,7 @@ def build_weapons():
             "fire_cue_tag": tag(cue + ".Fire"),
             "impact_cue_tag": tag(cue + ".Impact"),
             "beam_cue_tag": tag(cue + ".Beam") if w.get("beam") else unreal.GameplayTag(),
+            "cosmetics": build_weapon_cosmetics(w["name"]),
         }
         for k, v in values.items():
             try:

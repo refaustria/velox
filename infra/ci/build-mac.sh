@@ -14,6 +14,11 @@ if ! command -v timeout >/dev/null 2>&1; then
     timeout() { shift 2; "$@"; }  # drop '--kill-after=60 <seconds>'
   fi
 fi
+# --bake <Map> <Quality>: Metal lighting bake (ADR 0006 fallback B); same commandlet as bake.sh. Run by the human on the Mac.
+if [[ "${1:-}" == "--bake" ]]; then
+  shift
+  VELOX_BAKE_PLATFORM=Mac exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/bake.sh" "$@"
+fi
 # shellcheck source=infra/ci/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 ci_main "$@"

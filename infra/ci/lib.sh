@@ -250,3 +250,30 @@ ci_main() {
   fi
   info "CI OK. Logs: $LOG_DIR"
 }
+
+# ci_load_bands <Map> : per-map soak bands (ADR 0006 section 7). Sources infra/ci/bands/<Map>.sh with every assignment
+# exported (BAND_* variables, read by the embedded analysers of nettest.sh and by ffa_summary.py / ffa_set.py) and sets
+# VELOX_BAND_NAME to the map name. A map without a band file leaves no BAND_* variable set and VELOX_BAND_NAME=none:
+# report-only. The map-independent invariants never read BAND_* variables.
+ci_load_bands() {
+  local map="$1" f v
+  for v in $(compgen -v BAND_); do unset "$v"; done
+  unset VELOX_BAND_FILE VELOX_BAND_LABEL
+  f="$CI_LIB_DIR/bands/$map.sh"
+  if [[ -n "$map" && -f "$f" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "$f"
+    set +a
+    export VELOX_BAND_NAME="$map"
+    # A band file may name the file whose values it applies (VELOX_BAND_FILE, e.g. L_DM1_Blockout.sh sources L_DM1.sh): the printed
+    # label then reads "<map> (file <F>)" so the set line says which file was applied. Otherwise the label is the map name.
+    if [[ -n "${VELOX_BAND_FILE:-}" && "$VELOX_BAND_FILE" != "$map" ]]; then
+      export VELOX_BAND_LABEL="$map (file $VELOX_BAND_FILE)"
+    else
+      export VELOX_BAND_LABEL="$map"
+    fi
+  else
+    export VELOX_BAND_NAME=none VELOX_BAND_LABEL=none
+  fi
+}

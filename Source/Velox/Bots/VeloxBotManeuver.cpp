@@ -18,7 +18,16 @@ void FVeloxBotManeuver::Begin(const FVeloxManeuverParams& InParams, const FVecto
 	Retries = 0;
 	Result = EVeloxManeuverResult::None;
 	bSeenAirborne = false;
+	bGroundSeen = false;
+	bLaunchImpulseSeen = false;
+	bBeganInFlight = false;
 	EnterPhase(EVeloxManeuverPhase::Approach, Time);
+}
+
+void FVeloxBotManeuver::Begin(const FVeloxManeuverParams& InParams, const FVector& InStart, const FVector& InEnd, const FVeloxManeuverInput& In)
+{
+	Begin(InParams, InStart, InEnd, In.Time);
+	bBeganInFlight = In.bBeganInFlight;
 }
 
 void FVeloxBotManeuver::EnterPhase(EVeloxManeuverPhase NewPhase, double Time)
@@ -41,13 +50,37 @@ FVeloxManeuverOutput FVeloxBotManeuver::Finish(EVeloxManeuverResult InResult, do
 
 FVeloxManeuverOutput FVeloxBotManeuver::TickAirborne(const FVeloxManeuverInput& In)
 {
+	if (In.bImpulseReceived)
+	{
+		// Task m5-06b: the first impulse of a pad traversal is the pad's own launch; any other impulse in the flight is an
+		// external re-launch (a pad under the drop's landing, a rocket hit). At End it is the landing (Ok); a drop that
+		// reached its end's level next to End (task m5-06c, review D2: within 2 x EndAcceptanceCm) has done what the link
+		// asks; anywhere else the flight is no longer this link's.
+		const bool bOwn = Type == EVeloxManeuverType::JumpPad && !bLaunchImpulseSeen;
+		bLaunchImpulseSeen = true;
+		if (!bOwn)
+		{
+			const bool bAtEndLevel = Type == EVeloxManeuverType::Drop && In.HeightAboveEndCm <= Params.EndAcceptanceCm * 0.5f &&
+				In.DistToEnd <= Params.EndAcceptanceCm * 2.f;
+			const bool bAtEnd = In.DistToEnd <= Params.EndAcceptanceCm || bAtEndLevel;
+			return Finish(bAtEnd ? EVeloxManeuverResult::Ok : EVeloxManeuverResult::Relaunched, In.Time);
+		}
+	}
 	if (!In.bOnGround)
 	{
 		bSeenAirborne = true;
 	}
 	else if (bSeenAirborne)
 	{
-		return Finish(In.DistToEnd <= Params.EndAcceptanceCm ? EVeloxManeuverResult::Ok : EVeloxManeuverResult::Missed, In.Time);
+		if (In.DistToEnd <= Params.EndAcceptanceCm)
+		{
+			return Finish(EVeloxManeuverResult::Ok, In.Time);
+		}
+		// Task m5-06b / 06c (review D1): a traversal that began inside a foreign flight (bBeganInFlight: longer than the
+		// bot's own hop) with no ground tick and no own launch did not choose this flight; its landing away from End is
+		// not a miss. Begun on the ground, in the bot's own hop, or launched by the link, it is.
+		const bool bForeignFlight = bBeganInFlight && !bGroundSeen && !bLaunchImpulseSeen;
+		return Finish(bForeignFlight ? EVeloxManeuverResult::AirStart : EVeloxManeuverResult::Missed, In.Time);
 	}
 	FVeloxManeuverOutput Out;
 	Out.WishToward = EVeloxManeuverWish::End;
@@ -74,6 +107,12 @@ FVeloxManeuverOutput FVeloxBotManeuver::Tick(const FVeloxManeuverInput& In)
 		return Finish(EVeloxManeuverResult::BelowStart, In.Time);
 	}
 
+	// Task m5-06b: ground contact before the flight (any phase but Airborne, where the ground is the landing).
+	if (In.bOnGround && Phase != EVeloxManeuverPhase::Airborne && Phase != EVeloxManeuverPhase::Finished)
+	{
+		bGroundSeen = true;
+	}
+
 	switch (Phase)
 	{
 	case EVeloxManeuverPhase::Idle:
@@ -90,6 +129,11 @@ FVeloxManeuverOutput FVeloxBotManeuver::Tick(const FVeloxManeuverInput& In)
 		switch (Type)
 		{
 		case EVeloxManeuverType::JumpPad:
+			if (In.bImpulseReceived && In.bOnGround)
+			{
+				// The pad's launch on the tick it fires (the pawn leaves the ground on the next one).
+				bLaunchImpulseSeen = true;
+			}
 			if (!In.bOnGround)
 			{
 				EnterPhase(EVeloxManeuverPhase::Airborne, In.Time);
@@ -196,6 +240,7 @@ FVeloxManeuverOutput FVeloxBotManeuver::Tick(const FVeloxManeuverInput& In)
 		if (In.bImpulseReceived)
 		{
 			bSeenAirborne = !In.bOnGround;
+			bLaunchImpulseSeen = true;
 			EnterPhase(EVeloxManeuverPhase::Airborne, In.Time);
 			return Out;
 		}

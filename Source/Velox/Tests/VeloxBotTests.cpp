@@ -1512,6 +1512,170 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 		O = M.Tick(ManeuverIn(0.31, 10.f, 400.f));
 		TestTrue(TEXT("D28: RJ Launched at 0.31 s without impulse -> NoImpulse"), O.bAbort && O.Reason == EVeloxManeuverResult::NoImpulse);
 	}
+
+	// Task m5-06b: a flight that is not the link's is not a miss; a genuine miss stays one.
+	{
+		FVeloxManeuverParams DropP;
+		DropP.Type = EVeloxManeuverType::Drop;
+		auto DropIn = [](double T, float DistToEnd, bool bOnGround, float AboveEnd, bool bImpulse = false)
+		{
+			FVeloxManeuverInput In = VeloxBotTestsShared::ManeuverIn(T, 0.f, DistToEnd, bOnGround);
+			In.HeightAboveEndCm = AboveEnd;
+			In.bImpulseReceived = bImpulse;
+			return In;
+		};
+		// Walked off the edge (ground first), landed 400 cm from End off its surface: a genuine miss.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 380.f, true, 320.f));
+			M.Tick(DropIn(Dt, 370.f, false, 315.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.9, 400.f, true, 0.f));
+			TestTrue(TEXT("06b: drop from the ground, landing 400 cm off -> Missed (genuine)"), O.bAbort && O.Reason == EVeloxManeuverResult::Missed);
+		}
+		// Begun in a foreign flight (06c: bBeganInFlight; no ground tick, no launch of its own), landing away from End:
+		// not the link's flight.
+		{
+			FVeloxBotManeuver M;
+			FVeloxManeuverInput BeginIn = DropIn(0.0, 600.f, false, 300.f);
+			BeginIn.bBeganInFlight = true;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), BeginIn);
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			TestTrue(TEXT("06b: drop begun airborne -> Airborne phase"), M.Phase == EVeloxManeuverPhase::Airborne);
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 700.f, true, 0.f));
+			TestTrue(TEXT("06b: drop begun in the air, landing away -> AirStart"), O.bAbort && O.Reason == EVeloxManeuverResult::AirStart);
+			TestEqual(TEXT("06b: AirStart label"), FString(LexToString(EVeloxManeuverResult::AirStart)), FString(TEXT("air_start")));
+		}
+		// Begun in the air, landing at End: still ok.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 80.f, true, 0.f));
+			TestTrue(TEXT("06b: drop begun in the air, landing at End -> Ok"), O.bDone && O.Reason == EVeloxManeuverResult::Ok);
+		}
+		// Task m5-06c (review D1): AirStart only for a traversal begun in a foreign flight; one begun in the bot's own hop
+		// (bBeganInFlight false, no ground tick) is an ordinary attempt.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), DropIn(0.0, 600.f, false, 300.f));
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 400.f, true, 0.f));
+			TestFalse(TEXT("06c (a): hop-begun drop never saw the ground"), M.bGroundSeen);
+			TestTrue(TEXT("06c (a): drop begun in a hop (bBeganInFlight=false), landing 400 cm off -> Missed"), O.bAbort && O.Reason == EVeloxManeuverResult::Missed);
+		}
+		{
+			FVeloxBotManeuver M;
+			FVeloxManeuverInput BeginIn = DropIn(0.0, 600.f, false, 300.f);
+			BeginIn.bBeganInFlight = true;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), BeginIn);
+			TestTrue(TEXT("06c (b): Begin stores bBeganInFlight"), M.bBeganInFlight);
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 400.f, true, 0.f));
+			TestTrue(TEXT("06c (b): drop begun in a flight (bBeganInFlight=true), landing 400 cm off -> AirStart"), O.bAbort && O.Reason == EVeloxManeuverResult::AirStart);
+		}
+		for (const bool bFlight : {false, true})
+		{
+			FVeloxBotManeuver M;
+			FVeloxManeuverInput BeginIn = DropIn(0.0, 600.f, false, 300.f);
+			BeginIn.bBeganInFlight = bFlight;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), BeginIn);
+			M.Tick(DropIn(0.0, 600.f, false, 300.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 80.f, true, 0.f));
+			TestTrue(FString::Printf(TEXT("06c (c): drop begun %s, landing at End -> Ok"), bFlight ? TEXT("in a flight") : TEXT("in a hop")),
+				O.bDone && O.Reason == EVeloxManeuverResult::Ok);
+		}
+		{
+			// The plain Begin(Time) clears a previous traversal's flag.
+			FVeloxBotManeuver M;
+			M.bBeganInFlight = true;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			TestFalse(TEXT("06c: Begin(Time) resets bBeganInFlight"), M.bBeganInFlight);
+		}
+		// Task m5-06c (review D2): an impulse at the end's level counts as the landing only next to End (2 x acceptance).
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 380.f, true, 320.f));
+			M.Tick(DropIn(Dt, 370.f, false, 315.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 400.f, false, 20.f, true));
+			TestTrue(TEXT("06c (d): drop, ground start, impulse at the end level 400 cm from End -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
+		}
+		{
+			FVeloxManeuverParams DropNear = DropP;
+			DropNear.EndAcceptanceCm = 80.f;
+			FVeloxBotManeuver M;
+			M.Begin(DropNear, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 380.f, true, 320.f));
+			M.Tick(DropIn(Dt, 370.f, false, 315.f));
+			FVeloxManeuverOutput O = M.Tick(DropIn(0.8, 150.f, false, 20.f, true));
+			TestTrue(TEXT("06c (e): drop, impulse at the end level 150 cm from End (acceptance 80) -> Ok"), O.bDone && O.Reason == EVeloxManeuverResult::Ok);
+			// Same distance, above the end level (> acceptance / 2): re-launched.
+			FVeloxBotManeuver High;
+			High.Begin(DropNear, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			High.Tick(DropIn(0.0, 380.f, true, 320.f));
+			High.Tick(DropIn(Dt, 370.f, false, 315.f));
+			O = High.Tick(DropIn(0.6, 150.f, false, 60.f, true));
+			TestTrue(TEXT("06c: drop, impulse 60 cm above the end level 150 cm from End (acceptance 80) -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
+		}
+		// A rocket hit in mid-fall, 250 cm above the end level and 400 cm from End: re-launched, not a miss.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(DropP, FVector::ZeroVector, FVector(200.0, 0.0, -320.0), 0.0);
+			M.Tick(DropIn(0.0, 380.f, true, 320.f));
+			M.Tick(DropIn(Dt, 370.f, false, 315.f));
+			const FVeloxManeuverOutput O = M.Tick(DropIn(0.3, 400.f, false, 250.f, true));
+			TestTrue(TEXT("06b: drop re-launched mid-flight away from End -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
+			TestEqual(TEXT("06b: Relaunched label"), FString(LexToString(EVeloxManeuverResult::Relaunched)), FString(TEXT("relaunched")));
+		}
+
+		FVeloxManeuverParams PadP;
+		PadP.Type = EVeloxManeuverType::JumpPad;
+		// Pad: the pad's own launch (on the ground tick) is not a re-launch; the landing far away stays a miss.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(PadP, FVector::ZeroVector, FVector(0.0, 1200.0, 400.0), 0.0);
+			M.Tick(VeloxBotTestsShared::ManeuverIn(0.0, 100.f, 1300.f));
+			FVeloxManeuverInput Launch = VeloxBotTestsShared::ManeuverIn(Dt, 5.f, 1250.f, true);
+			Launch.bImpulseReceived = true;
+			FVeloxManeuverOutput O = M.Tick(Launch);
+			TestFalse(TEXT("06b: pad launch tick -> running"), O.bDone || O.bAbort);
+			O = M.Tick(VeloxBotTestsShared::ManeuverIn(2.0 * Dt, 30.f, 1200.f, false));
+			TestFalse(TEXT("06b: pad flight -> running"), O.bDone || O.bAbort);
+			O = M.Tick(VeloxBotTestsShared::ManeuverIn(1.5, 900.f, 500.f, true));
+			TestTrue(TEXT("06b: pad landing 500 cm off -> Missed (genuine)"), O.bAbort && O.Reason == EVeloxManeuverResult::Missed);
+		}
+		// Pad: launch seen in the air (the impulse arrives on the first airborne tick), then a second impulse mid-flight.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(PadP, FVector::ZeroVector, FVector(0.0, 1200.0, 400.0), 0.0);
+			M.Tick(VeloxBotTestsShared::ManeuverIn(0.0, 100.f, 1300.f));
+			FVeloxManeuverInput Launch = VeloxBotTestsShared::ManeuverIn(Dt, 5.f, 1250.f, false);
+			Launch.bImpulseReceived = true;
+			FVeloxManeuverOutput O = M.Tick(Launch);
+			TestFalse(TEXT("06b: pad launch in the air is the pad's own -> running"), O.bDone || O.bAbort);
+			FVeloxManeuverInput Hit = VeloxBotTestsShared::ManeuverIn(0.6, 400.f, 800.f, false);
+			Hit.bImpulseReceived = true;
+			O = M.Tick(Hit);
+			TestTrue(TEXT("06b: second impulse in the pad flight -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
+		}
+		// Rocket jump: the launch impulse is its own; a later one mid-flight re-launches.
+		{
+			FVeloxBotManeuver M;
+			M.Begin(RJ, FVector::ZeroVector, FVector(0.0, 0.0, 350.0), 0.0);
+			M.Phase = EVeloxManeuverPhase::Launched;
+			M.PhaseStartTime = 0.0;
+			M.bGroundSeen = true;
+			FVeloxManeuverInput Kick = VeloxBotTestsShared::ManeuverIn(0.05, 10.f, 340.f, false);
+			Kick.bImpulseReceived = true;
+			FVeloxManeuverOutput O = M.Tick(Kick);
+			TestFalse(TEXT("06b: RJ own launch -> running"), O.bDone || O.bAbort);
+			FVeloxManeuverInput Hit = VeloxBotTestsShared::ManeuverIn(0.5, 200.f, 300.f, false);
+			Hit.bImpulseReceived = true;
+			O = M.Tick(Hit);
+			TestTrue(TEXT("06b: RJ second impulse away from End -> Relaunched"), O.bAbort && O.Reason == EVeloxManeuverResult::Relaunched);
+		}
+	}
 	return true;
 }
 
@@ -2398,6 +2562,207 @@ bool FVeloxBotsCostCategoriesTest::RunTest(const FString& Parameters)
 	{
 		// No world: the scope must not crash and must not need a subsystem.
 		const FVeloxBotCostScope Scope(nullptr, EVeloxBotCost::Act);
+	}
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS
+
+// --------------------------------------------------------------------------------- task M5-03: nav-coverage clusters
+// Velox.Bots.NavCoverageClusters  ADR 0006 section 6, the world-free clustering of the nav-coverage lint
+// (VeloxNavCoverageMath.h): lattice indexing, 4-connectivity, two clusters separated by one covered row, MinClusterM2
+// drop (and its boundary), floors at different heights do not merge, area in m^2, centre / extent, majority owner,
+// walk-in (touches covered floor) vs isolated.
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+#include "Bots/VeloxNavCoverageMath.h"
+
+namespace VeloxNavCoverageTestsPrivate
+{
+	constexpr double Grid = 50.0;
+	constexpr double MaxDZ = 95.0;   // step 45 + 50 cm of a 45 degree slope, as the lint computes it
+
+	void AddRect(TArray<FVeloxNavCoverageCell>& Cells, int32 X0, int32 Y0, int32 X1, int32 Y1, bool bCovered, float Z = 5.f, int32 Owner = 0)
+	{
+		for (int32 X = X0; X <= X1; ++X)
+		{
+			for (int32 Y = Y0; Y <= Y1; ++Y)
+			{
+				FVeloxNavCoverageCell& Cell = Cells.AddDefaulted_GetRef();
+				Cell.X = X;
+				Cell.Y = Y;
+				Cell.Z = Z;
+				Cell.bCovered = bCovered;
+				Cell.Owner = Owner;
+			}
+		}
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxBotsNavCoverageClustersTest, "Velox.Bots.NavCoverageClusters", VeloxBotTestsShared::BotTestFlags)
+bool FVeloxBotsNavCoverageClustersTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxNavCoverageTestsPrivate;
+	using namespace VeloxNavCoverageMath;
+
+	// Lattice: cell i spans [i * Grid, (i + 1) * Grid), the sample at its centre; negative coordinates floor.
+	TestEqual(TEXT("CellIndex(0) = 0"), CellIndex(0.0, Grid), 0);
+	TestEqual(TEXT("CellIndex(49.9) = 0"), CellIndex(49.9, Grid), 0);
+	TestEqual(TEXT("CellIndex(50) = 1"), CellIndex(50.0, Grid), 1);
+	TestEqual(TEXT("CellIndex(-0.1) = -1"), CellIndex(-0.1, Grid), -1);
+	TestEqual(TEXT("CellCenter(-1) = -25"), CellCenter(-1, Grid), -25.0);
+	TestEqual(TEXT("4 cells of 50 cm = 1 m^2"), CellsToM2(4, Grid), 1.0);
+
+	{
+		// One 4 x 2 uncovered block next to covered floor: one cluster, 8 cells, 2 m^2, rectangle centre and size.
+		TArray<FVeloxNavCoverageCell> Cells;
+		AddRect(Cells, -2, -2, 5, 3, true);
+		AddRect(Cells, 6, 0, 9, 1, false);
+		const TArray<FVeloxNavCoverageCluster> Clusters = BuildClusters(Cells, Grid, MaxDZ, 1.0);
+		if (TestEqual(TEXT("single block: one cluster"), Clusters.Num(), 1))
+		{
+			TestEqual(TEXT("single block: 8 cells"), Clusters[0].NumCells, 8);
+			TestEqual(TEXT("single block: 2 m^2"), Clusters[0].AreaM2, 2.0);
+			TestEqual(TEXT("single block: centre X = 300 + 100"), Clusters[0].Center.X, 400.0);
+			TestEqual(TEXT("single block: centre Y = 0 + 50"), Clusters[0].Center.Y, 50.0);
+			TestEqual(TEXT("single block: centre Z = mean sample height"), Clusters[0].Center.Z, 5.0);
+			TestEqual(TEXT("single block: extent X 200"), Clusters[0].Extent.X, 200.0);
+			TestEqual(TEXT("single block: extent Y 100"), Clusters[0].Extent.Y, 100.0);
+		}
+		TestEqual(TEXT("no cells: no cluster"), BuildClusters(TArray<FVeloxNavCoverageCell>(), Grid, MaxDZ, 0.0).Num(), 0);
+	}
+
+	{
+		// Two clusters separated by one covered row (Y = 2).
+		TArray<FVeloxNavCoverageCell> Cells;
+		AddRect(Cells, 0, 0, 3, 1, false);
+		AddRect(Cells, 0, 2, 3, 2, true);
+		AddRect(Cells, 0, 3, 3, 4, false);
+		const TArray<FVeloxNavCoverageCluster> Clusters = BuildClusters(Cells, Grid, MaxDZ, 1.0);
+		if (TestEqual(TEXT("covered row: two clusters"), Clusters.Num(), 2))
+		{
+			TestEqual(TEXT("covered row: 8 cells (south)"), Clusters[0].NumCells, 8);
+			TestEqual(TEXT("covered row: 8 cells (north)"), Clusters[1].NumCells, 8);
+			TestEqual(TEXT("covered row: equal areas sort by centre Y (south first)"), Clusters[0].Center.Y, 50.0);
+			TestEqual(TEXT("covered row: north cluster centre Y"), Clusters[1].Center.Y, 200.0);
+		}
+		// Uncovering the row joins them.
+		for (FVeloxNavCoverageCell& Cell : Cells)
+		{
+			Cell.bCovered = false;
+		}
+		const TArray<FVeloxNavCoverageCluster> Joined = BuildClusters(Cells, Grid, MaxDZ, 1.0);
+		if (TestEqual(TEXT("uncovered row: one cluster"), Joined.Num(), 1))
+		{
+			TestEqual(TEXT("uncovered row: 20 cells, 5 m^2"), Joined[0].AreaM2, 5.0);
+		}
+	}
+
+	{
+		// 4-connectivity: diagonal neighbours are separate clusters.
+		TArray<FVeloxNavCoverageCell> Cells;
+		AddRect(Cells, 0, 0, 0, 0, false);
+		AddRect(Cells, 1, 1, 1, 1, false);
+		AddRect(Cells, 1, 0, 1, 0, true);
+		AddRect(Cells, 0, 1, 0, 1, true);
+		TestEqual(TEXT("diagonal cells: two clusters at MinClusterM2 0"), BuildClusters(Cells, Grid, MaxDZ, 0.0).Num(), 2);
+	}
+
+	{
+		// Cluster below MinClusterM2 dropped: 3 cells = 0.75 m^2 dropped, 4 cells = 1.0 m^2 kept (the boundary counts).
+		TArray<FVeloxNavCoverageCell> Cells;
+		AddRect(Cells, 0, 0, 2, 0, false);
+		AddRect(Cells, 0, 5, 3, 5, false);
+		const TArray<FVeloxNavCoverageCluster> Clusters = BuildClusters(Cells, Grid, MaxDZ, 1.0);
+		if (TestEqual(TEXT("MinClusterM2 1: the 0.75 m^2 cluster is dropped"), Clusters.Num(), 1))
+		{
+			TestEqual(TEXT("MinClusterM2 1: the 1.0 m^2 cluster stays"), Clusters[0].AreaM2, 1.0);
+		}
+		TestEqual(TEXT("MinClusterM2 0: both reported"), BuildClusters(Cells, Grid, MaxDZ, 0.0).Num(), 2);
+		TestEqual(TEXT("MinClusterM2 2: none reported"), BuildClusters(Cells, Grid, MaxDZ, 2.0).Num(), 0);
+	}
+
+	{
+		// A platform 300 cm over the floor in the same columns does not merge with the floor; a 15 degree ramp does.
+		TArray<FVeloxNavCoverageCell> Cells;
+		AddRect(Cells, 0, 0, 3, 1, false, 5.f, 1);
+		AddRect(Cells, 0, 0, 3, 1, false, 305.f, 2);
+		const TArray<FVeloxNavCoverageCluster> Layers = BuildClusters(Cells, Grid, MaxDZ, 1.0);
+		if (TestEqual(TEXT("two floors: two clusters"), Layers.Num(), 2))
+		{
+			TestTrue(TEXT("two floors: one owner each"), Layers[0].Owner != Layers[1].Owner);
+			TestEqual(TEXT("two floors: heights kept apart"), FMath::Abs(Layers[0].Center.Z - Layers[1].Center.Z), 300.0);
+		}
+		TArray<FVeloxNavCoverageCell> Ramp;
+		for (int32 X = 0; X < 6; ++X)
+		{
+			AddRect(Ramp, X, 0, X, 1, false, 5.f + 13.4f * X, 3);   // tan(15 deg) * 50 cm per cell
+		}
+		TestEqual(TEXT("15 degree ramp: one cluster"), BuildClusters(Ramp, Grid, MaxDZ, 1.0).Num(), 1);
+	}
+
+	{
+		// Majority owner (a 2 x 2 patch on one piece, one cell on the neighbouring piece).
+		TArray<FVeloxNavCoverageCell> Cells;
+		AddRect(Cells, 0, 0, 1, 1, false, 5.f, 7);
+		AddRect(Cells, 2, 0, 2, 0, false, 5.f, 4);
+		const TArray<FVeloxNavCoverageCluster> Clusters = BuildClusters(Cells, Grid, MaxDZ, 1.0);
+		if (TestEqual(TEXT("owner: one cluster"), Clusters.Num(), 1))
+		{
+			TestEqual(TEXT("owner: the most frequent owner"), Clusters[0].Owner, 7);
+			TestEqual(TEXT("owner: L-shape bounding rectangle 150 x 100"), Clusters[0].Extent, FVector2D(150.0, 100.0));
+		}
+		TestEqual(TEXT("zero grid: no clusters"), BuildClusters(Cells, 0.0, MaxDZ, 0.0).Num(), 0);
+	}
+
+	{
+		// Walk-in vs isolated: a slot beside covered floor is walk-in; a box top 300 cm above covered floor is isolated.
+		TArray<FVeloxNavCoverageCell> Cells;
+		AddRect(Cells, 0, 0, 9, 3, true);
+		AddRect(Cells, 0, 4, 9, 4, false);             // slot along the floor's north edge
+		AddRect(Cells, 2, 1, 5, 2, false, 305.f, 9);   // box top over the floor
+		const TArray<FVeloxNavCoverageCluster> Clusters = BuildClusters(Cells, Grid, MaxDZ, 1.0);
+		if (TestEqual(TEXT("walk-in: two clusters"), Clusters.Num(), 2))
+		{
+			const FVeloxNavCoverageCluster& Slot = Clusters[0].Owner == 0 ? Clusters[0] : Clusters[1];
+			const FVeloxNavCoverageCluster& Top = Clusters[0].Owner == 0 ? Clusters[1] : Clusters[0];
+			TestTrue(TEXT("walk-in: the slot touches covered floor"), Slot.bWalkIn);
+			TestFalse(TEXT("walk-in: the box top is isolated (covered floor 300 cm below does not count)"), Top.bWalkIn);
+		}
+	}
+
+	{
+		// Edge strips (ADR 0006 E0.2 (e)): one cell wide with a covered neighbour on every cell -> edge; two cells wide
+		// -> walk-in, not edge; one cell wide with no covered neighbour -> isolated, not edge.
+		TArray<FVeloxNavCoverageCell> Cells;
+		AddRect(Cells, 0, 0, 9, 0, true);
+		AddRect(Cells, 1, 1, 8, 1, false);              // 1 x 8 strip along the covered row
+		AddRect(Cells, 0, 20, 9, 23, true);
+		AddRect(Cells, 1, 24, 8, 25, false, 5.f, 1);    // 2 x 8 slot bordering covered cells
+		AddRect(Cells, 1, 40, 8, 40, false, 5.f, 2);    // 1 x 8 strip, no covered neighbour
+		const TArray<FVeloxNavCoverageCluster> Clusters = BuildClusters(Cells, Grid, MaxDZ, 1.0);
+		if (TestEqual(TEXT("edge: three clusters"), Clusters.Num(), 3))
+		{
+			for (const FVeloxNavCoverageCluster& C : Clusters)
+			{
+				if (C.Owner == 0)
+				{
+					TestTrue(TEXT("edge: 1 x 8 strip along a covered row is an edge"), C.bEdge);
+					TestTrue(TEXT("edge: it also touches covered floor"), C.bWalkIn);
+				}
+				else if (C.Owner == 1)
+				{
+					TestFalse(TEXT("edge: a 2 x 8 slot is not an edge"), C.bEdge);
+					TestTrue(TEXT("edge: it is walk-in"), C.bWalkIn);
+				}
+				else
+				{
+					TestFalse(TEXT("edge: a strip with no covered neighbour is not an edge"), C.bEdge);
+					TestFalse(TEXT("edge: it is isolated"), C.bWalkIn);
+				}
+			}
+		}
 	}
 	return true;
 }

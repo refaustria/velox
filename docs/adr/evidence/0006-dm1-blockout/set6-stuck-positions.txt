@@ -1,0 +1,12 @@
+Fulgur   (  533, -888,  74) goal=item  rule=progress     ground=0  Layout:Ground (4 cm)  ffa6
+Fulgur   (  357, -452, 185) goal=item  rule=progress     ground=0  Layout:Ground (115 cm)  ffa6
+Celer    (-1638,  662, 392) goal=fight rule=fight_stall  ground=1  Layout:A_Ledge (2 cm)  ffa6
+Celer    ( 2527,  838,  72) goal=fight rule=fight_stall  ground=1  Layout:Ground (2 cm)  ffa6
+Rapidus  (-1638,  280, 392) goal=fight rule=fight_stall  ground=1  Layout:A_Ledge (2 cm)  ffa6
+Fulgur   ( 1903,  923, 185) goal=item  rule=progress     ground=0  Layout:Ground (115 cm)  ffa6
+Celer    (-2841,  238,  72) goal=fight rule=fight_stall  ground=1  Layout:Ground (2 cm)  ffa6
+Celer    (  531, 1362,  72) goal=fight rule=fight_stall  ground=1  Layout:Ground (2 cm)  20261101-032008-711190
+Celer    (  320,  547, 171) goal=roam  rule=progress     ground=0  Layout:Ground (101 cm)  20261101-032827-724499
+Celer    ( 3134,-1366, 146) goal=item  rule=progress     ground=0  Layout:Ground (76 cm)  20261101-032827-724499
+Celer    ( 1450,-1585,  94) goal=item  rule=progress     ground=0  Layout:Ground (24 cm)  20261101-032827-724499
+Celer    ( 3319,  675, 171) goal=item  rule=progress     ground=0  Layout:Ground (101 cm)  20261101-032827-724499

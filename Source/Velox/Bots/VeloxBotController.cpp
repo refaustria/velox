@@ -182,7 +182,8 @@ namespace VeloxBotRules
 	}
 
 	bool UpdateStuckProgress(double& Since, float& StartDist, FVector2D& WindowTarget, float& PausedSeconds, bool bTracking, bool bPaused,
-		const FVector2D& Target, float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds, float MaxPauseSeconds)
+		const FVector2D& Target, float Dist2D, float ProgressCm, double Now, float Dt, float StuckSeconds, float MaxPauseSeconds,
+		bool bOnGround, bool bFlight)
 	{
 		if (!bTracking)
 		{
@@ -200,6 +201,13 @@ namespace VeloxBotRules
 			PausedSeconds = 0.f;
 			return false;
 		}
+		// Task 06b: a flight (pad, drop, fall, knockback) is not the follower's time: pause without the D27 cap.
+		if (bFlight)
+		{
+			Since = FMath::Min(Since + static_cast<double>(FMath::Max(0.f, Dt)), Now);
+			StartDist = Dist2D;
+			return false;
+		}
 		// D27: the pause is bounded per window; past the cap the window runs with the overlay active.
 		if (bPaused && PausedSeconds < MaxPauseSeconds)
 		{
@@ -210,7 +218,8 @@ namespace VeloxBotRules
 			return false;
 		}
 		const bool bProgress = Dist2D <= StartDist - ProgressCm;
-		const bool bExpired = !bProgress && Now - Since >= StuckSeconds;
+		// Task 06b: the strike waits for the ground (a hop lands within its airtime; a flight is paused above).
+		const bool bExpired = !bProgress && bOnGround && Now - Since >= StuckSeconds;
 		if (bProgress || bExpired)
 		{
 			Since = Now;
@@ -223,6 +232,64 @@ namespace VeloxBotRules
 	bool IsFightWatched(EVeloxBotGoal Goal, bool bMoveActive, bool bEnemyVisible, bool bOnGround, bool bOnLink)
 	{
 		return Goal == EVeloxBotGoal::Fight && !bMoveActive && bEnemyVisible && bOnGround && !bOnLink;
+	}
+
+	bool IsFlight(bool bOnGround, double AirborneSince, double Now, float HopAirSeconds)
+	{
+		return !bOnGround && AirborneSince >= 0.0 && Now - AirborneSince > HopAirSeconds;
+	}
+
+	float HopAirSeconds(float JumpVelocity, float GravityZ, float SlackSeconds)
+	{
+		const float Gravity = FMath::Abs(GravityZ);
+		return (Gravity > UE_KINDA_SMALL_NUMBER ? 2.f * JumpVelocity / Gravity : 0.f) + SlackSeconds;
+	}
+
+	bool UpdateFightStandoff(FVeloxStandoffWindow& Window, bool bWatched, const FVector2D& Pos, double Now, float RadiusCm, float Seconds, float SampleSeconds)
+	{
+		if (!bWatched)
+		{
+			Window.Reset();
+			return false;
+		}
+		// Sample times tolerate float accumulation of the caller's world time.
+		constexpr double TimeEpsilon = 1e-6;
+		if (Window.Times.Num() == 0 || Now - Window.Times.Last() + TimeEpsilon >= SampleSeconds)
+		{
+			Window.Times.Add(Now);
+			Window.Positions.Add(Pos);
+		}
+		// Keep the latest sample at or before the window start and everything after it.
+		const double WindowStart = Now - Seconds;
+		int32 Drop = 0;
+		while (Drop + 1 < Window.Times.Num() && Window.Times[Drop + 1] <= WindowStart + TimeEpsilon)
+		{
+			++Drop;
+		}
+		if (Drop > 0)
+		{
+			Window.Times.RemoveAt(0, Drop);
+			Window.Positions.RemoveAt(0, Drop);
+		}
+		if (Window.Times[0] > WindowStart + TimeEpsilon)
+		{
+			return false;
+		}
+		const double RadiusSq = FMath::Square(static_cast<double>(RadiusCm));
+		for (const FVector2D& P : Window.Positions)
+		{
+			if (FVector2D::DistSquared(P, Pos) > RadiusSq)
+			{
+				return false;
+			}
+		}
+		Window.Reset();
+		return true;
+	}
+
+	bool IsAtGoal(const FVector& Feet, const FVector& Target, float Radius2D, float MaxDzCm)
+	{
+		return FVector::DistSquared2D(Feet, Target) <= FMath::Square(static_cast<double>(Radius2D)) && FMath::Abs(Feet.Z - Target.Z) <= MaxDzCm;
 	}
 
 	bool WallTangent(const FVector& ImpactNormal, FVector2D& OutTangent)
@@ -463,6 +530,7 @@ void AVeloxBotController::SetGoal(const FVeloxBotGoal& NewGoal)
 	State.FailedMoves = 0;
 	State.StuckStrikes = 0;
 	State.NextMoveTime = 0.0;
+	State.FightStandoff.Reset();
 }
 
 void AVeloxBotController::SetForcedItemGoal(AVeloxPickup* Item)
@@ -749,7 +817,9 @@ void AVeloxBotController::EnsureMove(double T)
 	if (State.bGoalArrived)
 	{
 		// Standing at the goal; walk back if pushed away (knockback) or if the goal moved.
-		if (FVector::Dist2D(Movement->GetActorFeetLocation(), Target) <= Acceptance + GoalMoveToleranceCm && FVector::Dist(Target, State.MoveTarget) <= GoalMoveToleranceCm)
+		// Task 06b: 3-D (a bot knocked off the item's platform onto the floor below is no longer at it).
+		if (VeloxBotRules::IsAtGoal(Movement->GetActorFeetLocation(), Target, Acceptance + GoalMoveToleranceCm, GetArrivalMaxDzCm()) &&
+			FVector::Dist(Target, State.MoveTarget) <= GoalMoveToleranceCm)
 		{
 			return;
 		}
@@ -801,7 +871,20 @@ void AVeloxBotController::EnsureMove(double T)
 		break;
 	case EPathFollowingRequestResult::AlreadyAtGoal:
 		State.bMoveActive = false;
-		State.bGoalArrived = true;
+		if (IsAtGoalTarget())
+		{
+			State.bGoalArrived = true;
+			break;
+		}
+		// Task 06b: the projected goal is reached, the goal itself is on another level (an item above any walkable
+		// surface the projection found): counted like a failed query, so an unreachable goal is dropped.
+		++State.FailedMoves;
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotPath bot=%s to=%s filter=%s result=not_at_goal failures=%d"), *GetBotName(), *Target.ToCompactString(),
+			VeloxBotControllerPrivate::FilterLabel(Filter), State.FailedMoves);
+		if (State.FailedMoves >= FailedMovesToRoam && !State.bForcedGoal)
+		{
+			SetGoal(FVeloxBotGoal());
+		}
 		break;
 	default:
 		State.bMoveActive = false;
@@ -1046,7 +1129,8 @@ void AVeloxBotController::OnMoveCompleted(FAIRequestID RequestID, const FPathFol
 		return;
 	}
 	const UPathFollowingComponent* Follow = GetPathFollowingComponent();
-	const bool bReachedGoal = Result.IsSuccess() && Follow && Follow->DidMoveReachGoal();
+	// Task 06b: the engine's reach test is against the projected path end; arrival is also 3-D against the goal target.
+	const bool bReachedGoal = Result.IsSuccess() && Follow && Follow->DidMoveReachGoal() && IsAtGoalTarget();
 	if (bReachedGoal)
 	{
 		State.bGoalArrived = true;
@@ -1142,6 +1226,19 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 	// resetting keeps a bot that scrapes under the ramp slab while an enemy flickers in and out of view accountable.
 	const double T = Now();
 	const float StuckSeconds = UVeloxBotSettings::Get().StuckSeconds;
+	const bool bOnGround = Movement->IsOnGround();
+	// Task 06b: airborne longer than the bot's own hop (2 x JumpVelocity / |g| + slack) is a flight: a pad launch, a drop,
+	// a fall or knockback. The progress window pauses through it and never expires in the air.
+	if (bOnGround)
+	{
+		State.AirborneSince = -1.0;
+	}
+	else if (State.AirborneSince < 0.0)
+	{
+		State.AirborneSince = T;
+	}
+	const float HopAirSeconds = VeloxBotRules::HopAirSeconds(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), StuckProgressFlightSlackSeconds);
+	const bool bFlight = VeloxBotRules::IsFlight(bOnGround, State.AirborneSince, T, HopAirSeconds);
 	const bool bTracking = State.bMoveActive && !State.bGoalArrived && !Follow->IsOnLink() && Follow->GetStatus() == EPathFollowingStatus::Moving;
 	// D30: a pathless fight (enemy visible, D12: no path) pressed against a wall is watched by the speed rule too.
 	const bool bFightWatched = !bTracking && VeloxBotRules::IsFightWatched(State.Goal.Type, State.bMoveActive, IsGoalEnemyVisible(), Movement->IsOnGround(), Follow->IsOnLink());
@@ -1151,7 +1248,7 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 	const float WindowDist = State.ProgressDist;
 	const bool bNoProgress = VeloxBotRules::UpdateStuckProgress(State.ProgressSince, State.ProgressDist, State.ProgressTarget, State.ProgressPausedSeconds, bTracking,
 		!bFollowerOwnedWish, SegmentTarget, SegmentDist, StuckProgressCm, T, DeltaSeconds, StuckSeconds,
-		StuckProgressMaxPauseSeconds);
+		StuckProgressMaxPauseSeconds, bOnGround, bFlight);
 	if (bSlow && bFightWatched)
 	{
 		// D30: route away for FightStallCooldownSeconds (the decision does not see the enemy; aim and fire are untouched).
@@ -1171,6 +1268,57 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 	{
 		AddStuckStrike(bSlow ? TEXT("speed") : TEXT("progress"), SegmentTarget, SegmentDist, bNoProgress ? WindowDist : -1.f);
 	}
+
+	// Task 06b fight stand-off (beside D30): a Fight goal that keeps the bot inside a FightStandoffRadiusCm circle for
+	// FightStandoffSeconds - pathless at a ledge corner with the target below, dodge-hopping in place, or a chase whose
+	// last seen point is reached or unreachable - yields like a fight_stall strike, without the strike: the decision does
+	// not see the enemy for FightStallCooldownSeconds and routes to an item or a roam point; aim and fire are untouched.
+	const bool bStandoffWatched = State.Goal.Type == EVeloxBotGoal::Fight && !State.bForcedGoal && !Follow->IsOnLink() && !IsFightSuppressed(T);
+	const FVector Feet = Movement->GetActorFeetLocation();
+	const double StandoffSpan = State.FightStandoff.Span(T);
+	if (VeloxBotRules::UpdateFightStandoff(State.FightStandoff, bStandoffWatched, FVector2D(Feet), T, FightStandoffRadiusCm, FightStandoffSeconds))
+	{
+		++State.FightYields;
+		const APawn* Enemy = State.Goal.Enemy.Get();
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotFightYield bot=%s at=%s enemy=%s vis=%d enemy_dist=%.0f enemy_dz=%.0f held=%.2f path=%d ground=%d yields=%d"), *GetBotName(),
+			*Character->GetActorLocation().ToCompactString(), *GetNameSafe(Enemy), IsGoalEnemyVisible() ? 1 : 0,
+			Enemy ? FVector::Dist2D(Enemy->GetActorLocation(), Character->GetActorLocation()) : -1.0,
+			Enemy ? Enemy->GetActorLocation().Z - Character->GetActorLocation().Z : 0.0, StandoffSpan, State.bMoveActive ? 1 : 0,
+			bOnGround ? 1 : 0, State.FightYields);
+		State.FightSuppressedUntil = T + FightStallCooldownSeconds;
+		if (UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(GetWorld()))
+		{
+			Router->RequestEvaluation(this);
+		}
+	}
+}
+
+float AVeloxBotController::GetArrivalMaxDzCm() const
+{
+	// Task 06b: the vertical arrival tolerance is the nav agent height (140): floor levels of the Velox maps are >= 207 cm
+	// apart, items sit 0..80 cm above their floor.
+	const float AgentHeight = GetNavAgentPropertiesRef().AgentHeight;
+	if (AgentHeight > 0.f)
+	{
+		return AgentHeight;
+	}
+	const APawn* MyPawn = GetPawn();
+	return MyPawn ? 2.f * MyPawn->GetSimpleCollisionHalfHeight() : 140.f;
+}
+
+bool AVeloxBotController::IsAtGoalTarget() const
+{
+	FVector Target;
+	float Acceptance = 0.f;
+	const APawn* MyPawn = GetPawn();
+	const AVeloxCharacter* Character = GetBotCharacter();
+	const UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
+	if (!MyPawn || !Movement || !GetGoalTarget(Target, Acceptance))
+	{
+		// No goal point (a visible fight, no goal): the engine's reach test stands.
+		return true;
+	}
+	return VeloxBotRules::IsAtGoal(Movement->GetActorFeetLocation(), Target, Acceptance + GoalMoveToleranceCm, GetArrivalMaxDzCm());
 }
 
 bool AVeloxBotController::IsGoalEnemyVisible() const

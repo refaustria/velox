@@ -1,0 +1,67 @@
+=== ffa1/out/ffa-10.log | Celer dwell=4 at (442,-249) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=1101 speed=[800,514,0,377]
+    route@-0.8s: goal=Fight item=- camp=0 score=9.84 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=14.76 t=62.56
+    +0.2s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Yellow t=63.521 at=V(Y=-2000.00, Z=320.00)
+=== ffa1/out/ffa-10.log | Rapidus dwell=4 at (2488,838) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=1011 speed=[242,14,19,29]
+    route@-3.1s: goal=Fight item=- camp=0 score=10.08 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=15.12 t=77.42
+    +3.2s VeloxBots: VeloxBotRoute bot=Rapidus goal=Item item=Weapon.Shotgun camp=0 score=5.28 travel=1.27 available=1 respawn_in=0.0 lead=-1.3 fight=15.12 t=83.70
+    +4.3s VeloxItems: VeloxPickupRespawn item=DA_Item_Ammo_Slugs t=84.807 at=V(X=450.00, Y=-450.00)
+=== ffa1/out/ffa-10.log | Celer dwell=4 at (2560,838) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=0101 speed=[20,45,39,9]
+    route@-9.9s: goal=Fight item=- camp=0 score=9.84 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=14.76 t=71.54
+    +3.3s VeloxItems: VeloxPickupRespawn item=DA_Item_Ammo_Slugs t=84.807 at=V(X=450.00, Y=-450.00)
+=== ffa1/out/ffa-2.log | Fulgur dwell=4 at (162,-716) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=1111 speed=[315,853,2,337]
+    route@-4.6s: goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=32.55
+=== ffa1/out/ffa-2.log | Celer dwell=4 at (-561,-238) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=1111 speed=[273,60,0,0]
+    route@-4.2s: goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=64.24
+    +1.7s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_RocketLauncher t=70.086 at=V(Y=-1500.00)
+    +1.9s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_PlasmaGun t=70.322 at=V(X=-2800.00, Y=500.00)
+=== ffa1/out/ffa-4.log | Rapidus dwell=4 at (-14,838) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=1111 speed=[335,5,4,86]
+    route@-6.3s: goal=Fight item=- camp=0 score=11.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=16.50 t=102.48
+    +1.0s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Railgun t=109.791 at=V(Z=640.00)
+=== ffa1/out/ffa-4.log | Celer dwell=4 at (2284,870) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=1110 speed=[737,124,0,800]
+    route@-6.9s: goal=Fight item=- camp=0 score=11.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=16.50 t=102.85
+    +0.0s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Railgun t=109.791 at=V(Z=640.00)
+=== ffa1/out/ffa-4.log | Celer dwell=4 at (562,407) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=0101 speed=[0,498,0,105]
+    route@-14.0s: goal=Fight item=- camp=0 score=11.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=16.50 t=102.85
+    +0.2s VeloxBots: VeloxBotRoute bot=Celer goal=Item item=Weapon.LightningGun camp=0 score=4.38 travel=3.74 available=1 respawn_in=0.0 lead=-3.7 fight=16.50 t=116.96
+    +0.4s VeloxBots: VeloxBotRoute bot=Celer goal=Fight item=- camp=0 score=11.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=16.50 t=117.21
+    +2.7s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_RocketLauncher t=119.541 at=V(Y=-1500.00)
+=== ffa1/out/ffa-6.log | Rapidus dwell=4 at (-58,-93) span=3.0s goals=['fight', 'item'] items=['-', 'DA_Item_Health_Mega'] class=other (wait samples 0/4)
+    arrived=1100 stuck=0000 vis=0000 speed=[0,0,178,80]
+    route@-1.2s: goal=Fight item=- camp=0 score=11.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=16.50 t=60.08
+    +0.4s VeloxItems: VeloxPickupRespawn item=DA_Item_Ammo_Lightning t=61.662 at=V(X=1100.00, Y=1300.00)
+    +2.9s VeloxBots: VeloxBotRoute bot=Rapidus goal=Item item=Health.Mega camp=0 score=12.27 travel=7.15 available=1 respawn_in=0.0 lead=-7.1 fight=16.50 t=64.23
+=== ffa1/out/ffa-8.log | Celer dwell=5 at (-2806,238) span=4.0s goals=['fight'] items=['-'] class=other (wait samples 0/5)
+    arrived=00000 stuck=00000 vis=11010 speed=[436,160,207,172,591]
+    route@-0.7s: goal=Fight item=- camp=0 score=5.80 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=8.71 t=30.47
+    +4.3s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_PlasmaGun t=35.412 at=V(X=-2800.00, Y=500.00)
+=== ffa1/out/ffa-8.log | Rapidus dwell=4 at (120,-1291) span=3.0s goals=['fight', 'item'] items=['-', 'DA_Item_Weapon_RocketLauncher'] class=other (wait samples 1/4)
+    arrived=0110 stuck=0000 vis=0000 speed=[522,0,0,0]
+    route@-2.0s: goal=Fight item=- camp=0 score=11.88 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=17.82 t=85.53
+    +3.0s VeloxBots: VeloxBotRoute bot=Rapidus goal=Item item=Weapon.RocketLauncher camp=0 score=11.14 travel=0.13 available=0 respawn_in=0.6 lead=0.5 fight=17.37 t=90.52
+    +3.6s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_RocketLauncher t=91.145 at=V(Y=-1500.00)
+    +3.6s VeloxItems: VeloxPickup item=DA_Item_Weapon_RocketLauncher by=Rapidus gain=9 powerup_s=0.0 respawn_in=5.00 t=91.145 take=9 at=V(Y=-1500.00)
+    +3.6s VeloxBots: VeloxBotGoal bot=Rapidus item=VeloxPickup_58 taken_by=Rapidus reached after=0.62 s
+    +3.7s VeloxBots: VeloxBotRoute bot=Rapidus goal=Item item=Armor.Yellow camp=0 score=8.31 travel=4.59 available=0 respawn_in=5.1 lead=0.5 fight=17.28 t=91.21
+=== ffa1/out/ffa-9.log | Fulgur dwell=5 at (-2956,1007) span=4.0s goals=['item'] items=['DA_Item_Weapon_PlasmaGun'] class=other (wait samples 0/5)
+    arrived=00000 stuck=00000 vis=11111 speed=[379,355,148,345,131]
+    route@-1.9s: goal=Item item=Weapon.PlasmaGun camp=0 score=17.40 travel=1.43 available=1 respawn_in=0.0 lead=-1.4 fight=4.43 t=20.16
+    +4.2s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Shotgun t=26.273 at=V(X=3100.00, Y=500.00)
+    +4.4s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_LightningGun t=26.458 at=V(Y=1300.00, Z=80.00)
+    +5.0s VeloxItems: VeloxPickup item=DA_Item_Weapon_PlasmaGun by=Fulgur gain=50 powerup_s=0.0 respawn_in=5.00 t=27.045 take=3 at=V(X=-2800.00, Y=500.00)
+    +5.0s VeloxBots: VeloxBotGoal bot=Fulgur item=VeloxPickup_36 taken_by=Fulgur reached after=6.88 s
+    +5.1s VeloxBots: VeloxBotRoute bot=Fulgur goal=Item item=Health.Mega camp=0 score=21.97 travel=3.37 available=1 respawn_in=0.0 lead=-3.4 fight=6.24 t=27.11
+=== ffa1/out/ffa-9.log | Fulgur dwell=4 at (3029,-878) span=3.0s goals=['fight'] items=['-'] class=other (wait samples 0/4)
+    arrived=0000 stuck=0000 vis=1110 speed=[801,802,1,754]
+    route@-0.1s: goal=Fight item=- camp=0 score=5.40 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=8.10 t=55.24
+    +1.8s VeloxItems: VeloxPickupRespawn item=DA_Item_Armor_Shard t=57.088 at=V(X=-2800.00, Z=132.37)
+    +2.7s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_Shotgun t=57.961 at=V(X=3100.00, Y=500.00)
+    +3.1s VeloxBots: VeloxBotRoute bot=Fulgur goal=Item item=Armor.Yellow camp=0 score=9.40 travel=5.17 available=0 respawn_in=6.0 lead=0.9 fight=6.07 t=58.41
+    +4.2s VeloxItems: VeloxPickupRespawn item=DA_Item_Weapon_RocketLauncher t=59.504 at=V(Y=-1500.00)

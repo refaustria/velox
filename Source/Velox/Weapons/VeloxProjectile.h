@@ -25,7 +25,9 @@
 
 class APawn;
 class UAbilitySystemComponent;
+class UPointLightComponent;
 class USphereComponent;
+class UStaticMeshComponent;
 class UVeloxMovementComponent;
 class UVeloxWeaponDefinition;
 struct FGameplayCueParameters;
@@ -149,6 +151,16 @@ protected:
 	void TickFake(float DeltaSeconds);
 	void TickProxy(float DeltaSeconds);
 
+	/** Attaches the cosmetics' projectile light (shared movable-light budget); retried for MaxFlightLightTries ticks. */
+	void UpdateFlightLight();
+
+	/**
+	 * Task M5-13b: the cosmetic mesh and trail from the weapon's resident cosmetics (Get() only, never loads), created on the first
+	 * tick they are resident (retried for MaxFlightLightTries ticks), never on a dedicated server. Real and fake projectiles alike,
+	 * so a fake looks identical to the proxy it hands over to (ADR 0003 section 7).
+	 */
+	void UpdateProjectileVisuals();
+
 	void ServerExplode(const FVeloxProjectileImpact& Impact);
 	void FakeDetonate(const FVeloxProjectileImpact& Impact);
 
@@ -180,6 +192,21 @@ protected:
 	/** ADR 0004 section 3: fired under Quad Damage (direct and splash damage x QuadDamageFactor at the explosion). */
 	UPROPERTY(Replicated)
 	bool bQuad = false;
+
+	/** The in-flight light (null: none, refused by the budget, or not rendered here). Owned by this actor. */
+	UPROPERTY(Transient)
+	TObjectPtr<UPointLightComponent> FlightLight;
+	int32 FlightLightTries = 0;
+	static constexpr int32 MaxFlightLightTries = 30;
+
+	/** Cosmetic flight mesh and trail (null: none, not resident yet, or not rendered here). Owned by this actor. */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> ProjectileMeshComponent;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> TrailMeshComponent;
+	int32 VisualsTries = 0;
+	bool bVisualsDone = false;
 
 	FVeloxProjectileState State;
 	TWeakObjectPtr<UAbilitySystemComponent> SourceASC;

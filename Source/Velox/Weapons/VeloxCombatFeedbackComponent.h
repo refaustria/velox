@@ -21,6 +21,14 @@ struct FVeloxDamageDirection
 	double Time = 0.0;
 };
 
+class UAbilitySystemComponent;
+class UAudioComponent;
+class UGameplayAbility;
+class UStaticMeshComponent;
+class UVeloxWeaponCosmetics;
+class UVeloxWeaponDefinition;
+class UVeloxWeaponTable;
+
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxCombatFeedbackComponent : public UActorComponent
 {
@@ -29,7 +37,17 @@ class VELOX_API UVeloxCombatFeedbackComponent : public UActorComponent
 public:
 	UVeloxCombatFeedbackComponent(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+	//~UActorComponent interface
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	//~End of UActorComponent interface
+
 	void HandleCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType, const FGameplayCueParameters& Parameters);
+
+	/** Broadcast for every executed Fire cue of this pawn (view model recoil kick; ADR 0006 section 4.6). */
+	DECLARE_MULTICAST_DELEGATE(FOnVeloxFireCue);
+	FOnVeloxFireCue OnFireCue;
 
 	/** Server-confirmed hit of this player's shot ShotSeq (Q3: no predicted marker). */
 	void OnHitConfirmed(uint8 ShotSeq, uint8 TotalDamage, uint8 ConfirmFlags);
@@ -51,6 +69,7 @@ public:
 
 	/** Executed weapon cues seen by this pawn since spawn (tests, logs; ADR 0003 B21: one .Impact per hitscan shot). */
 	int32 GetNumFireCues() const { return NumFireCues; }
+
 	int32 GetNumImpactCues() const { return NumImpactCues; }
 
 protected:
@@ -63,6 +82,49 @@ protected:
 	FName PowerupTintParameter = TEXT("PowerupTint");
 
 private:
+	/** M5 audio (ADR 0006 section 9): the fire / impact one-shots, the Lightning Gun beam loop and the muzzle light. Clients only. */
+	void PlayCueAudio(const FGameplayTag& CueTag, const FString& TagName, const FVector& Start, const FVector& End);
+	void UpdateBeamAudio(const FGameplayTag& CueTag, bool bStart);
+
+	/**
+	 * Task M5-13b: a short-lived stretched-bar tracer from the muzzle to End on an executed hitscan Fire cue (rail, MG, shotgun and the
+	 * Lightning Gun's per-shot beam segment; projectile weapons have TracerLifetime 0). Cosmetics are read with Get() only (silent until
+	 * resident); never on a dedicated server. The own pawn starts at the view model's muzzle socket (scaled like the first-person
+	 * rendering), everyone else at the cue's origin.
+	 */
+	void SpawnTracer(const FGameplayTag& CueTag, const FVector& Start, const FVector& End);
+
+	/**
+	 * The weapon definition whose Fire / Impact / Beam cue tag is CueTag, from the owner's inventory table (review 0006 D4);
+	 * null without an inventory or for other tags. The tag map is built once per table. Cosmetics are read with Get() only:
+	 * until the asset manager's resident load completes the cue is silent.
+	 */
+	const UVeloxWeaponDefinition* FindCueDefinition(const FGameplayTag& CueTag);
+	const UVeloxWeaponCosmetics* FindCueCosmetics(const FGameplayTag& CueTag);
+
+	TWeakObjectPtr<const UVeloxWeaponTable> CueTable;
+	TMap<FGameplayTag, TWeakObjectPtr<const UVeloxWeaponDefinition>> CueDefinitions;
+
+	/**
+	 * Dry fire (review 0006 D3): on the local player's pawn, binds AbilityFailedCallbacks of the ASC whose avatar is the owner.
+	 * The PlayerState (and so the ASC) arrives after BeginPlay, so TickComponent retries until it is bound.
+	 */
+	void TryBindAbilityFailed();
+	void UnbindAbilityFailed();
+	void OnAbilityFailed(const UGameplayAbility* Ability, const FGameplayTagContainer& FailureReason);
+
+	TWeakObjectPtr<UAbilitySystemComponent> BoundAbilitySystem;
+	FDelegateHandle AbilityFailedHandle;
+	double LastDryFireTime = -1000.0;
+
+	/** The looping beam sound of this pawn's Lightning Gun while the beam cue is active. */
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> BeamAudio;
+
+	/** The tracers alive right now (destroyed by timer; the owner owns the components). */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> LiveTracers;
+
 	/** Looping powerup cue: OnActive/WhileActive add, Removed removes; returns false for any other cue. */
 	bool HandlePowerupCue(const FGameplayTag& CueTag, EGameplayCueEvent::Type EventType);
 	void ApplyPowerupTint();

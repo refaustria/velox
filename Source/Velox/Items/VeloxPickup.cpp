@@ -12,12 +12,15 @@
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/VeloxAudioSettings.h"
 #include "Core/VeloxCollisionChannels.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
+#include "GameModes/VeloxGameModeDefinition.h"
+#include "GameModes/VeloxGameState.h"
 #include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameplayEffect.h"
@@ -92,6 +95,13 @@ AVeloxPickup::AVeloxPickup(const FObjectInitializer& ObjectInitializer)
 			Placeholder->SetStaticMesh(CubeMesh.Object);
 		}
 	}
+	ItemMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ItemMesh"));
+	ItemMesh->SetupAttachment(Placeholder);
+	ItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ItemMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	ItemMesh->SetGenerateOverlapEvents(false);
+	ItemMesh->SetCanEverAffectNavigation(false);
+	ItemMesh->SetCastShadow(false);
 	PlaceholderMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Materials/M_PlayerBody.M_PlayerBody")));
 }
 
@@ -180,13 +190,44 @@ void AVeloxPickup::BeginPlay()
 		UE_LOG(LogVeloxItems, Warning, TEXT("%s: no item definition; the pickup does nothing."), *GetName());
 	}
 
+	// ADR 0006 section 3 (DisabledInModes): the server removes a pickup its running mode does not use before the registry sees
+	// it (bots never route to it). A startup actor destroyed on the server is also destroyed on every client that joins
+	// (UNetDriver::DestroyedStartupOrDormantObjects), so no client keeps a stale copy.
+	if (HasAuthority() && Definition && !Definition->DisabledInModes.IsEmpty())
+	{
+		const AVeloxGameState* VeloxGameState = GetWorld() ? GetWorld()->GetGameState<AVeloxGameState>() : nullptr;
+		const UVeloxGameModeDefinition* ModeDefinition = VeloxGameState ? VeloxGameState->GetGameModeDefinition() : nullptr;
+		if (ModeDefinition && Definition->IsDisabledInMode(ModeDefinition->ModeTag))
+		{
+			UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupDisabled item=%s at=%s mode=%s"), *GetNameSafe(Definition), *GetActorLocation().ToCompactString(), *ModeDefinition->ModeTag.ToString());
+			Destroy();
+			return;
+		}
+	}
+
 	if (!IsNetMode(NM_DedicatedServer))
 	{
-		if (Definition)
+		// Task M5-13: the definition's model replaces the cube. It is a child of the spinning Placeholder, shifted by its bounds
+		// centre (weapon meshes have the grip at the origin), at scale 1. A mesh that fails to load keeps the cube.
+		UStaticMesh* Model = (Definition && !Definition->Mesh.IsNull()) ? Definition->Mesh.LoadSynchronous() : nullptr;
+		if (Model)
 		{
+			ItemMesh->SetStaticMesh(Model);
+			ItemMesh->SetRelativeLocation(-Model->GetBounds().Origin);
+			Placeholder->SetStaticMesh(nullptr);
+			Placeholder->SetRelativeScale3D(FVector::OneVector);
+			UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupMesh item=%s mesh=%s bounds_center=%s"), *GetNameSafe(Definition), *GetNameSafe(Model), *Model->GetBounds().Origin.ToCompactString());
+		}
+		else if (Definition)
+		{
+			if (!Definition->Mesh.IsNull())
+			{
+				UE_LOG(LogVeloxItems, Warning, TEXT("VeloxPickupMesh item=%s mesh=%s failed to load, keeping the placeholder"), *GetNameSafe(Definition), *Definition->Mesh.ToString());
+			}
 			Placeholder->SetRelativeScale3D(Definition->PlaceholderScale);
 		}
-		if (UMaterialInterface* Base = PlaceholderMaterial.IsNull() ? nullptr : PlaceholderMaterial.LoadSynchronous())
+		// The model carries its own palette material; the placeholder colour parameter only applies to the cube.
+		if (UMaterialInterface* Base = (Model || PlaceholderMaterial.IsNull()) ? nullptr : PlaceholderMaterial.LoadSynchronous())
 		{
 			PlaceholderMID = Placeholder->CreateDynamicMaterialInstance(0, Base);
 			if (PlaceholderMID && Definition)
@@ -503,8 +544,8 @@ bool AVeloxPickup::TryPickup(AVeloxCharacter* Pawn, bool bLogRefusal)
 	LastTakenBy = PlayerState;
 	CommitServerState();
 
-	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickup item=%s by=%s gain=%d powerup_s=%.1f respawn_in=%.2f t=%.3f take=%u"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
-		Gain.Amount, Gain.PowerupSeconds, Respawn, Now, TakeCount);
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickup item=%s by=%s gain=%d powerup_s=%.1f respawn_in=%.2f t=%.3f take=%u at=%s"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
+		Gain.Amount, Gain.PowerupSeconds, Respawn, Now, TakeCount, *GetActorLocation().ToCompactString());
 	if (UVeloxItemRegistrySubsystem* MutableRegistry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
 	{
 		MutableRegistry->OnPickupTaken.Broadcast(this, PlayerState);
@@ -593,7 +634,7 @@ void AVeloxPickup::ServerRespawn()
 	CommitServerState();
 	if (bWasDown)
 	{
-		UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupRespawn item=%s t=%.3f"), *GetNameSafe(Definition), GetServerNow());
+		UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupRespawn item=%s t=%.3f at=%s"), *GetNameSafe(Definition), GetServerNow(), *GetActorLocation().ToCompactString());
 		if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
 		{
 			Registry->OnPickupRespawned.Broadcast(this);
@@ -616,7 +657,7 @@ void AVeloxPickup::Reset()
 	LastTakenBy = nullptr;
 	SetOverlapRecheck(false);
 	ScheduleInitialSpawn();
-	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupReset item=%s available_in=%.2f"), *GetNameSafe(Definition), GetTimeUntilRespawn());
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupReset item=%s available_in=%.2f at=%s"), *GetNameSafe(Definition), GetTimeUntilRespawn(), *GetActorLocation().ToCompactString());
 	if (bWasDown && IsAvailable())
 	{
 		if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
@@ -677,7 +718,8 @@ bool AVeloxPickup::TryPredictTake(AVeloxCharacter* Pawn)
 	}
 	World->GetTimerManager().SetTimer(PredictionTimerHandle, FTimerDelegate::CreateUObject(this, &ThisClass::OnPredictionTimeout), FMath::Max(static_cast<float>(Until - Now), UE_KINDA_SMALL_NUMBER), false);
 	UpdatePlaceholder();
-	// M5 plays the pickup sound here (bGlobalPickupSound items play for everyone from the replicated take instead).
+	// Own take: 2D at prediction time (ADR 0006 section 9); the replicated take then skips it (bWasPredicted).
+	UVeloxAudioSettings::Play2D(World, Definition->PickupSound, TEXT("pickup_predicted"));
 	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupPredict item=%s t=%.3f take=%u"), *GetNameSafe(Definition), Now, TakeCount);
 	return true;
 }
@@ -749,6 +791,7 @@ void AVeloxPickup::HandleReplicatedState()
 		SeenTakeCount = TakeCount;
 		const APlayerController* LocalController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
 		const bool bTakenByMe = LastTakenBy && LocalController && LastTakenBy == LocalController->PlayerState;
+		const bool bWasPredicted = bPredictionPending;
 		if (bPredictionPending)
 		{
 			if (bTakenByMe)
@@ -773,6 +816,18 @@ void AVeloxPickup::HandleReplicatedState()
 		const double RespawnSeconds = Definition ? VeloxPickupRules::RespawnSecondsFor(Definition->Type, Definition->RespawnSeconds, Rules) : 0.0;
 		const bool bStale = VeloxPickupRules::IsStaleTake(GetServerNow(), RespawnServerTime, RespawnSeconds, Settings.GetPickupTakeEventMaxAgeSeconds());
 		UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupTaken item=%s by=%s take=%u stale=%d"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(LastTakenBy), TakeCount, bStale ? 1 : 0);
+		if (Definition && !bStale && !(bTakenByMe && bWasPredicted))
+		{
+			// ADR 0006 section 9: own takes and global ones (powerups) are 2D, the rest 3D at the item with SA_Pickup.
+			if (bTakenByMe || Definition->bGlobalPickupSound)
+			{
+				UVeloxAudioSettings::Play2D(GetWorld(), Definition->PickupSound, TEXT("pickup"));
+			}
+			else
+			{
+				UVeloxAudioSettings::PlayAt(GetWorld(), Definition->PickupSound, GetActorLocation(), EVeloxAudioAttenuation::Pickup, EVeloxAudioConcurrency::None, TEXT("pickup_other"));
+			}
+		}
 		if (Registry && !bStale)
 		{
 			Registry->OnPickupTaken.Broadcast(this, LastTakenBy);
@@ -785,6 +840,11 @@ void AVeloxPickup::HandleReplicatedState()
 		if (bRespawned)
 		{
 			UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupRespawned item=%s"), *GetNameSafe(Definition));
+			if (Definition)
+			{
+				const TSoftObjectPtr<USoundBase>& Sound = Definition->RespawnSound.IsNull() ? UVeloxAudioSettings::Get().ItemRespawnSound : Definition->RespawnSound;
+				UVeloxAudioSettings::PlayAt(GetWorld(), Sound, GetActorLocation(), EVeloxAudioAttenuation::World, EVeloxAudioConcurrency::None, TEXT("item_respawn"));
+			}
 			if (Registry)
 			{
 				Registry->OnPickupRespawned.Broadcast(this);
@@ -804,6 +864,11 @@ void AVeloxPickup::UpdatePlaceholder()
 	if (Placeholder)
 	{
 		// M5 plays the pickup / respawn sounds on these transitions (skipped when this machine predicted the take).
-		Placeholder->SetVisibility(IsPlaceholderVisible());
+		Placeholder->SetVisibility(IsPlaceholderVisible(), true);  // propagates to the item model child
 	}
+}
+
+bool AVeloxPickup::IsShowingItemMesh() const
+{
+	return ItemMesh && ItemMesh->GetStaticMesh() != nullptr;
 }

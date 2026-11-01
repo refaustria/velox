@@ -12,6 +12,7 @@ class UAbilitySystemComponent;
 class UGameplayAbility;
 class UVeloxAbilitySystemComponent;
 class UVeloxAmmoSet;
+class UVeloxCharacterCosmetics;
 class UVeloxCombatSettings;
 class UVeloxHealthSet;
 class UVeloxPawnData;
@@ -87,14 +88,31 @@ public:
 	 */
 	static FString VeloxPlayerLabel(const APlayerState* PlayerState);
 
-	/** Bright per-player body colour (ADR 0003 section 10): palette index chosen by the game mode, replicated. */
-	static constexpr uint8 NoPlayerColor = 255;
-	bool HasPlayerColor() const { return PlayerColorIndex != NoPlayerColor; }
-	uint8 GetPlayerColorIndex() const { return PlayerColorIndex; }
-	/** The palette entry of PlayerColorIndex (white when unassigned or the palette is empty). */
+	/**
+	 * Skin (ADR 0006 section 4.3, was PlayerColorIndex of ADR 0003 section 10 / B29): index chosen by the game mode
+	 * (first unused palette entry), replicated as one byte. The skin list order is the old palette order, so the index
+	 * still names the HUD/scoreboard/kill-feed colour.
+	 */
+	static constexpr uint8 NoSkin = 255;
+	bool HasSkin() const { return SkinIndex != NoSkin; }
+	uint8 GetSkinIndex() const { return SkinIndex; }
+	/** Server: sets the index and refreshes the pawn's body and skin. */
+	void SetSkinIndex(uint8 InIndex);
+
+	/**
+	 * The skin's BodyColor (sRGB) when the character cosmetics are loaded and list SkinIndex, else the palette entry of
+	 * UVeloxCombatSettings (identical for the first skins; the only source on a dedicated server), else white.
+	 */
 	FColor GetPlayerColor() const;
-	/** Server: sets the index and refreshes the pawn's body. */
-	void SetPlayerColorIndex(uint8 InIndex);
+
+	/** Client: the cosmetics the pawn loaded (GetPlayerColor reads the skin colours from it). Weak; not replicated. */
+	void SetCharacterCosmetics(const UVeloxCharacterCosmetics* InCosmetics);
+
+	/** Pre-ADR 0006 names, kept so the game mode, bots, HUD view model, kill feed and tests compile unchanged. */
+	static constexpr uint8 NoPlayerColor = NoSkin;
+	bool HasPlayerColor() const { return HasSkin(); }
+	uint8 GetPlayerColorIndex() const { return SkinIndex; }
+	void SetPlayerColorIndex(uint8 InIndex) { SetSkinIndex(InIndex); }
 
 	/** Frags and deaths of the current match (ADR 0004 section 6); the engine Score keeps the +1/-1 rule. Zeroed by Reset. */
 	int32 GetKills() const { return Kills; }
@@ -122,13 +140,15 @@ protected:
 
 private:
 	UFUNCTION()
-	void OnRep_PlayerColorIndex();
+	void OnRep_SkinIndex();
 
 	void RefreshPawnColor() const;
 	void HandleAbilityActivated(UGameplayAbility* Ability);
 
-	UPROPERTY(ReplicatedUsing = OnRep_PlayerColorIndex)
-	uint8 PlayerColorIndex = NoPlayerColor;
+	UPROPERTY(ReplicatedUsing = OnRep_SkinIndex)
+	uint8 SkinIndex = NoSkin;
+
+	TWeakObjectPtr<const UVeloxCharacterCosmetics> CharacterCosmetics;
 
 	UPROPERTY(Replicated)
 	bool bReady = false;

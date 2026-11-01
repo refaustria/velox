@@ -54,6 +54,19 @@ enum class EVeloxManeuverResult : uint8
 	Timeout,
 	/** ADR 0005 D28: on the ground in Approach / BackUp more than BelowStartAbortCm below the link start (another surface). */
 	BelowStart,
+	/**
+	 * Task m5-06b / 06c: the traversal began inside a foreign flight (FVeloxManeuverInput::bBeganInFlight: airborne longer
+	 * than the bot's own hop - a pad launch, a drop, knockback) and never touched the ground before its landing (no own
+	 * launch either): the flight that ended away from End was not this link's. Not an attempt (the path is re-queried).
+	 * A traversal begun in the bot's own hop is an ordinary attempt (Ok / Missed).
+	 */
+	AirStart,
+	/**
+	 * Task m5-06b / 06c: an external impulse (a pad under the landing, a rocket hit) re-launched the pawn during the flight
+	 * away from End. Next to End it is Ok: within EndAcceptanceCm, or (Drop) at the end's level (HeightAboveEndCm <=
+	 * EndAcceptanceCm / 2) within 2 x EndAcceptanceCm. Not an attempt (the path is re-queried).
+	 */
+	Relaunched,
 };
 
 /** `result=` value of the VeloxBotLink log line (ok | missed | aborted, ADR section 4) and a detail reason. */
@@ -68,6 +81,8 @@ inline const TCHAR* LexToString(EVeloxManeuverResult Result)
 	case EVeloxManeuverResult::Ineligible: return TEXT("ineligible");
 	case EVeloxManeuverResult::Timeout: return TEXT("timeout");
 	case EVeloxManeuverResult::BelowStart: return TEXT("below_start");
+	case EVeloxManeuverResult::AirStart: return TEXT("air_start");
+	case EVeloxManeuverResult::Relaunched: return TEXT("relaunched");
 	default: return TEXT("none");
 	}
 }
@@ -125,6 +140,14 @@ struct FVeloxManeuverInput
 	bool bEligible = true;
 	/** D28: link start z - feet z (cm; positive = the pawn is below the start). */
 	float HeightBelowStartCm = 0.f;
+	/** Task m5-06b: feet z - link end z (cm; positive = the pawn is above the end). */
+	float HeightAboveEndCm = 0.f;
+	/**
+	 * Task m5-06c (review D1): the pawn is in a foreign flight when the traversal begins (airborne longer than
+	 * VeloxBotRules::HopAirSeconds: a pad launch, a drop, knockback; the bot's own hop is not one). Read only by
+	 * Begin(Params, Start, End, In), which stores it; later ticks ignore it.
+	 */
+	bool bBeganInFlight = false;
 	/** Seconds (world time). */
 	double Time = 0.0;
 };
@@ -161,9 +184,17 @@ struct VELOX_API FVeloxBotManeuver
 	FVeloxManeuverParams Params;
 	/** Airborne phase: the pawn has been seen off the ground (a landing needs a preceding flight). */
 	bool bSeenAirborne = false;
+	/** Task m5-06b: the pawn stood on the ground in a pre-flight phase of this traversal (else a landing away from End is AirStart). */
+	bool bGroundSeen = false;
+	/** Task m5-06b: the link's own launch impulse arrived (the pad's AddKnockback, the rocket jump's splash); a later one re-launches. */
+	bool bLaunchImpulseSeen = false;
+	/** Task m5-06c: FVeloxManeuverInput::bBeganInFlight at Begin (a landing away from End is AirStart only then). */
+	bool bBeganInFlight = false;
 
 	/** Starts a traversal (Start / End are stored for the follower; the machine itself only uses the input distances). */
 	void Begin(const FVeloxManeuverParams& InParams, const FVector& InStart, const FVector& InEnd, double Time);
+	/** Task m5-06c: Begin at In.Time, storing In.bBeganInFlight (the follower's observation at the traversal start). */
+	void Begin(const FVeloxManeuverParams& InParams, const FVector& InStart, const FVector& InEnd, const FVeloxManeuverInput& In);
 
 	/** One tick. After bDone / bAbort the machine is Finished and returns the same final output. */
 	FVeloxManeuverOutput Tick(const FVeloxManeuverInput& In);

@@ -12,6 +12,8 @@
 
 #include "VeloxItemDefinition.generated.h"
 
+class USoundBase;
+class UStaticMesh;
 class UVeloxGE_Powerup;
 class UVeloxWeaponDefinition;
 
@@ -23,6 +25,9 @@ class VELOX_API UVeloxItemDefinition : public UPrimaryDataAsset
 public:
 	/** The quantity the pickup rules use: Weapon->PickupAmmo for weapons (one source of truth), else Quantity. */
 	int32 GetEffectiveQuantity() const;
+
+	/** True when ModeTag (a UVeloxGameModeDefinition::ModeTag; invalid = no mode known) is listed in DisabledInModes (exact match). */
+	bool IsDisabledInMode(const FGameplayTag& ModeTag) const { return ModeTag.IsValid() && DisabledInModes.HasTagExact(ModeTag); }
 
 	/** Velox.Item.<Type>.<Name>. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item", Meta = (Categories = "Velox.Item"))
@@ -53,6 +58,13 @@ public:
 	/** Everyone hears the take (Q3 EV_GLOBAL_ITEM_PICKUP; powerups). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item")
 	bool bGlobalPickupSound = false;
+
+	/**
+	 * Game modes (UVeloxGameModeDefinition::ModeTag, Velox.Mode.*) in which a placed pickup of this item is removed on the server
+	 * at BeginPlay (ADR 0006 section 3: the Quad is FFA only, so DA_Item_Powerup_Quad lists Velox.Mode.Duel). Empty = every mode.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item", Meta = (Categories = "Velox.Mode"))
+	FGameplayTagContainer DisabledInModes;
 
 	/** Mega, Red / Yellow Armor, powerups: item timers (spectators) and bot priority. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Item")
@@ -91,4 +103,19 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics")
 	FVector PlaceholderScale = FVector(0.4, 0.4, 0.4);
+
+	/**
+	 * The pickup's model (task M5-13, Tools/blender/weapons_items.py), shown instead of the placeholder cube on every machine that
+	 * renders. Empty keeps the cube with PlaceholderColor / PlaceholderScale. A dedicated server never loads it.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Cosmetics")
+	TSoftObjectPtr<UStaticMesh> Mesh;
+
+	/** Played when the item is taken (own takes 2D at prediction, others at the item with SA_Pickup) and when it is back; ADR 0006 section 9. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Audio")
+	TSoftObjectPtr<USoundBase> PickupSound;
+
+	/** Empty: UVeloxAudioSettings::ItemRespawnSound. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Audio")
+	TSoftObjectPtr<USoundBase> RespawnSound;
 };

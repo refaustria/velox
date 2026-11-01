@@ -14,14 +14,16 @@ Layout (X forward):
   M4 (ADR 0005 section 3): one NavMeshBoundsVolume over the arena so the server builds the runtime nav mesh for bots
   (the arena is flat with cover blocks only, so no AVeloxNavLink is needed).
 """
+import os
+import sys
+
 import unreal
 
-EAL = unreal.EditorAssetLibrary
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import veloxmap as vm  # noqa: E402
+
 
 MAP_PATH = "/Game/Maps/L_CombatTest"
-MAT_DIR = "/Game/Materials"
-CUBE = "/Engine/BasicShapes/Cube.Cube"              # 100 cm cube, pivot at centre
-CYLINDER = "/Engine/BasicShapes/Cylinder.Cylinder"  # 100 cm diameter, 100 cm high, pivot at centre
 
 HALF = 2000.0
 WALL_H = 400.0
@@ -31,8 +33,6 @@ DUMMY_Z = 110.0
 STRAFE_HALF_WIDTH = 300.0
 STRAFE_SPEED_SCALE = 1.0
 
-ERRORS = []
-COUNTS = {}
 EXPECTED = {"ground": 1, "wall": 4, "clip": 5, "cover": 8, "marker": 3, "dummyspawner": 3, "playerstart": 4, "light": 2, "navbounds": 1}
 
 # (x, y, size x, size y, size z): all clear of the dummy lane y -1500..-900 and of the PlayerStarts.
@@ -53,201 +53,67 @@ STARTS = [  # (label, x, y, yaw)
     ("PlayerStart_NE", 1700, 1200, 180),
 ]
 
-MATS = {}
-EAS = None
-STATIC = unreal.ComponentMobility.STATIC
-_MESH = {}
 
 
-def log(msg):
-    unreal.log("[VeloxCombatMap] " + msg)
-
-
-def fail(msg):
-    unreal.log_error("[VeloxCombatMap] " + msg)
-    ERRORS.append(msg)
-
-
-def load_materials():
-    for key in ("Floor", "Wall", "Platform", "MarkerA"):
-        path = f"{MAT_DIR}/M_Greybox_{key}"
-        mat = EAL.load_asset(path) if EAL.does_asset_exist(path) else None
-        if mat is None:
-            fail(f"missing {path}: run create_movement_test_map.py first")
-        MATS[key] = mat
-
-
-def mesh(path):
-    if path not in _MESH:
-        _MESH[path] = unreal.load_asset(path)
-    return _MESH[path]
-
-
-def count(kind):
-    COUNTS[kind] = COUNTS.get(kind, 0) + 1
-
-
-def box(kind, label, center, size, mat, collide=True, folder=None, mesh_path=CUBE):
-    a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*center))
-    a.set_actor_label(label)
-    a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
-    c = a.static_mesh_component
-    c.set_editor_property("static_mesh", mesh(mesh_path))
-    c.set_mobility(STATIC)
-    c.set_material(0, MATS[mat])
-    if not collide:
-        c.set_collision_profile_name("NoCollision")
-        c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
-    if folder:
-        a.set_folder_path(folder)
-    count(kind)
-    return a
+KILL_Z = -1000.0       # lowest walkable floor is Z=0; anything below this has left the map and dies via FellOutOfWorld
 
 
 def build_arena():
-    box("ground", "Ground", (0, 0, -50), (2 * HALF + 200, 2 * HALF + 200, 100), "Floor", folder="Arena")
+    vm.box("Ground", (0, 0, -50), (2 * HALF + 200, 2 * HALF + 200, 100), "Floor", "ground", folder="Arena")
     t = 100.0
-    box("wall", "Wall_N", (0, HALF + t / 2, WALL_H / 2), (2 * HALF + 2 * t, t, WALL_H), "Wall", folder="Arena")
-    box("wall", "Wall_S", (0, -HALF - t / 2, WALL_H / 2), (2 * HALF + 2 * t, t, WALL_H), "Wall", folder="Arena")
-    box("wall", "Wall_E", (HALF + t / 2, 0, WALL_H / 2), (t, 2 * HALF, WALL_H), "Wall", folder="Arena")
-    box("wall", "Wall_W", (-HALF - t / 2, 0, WALL_H / 2), (t, 2 * HALF, WALL_H), "Wall", folder="Arena")
+    vm.box("Wall_N", (0, HALF + t / 2, WALL_H / 2), (2 * HALF + 2 * t, t, WALL_H), "Wall", "wall", folder="Arena")
+    vm.box("Wall_S", (0, -HALF - t / 2, WALL_H / 2), (2 * HALF + 2 * t, t, WALL_H), "Wall", "wall", folder="Arena")
+    vm.box("Wall_E", (HALF + t / 2, 0, WALL_H / 2), (t, 2 * HALF, WALL_H), "Wall", "wall", folder="Arena")
+    vm.box("Wall_W", (-HALF - t / 2, 0, WALL_H / 2), (t, 2 * HALF, WALL_H), "Wall", "wall", folder="Arena")
     for i, (x, y, sx, sy, sz) in enumerate(COVER):
-        box("cover", f"Cover_{i + 1:02d}", (x, y, sz / 2), (sx, sy, sz), "Platform", folder="Cover")
+        vm.box(f"Cover_{i + 1:02d}", (x, y, sz / 2), (sx, sy, sz), "Platform", "cover", folder="Cover")
 
 
 def build_starts_dummies_lights():
     for label, x, y, yaw in STARTS:
-        ps = EAS.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(x, y, 100), unreal.Rotator(0, 0, yaw))
-        ps.set_actor_label(label)
-        ps.set_folder_path("Starts")
-        count("playerstart")
+        vm.player_start(label, (x, y, 100), yaw, folder="Starts")
     for i, d in enumerate(DUMMY_DISTANCES):
         x, y = FIRST_START[0] + d, FIRST_START[1]
-        sp = EAS.spawn_actor_from_class(unreal.VeloxDummySpawner, unreal.Vector(x, y, DUMMY_Z))
-        sp.set_actor_label(f"DummySpawn_{i + 1}")
-        sp.set_folder_path("Dummies")
+        sp = vm.spawn(unreal.VeloxDummySpawner, f"DummySpawn_{i + 1}", (x, y, DUMMY_Z), None, "Dummies", "dummyspawner")
         sp.set_editor_property("auto_spawn", True)
         sp.set_editor_property("strafe_half_width", STRAFE_HALF_WIDTH)
         sp.set_editor_property("strafe_speed_scale", STRAFE_SPEED_SCALE)
-        count("dummyspawner")
         # Floor marker (no collision) showing the strafe lane centre.
-        box("marker", f"DummyMarker_{i + 1}", (x, y, 0.5), (60, 2 * STRAFE_HALF_WIDTH, 1), "MarkerA",
-            collide=False, folder="Dummies")
-    sun = EAS.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 800), unreal.Rotator(0, -45, 30))
-    sun.set_actor_label("Sun")
-    sun.get_component_by_class(unreal.DirectionalLightComponent).set_mobility(STATIC)
-    count("light")
-    sky = EAS.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 900))
-    sky.set_actor_label("SkyLight")
-    sky.get_component_by_class(unreal.SkyLightComponent).set_mobility(STATIC)
-    count("light")
-
-
-NAV_BOUNDS_BRUSH = 200.0   # a Python-spawned NavMeshBoundsVolume gets the default 200 cm cube brush; scale = size / 200
-
-
-def nav_bounds(label, center, size):
-    """NavMeshBoundsVolume over the whole map (ADR 0005 section 3; bWholeWorldNavigable is not a config property in 5.8)."""
-    v = EAS.spawn_actor_from_class(unreal.NavMeshBoundsVolume, unreal.Vector(*center))
-    v.set_actor_label(label)
-    v.set_folder_path("Navigation")
-    v.set_actor_scale3d(unreal.Vector(size[0] / NAV_BOUNDS_BRUSH, size[1] / NAV_BOUNDS_BRUSH, size[2] / NAV_BOUNDS_BRUSH))
-    origin, extent = v.get_actor_bounds(False)
-    log(f"{label}: origin {origin} extent {extent}")
-    want = unreal.Vector(size[0] / 2, size[1] / 2, size[2] / 2)
-    if abs(extent.x - want.x) > 1.0 or abs(extent.y - want.y) > 1.0 or abs(extent.z - want.z) > 1.0:
-        fail(f"{label}: bounds extent {extent} differs from {want} (brush is not the default 200 cm cube)")
-    count("navbounds")
-    return v
-
-
-KILL_Z = -1000.0       # lowest walkable floor is Z=0; anything below this has left the map and dies via FellOutOfWorld
-CLIP_H = 1800.0        # invisible clip walls / ceiling top (above any knockback apex: 1875 cm/s at 2000 cm/s^2 is about 880 cm)
-
-
-def clip_box(label, center, size):
-    """Invisible BlockAll volume, no navigation influence (M4-07f): seals the open-top arena against knockback."""
-    a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*center))
-    a.set_actor_label(label)
-    a.set_actor_scale3d(unreal.Vector(size[0] / 100.0, size[1] / 100.0, size[2] / 100.0))
-    c = a.static_mesh_component
-    c.set_editor_property("static_mesh", mesh(CUBE))
-    c.set_mobility(STATIC)
-    c.set_collision_profile_name("BlockAll")
-    c.set_editor_property("can_ever_affect_navigation", False)
-    c.set_editor_property("fill_collision_underneath_for_navmesh", False)
-    a.set_actor_hidden_in_game(True)
-    a.set_folder_path("Clip")
-    count("clip")
-    return a
-
-
-def build_clip(hx, hy, wall_t):
-    """Four clip walls coinciding with the visible perimeter walls (inner face at +-hx/+-hy), 1800 cm high, plus a ceiling."""
-    h = CLIP_H
-    clip_box("Clip_N", (0, hy + wall_t / 2, h / 2), (2 * hx + 2 * wall_t, wall_t, h))
-    clip_box("Clip_S", (0, -hy - wall_t / 2, h / 2), (2 * hx + 2 * wall_t, wall_t, h))
-    clip_box("Clip_E", (hx + wall_t / 2, 0, h / 2), (wall_t, 2 * hy, h))
-    clip_box("Clip_W", (-hx - wall_t / 2, 0, h / 2), (wall_t, 2 * hy, h))
-    clip_box("Clip_Ceiling", (0, 0, h + wall_t / 2), (2 * hx + 2 * wall_t, 2 * hy + 2 * wall_t, wall_t))
-
-
-def set_kill_z():
-    settings = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
-    settings.set_editor_property("kill_z", KILL_Z)
-    got = settings.get_editor_property("kill_z")
-    log(f"WorldSettings.KillZ = {got}")
-    if abs(got - KILL_Z) > 0.01:
-        fail("could not set WorldSettings.KillZ")
+        vm.box(f"DummyMarker_{i + 1}", (x, y, 0.5), (60, 2 * STRAFE_HALF_WIDTH, 1), "MarkerA", "marker",
+               collide=False, folder="Dummies")
+    vm.static_sun_and_sky()
 
 
 def build_map():
-    global EAS
-    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-    EAS = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-    if not EAL.does_directory_exist("/Game/Maps"):
-        EAL.make_directory("/Game/Maps")
-    if EAL.does_asset_exist(MAP_PATH):
-        log("map exists, clearing it for rebuild")
-        if not les.load_level(MAP_PATH):
-            fail("could not load existing " + MAP_PATH)
-            return
-        for a in EAS.get_all_level_actors():
-            EAS.destroy_actor(a)
-    elif not les.new_level(MAP_PATH, False):
-        fail("new_level failed for " + MAP_PATH)
+    les = vm.rebuild_map(MAP_PATH)
+    if les is None:
         return
-
     build_arena()
     build_starts_dummies_lights()
-    build_clip(HALF, HALF, 100.0)
-    set_kill_z()
+    vm.clip_walls(HALF, HALF, wall_t=100.0)
+    vm.set_kill_z(KILL_Z)
     # Arena plus walls, floor slab to above the highest cover block (300 cm).
-    nav_bounds("NavMeshBounds", (0.0, 0.0, 300.0), (2 * HALF + 400, 2 * HALF + 400, 1000.0))
+    vm.nav_bounds((0.0, 0.0, 300.0), (2 * HALF + 400, 2 * HALF + 400, 1000.0))
 
-    log("spawned: " + ", ".join(f"{k}={v}" for k, v in sorted(COUNTS.items())))
-    if COUNTS != EXPECTED:
-        fail(f"actor counts differ from expected: got {COUNTS}, expected {EXPECTED}")
-    actors = EAS.get_all_level_actors()
+    vm.assert_counts(EXPECTED)
+    actors = vm.EAS.get_all_level_actors()
     n_sm = sum(1 for a in actors if isinstance(a, unreal.StaticMeshActor))
     n_ps = sum(1 for a in actors if isinstance(a, unreal.PlayerStart))
     n_sp = sum(1 for a in actors if isinstance(a, unreal.VeloxDummySpawner))
     exp_sm = EXPECTED["ground"] + EXPECTED["wall"] + EXPECTED["clip"] + EXPECTED["cover"] + EXPECTED["marker"]
-    log(f"StaticMeshActors={n_sm} (expected {exp_sm}) PlayerStarts={n_ps} (expected 4) DummySpawners={n_sp} (expected 3)")
+    vm.log(f"StaticMeshActors={n_sm} (expected {exp_sm}) PlayerStarts={n_ps} (expected 4) DummySpawners={n_sp} (expected 3)")
     if n_sm != exp_sm or n_ps != 4 or n_sp != 3:
-        fail("level actor class counts mismatch")
-    unreal.SystemLibrary.execute_console_command(unreal.EditorLevelLibrary.get_editor_world(), "MAP CHECK")
-    if not les.save_current_level():
-        fail("save_current_level failed")
+        vm.fail("level actor class counts mismatch")
+    vm.save_map(les)
 
 
 def main():
-    load_materials()
-    if not ERRORS:
+    vm.configure(log_prefix="[VeloxCombatMap]", fill_nav_kinds=("cover",))
+    vm.greybox_materials(keys=("Floor", "Wall", "Platform", "MarkerA"))
+    if not vm.ERRORS:
         build_map()
-    if ERRORS:
-        raise RuntimeError("combat test map failed: " + "; ".join(ERRORS))
-    log("done")
+    vm.raise_if_errors("combat test map")
+    vm.log("done")
 
 
 main()
