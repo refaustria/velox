@@ -19,7 +19,7 @@ Spec: `docs/adr/0006-first-map-and-characters.md` (ADR 0006). Template: `docs/ta
 | 07b | [dm1-runner-followups](07b-dm1-runner-followups.md) | dev | 2 h | 07, 06b review D3/D4 | 1b | done |
 | 07c | [dm1-band-rederivation](07c-dm1-band-rederivation.md) | architect | 1 h | 07, 15 | 4 | done (ADR 0006 E4) |
 | 07e | [dm1-art-live-confirmation](07e-dm1-art-live-confirmation.md) | dev | 2 h (soak time) | 07c, 07d, 13b | 4 | todo |
-| 07d | [dm1-runner-map-override](07d-dm1-runner-map-override.md) | dev | 1 h | 15 | 4 | todo |
+| 07d | [dm1-runner-map-override](07d-dm1-runner-map-override.md) | dev | 1 h | 15 | 4 | done |
 | 08 | [character-cosmetics-and-anim-instance](08-character-cosmetics-and-anim-instance.md) | dev-hard | 3 h | ADR §4 | 2 (parallel with 1) | done |
 | 09 | [view-model-and-weapon-cosmetics](09-view-model-and-weapon-cosmetics.md) | dev | 3 h | 08 | 2 | done |
 | 10 | [audio-foundation](10-audio-foundation.md) | dev | 3 h (may split: content script / hooks+announcer) | 09 | 2 | done |
