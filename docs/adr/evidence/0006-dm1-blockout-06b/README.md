@@ -18,3 +18,12 @@ logs to `Velox|Error|ensure`. The `.result`, `-gate.txt`, `-host.log`, `.stats.j
 
 `dm1-ffa/links-by-record.txt` lists link outcomes per record. `finding5-dock350-probe-links.txt` is the 3-run FFA probe with the dock N drops moved to
 x = ±350: 8 of 10 dock N drops were missed (the bots drift inward through the door jamb). The move was reverted and is not in the commit.
+
+## ADR 0006 E3 (task 07, architect, 2026-11-01)
+
+These sets are the basis of the DM1 bands (`infra/ci/bands/L_DM1.sh`, sourced by `L_DM1_Blockout.sh`). `e3_bands.py` (run with `python3 -I`)
+derives them by the D51 (1) method from the per-round figures above and task 06's final-layout sets 5 and 6 (`../0006-dm1-blockout/`, D40
+caveat); `e3_bands.out` is its output. Re-evaluation of the three DM1 sets here under the band files (gunzipped copies, `nettest.sh --reeval
+<set>/logs --map L_DM1_Blockout --scripts BotRun|BotDuel`, `ffa.sh --reeval dm1-ffa/logs --map L_DM1_Blockout`) prints `bands=L_DM1_Blockout`
+and: BotRun `set behaviour PASS, cost PASS`, `set PASS` (Σ kills 19 ≥ 11); BotDuel `set PASS` (Σ frags 14 ≥ 7, camp 30 ≥ 21, Mega within_3s 3 /
+within_10s 6); FFA `SET runs=10 PASS`, `sum_kills >= 34` (47), every invariant PASS. The 06b review is `docs/adr/reviews/0006-06b-review.md`.

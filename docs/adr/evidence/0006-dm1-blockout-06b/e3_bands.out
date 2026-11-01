@@ -1,0 +1,35 @@
+== BotRun x3 (FFA, 3 Medium, 90 s), L_DM1_Blockout ==
+BotRun sum kills             rounds=[6, 8, 5, 4, 4, 11] mean/round=6.33 set mean=19.0 | Poisson k=11 | bootstrap k=12 | band k=11: P(fail|unchanged) Poisson 1.83 % bootstrap 0.00 %; P(fail|-30 %) 23 %; P(fail|halved) 65 %; observed sets [19, 19]; supplementary rounds [6, 7, 7] (sets [20])
+BotRun kills per round       rounds=[6, 8, 5, 4, 4, 11] mean=6.33 per-round band >= 1: P(round < 1 | unchanged) = 0.18 % per round (D36: outlier cap ~0.5 %, a band tighter than the 10 % tail is not a band)
+BotRun pickups per round: [64, 69, 56, 58, 56, 72] mean 62.5 sd 6.3 min 56 (set 5: 64 59 65) -> band >= 30 is 5.1 sd below the mean (pickups are not Poisson: 35 items, 90 s; the band guards a dead router, not the rate)
+BotRun links ok per round    rounds=[23, 22, 17, 28, 30, 13] mean=22.17 per-round band >= 5: P(round < 5 | unchanged) = 0.00 % per round (D36: outlier cap ~0.5 %, a band tighter than the 10 % tail is not a band)
+BotRun Mega takes per round: 06b [4, 3, 4] (35 s respawn, 90 s: <= 4 incl. the Live reset) -> BAND_BOTRUN_MEGA_REQUIRED=1 (presence)
+
+== BotDuel x3 (Duel, 2 Hard, 120 s) ==
+BotDuel sum frags            rounds=[7, 3, 4, 4, 6, 4] mean/round=4.67 set mean=14.0 | Poisson k=7 | bootstrap k=10 | band k=7: P(fail|unchanged) Poisson 1.42 % bootstrap 0.00 %; P(fail|-30 %) 14 %; P(fail|halved) 45 %; observed sets [14, 14]; supplementary rounds [2, 6, 4] (sets [12])
+BotDuel frags per round      rounds=[7, 3, 4, 4, 6, 4] mean=4.67 per-round band >= 1: P(round < 1 | unchanged) = 0.94 % per round (D36: outlier cap ~0.5 %, a band tighter than the 10 % tail is not a band)
+BotDuel sum camp episodes    rounds=[11, 12, 7, 10, 8, 14] mean/round=10.33 set mean=31.0 | Poisson k=21 | bootstrap k=23 | band k=21: P(fail|unchanged) Poisson 2.39 % bootstrap 0.00 %; P(fail|-30 %) 41 %; P(fail|halved) 89 %; observed sets [30, 32]; supplementary rounds [11, 6, 7] (sets [24])
+Mega timed returns (06b only): 6 returns in 3 rounds, p(<=3 s)=0.50 p(<=10 s)=1.00; rule '>= 1 <= 3 s and >= 2 <= 10 s' (D51 6): P(fail) binomial(n=6) 1.6 % / 0.00 %, bootstrap over rounds 0.0 % / 0.00 %
+Mega timed returns (06b + set 6): 12 returns in 6 rounds, p(<=3 s)=0.42 p(<=10 s)=0.92; rule '>= 1 <= 3 s and >= 2 <= 10 s' (D51 6): P(fail) binomial(n=6) 3.9 % / 0.00 %, bootstrap over rounds 3.7 % / 0.00 %
+Mega timed returns (06b + sets 6 + 5): 19 returns in 9 rounds, p(<=3 s)=0.53 p(<=10 s)=0.95; rule '>= 1 <= 3 s and >= 2 <= 10 s' (D51 6): P(fail) binomial(n=6) 1.1 % / 0.00 %, bootstrap over rounds 1.1 % / 0.00 %
+RA returns (report-only): 06b BotRun [0.0,6.3] [3.6,1.3] [12.6,1.3]; 06b BotDuel [4.0,8.6,0.0] [1.6,6.7,5.0] [0.2,2.4,4.1]; set 6 BotDuel [0.8,0.2,1.0] [0.0,2.3,1.8] [0.0,9.3,0.5,0.9]
+
+== FFA x10 (3 Medium, 120 s, seeds 1-10) ==
+FFA sum kills (10 runs)      rounds=[4, 7, 3, 5, 4, 3, 6, 5, 7, 3, 3, 4, 5, 5, 1, 3, 6, 7, 6, 6] mean/round=4.65 set mean=46.5 | Poisson k=34 | bootstrap k=36 | band k=34: P(fail|unchanged) Poisson 2.38 % bootstrap 0.63 %; P(fail|-30 %) 58 %; P(fail|halved) 98 %; observed sets [47, 46]
+FFA kills per run            rounds=[4, 7, 3, 5, 4, 3, 6, 5, 7, 3, 3, 4, 5, 5, 1, 3, 6, 7, 6, 6] mean=4.65 per-round band >= 1: P(round < 1 | unchanged) = 0.96 % per round (D36: outlier cap ~0.5 %, a band tighter than the 10 % tail is not a band)
+FFA kills per run (>= 2?)    rounds=[4, 7, 3, 5, 4, 3, 6, 5, 7, 3, 3, 4, 5, 5, 1, 3, 6, 7, 6, 6] mean=4.65 per-round band >= 2: P(round < 2 | unchanged) = 5.40 % per round (D36: outlier cap ~0.5 %, a band tighter than the 10 % tail is not a band)
+FFA pickups per run: 06b [71, 71, 76, 78, 77, 82, 65, 68, 74, 73], set 6 [79, 69, 80, 62, 55, 65, 65, 86, 81, 74]: mean 72.5 sd 7.5 min 55 -> band >= 40 is 4.3 sd below the mean
+FFA Mega takes per run: 4 in all 20 runs (06b, set 6; 35 s respawn, 120 s: 4 = every cycle) -> band >= 2 (half the cycles; a dead ledge route gives 0)
+
+== Link success: false-FAIL probability of the 90 % invariant at the observed rates (E0.3 b) ==
+FFA x10 Drop (06b)             131/139 = 94.2 %; set FAILs at >= 14 failed of 139; at a true rate of 94.2 % P(FAIL) = 3.16 %
+FFA x10 Drop (06b)             131/139 = 94.2 %; set FAILs at >= 14 failed of 139; at a true rate of 95.8 % P(FAIL) = 0.23 %
+BotRun x3 Drop (06b)           43/43 = 100.0 %; set FAILs at >= 5 failed of 43; at a true rate of 94.2 % P(FAIL) = 10.19 %
+BotRun x3 Drop (06b)           43/43 = 100.0 %; set FAILs at >= 5 failed of 43; at a true rate of 95.8 % P(FAIL) = 3.34 %
+BotDuel x3 Drop (06b)          30/31 = 96.8 %; set FAILs at >= 4 failed of 31; at a true rate of 94.2 % P(FAIL) = 10.25 %
+BotDuel x3 Drop (06b)          30/31 = 96.8 %; set FAILs at >= 4 failed of 31; at a true rate of 95.8 % P(FAIL) = 3.96 %
+pooled DM1 Drop (06b, 3 sets)  204/213 = 95.8 %; set FAILs at >= 22 failed of 213; at a true rate of 94.2 % P(FAIL) = 0.66 %
+pooled DM1 Drop (06b, 3 sets)  204/213 = 95.8 %; set FAILs at >= 22 failed of 213; at a true rate of 95.8 % P(FAIL) = 0.01 %
+FFA x10 JumpPad (06b)          92/92 = 100.0 %; set FAILs at >= 10 failed of 92; at a true rate of 94.2 % P(FAIL) = 4.07 %
+FFA x10 JumpPad (06b)          92/92 = 100.0 %; set FAILs at >= 10 failed of 92; at a true rate of 95.8 % P(FAIL) = 0.53 %
+Lowest true rate with <= 10 % false-FAIL of the 90 % invariant: n=30 -> 94.1 %, n=43 -> 94.3 %, n=100 -> 92.9 %, n=139 -> 93.1 %
