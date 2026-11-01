@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev-hard
-**Status:** todo
+**Status:** partially done (wind-down 2026-11-01)
 **Depends on:** ADR 0007 §5.1–5.3; coordinate with task 09 (both touch `VeloxPlayerController.*`; dispatch 09 after this is merged)
 
 ## Goal
@@ -48,4 +48,9 @@ Close the surfaces a Development server exposes to arbitrary clients before the 
 Standard format plus: the Σ-stray and correction comparison (off vs on), the discrepancy log line format, the exact engine disconnect reason text seen by the client, and the list of RPCs with their final `_Validate` rules.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+2026-11-01 (dev-hard): the code is complete. Editor build green, 127/127 automation tests pass (incl. Velox.Net.NameSanitize,
+PasswordRule, NoCheatManagerForRemote, NameApply). RpcGateRun and PasswordRun PASS (2x each). StrafeRun+PadRun x10 off/on: no
+degradation. Full default list, one round: 16/17 PASS (BotRun failed on cost windows only). Speed-hack proxy: off +30 %, on -20 %
+(not within 5 %; needs a ruling). Details, the RPC table and open items: `notes/07-report.md`, `docs/adr/evidence/0007-discrepancy/`.
+**Still open:** the Game Development and Shipping builds; KnockbackRun x10; a clean BotRun / `--repeat 3` set;
+`RpcGateRun,PasswordRun --repeat 3`; the menu password field (Core/, out of scope); the heartbeat flag (waits for task 04).

@@ -1,0 +1,23 @@
+{
+ "name": "SpeedHackRun",
+ "note": "M6 task 07 (ADR 0007 section 5.3) speed-hack proxy row, not in the default list: crouch-walk (CrouchSpeedScale x MaxGroundSpeed = 200 cm/s) along the L_MovementTest corridor from PlayerStart_Corridor for 18 s of script time, so 1.3 x real time stays inside the 5120 cm corridor. nettest.sh adds velox.move.DebugTimeScale (VELOX_TIME_SCALE) and the 1 Hz VeloxTimeScale position log on the client.",
+ "startYaw": 0,
+ "startLocation": [
+  40,
+  0,
+  100
+ ],
+ "rows": [
+  {
+   "duration": 1.0,
+   "crouch": true,
+   "label": "crouch"
+  },
+  {
+   "duration": 18.0,
+   "crouch": true,
+   "forward": 1.0,
+   "label": "crouch_walk"
+  }
+ ]
+}

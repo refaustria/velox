@@ -132,6 +132,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Death")
 	FString DeathSpectatePrompt = TEXT("free look \u2014 FIRE to respawn");
 
+	/**
+	 * Server: PreLogin's error for a wrong or missing ?Password= (ADR 0007 section 5.2). It travels to the client as the
+	 * connection failure text, which the main menu shows.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Online")
+	FString WrongPasswordMessage = TEXT("Wrong password");
+
 	/** Key shown in the ready prompt and the scoreboard button (the default binding of IA_Ready; rebinds do not change the text). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "HUD|Ready")
 	FString ReadyKeyLabel = TEXT("F3");
