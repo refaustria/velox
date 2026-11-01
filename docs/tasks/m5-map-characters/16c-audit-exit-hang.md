@@ -2,7 +2,7 @@
 
 **Milestone:** M5 First real map + characters
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** 16 part A (`ci_audit` in `infra/ci/build.sh`, `Tools/editor/audit_map.py`), 15 (`L_DM1` exists)
 
 ## Goal
@@ -14,8 +14,13 @@ Since `L_DM1` landed, the `ci_audit` step of `infra/ci/build.sh` takes about 15 
 - `infra/ci/README.md` — document the timeout
 
 ## Acceptance criteria
-- [ ] Root cause of the hang identified (or stated as unknown with what was tried) — report it.
-- [ ] `infra/ci/build.sh` on the current head returns on its own with `CI OK`; audit lines for both maps printed; total audit time stated (target: the art-map audit ≤ 5 min if the cause allows, else justify).
-- [ ] No orphaned `UnrealEditor-Cmd` after the run (`pgrep` count of your own processes 0).
-- [ ] The audit verdicts (draw calls, triangles, collision diff, protrusion) are identical to `docs/adr/evidence/0006-dm1-art/` audit output.
-- [ ] Every UE step under the soak lock.
+- [x] Root cause of the hang identified (or stated as unknown with what was tried) — report it.
+- [x] `infra/ci/build.sh` on the current head returns on its own with `CI OK`; audit lines for both maps printed; total audit time stated (target: the art-map audit ≤ 5 min if the cause allows, else justify).
+- [x] No orphaned `UnrealEditor-Cmd` after the run (`pgrep` count of your own processes 0).
+- [x] The audit verdicts (draw calls, triangles, collision diff, protrusion) are identical to `docs/adr/evidence/0006-dm1-art/` audit output.
+- [x] Every UE step under the soak lock.
+
+## Notes (done)
+- Slow run: the `--protrusion` pass in `audit_map.py` (pure Python, per sample point a scan over all 150 clip boxes plus up to 26 downward probes x 150 boxes) took 15 min of the 15.5 min art-map run (map load, budgets and lighting probe: about 25 s). Now `ClipIndex` (2D spatial hash plus bounding-sphere rejects in front of the same exact box test) does it in about 20 s; art-map audit 44 s. Verdict identical (`_walkable_air_ref` / `_protrusion_depth_ref` are kept and the selftest compares them on a random scene with rotated boxes).
+- Hang: not reproduced. A direct run of the same command line on this head exited by itself (`LogExit: Exiting.`) right after RESULT. The 13b "hang" was most likely the 15 min protrusion pass being read as a hang, possibly plus an editor shutdown stall that I could not trigger. Mitigation is in `build.sh` (grace then kill by PID, hard timeout), tested with fake processes (RESULT then sleep; no RESULT then sleep).
+- `VELOX_AUDIT_GRACE` (60 s) and `VELOX_AUDIT_TIMEOUT` (1500 s) documented in `infra/ci/README.md`.
