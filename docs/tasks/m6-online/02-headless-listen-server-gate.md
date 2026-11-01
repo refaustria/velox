@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev-hard
-**Status:** part A blocked (F1, needs a Movement/ ruling); part B todo
+**Status:** part A in progress (F1 fixed; full gate sets open); part B todo (waits for 01b)
 **Depends on:** ADR 0007 §1 (a) gate; part A (editor binary) can start now, part B needs task 01's server archive
 
 ## Goal
@@ -46,3 +46,6 @@ Standard format plus: the baseline/listen/packaged comparison table (per-script 
 
 ## Notes / outcome
 2026-11-01, dev-hard, part A: **gate BLOCKED, not passed.** F1: `UCharacterMovementComponent::OnRegister` forces Linear -> Exponential smoothing on `NM_ListenServer`, so `ReplicatedServerLastTransformUpdateTimeStamp` replicates as 0, clients get no proxy stamp, and FireRun rail shots lose the stamp hint (stamp=0/11 listen vs 11/11 dedicated). Proposed one-line fix (out of scope, Movement/): `bNetworkAlwaysReplicateTransformUpdateTimestamp = true;` in the `UVeloxMovementComponent` constructor. Done: `--server-mode/--server-binary/--server-userdir`, listen readiness check, sidecar `srv_rss_kb`, `VeloxServerKind.h`, 11 one-line server-kind site changes, analyzer listen checks, `Velox.GameMode.HostSemantics`, CapacityRun probe. Evidence: `docs/adr/evidence/0007-listen-gate/` (A0/A1/A2 sets, capacity). Full default list and the x3 sets are owed after the F1 ruling.
+
+2026-11-01, dev-hard, F1 follow-up (architect approved): **done:** `bNetworkAlwaysReplicateTransformUpdateTimestamp = true` in the `UVeloxMovementComponent` constructor (comment cites CMC.cpp:930-936 / Character.cpp:2103); CDO row in `Velox.Character.Geometry` (`Tests/VeloxHitMathTest.cpp`); ADR 0003 B45; ADR 0007 §1 gate text and fact 9 corrected (the hitbox reads the capsule, not bones). `build.sh` green (Editor + Game; Server/Client skipped on the installed engine; all tests Success). F1 evidence, same build: FireRun listen PASS stamp=11/11 C=0, FireRun dedicated PASS stamp=11/11 C=0, `delay_src=proxies` on 51/51 shots in both (`bDelayFromProxies` populated); RSS 1896 MB listen vs 1791 MB dedicated (`evidence/0007-listen-gate/F1-*`).
+**Still open (moved to next week by the lead):** the full gate: the same-day dedicated default-list baseline, the listen default list 13/13, BotRun x3 and BotDuel x3 in listen mode on an idle host (runner prepared: scratchpad `m6-02/gate.sh`; command lines in Verification steps 1-2); then the RSS/budget/frame-deficit comparison table and the "gate PASSED (listen)" verdict; optional `p.NetEnableListenServerSmoothing 0` on the host only if the sidecar shows cost; part B after task 01b.

@@ -67,6 +67,11 @@ UVeloxMovementComponent::UVeloxMovementComponent(const FObjectInitializer& Objec
 	// SmoothingClientTimeStamp (in that pawn's stamp domain), so a client can name the pose it aimed at
 	// (GetRenderedServerStamp). The engine default (Exponential) has no such stamp.
 	NetworkSmoothingMode = ENetworkSmoothingMode::Linear;
+	// ADR 0003 B45 (M6 task 02): UCharacterMovementComponent::OnRegister (CharacterMovementComponent.cpp:930-936)
+	// forces Linear -> Exponential on NM_ListenServer, and ACharacter::PreReplication (Character.cpp:2103, the only
+	// consumer) then replicates ReplicatedServerLastTransformUpdateTimeStamp = 0 - clients of a (headless) listen host would
+	// get no proxy stamps and lose the shot hint. Pin the stamp replication independently of the server-side smoothing mode.
+	bNetworkAlwaysReplicateTransformUpdateTimestamp = true;
 
 	SetNetworkMoveDataContainer(VeloxNetworkMoveDataContainer);
 	SetMoveResponseDataContainer(VeloxMoveResponseDataContainer);
