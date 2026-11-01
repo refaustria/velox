@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev
-**Status:** todo
+**Status:** partially done (WIP, project paused)
 **Depends on:** 04 (`UVeloxServerHeartbeatSubsystem`, `UVeloxOnlineSettings`), report `notes/04-report.md`
 
 ## Goal
@@ -17,3 +17,8 @@ Since 04, every server without `-ServerId` (all soak/nettest/fts servers) tries 
 - [ ] `infra/ci/build.sh` green (report the test count; this is also the first build of the merged head 01+03+04+12).
 - [ ] `nettest.sh --scripts FireRun` server log: 0 `VeloxHeartbeat failed` lines, one `inactive` line.
 - [ ] With `-ServerId=test` against `Tools/ci/heartbeat_stub.py` on loopback: posts as before.
+
+## Notes (dev, 2026-11-01)
+- Implemented: `IsHeartbeatActive(bEnabled, ServerId)` pure rule (enabled AND non-empty -ServerId); subsystem now always created but, when inactive, logs `VeloxHeartbeat inactive (no -ServerId)` once and registers no delegates/ticker. bHeartbeatEnabled=false now beats -ServerId. Test added to Velox.Online.HeartbeatJson.
+- Verified: build.sh green, 125 tests, 0 not successful (lighting audit FAIL is the unbaked worktree, build exit 0). `nettest.sh --scripts FireRun --port 8461`: PASS, 0 `VeloxHeartbeat failed`, one `inactive` line.
+- NOT verified: `-ServerId=test` against heartbeat_stub.py on loopback (run was queued behind the soak lock when the project paused). Command: UnrealEditor-Cmd Velox.uproject L_ItemTest -server -nullrhi -port=8463 -ServerId=test -ServerName=T "-ini:Game:[/Script/Velox.VeloxOnlineSettings]:HeartbeatUrl=http://127.0.0.1:8462/api/v1/heartbeat" with `python3 -I Tools/ci/heartbeat_stub.py 8462 --max 2`.
