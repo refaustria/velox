@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev-hard
-**Status:** todo
+**Status:** part A blocked (F1, needs a Movement/ ruling); part B todo
 **Depends on:** ADR 0007 §1 (a) gate; part A (editor binary) can start now, part B needs task 01's server archive
 
 ## Goal
@@ -45,4 +45,4 @@ Prove, with the same evidence standard as every milestone before (the `nettest.s
 Standard format plus: the baseline/listen/packaged comparison table (per-script PASS, correction sums, bot budget mean, RSS, frame deficit), the server-kind audit table, the exact readiness log line for a listen host, and the explicit verdict "gate PASSED (listen)" or "gate FAILED — §1 (b)".
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+2026-11-01, dev-hard, part A: **gate BLOCKED, not passed.** F1: `UCharacterMovementComponent::OnRegister` forces Linear -> Exponential smoothing on `NM_ListenServer`, so `ReplicatedServerLastTransformUpdateTimeStamp` replicates as 0, clients get no proxy stamp, and FireRun rail shots lose the stamp hint (stamp=0/11 listen vs 11/11 dedicated). Proposed one-line fix (out of scope, Movement/): `bNetworkAlwaysReplicateTransformUpdateTimestamp = true;` in the `UVeloxMovementComponent` constructor. Done: `--server-mode/--server-binary/--server-userdir`, listen readiness check, sidecar `srv_rss_kb`, `VeloxServerKind.h`, 11 one-line server-kind site changes, analyzer listen checks, `Velox.GameMode.HostSemantics`, CapacityRun probe. Evidence: `docs/adr/evidence/0007-listen-gate/` (A0/A1/A2 sets, capacity). Full default list and the x3 sets are owed after the F1 ruling.

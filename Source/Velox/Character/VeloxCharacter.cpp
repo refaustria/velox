@@ -5,6 +5,7 @@
 
 #include "Character/VeloxViewModelComponent.h"
 #include "Core/VeloxWeaponCosmetics.h"
+#include "Core/VeloxServerKind.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 
 #include "Combat/VeloxAbilitySystemComponent.h"
@@ -203,7 +204,7 @@ void AVeloxCharacter::PostInitializeComponents()
 	{
 		// Centre of the capsule, whatever the mesh offset (the skeletal mesh sits below it).
 		PlaceholderBody->SetRelativeLocation(FVector(0.0, 0.0, -GetMesh()->GetRelativeLocation().Z));
-		if (!IsNetMode(NM_DedicatedServer) && !PlayerBodyMaterial.IsNull())
+		if (!VeloxServerKind::IsServerLike(this) && !PlayerBodyMaterial.IsNull())
 		{
 			if (UMaterialInterface* Base = PlayerBodyMaterial.LoadSynchronous())
 			{
@@ -427,7 +428,7 @@ void AVeloxCharacter::EnsureViewModel()
 
 void AVeloxCharacter::BindWeaponWorldMesh()
 {
-	if (IsNetMode(NM_DedicatedServer))
+	if (VeloxServerKind::IsServerLike(this))
 	{
 		UE_LOG(LogVelox, Verbose, TEXT("%s: dedicated server, no weapon world mesh content"), *GetName());
 		return;
@@ -499,7 +500,7 @@ void AVeloxCharacter::OnWeaponIndexChanged(int32 OldIndex, int32 NewIndex)
 
 void AVeloxCharacter::RefreshWeaponWorldMesh()
 {
-	if (!WeaponWorldMesh || IsNetMode(NM_DedicatedServer))
+	if (!WeaponWorldMesh || VeloxServerKind::IsServerLike(this))
 	{
 		return;
 	}
