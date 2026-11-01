@@ -37,3 +37,15 @@ with the thresholds of E4 (d); no layout task.
 The task-15 evidence (`../0006-dm1-art/`) has no server/client logs and no `ffa-N.log` (the worktree that produced them is gone), so it cannot be
 `--reeval`ed; its sets are judged against the E4 file by arithmetic on the committed per-round figures (BotRun 19 ≥ 11, BotDuel 12 ≥ 7, camp
 36 ≥ 22, Mega 4 / 6, FFA 54 ≥ 36). E4 (e) makes the D48 (4)(ii) recipe a condition for any future basis set.
+
+## Update task m5-07e (2026-11-01, dev): live confirmation appended
+
+`e4_bands.py` now also reads `../0006-dm1-art-e4/{botrun,botduel,ffa}` (D48 (4)(ii) recipe, replayable): basis A is 9 BotRun / 9 BotDuel / 30 FFA rounds,
+basis B 12 / 12 / 40. `e4_bands.out` is the new output; `e4_bands.with-attempt1.out` (second argument `with-attempt1`) adds the two first attempts that
+failed a dwell check and were rerun (D49). `reeval-07e-{botrun,botduel,ffa}.out` are `--reeval` of the new sets on gunzipped copies under the E4 file
+(`bands=L_DM1`): BotRun set PASS (kills 19), BotDuel set PASS (frags 13, camp 32, Mega 5 / 5), FFA `SET runs=10 PASS` (kills 49, every invariant PASS), the
+same verdicts as the live runs.
+Bands, basis B: BOTRUN_KILLS 11, BOTDUEL_FRAGS 7, BOTDUEL_CAMP 22, FFA_KILLS 36 (basis A: 11 / 6 / 22 / 37): no k changed, no lower band rises; the band
+file is unchanged. With the two failed first attempts added (sensitivity only) FFA_KILLS would read 37 on B (E4 already shows 37 on A). Dock N: 07e
+46/50 = 92.0 %; pooled over task 15 + 07e 104/117 = 88.9 % (n < 120, the E4 (d)(ii) floor is not reached by the counted sets; with the failed first
+attempts 151/168 = 89.9 %); no trigger either way.
