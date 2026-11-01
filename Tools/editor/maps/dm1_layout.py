@@ -177,7 +177,7 @@ ITEMS = [
     _it("Mega", "Health.Mega", -2050, 660, 320),
     _it("PG", "Weapon.PlasmaGun", -2800, 500),
     _it("CellsAmmo", "Ammo.Cells", -2900, -550),
-    _it("A_H25_1", "Health.Medium", -3300, -300),
+    _it("A_H25_1", "Health.Medium", -3000, 350),
     _it("A_H25_2", "Health.Medium", -2500, 450),
     _it("A_Shard_1", "Armor.Shard", -2800, 0, ramp_z(_R, -2800)),
     _it("A_Shard_2", "Armor.Shard", -2500, 0, ramp_z(_R, -2500)),
@@ -195,10 +195,10 @@ ITEMS = [
     _it("LG", "Weapon.LightningGun", 0, 1300, 80),
     _it("YA_N", "Armor.Yellow", 800, 1000),
     _it("LightningAmmo", "Ammo.Lightning", 1100, 1300),
-    _it("C_H5_1", "Health.Small", -3300, 900),
-    _it("C_H5_2", "Health.Small", -3300, 1300),
-    _it("C_H5_3", "Health.Small", -3100, 900),
-    _it("C_H5_4", "Health.Small", -3100, 1300),
+    _it("C_H5_1", "Health.Small", -2500, 900),
+    _it("C_H5_2", "Health.Small", -2500, 1300),
+    _it("C_H5_3", "Health.Small", -2200, 900),
+    _it("C_H5_4", "Health.Small", -2200, 1300),
     # D South Hall
     _it("RL", "Weapon.RocketLauncher", 450, -1500),
     _it("YA_S", "Armor.Yellow", 0, -2000, 320),
@@ -249,7 +249,8 @@ LINKS = [
     Link("PadLink_D", "JUMP_PAD", (PADS[2].x, PADS[2].y, 0), PADS[2].land, "PadD"),
     Link("RJ_West", "ROCKET_JUMP", (-650, 0, 320), (0, 0, 640), None),   # run-up 450 cm from the top slab edge (x -200)
     Link("RJ_East", "ROCKET_JUMP", (650, 0, 320), (0, 0, 640), None),
-    # drops: 60 cm inside the free edge, 150 cm outside it
+    # drops: 60 cm inside the free edge, 150 cm outside it. No link on the dock S edges and the slab N edge (task 06): the wall
+    # opposite is blank and only 500 cm away, a bot lands in its nav erosion margin (IsOnEndSurface false = "missed").
     _drop("Drop_ALedge_N", -2100 + DROP_IN, 450, 320, -2100 - DROP_OUT_TALL, 450, 0),
     _drop("Drop_ALedge_S", -2100 + DROP_IN, -450, 320, -2100 - DROP_OUT_TALL, -450, 0),
     _drop("Drop_BBalcony", 2100 - DROP_IN, 0, 320, 2100 + DROP_OUT_TALL, 0, 0),
@@ -258,14 +259,11 @@ LINKS = [
     _drop("Drop_DBalcony_3", 400, -1800 - DROP_IN, 320, 400, -1800 + DROP_OUT, 0),
     _drop("Drop_DBalcony_4", 1200, -1800 - DROP_IN, 320, 1200, -1800 + DROP_OUT, 0),
     _drop("Drop_DockW_N", -450, 200 - DROP_IN, 320, -450, 200 + DROP_OUT_TALL, 0),
-    _drop("Drop_DockW_S", -450, -200 + DROP_IN, 320, -450, -200 - DROP_OUT_TALL, 0),
     _drop("Drop_DockE_N", 450, 200 - DROP_IN, 320, 450, 200 + DROP_OUT_TALL, 0),
-    _drop("Drop_DockE_S", 450, -200 + DROP_IN, 320, 450, -200 - DROP_OUT_TALL, 0),
     _drop("Drop_MidBridge_N", 0, 200 - DROP_IN, 320, 0, 200 + DROP_OUT_TALL, 0),
     _drop("Drop_MidBridge_S", 0, -200 + DROP_IN, 320, 0, -200 - DROP_OUT_TALL, 0),
     _drop("Drop_Top_W", -200 + DROP_IN, 0, 640, -200 - DROP_OUT, 0, 320),
     _drop("Drop_Top_E", 200 - DROP_IN, 0, 640, 200 + DROP_OUT, 0, 320),
-    _drop("Drop_Top_N", 0, 250 - DROP_IN, 640, 0, 250 + DROP_OUT_TALL, 0),
     _drop("Drop_Top_S", 0, -250 + DROP_IN, 640, 0, -250 - DROP_OUT_TALL, 0),
 ]
 
@@ -305,6 +303,6 @@ UPPER_RING_MIN_M, UPPER_RING_MAX_M = 45.0, 50.0       # Mega -> RA, measured wit
 
 # Per-kind actor counts that do not depend on the geometry expansion (the geometry kinds are counted by the generator).
 EXPECTED = {
-    "pickup": 35, "playerstart": 8, "jumppad": 3, "targetpoint": 3, "navbounds": 1, "navlink": 22,
+    "pickup": 35, "playerstart": 8, "jumppad": 3, "targetpoint": 3, "navbounds": 1, "navlink": 19,
     "camera": 1, "text": 1, "light": 2,
 }
