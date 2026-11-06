@@ -2,6 +2,7 @@
 
 #include "Core/VeloxAssetManager.h"
 
+#include "Core/VeloxServerKind.h"
 #include "AbilitySystemGlobals.h"
 #include "Core/VeloxCharacterCosmetics.h"
 #include "Core/VeloxLog.h"
@@ -28,7 +29,7 @@ UVeloxAssetManager* UVeloxAssetManager::GetVelox()
 
 bool UVeloxAssetManager::IsCosmeticsFreeWorld(const UWorld* World)
 {
-	return IsRunningDedicatedServer() || (World && World->GetNetMode() == NM_DedicatedServer);
+	return VeloxServerKind::IsServerLike(World); // dedicated, or a headless listen host (ADR 0007 task 02)
 }
 
 bool UVeloxAssetManager::LoadCharacterCosmetics(const UWorld* World, const TSoftObjectPtr<UVeloxCharacterCosmetics>& Cosmetics, TFunction<void(const UVeloxCharacterCosmetics*)> OnLoaded)

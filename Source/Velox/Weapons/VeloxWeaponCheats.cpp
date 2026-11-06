@@ -12,6 +12,7 @@
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxGameplayTags.h"
+#include "Core/VeloxServerKind.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -262,7 +263,7 @@ namespace VeloxWeaponCheats
 			UE_LOG(LogVeloxCombat, Warning, TEXT("GiveAllWeapons: no authority world"));
 			return;
 		}
-		if (Authority->GetNetMode() == NM_DedicatedServer)
+		if (VeloxServerKind::IsServerLike(Authority)) // ADR 0007 task 02: a headless listen host has no local pawn either
 		{
 			GiveAllToPlayers(Authority, 600);
 			return;

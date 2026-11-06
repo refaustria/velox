@@ -2,6 +2,7 @@
 
 #include "Core/VeloxAudioSettings.h"
 
+#include "Core/VeloxServerKind.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -65,7 +66,7 @@ USoundConcurrency* UVeloxAudioSettings::LoadConcurrency(EVeloxAudioConcurrency K
 
 bool UVeloxAudioSettings::CanPlayAudio(const UWorld* World)
 {
-	return World && World->IsGameWorld() && World->GetNetMode() != NM_DedicatedServer && !IsRunningDedicatedServer() && !IsRunningCommandlet();
+	return World && World->IsGameWorld() && !VeloxServerKind::IsServerLike(World) && !IsRunningCommandlet(); // ADR 0007 task 02
 }
 
 void UVeloxAudioSettings::GetPreloadPaths(TArray<FSoftObjectPath>& OutPaths) const

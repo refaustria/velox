@@ -2,6 +2,7 @@
 
 #include "Items/VeloxPickup.h"
 
+#include "Core/VeloxServerKind.h"
 #include "AbilitySystemComponent.h"
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
@@ -205,7 +206,7 @@ void AVeloxPickup::BeginPlay()
 		}
 	}
 
-	if (!IsNetMode(NM_DedicatedServer))
+	if (!VeloxServerKind::IsServerLike(this))
 	{
 		// Task M5-13: the definition's model replaces the cube. It is a child of the spinning Placeholder, shifted by its bounds
 		// centre (weapon meshes have the grip at the origin), at scale 1. A mesh that fails to load keeps the cube.
@@ -282,7 +283,7 @@ void AVeloxPickup::Tick(float DeltaSeconds)
 	{
 		CheckOverlappingPawns(false);
 	}
-	if (!bSuspended && !IsNetMode(NM_DedicatedServer))
+	if (!bSuspended && !VeloxServerKind::IsServerLike(this))
 	{
 		Placeholder->AddLocalRotation(FRotator(0.0, PlaceholderRotationDegreesPerSecond * DeltaSeconds, 0.0));
 	}
@@ -291,7 +292,7 @@ void AVeloxPickup::Tick(float DeltaSeconds)
 void AVeloxPickup::SetOverlapRecheck(bool bEnable)
 {
 	bOverlapRecheck = bEnable;
-	const bool bWantsTick = bOverlapRecheck || (!bSuspended && !IsNetMode(NM_DedicatedServer));
+	const bool bWantsTick = bOverlapRecheck || (!bSuspended && !VeloxServerKind::IsServerLike(this));
 	if (IsActorTickEnabled() != bWantsTick)
 	{
 		SetActorTickEnabled(bWantsTick);

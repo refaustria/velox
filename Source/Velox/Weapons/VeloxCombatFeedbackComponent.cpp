@@ -2,6 +2,7 @@
 
 #include "Weapons/VeloxCombatFeedbackComponent.h"
 
+#include "Core/VeloxServerKind.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Character/VeloxAnimInstance.h"
@@ -324,7 +325,7 @@ void UVeloxCombatFeedbackComponent::SpawnTracer(const FGameplayTag& CueTag, cons
 {
 	UWorld* World = GetWorld();
 	AActor* Owner = GetOwner();
-	if (!World || !Owner || World->GetNetMode() == NM_DedicatedServer)
+	if (!World || !Owner || VeloxServerKind::IsServerLike(World))
 	{
 		return;
 	}

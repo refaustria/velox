@@ -1,0 +1,53 @@
+== smoke-listen start 2026-11-01T10:35:54Z loadavg: 2.04 3.29 2.78 2/1146 1495020
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   99G   20G  84% /
+   rc=1
+== smoke-listen end 2026-11-01T10:41:35Z loadavg: 3.54 3.41 2.98 3/1177 1505369
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   1500914 bojan          02:26 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1500903
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   99G   20G  84% /
+== smoke2-listen start 2026-11-01T11:05:12Z loadavg: 1.15 1.33 1.85 4/1229 1551177
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   1549650 bojan          00:49 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1549610
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   98G   22G  82% /
+   rc=1
+== smoke2-listen end 2026-11-01T11:08:46Z loadavg: 1.39 1.39 1.76 1/1215 1557614
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   1551253 bojan          03:33 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1551209
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   98G   22G  82% /
+== smoke-ded-fire start 2026-11-01T11:29:01Z loadavg: 2.30 1.75 1.75 5/1170 1596424
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   1594110 bojan          01:24 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1594094
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   99G   21G  84% /
+   rc=0
+== smoke-ded-fire end 2026-11-01T11:30:23Z loadavg: 1.42 1.60 1.70 1/1170 1598828
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   1596830 bojan          01:06 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1596825
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   99G   21G  84% /
+== F1-listen-firerun start 2026-11-01T12:23:21Z loadavg: 1.92 2.36 2.01 2/1115 1691390
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   96G   23G  81% /
+   rc=0
+== F1-listen-firerun end 2026-11-01T12:24:27Z loadavg: 2.12 2.36 2.03 1/1159 1693387
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   1691439 bojan          01:05 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1691429
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   96G   23G  81% /
+== F1-dedicated-firerun start 2026-11-01T12:24:27Z loadavg: 2.12 2.36 2.03 1/1158 1693403
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   1691439 bojan          01:06 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1691429
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   96G   23G  81% /
+   rc=0
+== F1-dedicated-firerun end 2026-11-01T12:25:41Z loadavg: 1.16 2.01 1.93 3/1164 1695612
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e):
+   1693605 bojan          01:06 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1693597
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a3632496f7e0c4f9e): 0
+   df /: /dev/vdb        125G   96G   23G  81% /
