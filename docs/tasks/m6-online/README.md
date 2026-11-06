@@ -4,10 +4,13 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 
 | # | Task | Agent | Est. | Depends on | Wave | Needs answer | Status |
 |---|---|---|---|---|---|---|---|
-| 01 | [release-package-linux](01-release-package-linux.md) | dev | 3 h | ADR §1 (a), §4 | 0 | — | todo |
+| 01 | [release-package-linux](01-release-package-linux.md) | dev | 3 h | ADR §1 (a), §4 | 0 | — | done (GC crash → 01b, Shipping join → 01c) |
+| 01b | [gc-disregard-audio-settings](01b-gc-disregard-audio-settings.md) | dev-hard | 2–3 h | 01 | 0 | — | done (nettest default list still to run) |
+| 01c | [shipping-client-headless-join](01c-shipping-client-headless-join.md) | dev | 2 h | 01, 01b | 1 | — | todo |
 | 02 | [headless-listen-server-gate](02-headless-listen-server-gate.md) | dev-hard | 3 h (+ soak time) | ADR §1 gate; editor part now, packaged part after 01 | 0 / 1 | — | todo |
-| 03 | [directory-service-rust](03-directory-service-rust.md) | dev | 3 h | ADR §2 | 0 | — | todo |
-| 04 | [server-heartbeat-and-map-registry](04-server-heartbeat-and-map-registry.md) | dev | 3 h | ADR §2; schema shared with 03/05 | 0 | — | todo |
+| 03 | [directory-service-rust](03-directory-service-rust.md) | dev | 3 h | ADR §2 | 0 | — | done |
+| 04 | [server-heartbeat-and-map-registry](04-server-heartbeat-and-map-registry.md) | dev | 3 h | ADR §2; schema shared with 03/05 | 0 | — | done |
+| 04b | [heartbeat-only-with-server-id](04b-heartbeat-only-with-server-id.md) | dev | 1 h | 04 | 0 | — | todo |
 | 05 | [server-browser](05-server-browser.md) | dev | 3 h | ADR §2; 04's `VeloxServerStatus.h` schema | 0 | — | todo |
 | 06 | [deploy-systemd-firewall](06-deploy-systemd-firewall.md) | dev | 3 h (files) + 1 h (apply) | ADR §3; files now; apply after 02 PASS | 1 / 2 | **43, 44** (apply only) | todo |
 | 07 | [server-hardening-rpc-gate-and-connection-policy](07-server-hardening-rpc-gate-and-connection-policy.md) | dev-hard | 3 h (+ soak) | ADR §5.1–5.3 | 0 | 45 (password default only) | todo |
@@ -15,7 +18,7 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 | 09 | [anomaly-counters](09-anomaly-counters.md) | dev-hard | 2–3 h | ADR §5.4; after 07 if both touch `VeloxPlayerController` (coordinate) | 0 | — | todo |
 | 10 | [replication-budget-measurement](10-replication-budget-measurement.md) | dev | 2 h (+ soak) | ADR §5.6; 02 | 2 | — | todo |
 | 11 | [mac-client-package](11-mac-client-package.md) | dev + human | 2 h + Mac time | ADR §4; 01 (shared script shape); the Apple Silicon Mac | 3 | 47 | todo |
-| 12 | [web-downloads-and-status-page](12-web-downloads-and-status-page.md) | dev | 2 h | ADR §3; schemas from 03/06 | 0 | 45 (privacy line), 47/46 wording | todo |
+| 12 | [web-downloads-and-status-page](12-web-downloads-and-status-page.md) | dev | 2 h | ADR §3; schemas from 03/06 | 0 | 45 (privacy line), 47/46 wording | done |
 | 13 | [release-smoke-and-playtest-checklist](13-release-smoke-and-playtest-checklist.md) | dev | 2 h | 01, 03, 04, 05, 06 | 2 | — | todo |
 | 14 | [windows-client](14-windows-client.md) | dev (script) / human (host) | 1 h + host | ADR §4 | — | **46** | blocked |
 | 15 | [server-capable-installed-build](15-server-capable-installed-build.md) | dev-hard | 1 day on a build box + swap | ADR §1 (c) | — | **41** | blocked |

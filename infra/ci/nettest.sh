@@ -64,6 +64,13 @@ HOST_SAMPLE_S=5
 LOAD_GATE="${VELOX_LOAD_GATE:-2.0}"
 LOAD_GATE_WAIT="${VELOX_LOAD_GATE_WAIT:-120}"
 REEVAL_DIR=""
+# ADR 0007 section 1 (a) / task m6-online/02: --server-mode listen runs the server as a headless listen host (the shape of the
+# packaged Game build: <map>?listen?SpectatorOnly=1?Name=Server -game -nullrhi, t.MaxFPS 60); --server-binary <Velox> runs a
+# staged packaged binary in that shape (implies listen) with -UserDir (--server-userdir, default <logs>/server-userdir).
+# dedicated (default) is the soak configuration every milestone used, unchanged.
+SERVER_MODE="dedicated"
+SERVER_BINARY=""
+SERVER_USERDIR=""
 # ADR 0006 section 7: --map <Map> replaces the map part of the BotRun / BotDuel URLs (the ?game=...?Bots=... options stay). The
 # soak bands are per map (infra/ci/bands/<Map>.sh, ci_load_bands in lib.sh); without a band file a map runs report-only.
 MAP_OVERRIDE=""
@@ -116,6 +123,12 @@ Options:
                    bursts, max dwell <= 5 s, nav build <= 2 s, link success >= 90 % per type over a set) are judged on every
                    map. With --reeval, --map names the band file to apply (default ${BAND_MAP_DEFAULT}); the arena floor of
                    the left_arena label is VELOX_ARENA_FLOOR_Z (default 0).
+  --server-mode M  dedicated (default: UnrealEditor-Cmd ... -server) or listen (ADR 0007 section 1 (a): a headless listen host,
+                   <map>?listen?SpectatorOnly=1?Name=Server -game -nullrhi -nosound, -ExecCmds "t.MaxFPS 60, ..."; ready when
+                   "Game Engine Initialized" and "IpNetDriver listening on port <port>" are both logged)
+  --server-binary B  Run the server from a staged packaged binary B (e.g. <dir>/Velox/Binaries/Linux/Velox), same URL and
+                   switches as listen plus -UserDir; implies --server-mode listen
+  --server-userdir D  -UserDir for --server-binary (default <logs>/server-userdir)
   --bot-difficulty P  Calibration (ADR 0005 D50 4): BotRun/BotDuel run with BotDifficulty=P (Easy|Medium|Hard|Expert); the
                    rounds carry calibration=P, print every quantity and judge no D36/D48/D49 band (per-round misses are
                    printed as "~ not judged" notes, the set line reports only)
@@ -159,7 +172,7 @@ cleanup() {
 # (/proc/<pid>/task/<pid>/schedstat, the game thread). -1 = not available.
 host_sample() {
   local pid="$1" file="$2" now l1 u n sy idle iow irq sirq st rest ptot busy psi_c=-1 psi_m=-1 psi_i=-1
-  local srun=-1 swait=-1 mrun=-1 mwait=-1 majflt=-1 scpu=-1 stat f v
+  local srun=-1 swait=-1 mrun=-1 mwait=-1 majflt=-1 scpu=-1 rss=-1 stat f v
   now="$(date +%s.%N)"
   read -r l1 _ < /proc/loadavg || l1=-1
   read -r _ u n sy idle iow irq sirq st rest < /proc/stat || true
@@ -183,7 +196,9 @@ host_sample() {
     set -- $stat
     majflt="${10:--1}"; scpu=$(( ${12:-0} + ${13:-0} ))
   fi
-  echo "t=$now load1=$l1 cpu_total=$ptot cpu_busy=$busy cpu_steal=${st:-0} psi_cpu_us=$psi_c psi_mem_us=$psi_m psi_io_us=$psi_i srv_run_ns=${srun:--1} srv_wait_ns=${swait:--1} srv_majflt=$majflt srv_cpu=$scpu main_run_ns=${mrun:--1} main_wait_ns=${mwait:--1}" >> "$file"
+  # task m6-online/02: server resident set (kB), VmRSS of /proc/<pid>/status
+  if [[ -r /proc/$pid/status ]]; then rss="$(sed -n 's/^VmRSS:[[:space:]]*\([0-9]*\).*/\1/p' "/proc/$pid/status" 2>/dev/null)"; [[ -n "$rss" ]] || rss=-1; fi
+  echo "t=$now load1=$l1 cpu_total=$ptot cpu_busy=$busy cpu_steal=${st:-0} psi_cpu_us=$psi_c psi_mem_us=$psi_m psi_io_us=$psi_i srv_run_ns=${srun:--1} srv_wait_ns=${swait:--1} srv_majflt=$majflt srv_cpu=$scpu main_run_ns=${mrun:--1} main_wait_ns=${mwait:--1} srv_rss_kb=$rss" >> "$file"
 }
 
 start_host_sampler() {
@@ -342,15 +357,36 @@ run_one() {
   load_gate "$script" "$OUT_DIR/$script-gate.txt"
   if port_busy; then echo "FAILED: UDP port $PORT is in use (ss -ulnp)" >&2; return 1; fi
 
+  local ready_pat="" t_start
+  t_start="$(date +%s.%N)"
+  if [[ "$SERVER_MODE" == dedicated ]]; then
   info "[$script] starting dedicated server (${SERVER_FPS} Hz), log $slog"
   "$EDITOR_CMD" "$VELOX_PROJECT" "$map" -server -log -stdout -FullStdOutLogOutput -nullrhi -unattended -nopause -nosplash \
     -port="$PORT" "${extra[@]}" "${server_args_extra[@]}" >"$slog" 2>&1 &
   SERVER_PID=$!
-  while ! "$GREP" -aq "Game Engine Initialized" "$slog"; do
+  else
+    # ADR 0007 section 1 (a): headless listen host with a spectator-only local player, pinned to 60 fps (STATUS q29).
+    local host_url="${map}?listen?SpectatorOnly=1?Name=Server" host_exec="t.MaxFPS ${SERVER_FPS}${sexec:+, $sexec}"
+    ready_pat="IpNetDriver listening on port $PORT"
+    if [[ -n "$SERVER_BINARY" ]]; then
+      info "[$script] starting packaged headless listen host ${SERVER_BINARY} (${SERVER_FPS} fps), log $slog"
+      "$SERVER_BINARY" "$host_url" -game -nullrhi -nosound -unattended -nopause -nosplash -log -stdout -FullStdOutLogOutput \
+        -port="$PORT" -UserDir="$SERVER_USERDIR" -ExecCmds="$host_exec" >"$slog" 2>&1 &
+    else
+      info "[$script] starting headless listen host (${SERVER_FPS} fps), log $slog"
+      "$EDITOR_CMD" "$VELOX_PROJECT" "$host_url" -game -nullrhi -nosound -unattended -nopause -nosplash -log -stdout -FullStdOutLogOutput \
+        -port="$PORT" -ExecCmds="$host_exec" >"$slog" 2>&1 &
+    fi
+    SERVER_PID=$!
+  fi
+  while ! "$GREP" -aq "Game Engine Initialized" "$slog" || { [[ -n "$ready_pat" ]] && ! "$GREP" -aq "$ready_pat" "$slog"; }; do
     if ! kill -0 "$SERVER_PID" 2>/dev/null; then echo "FAILED: server exited during startup (log: $slog)" >&2; SERVER_PID=""; return 1; fi
     if (( waited >= SERVER_START_TIMEOUT )); then echo "FAILED: server not ready after ${SERVER_START_TIMEOUT}s (log: $slog)" >&2; cleanup; return 1; fi
     sleep 1; waited=$((waited + 1))
   done
+  if [[ -n "$ready_pat" ]]; then
+    info "[$script] host ready after $(awk -v a="$t_start" -v b="$(date +%s.%N)" 'BEGIN { printf "%.1f", b - a }') s: $("$GREP" -a -m1 "$ready_pat" "$slog" | tr -d '\r')"
+  fi
   start_host_sampler "$SERVER_PID" "$OUT_DIR/$script-host.log"
   sleep 2
 
@@ -379,8 +415,14 @@ run_one() {
   local load_end
   read -r load_end _ < /proc/loadavg || load_end=0
   echo "load_end=$load_end" >> "$OUT_DIR/$script-gate.txt"
+  # task m6-online/02: server RSS over the round (sidecar srv_rss_kb), printed for every script and kept in the gate file.
+  local rss_line
+  rss_line="$(awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^srv_rss_kb=/) { v = substr($i, 12) + 0; if (v > 0) { n++; s += v; if (v > m) m = v; l = v } } }
+    END { if (n) printf "rss_max_kb=%d rss_mean_kb=%d rss_last_kb=%d rss_samples=%d", m, s / n, l, n; else printf "rss_max_kb=n/a" }' "$OUT_DIR/$script-host.log" 2>/dev/null)"
+  echo "server_mode=$SERVER_MODE $rss_line" >> "$OUT_DIR/$script-gate.txt"
+  info "[$script] server ($SERVER_MODE) $rss_line"
 
-  VELOX_BOT_CALIBRATION="$BOT_DIFFICULTY" analyze_round "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$lag" "$OUT_DIR"
+  VELOX_SERVER_MODE="$SERVER_MODE" VELOX_BOT_CALIBRATION="$BOT_DIFFICULTY" analyze_round "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$lag" "$OUT_DIR"
 }
 
 # ---- RpcGateRun / PasswordRun (M6 task 07, ADR 0007 sections 5.1 / 5.2): one server, several short clients, no packet
@@ -620,6 +662,15 @@ elif disc:
 for l in S:
     if "VeloxRpcRefused" in l:
         fails.append("server: RPC refused during a soak (velox.net.AllowTestRpcs not set?): %s" % l.strip()[:160]); break
+# ADR 0007 task m6-online/02: a headless listen host must recognise itself (VeloxServerKind::IsHeadlessHost, logged once per
+# process) so that the cosmetic/audio gate above holds for it as for a dedicated server.
+if os.environ.get("VELOX_SERVER_MODE", "dedicated") == "listen":
+    if not any("VeloxServerKind headless_host=1" in l for l in S):
+        fails.append("server: listen host never logged 'VeloxServerKind headless_host=1' (spectator-only -nullrhi host not recognised)")
+    joins = [l for l in S if "VeloxMatch join " in l]
+    if joins and "spectator=1" not in joins[0]:
+        # the host logs in during LoadMap, before any client: its join line is the first one (match-rule modes only)
+        fails.append("server: the listen host joined as an active player (?SpectatorOnly=1 not honoured): %s" % joins[0].strip()[:160])
 if not server_alive:
     fails.append("server process died during the run")
 if crc != 0:
@@ -2030,6 +2081,12 @@ if script in ("BotRun", "BotDuel"):
         v_ = [x_ for x_ in (cost_val(w_, k_) for w_ in ws_) if x_ is not None]
         return sum(v_) / len(v_) if v_ else None
     FPS_SERVER = 60.0
+    # task m6-online/02: server RSS (sidecar srv_rss_kb, absent in older sidecars) and the all-window VeloxBotBudget mean.
+    rss_v = [num(h_, "srv_rss_kb", -1.0) for h_ in host]
+    rss_v = [v_ for v_ in rss_v if v_ > 0]
+    rss_max_kb = max(rss_v) if rss_v else None
+    rss_mean_kb = sum(rss_v) / len(rss_v) if rss_v else None
+    budget_mean_all = (sum(num(d_, "mean_us") for d_ in budget_windows) / len(budget_windows)) if budget_windows else None
     windows = []
     for i_, (d, ts_) in enumerate(zip(budget_windows, budget_stamps)):
         win = num(d, "window", 5.0); tk = num(d, "ticks"); ov = num(d, "over")
@@ -2250,9 +2307,11 @@ if script in ("BotRun", "BotDuel"):
             if p_norm_mean is not None else ("%d (< 3: p_norm/rr_round not computed)" % len(p_w))))
          if fo_ref is not None else "reference (D47): n/a (< 5 windows or no VeloxBotCost lines; D46 classes)",
         cost_breakdown,
-        "host sidecar: %s; load_start=%s load_end=%s gate=%s waited_s=%s%s" % (
+        "host sidecar: %s; load_start=%s load_end=%s gate=%s waited_s=%s%s; server_mode=%s rss_max_mb=%s rss_mean_mb=%s mean_us=%s" % (
             "%d samples" % len(host) if host else "n/a (no sidecar)", gate.get("load_start", "n/a"), gate.get("load_end", "n/a"), gate.get("gate", "n/a"),
-            gate.get("gate_waited_s", "n/a"), " TIMEOUT (started above the gate)" if gate.get("gate_timeout") == "1" else ""),
+            gate.get("gate_waited_s", "n/a"), " TIMEOUT (started above the gate)" if gate.get("gate_timeout") == "1" else "",
+            gate.get("server_mode", "dedicated"), "%.0f" % (rss_max_kb / 1024.0) if rss_max_kb else "n/a", "%.0f" % (rss_mean_kb / 1024.0) if rss_mean_kb else "n/a",
+            "%.1f" % budget_mean_all if budget_mean_all is not None else "n/a"),
         "goals=[%s] fight_share=%.1f%% armed_fight_share=%.1f%% (%d/%d) supp1=%.1f%% fire_noammo=%d/%d allunreachable air=%d ground=%d fight_yields=%d" % (
             " ".join("%s=%d" % kv_ for kv_ in sorted(goals.items())), fight_share, armed_share, vis_armed_fight, vis_armed, supp_share, noammo, debug_lines,
             allun.get("air", 0), allun.get("ground", 0), sum(1 for l_ in S if "VeloxBotFightYield " in l_)),
@@ -2311,7 +2370,9 @@ if script in ("BotRun", "BotDuel"):
              "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w],
              "preset": preset, "calibration": calibration or None, "nh": nh_sum, "nh_bots": dict((b_, nh[b_]) for b_ in sorted(bots)),
              "nh_weapon": dict(nh_weapon), "rl_self_only": nh_rl_so["n"], "max_fire_us": max([w["fire"] for w in windows] or [0]), "mega_takes": len(mega), "link_max": link_max,
-             "link_types": dict(link_types), "link_unknown": dict(link_unknown), "nav_seconds": max(nav_secs) if nav_secs else None}
+             "link_types": dict(link_types), "link_unknown": dict(link_unknown), "nav_seconds": max(nav_secs) if nav_secs else None,
+             "server_mode": gate.get("server_mode", "dedicated"), "rss_max_kb": rss_max_kb, "rss_mean_kb": rss_mean_kb, "budget_mean_us": budget_mean_all,
+             "frame_deficit_mean_pct": (sum(w["fdef"] for w in windows if w["fdef"] is not None) / max(1, sum(1 for w in windows if w["fdef"] is not None))) if windows else None}
     with open(os.path.join(stats_dir, script + ".stats.json"), "w") as sf:
         json.dump(stats, sf)
     cost_txt = ("n/j" if not cost_judged else ("FAIL" if cost_w or budget_mean > BUDGET_MAX or (p_norm_mean or 0) > BUDGET_MAX or (rr_round or 0) > RR_ROUND_MAX else "PASS"))
@@ -2723,6 +2784,9 @@ main() {
       --keep-going) KEEP_GOING=1; shift ;;
       --reeval)  [[ $# -ge 2 ]] || die "--reeval needs a directory"; REEVAL_DIR="$2"; shift 2 ;;
       --map)     [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9_]+$ ]] || die "--map needs a map name (letters, digits, underscore)"; MAP_OVERRIDE="$2"; shift 2 ;;
+      --server-mode) [[ $# -ge 2 && "$2" =~ ^(dedicated|listen)$ ]] || die "--server-mode needs dedicated|listen"; SERVER_MODE="$2"; shift 2 ;;
+      --server-binary) [[ $# -ge 2 ]] || die "--server-binary needs a path"; SERVER_BINARY="$2"; shift 2 ;;
+      --server-userdir) [[ $# -ge 2 ]] || die "--server-userdir needs a path"; SERVER_USERDIR="$2"; shift 2 ;;
       --bot-difficulty) [[ $# -ge 2 && "$2" =~ ^(Easy|Medium|Hard|Expert)$ ]] || die "--bot-difficulty needs Easy|Medium|Hard|Expert"; BOT_DIFFICULTY="$2"; shift 2 ;;
       -h|--help) nettest_usage; exit 0 ;;
       *) nettest_usage >&2; die "unknown option: $1" ;;
@@ -2739,6 +2803,16 @@ main() {
   local base_dir
   if [[ -n "${VELOX_CI_LOG_DIR:-}" ]]; then base_dir="$VELOX_CI_LOG_DIR/nettest"; else base_dir="$VELOX_OUT/$(date +%Y%m%d-%H%M%S)-$$/nettest"; fi
   mkdir -p "$base_dir"
+  if [[ -n "$SERVER_BINARY" ]]; then
+    SERVER_MODE=listen   # --server-binary implies listen (a packaged Game build cannot be a dedicated server, ADR 0007 fact 2)
+    [[ -x "$SERVER_BINARY" && -f "$SERVER_BINARY" ]] || die "--server-binary $SERVER_BINARY is not an executable file"
+    SERVER_BINARY="$(cd "$(dirname "$SERVER_BINARY")" && pwd)/$(basename "$SERVER_BINARY")"
+    [[ -n "$SERVER_USERDIR" ]] || SERVER_USERDIR="$base_dir/server-userdir"
+    mkdir -p "$SERVER_USERDIR"
+  elif [[ -n "$SERVER_USERDIR" ]]; then
+    die "--server-userdir needs --server-binary"
+  fi
+  info "Server mode: $SERVER_MODE${SERVER_BINARY:+ (packaged $SERVER_BINARY, -UserDir=$SERVER_USERDIR)}"
   local lag_desc
   if [[ -n "$LAG_OVERRIDE" ]]; then lag_desc="${LAG_OVERRIDE} ms (all scripts)"; else lag_desc="${LAG_MS} ms (FireRun/FireRunControl ${FIRE_LAG_MS} ms)"; fi
   info "Net soak: scripts=${scripts[*]} rounds=$REPEAT port=$PORT lag=${lag_desc} logs=$base_dir"

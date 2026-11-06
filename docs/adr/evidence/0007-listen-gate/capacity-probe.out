@@ -1,0 +1,18 @@
+124
+== host
+[2026.11.01-11.56.19:941][  0]LogVeloxMatch: VeloxMatch spectator player=Player reason=requested
+[2026.11.01-11.56.19:954][  0]LogVeloxMatch: VeloxMatch join player=Player spectator=1 phase=Warmup active=0
+[2026.11.01-11.56.31:147][641]LogNet: Login request: ?Name=Player userId: NULL:bojan-01A196F7C7137CFE8123A7E824966358 platform: NULL
+[2026.11.01-11.56.31:292][649]LogVeloxMatch: VeloxMatch join player=Player spectator=0 phase=Warmup active=1
+[2026.11.01-11.56.57:828][238]LogNet: Login request: ?Name=Player userId: NULL:bojan-01A196F82A9879C79C2FFBFC4B0A7858 platform: NULL
+[2026.11.01-11.56.57:829][238]LogNet: PreLogin failure: Server full.
+== client1
+[2026.11.01-11.56.31:157][  3]LogNet: Welcomed by server (Level: /Game/Maps/L_ItemTest, Game: /Script/Velox.VeloxGameMode_FFA)
+== client2
+[2026.11.01-11.56.57:841][  3]LogNet: NetConnection::Close() [PendingNetDriver] [NoPC] [No Owner] from NMT_Failure Server full.
+[2026.11.01-11.56.57:841][  3]LogNet: Error: UEngine::BroadcastNetworkFailure: FailureType = PendingConnectionFailure, ErrorString = Server full., Driver = Name:PendingNetDriver Def:GameNetDriver IpNetDriver_0
+[2026.11.01-11.56.57:841][  3]LogNet: Warning: Network Failure: PendingNetDriver[PendingConnectionFailure]: Server full.
+[2026.11.01-11.56.57:841][  3]LogVelox: VeloxMenu network failure type=PendingConnectionFailure error='Server full.' -> returning to the main menu
+[2026.11.01-11.56.57:841][  3]LogNet: NetworkFailure: PendingConnectionFailure, Error: 'Server full.'
+
+[exited with code 0]

@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev
-**Status:** todo
+**Status:** done (see notes/04-report.md)
 **Depends on:** ADR 0007 §2; schema shared with tasks 03 and 05 (this task owns `Net/VeloxServerStatus.h`)
 
 ## Goal

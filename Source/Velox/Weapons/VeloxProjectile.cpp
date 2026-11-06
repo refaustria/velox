@@ -2,6 +2,7 @@
 
 #include "Weapons/VeloxProjectile.h"
 
+#include "Core/VeloxServerKind.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Bots/VeloxBotSubsystem.h"
@@ -362,7 +363,7 @@ void AVeloxProjectile::UpdateFlightLight()
 	// other clients' proxies, a listen host's real one), never on a dedicated server, counted against MaxMovableLights through
 	// VeloxMovableLights. The cosmetics are only read when resident (the pawn's weapon-cosmetics batch); a refused or early
 	// attempt is retried for a few ticks, then given up so a full budget costs nothing afterwards.
-	if (FlightLight || FlightLightTries >= MaxFlightLightTries || IsNetMode(NM_DedicatedServer) || !Definition)
+	if (FlightLight || FlightLightTries >= MaxFlightLightTries || VeloxServerKind::IsServerLike(this) || !Definition)
 	{
 		return;
 	}
@@ -382,7 +383,7 @@ void AVeloxProjectile::UpdateFlightLight()
 
 void AVeloxProjectile::UpdateProjectileVisuals()
 {
-	if (bVisualsDone || VisualsTries >= MaxFlightLightTries || IsNetMode(NM_DedicatedServer) || !Definition)
+	if (bVisualsDone || VisualsTries >= MaxFlightLightTries || VeloxServerKind::IsServerLike(this) || !Definition)
 	{
 		return;
 	}

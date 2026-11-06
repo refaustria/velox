@@ -24,3 +24,6 @@ Plugins/*/Intermediate/
 __pycache__/
 .claude/worktrees/
 *.blend1
+
+# veloxmaster
+infra/master/target/

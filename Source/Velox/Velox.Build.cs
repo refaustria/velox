@@ -31,7 +31,9 @@ public class Velox : ModuleRules
 			"SlateCore",
 			"PhysicsCore",
 			"DeveloperSettings",
-			"Json"
+			"HTTP",
+			"Json",
+			"JsonUtilities"
 		});
 
 		// Empty in M0; add FunctionalTesting when the first functional test map lands.
