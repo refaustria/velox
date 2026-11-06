@@ -6,6 +6,27 @@
 CI_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$CI_LIB_DIR/../.." && pwd)"
 
+# Portable `timeout` (macOS ships no coreutils): real timeout, else gtimeout, else a pure-bash watchdog that
+# TERMs then KILLs the child. Usage as coreutils: timeout [--kill-after=S] SECONDS cmd args...
+# Only defined when no real `timeout` exists; a shell function, so it cannot sit behind exec/flock (Linux has the real one).
+if ! command -v timeout >/dev/null 2>&1; then
+  if command -v gtimeout >/dev/null 2>&1; then
+    timeout() { gtimeout "$@"; }
+  else
+    timeout() {
+      local kill_after=10 secs pid wd rc
+      [[ "${1:-}" == --kill-after=* ]] && { kill_after="${1#--kill-after=}"; shift; }
+      secs="$1"; shift
+      "$@" & pid=$!
+      ( sleep "$secs"; kill -TERM "$pid" 2>/dev/null; sleep "$kill_after"; kill -KILL "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+      wd=$!
+      wait "$pid"; rc=$?
+      kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
+      return "$rc"
+    }
+  fi
+fi
+
 die() { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "[ci] $*"; }
 

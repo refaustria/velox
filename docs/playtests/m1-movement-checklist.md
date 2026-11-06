@@ -55,7 +55,7 @@ Run rows 1, 4-9 on **both** clients (one after the other) and keep the other cli
 
 ```
 M1-06 human playtest (<date>, <name>)
-Build: infra/ci/build-mac.sh -> CI OK (Mac, UE 5.8.x, <Apple Silicon|Intel>)
+Build: infra/ci/build-mac.sh -> CI OK (Mac, UE 5.8.x, Apple Silicon Mac (Mac Studio))
 Setup: PIE, dedicated server + 2 clients, Run Under One Process on, 100 ms / 2 % (<both ways|outgoing only>), ping on HUD <n> ms
 Corridor peak: <n> cm/s (<x.xx> x)    Gaps cleared: 500 <y/n>, 700 <y/n>, 900 <y/n>
 Pads A/B/C: <y/n> <y/n> <y/n>    Ramps 30/45: <y/n>    Stairs 20/40 pass, 60 blocks: <y/n>
