@@ -97,6 +97,11 @@ bool UVeloxGameInstance::TravelFromFirstController(const FString& URL, FString& 
 
 bool UVeloxGameInstance::ConnectToServer(const FString& Address, FString& OutError)
 {
+	return ConnectToServerWithPassword(Address, FString(), OutError);
+}
+
+bool UVeloxGameInstance::ConnectToServerWithPassword(const FString& Address, const FString& Password, FString& OutError)
+{
 	FString Normalized;
 	if (!VeloxMenuMath::NormalizeConnectAddress(Address, DefaultServerPort, Normalized, OutError))
 	{
@@ -105,8 +110,14 @@ bool UVeloxGameInstance::ConnectToServer(const FString& Address, FString& OutErr
 	}
 	PendingMenuMessage.Reset();
 	LastConnectTarget = Normalized;
-	const FString URL = BuildConnectURL(Normalized);
-	UE_LOG(LogVelox, Log, TEXT("VeloxMenu connect address=%s url=%s"), *Normalized, *URL);
+	const FString NameURL = BuildConnectURL(Normalized);
+	FString URL;
+	if (!VeloxMenuMath::AppendPasswordOption(NameURL, Password, URL, OutError))
+	{
+		UE_LOG(LogVelox, Log, TEXT("VeloxMenu connect refused address='%s': %s"), *Address, *OutError);
+		return false;
+	}
+	UE_LOG(LogVelox, Log, TEXT("VeloxMenu connect address=%s url=%s password=%d"), *Normalized, *NameURL, Password.IsEmpty() ? 0 : 1);
 	if (!TravelFromFirstController(URL, OutError))
 	{
 		return false;
