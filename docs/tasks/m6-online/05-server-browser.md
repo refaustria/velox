@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev
-**Status:** todo
+**Status:** done
 **Depends on:** ADR 0007 §2; task 04's `UVeloxOnlineSettings` and the `servers.json` schema (dispatch after 04, or hand both the ADR schema verbatim)
 
 ## Goal
@@ -40,4 +40,4 @@ The main menu gets a "Servers" screen that fetches `https://games.inceptum.at/st
 Standard format plus: the row layout as a text sketch, the compat rule table, and any field the ADR schema lacks that the widget wanted (report; do not add to the schema without the lead).
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+Done on wip/m6-05-browser, see notes/05-report.md. 130 tests green (+3: ServerListParse, ServerCompat, ConnectPassword), Shipping builds, settings-restart PASS, live DumpServers check logged.

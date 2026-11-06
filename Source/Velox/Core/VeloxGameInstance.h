@@ -40,6 +40,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Velox|Menu")
 	bool ConnectToServer(const FString& Address, FString& OutError);
 
+	/**
+	 * ConnectToServer plus the server password (task M6-05, ADR 0007 section 5.2): `?Password=` is appended to the travel URL
+	 * only when Password is non-empty. Our log never prints it; it is not remembered.
+	 */
+	bool ConnectToServerWithPassword(const FString& Address, const FString& Password, FString& OutError);
+
 	/** Main menu "host local": ClientTravel to HostLocalURL (a listen server running the FFA mode). */
 	UFUNCTION(BlueprintCallable, Category = "Velox|Menu")
 	bool HostLocal(FString& OutError);
