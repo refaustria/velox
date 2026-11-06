@@ -8,6 +8,10 @@
 //   Velox.GameMode.ModeDefinitions   DA_GameMode_FFA / DA_GameMode_Duel carry the ADR 0004 defaults and map to the rules;
 //                                    C11: DeathCamera FreeSpectate, Duel ForceRespawnDelay 5 via DA_CombatSettings_Duel (drift guard);
 //                                    amendment 3 (ii): ?SpectatorOnly=1 logins get AVeloxPlayerController (CDO).
+//   Velox.GameMode.HostSemantics     (ADR 0007 section 1 (a), task m6-online/02) the headless listen host is a spectator-only
+//                                    PlayerState: it is no FVeloxMatchPlayer row (GetNumActivePlayers, the filter BuildMatchInput
+//                                    uses), so it neither blocks a Duel ready-up nor counts for MinPlayersToStart (and the row
+//                                    shows the deadlock it would cause if it did); VeloxServerKind::IsHeadlessHostRule truth table.
 
 #include "Misc/AutomationTest.h"
 
@@ -15,6 +19,7 @@
 
 #include "Combat/VeloxCombatSettings.h"
 #include "Core/VeloxGameplayTags.h"
+#include "Core/VeloxServerKind.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -493,6 +498,56 @@ bool FVeloxKillFeedTest::RunTest(const FString& Parameters)
 
 	GameState->ClearKillFeed();
 	TestTrue(TEXT("ClearKillFeed"), GameState->GetKillFeed().Entries.IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxHostSemanticsTest, "Velox.GameMode.HostSemantics", VeloxMatchRulesTest::Flags)
+
+bool FVeloxHostSemanticsTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxMatchRulesTest;
+
+	// Rules side: the rows are active players only. Duel requires ready humans and two players.
+	const FVeloxMatchRulesConfig Rules = Duel();
+	const TArray<FVeloxMatchPlayer> Active = { Player(1, 0, true), Player(2, 0, false, false) };
+	TestTrue(TEXT("ready human + bot may start the countdown"), VeloxMatchRules::CanStartCountdown(Rules, Active));
+	TestEqual(TEXT("one human row"), VeloxMatchRules::NumHumans(Active), 1);
+	TArray<FVeloxMatchPlayer> WithHost = Active;
+	WithHost.Add(Player(3, 0, false, true));
+	TestFalse(TEXT("trap: a host row (unready human) would block the Duel ready-up"), VeloxMatchRules::CanStartCountdown(Rules, WithHost));
+	TestFalse(TEXT("trap: AllHumansReady with a host row"), VeloxMatchRules::AllHumansReady(WithHost));
+	TestFalse(TEXT("one ready human alone stays below MinPlayersToStart 2"), VeloxMatchRules::CanStartCountdown(Rules, { Player(1, 0, true) }));
+
+	// Game mode side: a spectator-only human PlayerState is not an active player, so BuildMatchInput builds no row for it.
+	{
+		FKillFeedTestWorld TestWorld;
+		AVeloxGameMode* GameMode = Cast<AVeloxGameMode>(TestWorld.World->GetAuthGameMode());
+		if (!TestNotNull(TEXT("AVeloxGameMode"), GameMode))
+		{
+			return false;
+		}
+		AVeloxPlayerState* Human = TestWorld.NewPlayer(TEXT("Human"));
+		AVeloxPlayerState* Host = TestWorld.NewPlayer(TEXT("Server"));
+		AVeloxPlayerState* Bot = TestWorld.NewPlayer(TEXT("Bot"));
+		if (!TestNotNull(TEXT("player states"), Human) || !Host || !Bot)
+		{
+			return false;
+		}
+		TestEqual(TEXT("human + bot active"), GameMode->GetNumActivePlayers(), 3);
+		Host->SetIsOnlyASpectator(true);
+		Bot->SetIsABot(true);
+		TestEqual(TEXT("spectator-only host is not active (no FVeloxMatchPlayer row)"), GameMode->GetNumActivePlayers(), 2);
+		TestFalse(TEXT("a standalone test world is not server-like"), VeloxServerKind::IsServerLike(TestWorld.World));
+		TestFalse(TEXT("a standalone test world is no headless host"), VeloxServerKind::IsHeadlessHost(TestWorld.World));
+	}
+
+	// Server kind rule (the world part is covered by the listen-mode nettest's VeloxServerKind log line).
+	TestTrue(TEXT("listen + spectator host + nullrhi"), VeloxServerKind::IsHeadlessHostRule(NM_ListenServer, true, true));
+	TestFalse(TEXT("listen host that plays"), VeloxServerKind::IsHeadlessHostRule(NM_ListenServer, false, true));
+	TestFalse(TEXT("listen host that renders"), VeloxServerKind::IsHeadlessHostRule(NM_ListenServer, true, false));
+	TestFalse(TEXT("client"), VeloxServerKind::IsHeadlessHostRule(NM_Client, true, true));
+	TestFalse(TEXT("standalone"), VeloxServerKind::IsHeadlessHostRule(NM_Standalone, true, true));
+	TestFalse(TEXT("dedicated is not a headless *listen* host (IsServerLike covers it)"), VeloxServerKind::IsHeadlessHostRule(NM_DedicatedServer, true, true));
 	return true;
 }
 

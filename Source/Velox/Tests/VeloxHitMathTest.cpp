@@ -177,6 +177,7 @@ bool FVeloxCharacterGeometryTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("mesh ignores Weapon"), Mesh->GetCollisionResponseToChannel(Velox_TraceChannel_Weapon) == ECR_Ignore);
 	}
 	TestTrue(TEXT("linear smoothing"), Movement->NetworkSmoothingMode == ENetworkSmoothingMode::Linear);
+	TestTrue(TEXT("transform stamp always replicated (listen hosts force Exponential, ADR 0003 B45)"), Movement->bNetworkAlwaysReplicateTransformUpdateTimestamp == true);
 	TestNotNull(TEXT("hitbox component"), CDO->GetHitboxComponent());
 	return true;
 }
