@@ -20,3 +20,6 @@ Paused by the human on 2026-11-01 ("we continue next week"). No agent, soak or U
 ## Rules learnt this session
 - Agent briefs: shared preamble (scratchpad `m6-preamble.txt` is tmpfs — rewrite it from this list): worktree reset, own `infra/.env`, soak lock, kill only own PIDs, never delete outside own worktree/scratch (an agent deleted `~/.cache/daisychess`, `ms-playwright`, `pnpm` on 2026-11-01), ≥ 15 GB disk, no root actions unless the task says "apply".
 - 14 stale self-matching `pgrep` wait loops from earlier agents are still running (harmless; killing them was blocked by the permission classifier; PIDs listed in the chat of 2026-11-01).
+
+## Mac Studio
+The Apple Silicon Mac Studio arrives about 2026-11-20 (compile, test, bake, playtest host). Human runbook: `docs/mac-studio-handover.md` (setup, build, M5 bake + checklist + decision 40, older playtests, task 11, what to send back).
