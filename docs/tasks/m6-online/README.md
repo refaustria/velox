@@ -7,7 +7,8 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 | 01 | [release-package-linux](01-release-package-linux.md) | dev | 3 h | ADR §1 (a), §4 | 0 | — | done (GC crash → 01b, Shipping join → 01c) |
 | 01b | [gc-disregard-audio-settings](01b-gc-disregard-audio-settings.md) | dev-hard | 2–3 h | 01 | 0 | — | done (nettest default list still to run) |
 | 01c | [shipping-client-headless-join](01c-shipping-client-headless-join.md) | dev | 2 h | 01, 01b | 1 | — | todo |
-| 02 | [headless-listen-server-gate](02-headless-listen-server-gate.md) | dev-hard | 3 h (+ soak time) | ADR §1 gate; editor part now, packaged part after 01 | 0 / 1 | — | todo |
+| 02 | [headless-listen-server-gate](02-headless-listen-server-gate.md) | dev-hard | 3 h (+ soak time) | ADR §1 gate; editor part now, packaged part after 01 | 0 / 1 | — | gate run 2026-11-06: listen 15/15 (no listen-attributable failure, architect ruling pending); packaged FAIL on B1/B2 → 02b |
+| 02b | [packaged-tag-table-and-cook-set](02b-packaged-tag-table-and-cook-set.md) | dev | 2–3 h (+ soak time) | 02, decision 51 | 1 | — | todo |
 | 03 | [directory-service-rust](03-directory-service-rust.md) | dev | 3 h | ADR §2 | 0 | — | done |
 | 04 | [server-heartbeat-and-map-registry](04-server-heartbeat-and-map-registry.md) | dev | 3 h | ADR §2; schema shared with 03/05 | 0 | — | done |
 | 04b | [heartbeat-only-with-server-id](04b-heartbeat-only-with-server-id.md) | dev | 1 h | 04 | 0 | — | todo |
