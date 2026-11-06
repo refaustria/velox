@@ -23,6 +23,7 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 | 13 | [release-smoke-and-playtest-checklist](13-release-smoke-and-playtest-checklist.md) | dev | 2 h | 01, 03, 04, 05, 06 | 2 | — | todo |
 | 14 | [windows-client](14-windows-client.md) | dev (script) / human (host) | 1 h + host | ADR §4 | — | **46** | blocked |
 | 15 | [server-capable-installed-build](15-server-capable-installed-build.md) | dev-hard | 1 day on a build box + swap | ADR §1 (c) | — | **41** | blocked |
+| 16 | [itemtest-jumppad-links](16-itemtest-jumppad-links.md) | dev | 2–3 h (+ soak time) | ADR 0007 F2 | 2 | — | todo |
 
 ## Wave plan (from ADR 0007 implementation notes)
 
