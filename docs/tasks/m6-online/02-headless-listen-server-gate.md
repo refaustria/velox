@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev-hard
-**Status:** part A in progress (F1 fixed; full gate sets open); part B todo (waits for 01b)
+**Status:** gate run 2026-11-06: part A (listen, editor binary) no listen-attributable failure, verdict for architect (see Notes); part B (packaged) FAILED on two non-topology defects B1/B2, rerun after fixes
 **Depends on:** ADR 0007 §1 (a) gate; part A (editor binary) can start now, part B needs task 01's server archive
 
 ## Goal
@@ -49,3 +49,28 @@ Standard format plus: the baseline/listen/packaged comparison table (per-script 
 
 2026-11-01, dev-hard, F1 follow-up (architect approved): **done:** `bNetworkAlwaysReplicateTransformUpdateTimestamp = true` in the `UVeloxMovementComponent` constructor (comment cites CMC.cpp:930-936 / Character.cpp:2103); CDO row in `Velox.Character.Geometry` (`Tests/VeloxHitMathTest.cpp`); ADR 0003 B45; ADR 0007 §1 gate text and fact 9 corrected (the hitbox reads the capsule, not bones). `build.sh` green (Editor + Game; Server/Client skipped on the installed engine; all tests Success). F1 evidence, same build: FireRun listen PASS stamp=11/11 C=0, FireRun dedicated PASS stamp=11/11 C=0, `delay_src=proxies` on 51/51 shots in both (`bDelayFromProxies` populated); RSS 1896 MB listen vs 1791 MB dedicated (`evidence/0007-listen-gate/F1-*`).
 **Still open (moved to next week by the lead):** the full gate: the same-day dedicated default-list baseline, the listen default list 13/13, BotRun x3 and BotDuel x3 in listen mode on an idle host (runner prepared: scratchpad `m6-02/gate.sh`; command lines in Verification steps 1-2); then the RSS/budget/frame-deficit comparison table and the "gate PASSED (listen)" verdict; optional `p.NetEnableListenServerSmoothing 0` on the host only if the sidecar shows cost; part B after task 01b.
+
+2026-11-06, dev-hard, **full gate at `90c6624`** (branch `wip/m6-02-gate`). `build.sh` green: VeloxEditor + Velox, 127/127 tests Success. Every set ran under the soak lock with host state recorded. Evidence: `docs/adr/evidence/0007-listen-gate/gate-20261106/<set>/` (runner.log = the full nettest output, stats.json, host sidecars, gzipped server logs), `host.txt`, runner scripts, `tagprobe/`, `package/`. The default list is now 15 scripts (13 in ADR 0007 §1, plus DM1Run and DeathSpectateRun).
+
+| Set | dedicated | listen (editor) | packaged LinuxServer |
+|---|---|---|---|
+| default list | G1 **15/15**, C sum 4, FireRun 11/11/11 | G2 **15/15**, C sum 4, FireRun 11/11/11 | P1 11/15: FireRun, FireRunControl, RocketJumpRun FAIL on the B1 ensure (behaviour otherwise equal, 11/11/11); BotDuel FAIL (B2) |
+| BotRun x3 | G5 behaviour PASS, cost NOT JUDGED (P-dominated) | G3 **set PASS** (2/3 rounds: r3 D33 `allunreachable air=1`); G7 confirm on a loaded host (load1 15.2): cost FAIL / INVALID | P2 **set PASS** 3/3 |
+| BotDuel x3 | G6 **PASS** 3/3 | G4 behaviour FAIL: JumpPad 35/39 = 89.7 %; G8 confirm: behaviour PASS (JumpPad 34/35), cost FAIL 1 window (loaded host) | P3 0/3: no bots (B2) |
+| clean-window bot budget mean_us | 97.6 / 98.8 | 78.6 / 84.1 | 48.7 |
+| server RSS max | 1762 MB | 1798–1908 MB | 363 MB |
+| max frame deficit (idle host) | 6 % / 15 % | 1–2 % | 1 % |
+| ready (`IpNetDriver listening on port`) | — | 10.1 s | ≤ 1.0 s |
+
+Root cause, one attempt each:
+- **JumpPad 89.7 %.** All misses are `reason=missed` on VeloxNavLink_4/_0. The dedicated G5 and the packaged P2 sets miss on the same links. Bots are server-side and never touch the listen-only paths, so this is a per-link miss rate that sits next to the 90 % invariant. G8 gives 97.1 %.
+- **D33 air=1.** One evaluation in 3 rounds. It is a nav-data measure, and 0 in the 7 other listen-shaped BotRun rounds.
+- **Cost X windows.** These are D47 (d) "slow throughout" rounds (frame_other_ref about 2.7x the set min). Dedicated has the same kind of round today and classifies it as P. G7/G8 ran while non-UE work loaded the VM.
+
+LogNetVersion is identical across the three servers: `Velox 0.6.0, NetCL: 55116800, EngineNetworkVersion: 44, GameNetworkVersion: 0 (Checksum: 4065349793)`.
+
+Part B defects (outside this task's scope, for the lead):
+- **B1.** With `FastReplication=True`, the editor process has 8 more native gameplay tags than the cooked build: `Test`, `Test.StateTree`, `Test.StateTree.Tag`..`Tag6`, from the engine's `UncookedOnly` `StateTreeTestSuite` module; StateTree is enabled by default. Net index hash: editor `e71c34fb`, cooked `449a67bc`. Tags after `Test` shift by 8. The packaged server ensures on index 174 >= 165, and in-range indices are silently misread. The net checksum does not cover this. The same mismatch hits ADR 0007 §1 (b) (editor `-server` with packaged clients), in reverse and silently. Fix options: disable StateTree in `Velox.uproject`, a packaged Development client in the rig (`--client-binary`), or refuse connections on a tag hash mismatch.
+- **B2.** `DA_Bot_Easy/Hard/Expert` are not cooked. They are resolved by string, and only Medium is referenced from `DefaultGame.ini`. Packaged log: `Failed to find object '/Game/Bots/DA_Bot_Hard'`, then `VeloxBot url bots not added: unknown ?BotDifficulty`. The Shipping client is affected too. Fix: `+DirectoriesToAlwaysCook=(Path="/Game/Bots")` or a primary asset type.
+
+**Verdict: listen (editor binary): no listen-attributable failure.** The default list equals the same-day dedicated baseline. The x3 sets have no clean all-PASS on today's host, but each miss is either shared with dedicated or caused by host load. Host cost ≤ dedicated, RSS +40–150 MB. Recommendation: accept §1 (a), with one idle-host listen BotDuel x3 rerun if the architect wants a strict set PASS. **Packaged (part B): gate FAILED, not on the listen topology.** Fix B1 and B2, then rerun P1–P3.
