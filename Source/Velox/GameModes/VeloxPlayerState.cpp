@@ -12,7 +12,17 @@
 #include "Core/VeloxCharacterCosmetics.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Core/VeloxPawnData.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "GameModes/VeloxGameMode.h"
+#include "HAL/IConsoleManager.h"
+#include "Items/VeloxItemDefinition.h"
+#include "Items/VeloxItemLog.h"
+#include "Items/VeloxItemRegistrySubsystem.h"
+#include "Items/VeloxPickup.h"
+#include "Containers/Ticker.h"
+#include "Net/Core/PushModel/PushModel.h"
 #include "Net/UnrealNetwork.h"
 #include "Weapons/VeloxGameplayAbility_Fire.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
@@ -75,7 +85,135 @@ void AVeloxPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(AVeloxPlayerState, bReady);
 	DOREPLIFETIME(AVeloxPlayerState, Kills);
 	DOREPLIFETIME(AVeloxPlayerState, Deaths);
+	FDoRepLifetimeParams OwnerOnly;
+	OwnerOnly.Condition = COND_OwnerOnly;
+	OwnerOnly.bIsPushBased = true;
+	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxPlayerState, ItemTimers, OwnerOnly);
 }
+
+const FVeloxItemTimerEntry* AVeloxPlayerState::GetItemTimer(uint8 ItemIndex) const
+{
+	return ItemTimers.FindByPredicate([ItemIndex](const FVeloxItemTimerEntry& Entry) { return Entry.ItemIndex == ItemIndex; });
+}
+
+void AVeloxPlayerState::SetItemTimers(TArray<FVeloxItemTimerEntry>&& InTimers)
+{
+	InTimers.Sort([](const FVeloxItemTimerEntry& A, const FVeloxItemTimerEntry& B) { return A.ItemIndex < B.ItemIndex; });
+	if (InTimers == ItemTimers)
+	{
+		return;
+	}
+	ItemTimers = MoveTemp(InTimers);
+	MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxPlayerState, ItemTimers, this);
+	ForceNetUpdate();
+}
+
+void AVeloxPlayerState::SetItemTimer(uint8 ItemIndex, float RespawnServerTime)
+{
+	// Updated in place (sorted, stable positions) so the array delta carries one element per event.
+	int32 Insert = 0;
+	for (; Insert < ItemTimers.Num() && ItemTimers[Insert].ItemIndex < ItemIndex; ++Insert)
+	{
+	}
+	if (ItemTimers.IsValidIndex(Insert) && ItemTimers[Insert].ItemIndex == ItemIndex)
+	{
+		if (ItemTimers[Insert].RespawnServerTime == RespawnServerTime)
+		{
+			return;
+		}
+		ItemTimers[Insert].RespawnServerTime = RespawnServerTime;
+	}
+	else
+	{
+		FVeloxItemTimerEntry Entry;
+		Entry.ItemIndex = ItemIndex;
+		Entry.RespawnServerTime = RespawnServerTime;
+		ItemTimers.Insert(Entry, Insert);
+	}
+	MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxPlayerState, ItemTimers, this);
+	ForceNetUpdate();
+}
+
+void AVeloxPlayerState::ClearItemTimers()
+{
+	if (ItemTimers.Num() > 0)
+	{
+		ItemTimers.Reset();
+		MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxPlayerState, ItemTimers, this);
+		ForceNetUpdate();
+	}
+}
+
+FString AVeloxPlayerState::DescribeItemTimers() const
+{
+	const UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld());
+	FString Entries;
+	for (const FVeloxItemTimerEntry& Entry : ItemTimers)
+	{
+		const AVeloxPickup* Pickup = Registry ? Registry->FindPickupByIndex(Entry.ItemIndex) : nullptr;
+		Entries += FString::Printf(TEXT("%s%s#%u@%.3f"), Entries.IsEmpty() ? TEXT("") : TEXT(","), Pickup ? *GetNameSafe(Pickup->GetDefinition()) : TEXT("?"), Entry.ItemIndex,
+			Entry.RespawnServerTime);
+	}
+	return FString::Printf(TEXT("n=%d entries=[%s]"), ItemTimers.Num(), *Entries);
+}
+
+void AVeloxPlayerState::OnRep_ItemTimers()
+{
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimers %s reason=rep player=%s"), *DescribeItemTimers(), *VeloxPlayerLabel(this));
+}
+
+#if !UE_BUILD_SHIPPING
+namespace VeloxItemTimerLog
+{
+	// velox.items.LogTimers <seconds>: the soak's client-side evidence (nettest ItemGateRun, ADR 0007 section 5.5). Every
+	// <seconds> of wall time: what this machine's local player holds, with its state (a dead player is Spectating, not
+	// only a spectator). 0 stops it.
+	FTSTicker::FDelegateHandle Handle;
+
+	void LogLocalPlayers()
+	{
+		if (!GEngine)
+		{
+			return;
+		}
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
+		{
+			UWorld* World = Context.World();
+			if (!World || (Context.WorldType != EWorldType::Game && Context.WorldType != EWorldType::PIE) || World->GetNetMode() == NM_DedicatedServer)
+			{
+				continue;
+			}
+			const APlayerController* PC = World->GetFirstPlayerController();
+			const AVeloxPlayerState* PS = PC ? PC->GetPlayerState<AVeloxPlayerState>() : nullptr;
+			if (!PS)
+			{
+				continue;
+			}
+			UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimers %s reason=tick player=%s state=%s only_spectator=%d pawn=%d t=%.3f"), *PS->DescribeItemTimers(),
+				*AVeloxPlayerState::VeloxPlayerLabel(PS), *PC->GetStateName().ToString(), PS->IsOnlyASpectator() ? 1 : 0, PC->GetPawn() ? 1 : 0, World->GetTimeSeconds());
+		}
+	}
+
+	void Command(const TArray<FString>& Args)
+	{
+		const float Seconds = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 1.f;
+		if (Handle.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(Handle);
+			Handle.Reset();
+		}
+		if (Seconds > 0.f)
+		{
+			Handle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float) { LogLocalPlayers(); return true; }), Seconds);
+		}
+		UE_LOG(LogVeloxItems, Log, TEXT("velox.items.LogTimers interval=%.2f"), Seconds);
+	}
+
+	FAutoConsoleCommand LogTimersCmd(TEXT("velox.items.LogTimers"),
+		TEXT("velox.items.LogTimers [seconds=1]: logs the local player's owner-only item timers (VeloxItemTimers n=...) every <seconds>; 0 stops. Non-shipping."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&Command));
+}
+#endif
 
 void AVeloxPlayerState::Reset()
 {

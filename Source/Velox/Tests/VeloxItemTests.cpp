@@ -10,13 +10,17 @@
 //                             it, Reset; armor / ammo / weapon grants (weapon ammo top-up +1), mode respawn scale, a powerup
 //                             taken (tag, 30 s); client prediction (hide, predicted weapon slot, timeout -> shown).
 //   Velox.Items.PickupReset   M3-13 F1: Reset() defers the standing-pawn check one tick (live pawn takes it then, a pawn the
-//                             reset destroys does not). PickupRules also covers IsStaleTake (F2).
+//                             reset destroys does not).
 //   Velox.Items.ModeGating    ADR 0006 section 3: DisabledInModes (the Quad lists Velox.Mode.Duel); a level pickup is destroyed on
 //                             the server at BeginPlay in Duel and kept in FFA and with no mode definition.
 //   Velox.Items.PowerupStacking  task 02: powerup GE layout, grant / in-place extension (ModifyActiveEffectStartTime) with
 //                             the rule's arithmetic, Quad x3 on a dummy, Battle Suit, Regen ticks and decay skip, loss on
 //                             GE_SpawnInit, no regen while dead, frozen = no damage, projectile
 //                             Quad state and Reset.
+//   Velox.Items.Replication   ADR 0007 section 5.5 (task m6-08): the pickup's rep layout (bAvailable, TakeCount, LastTakenBy,
+//                             Definition, ItemIndex; no RespawnServerTime), AVeloxPlayerState::ItemTimers owner-only, the
+//                             world-free entitlement rule, and the baseline rule on a client copy with the engine's hook order
+//                             (first bunch silent, later take / respawn announced, default first bunch then a take announced).
 
 #include "Misc/AutomationTest.h"
 
@@ -42,6 +46,8 @@
 #include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "Movement/VeloxMovementComponent.h"
+#include "Net/UnrealNetwork.h"
+#include "UObject/UnrealType.h"
 #include "Items/VeloxItemDefinition.h"
 #include "Items/VeloxItemRegistrySubsystem.h"
 #include "Items/VeloxPickup.h"
@@ -174,12 +180,6 @@ bool FVeloxItemsPickupRulesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("autoswitch from no weapon"), Inv::AllowsAutoSwitchFrom(nullptr));
 	TestTrue(TEXT("slot input tag 7"), Inv::SlotInputTag(7) == VeloxGameplayTags::InputTag_Weapon_Slot7.GetTag());
 	TestFalse(TEXT("slot input tag 0 invalid"), Inv::SlotInputTag(0).IsValid());
-	// F2 / ADR 0004 C10: IsStaleTake(ServerNow, RespawnServerTime, RespawnSeconds, MaxAge). Take at t = RespawnServerTime - RespawnSeconds.
-	TestFalse(TEXT("stale: fresh take (0.1 s old)"), IsStaleTake(100.1, 135.0, 35.0, 1.0));
-	TestTrue(TEXT("stale: 5 s old"), IsStaleTake(105.0, 135.0, 35.0, 1.0));
-	TestFalse(TEXT("stale: respawn 0 (weapon stay) never has an age"), IsStaleTake(500.0, 0.0, 0.0, 1.0));
-	TestFalse(TEXT("stale: respawn time 0 (available)"), IsStaleTake(500.0, 0.0, 35.0, 1.0));
-	TestFalse(TEXT("stale: exactly the threshold is fresh"), IsStaleTake(101.0, 135.0, 35.0, 1.0));
 	return true;
 }
 
@@ -910,6 +910,121 @@ bool FVeloxItemsModeGatingTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("%s: Quad in the registry"), Case.Name), Registry->FindByTag(VeloxGameplayTags::Item_Powerup_Quad.GetTag()).Num(), Case.bQuadKept ? 1 : 0);
 		TestEqual(FString::Printf(TEXT("%s: registry size"), Case.Name), Registry->GetPickups().Num(), Case.bQuadKept ? 2 : 1);
 	}
+	return true;
+}
+
+// ------------------------------------------------------------------------------------------------------- Replication
+
+namespace VeloxItemTest
+{
+	/** Name -> condition of every replicated property Class's CDO declares (GetLifetimeReplicatedProps). */
+	TMap<FName, ELifetimeCondition> ReplicatedProps(UClass* Class)
+	{
+		TMap<FName, ELifetimeCondition> Result;
+		// RepIndex is assigned lazily (the net driver does this before the first replication); without it every
+		// DOREPLIFETIME property reads RepIndex 0 and the registrations collide.
+		Class->SetUpRuntimeReplicationData();
+		TArray<FLifetimeProperty> Props;
+		Class->GetDefaultObject()->GetLifetimeReplicatedProps(Props);
+		for (const FLifetimeProperty& Lifetime : Props)
+		{
+			for (TFieldIterator<FProperty> It(Class); It; ++It)
+			{
+				if (It->HasAnyPropertyFlags(CPF_Net) && It->RepIndex == Lifetime.RepIndex)
+				{
+					Result.Add(It->GetFName(), Lifetime.Condition);
+					break;
+				}
+			}
+		}
+		return Result;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxItemsReplicationTest, "Velox.Items.Replication", VeloxItemTest::Flags)
+
+bool FVeloxItemsReplicationTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxItemTest;
+
+	// 1. ADR 0007 section 5.5: the rep layout carries availability, the take counter, the taker, the definition and the
+	// registry index; the respawn time is not in it (and is no reflected property at all).
+	const TMap<FName, ELifetimeCondition> PickupProps = ReplicatedProps(AVeloxPickup::StaticClass());
+	for (const TCHAR* Name : { TEXT("bAvailable"), TEXT("TakeCount"), TEXT("LastTakenBy"), TEXT("Definition"), TEXT("ItemIndex") })
+	{
+		TestTrue(FString::Printf(TEXT("pickup replicates %s"), Name), PickupProps.Contains(FName(Name)));
+	}
+	TestFalse(TEXT("RespawnServerTime is not in the rep layout"), PickupProps.Contains(FName(TEXT("RespawnServerTime"))));
+	TestNull(TEXT("RespawnServerTime is no reflected property"), FindFProperty<FProperty>(AVeloxPickup::StaticClass(), TEXT("RespawnServerTime")));
+	TestTrue(TEXT("Definition initial only"), PickupProps.FindRef(FName(TEXT("Definition"))) == COND_InitialOnly);
+	TestTrue(TEXT("ItemIndex initial only"), PickupProps.FindRef(FName(TEXT("ItemIndex"))) == COND_InitialOnly);
+	TestTrue(TEXT("TakeCount to everyone"), PickupProps.FindRef(FName(TEXT("TakeCount"))) == COND_None);
+	const TMap<FName, ELifetimeCondition> PSProps = ReplicatedProps(AVeloxPlayerState::StaticClass());
+	TestTrue(TEXT("PlayerState ItemTimers owner only"), PSProps.Contains(FName(TEXT("ItemTimers"))) && PSProps.FindRef(FName(TEXT("ItemTimers"))) == COND_OwnerOnly);
+
+	// 2. Entitlement, world-free (VeloxItemTimerRules::IsEntitled): a dead player is not a spectator.
+	using VeloxItemTimerRules::IsEntitled;
+	TestTrue(TEXT("Spectators: spectator-only"), IsEntitled(EVeloxItemTimerVisibility::Spectators, true, false));
+	TestFalse(TEXT("Spectators: player (alive or dead)"), IsEntitled(EVeloxItemTimerVisibility::Spectators, false, false));
+	TestTrue(TEXT("Everyone: player"), IsEntitled(EVeloxItemTimerVisibility::Everyone, false, false));
+	TestFalse(TEXT("Nobody: spectator"), IsEntitled(EVeloxItemTimerVisibility::Nobody, true, false));
+	TestFalse(TEXT("bots never (no connection)"), IsEntitled(EVeloxItemTimerVisibility::Everyone, false, true));
+
+	// 3. Baseline rule on a client copy (role switched to SimulatedProxy), hooks in the engine's order.
+	const UVeloxItemDefinition* Mega = AVeloxPickup::LoadDefinitionByName(TEXT("Health.Mega"));
+	if (!TestNotNull(TEXT("Mega asset"), Mega))
+	{
+		return false;
+	}
+	FItemTestWorld W;
+	UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(W.World);
+	AVeloxPickup* Late = AVeloxPickup::SpawnPickup(W.World, Mega, FVector(1000, 0, 0));
+	AVeloxPickup* Fresh = AVeloxPickup::SpawnPickup(W.World, Mega, FVector(-1000, 0, 0));
+	if (!TestNotNull(TEXT("registry"), Registry) || !TestNotNull(TEXT("pickups"), Late) || !Fresh)
+	{
+		return false;
+	}
+	W.Advance(0.1f);
+	TestTrue(TEXT("registry indices differ and resolve"), Late->GetItemIndex() != Fresh->GetItemIndex() && Registry->FindPickupByIndex(Late->GetItemIndex()) == Late
+		&& Registry->FindPickupByIndex(Fresh->GetItemIndex()) == Fresh);
+	int32 Takes = 0;
+	int32 Respawns = 0;
+	Registry->OnPickupTaken.AddLambda([&Takes](AVeloxPickup*, APlayerState*) { ++Takes; });
+	Registry->OnPickupRespawned.AddLambda([&Respawns](AVeloxPickup*) { ++Respawns; });
+	AVeloxPlayerState* Taker = W.World->SpawnActor<AVeloxPlayerState>();
+
+	// Late joiner: the first bunch says taken 5 times, down -> adopted silently (hidden, no event).
+	Late->SetRole(ROLE_SimulatedProxy);
+	Late->TestResetNetBaseline();
+	Late->TestReceiveBunch(5, false, Taker);
+	TestTrue(TEXT("first bunch: suppressed while its notifies run"), Late->TestIsSuppressingNetEvents());
+	TestEqual(TEXT("first bunch (take 5, down): no take event"), Takes, 0);
+	TestEqual(TEXT("first bunch: no respawn event"), Respawns, 0);
+	TestTrue(TEXT("first bunch: state adopted (down, hidden)"), !Late->IsAvailable() && !Late->IsPlaceholderVisible());
+	Late->TestReceiveBunch(6, false, Taker);
+	TestFalse(TEXT("next bunch: events again"), Late->TestIsSuppressingNetEvents());
+	TestEqual(TEXT("later take 6: one take event"), Takes, 1);
+	Late->TestReceiveBunch(6, true, Taker);
+	TestEqual(TEXT("bAvailable true: one respawn event"), Respawns, 1);
+	TestTrue(TEXT("respawned: shown"), Late->IsAvailable() && Late->IsPlaceholderVisible());
+	TestEqual(TEXT("respawn is no take"), Takes, 1);
+
+	// A first bunch equal to the defaults (never taken), then a take: the take is announced.
+	Fresh->SetRole(ROLE_SimulatedProxy);
+	Fresh->TestResetNetBaseline();
+	Fresh->TestReceiveBunch(0, true, nullptr);
+	TestEqual(TEXT("default first bunch: no event"), Takes + Respawns, 2);
+	Fresh->TestReceiveBunch(1, false, Taker);
+	TestEqual(TEXT("take after a default first bunch is announced"), Takes, 2);
+	TestTrue(TEXT("taken: hidden"), !Fresh->IsAvailable() && !Fresh->IsPlaceholderVisible());
+	// uint8 wraps: 255 -> 0 is still a take.
+	Fresh->TestReceiveBunch(255, false, Taker);
+	Fresh->TestReceiveBunch(0, false, Taker);
+	TestEqual(TEXT("TakeCount wrap 255 -> 0 is a take"), Takes, 4);
+	// Client: no timer on this machine for an unentitled local player -> unknown (-1), never the server's value.
+	TestEqual(TEXT("client copy without an entry: time unknown"), Fresh->GetTimeUntilRespawn(), -1.0);
+	Late->SetRole(ROLE_Authority);
+	Fresh->SetRole(ROLE_Authority);
 	return true;
 }
 

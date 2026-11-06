@@ -19,6 +19,10 @@
 //                                  before CompleteDeath -> no death camera, view target kept, step 6 spectate=intermission,
 //                                  respawn still armed (D1); a pure spectator (StartSpectatingOnly) -> Inactive at the
 //                                  intermission, spectator pawn destroyed, still only a spectator (D4).
+//   Velox.GameMode.ItemTimerGating  game world (ADR 0007 section 5.5, task m6-08): a player's ItemTimers stay empty through a
+//                                  major take, the death camera and the respawn; dead -> ViewAPlayer refused, CanSpectate false;
+//                                  a spectator-only PlayerState gets the full set, the take's respawn time, the HUD reads it,
+//                                  and a successful join clears it.
 
 #include "Misc/AutomationTest.h"
 
@@ -57,6 +61,9 @@
 #include "UI/VeloxUISettings.h"
 #include "GameModes/VeloxPlayerState.h"
 #include "GameModes/VeloxSpawnSelection.h"
+#include "Items/VeloxItemDefinition.h"
+#include "Items/VeloxItemRegistrySubsystem.h"
+#include "Items/VeloxPickup.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/OutputDevice.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
@@ -928,6 +935,135 @@ bool FVeloxSpectateIntermissionTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("D4: reset restores camera auto-management"), W.PC->bAutoManageActiveCameraTarget);
 		TestTrue(TEXT("D4: reset: spectating again"), W.PC->IsInState(NAME_Spectating));
 		TestFalse(TEXT("D4: reset: no longer in the intermission"), W.PC->IsInIntermission());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxItemTimerGatingTest, "Velox.GameMode.ItemTimerGating", VeloxDeathTest::Flags)
+
+bool FVeloxItemTimerGatingTest::RunTest(const FString& Parameters)
+{
+	using namespace VeloxDeathTest;
+
+	// ADR 0007 section 5.5 / ADR 0004 C11 amendment 3 (vii): a dead player (NAME_Spectating, !bOnlySpectator) is a player.
+	// Its PlayerState's owner-only ItemTimers stay empty through the take, the death camera and the respawn, and it may
+	// not follow another player (F1.2); a spectator-only PlayerState gets the full set and every update.
+	const UVeloxItemDefinition* Mega = AVeloxPickup::LoadDefinitionByName(TEXT("Health.Mega"));
+	if (!TestNotNull(TEXT("Mega asset"), Mega))
+	{
+		return false;
+	}
+	{
+		FSpectateWorld W;
+		UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(W.World);
+		if (!TestNotNull(TEXT("player: game mode"), W.GameMode) || !TestNotNull(TEXT("player: controller"), W.PC) || !TestNotNull(TEXT("player: player state"), W.PS)
+			|| !TestNotNull(TEXT("player: registry"), Registry))
+		{
+			return false;
+		}
+		AVeloxCharacter* Pawn = W.Respawn();
+		AVeloxPickup* Pickup = AVeloxPickup::SpawnPickup(W.World, Mega, FVector(1500, 0, 0));
+		if (!TestNotNull(TEXT("player: pawn"), Pawn) || !TestNotNull(TEXT("player: pickup"), Pickup))
+		{
+			return false;
+		}
+		W.Advance(2.f);
+		Registry->PushTimersTo(W.PS);
+		TestFalse(TEXT("player: not entitled"), Registry->IsEntitledToItemTimers(W.PS));
+		TestEqual(TEXT("player alive: no timers"), W.PS->GetItemTimers().Num(), 0);
+		TestTrue(TEXT("player takes the Mega"), Pickup->TryPickup(Pawn));
+		TestTrue(TEXT("Mega down on the server"), !Pickup->IsAvailable() && Pickup->GetRespawnServerTime() > 0.f);
+		TestEqual(TEXT("player after a major take: no timers"), W.PS->GetItemTimers().Num(), 0);
+
+		Damage(W.PS->GetVeloxAbilitySystemComponent(), 1000);
+		W.Advance(0.05f);
+		TestTrue(TEXT("dead: spectating, not only a spectator"), W.PC->IsInState(NAME_Spectating) && W.PC->IsDeathSpectating() && !W.PS->IsOnlyASpectator());
+		Registry->PushTimersTo(W.PS);
+		Pickup->Reset();  // a timer change while dead (respawn + fresh schedule)
+		TestFalse(TEXT("dead: not entitled"), Registry->IsEntitledToItemTimers(W.PS));
+		TestEqual(TEXT("dead (death camera): no timers"), W.PS->GetItemTimers().Num(), 0);
+		// F1.2: no following another player while dead; the view stays on the spectator pawn.
+		AActor* ViewBefore = W.PC->GetViewTarget();
+		FDeathLogCapture ViewLog(TEXT("VeloxViewRefused"));
+		W.PC->ViewAPlayer(+1);
+		TestTrue(TEXT("dead: ViewAPlayer refused, view target unchanged"), W.PC->GetViewTarget() == ViewBefore);
+		GLog->FlushThreadedLogs();
+		TestEqual(TEXT("dead: VeloxViewRefused logged"), ViewLog.Lines.Num(), 1);
+		TestFalse(TEXT("dead: CanSpectate refuses"), W.GameMode->CanSpectate(W.PC, W.PS));
+		{
+			UVeloxHUDViewModel* ViewModel = NewObject<UVeloxHUDViewModel>(GetTransientPackage());
+			ViewModel->UpdateFromGame(*W.PC);
+			TestFalse(TEXT("dead: HUD hides timers"), ViewModel->bShowItemTimers);
+			ViewModel->Unbind();
+		}
+
+		const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(W.PS->GetCombatSettings());
+		W.Advance(Settings.MinRespawnDelay + 0.1f);
+		W.PC->ServerRequestRespawn();
+		AVeloxCharacter* NewPawn = Cast<AVeloxCharacter>(W.PC->GetPawn());
+		TestNotNull(TEXT("respawned"), NewPawn);
+		if (NewPawn)
+		{
+			Pickup->Reset();
+			TestTrue(TEXT("respawned player takes the Mega again"), Pickup->TryPickup(NewPawn));
+		}
+		TestEqual(TEXT("after the respawn: no timers"), W.PS->GetItemTimers().Num(), 0);
+	}
+
+	// Spectator-only PlayerState: entitled, full set at the push, every update, cleared by a successful join.
+	{
+		FSpectateWorld W;
+		UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(W.World);
+		if (!TestNotNull(TEXT("spectator: controller"), W.PC) || !TestNotNull(TEXT("spectator: player state"), W.PS) || !TestNotNull(TEXT("spectator: registry"), Registry))
+		{
+			return false;
+		}
+		W.PC->ChangeState(NAME_Inactive);
+		W.PC->StartSpectatingOnly();
+		W.PC->ChangeState(NAME_Spectating);
+		AVeloxPickup* Pickup = AVeloxPickup::SpawnPickup(W.World, Mega, FVector(1500, 0, 0));
+		if (!TestNotNull(TEXT("spectator: pickup"), Pickup))
+		{
+			return false;
+		}
+		W.Advance(0.5f);
+		Registry->PushTimersTo(W.PS);
+		TestTrue(TEXT("spectator: entitled"), Registry->IsEntitledToItemTimers(W.PS));
+		const FVeloxItemTimerEntry* Entry = W.PS->GetItemTimer(Pickup->GetItemIndex());
+		TestTrue(TEXT("spectator: full set at the push (Mega up = 0)"), W.PS->GetItemTimers().Num() == 1 && Entry && Entry->RespawnServerTime == 0.f);
+		TestTrue(TEXT("spectator: may follow players (MayViewOtherPlayers)"), VeloxSpectate::MayViewOtherPlayers(W.PS->IsOnlyASpectator()));
+		TestFalse(TEXT("spectator: CanSpectate never targets itself"), W.GameMode->CanSpectate(W.PC, W.PS));
+
+		// Another player takes it: the spectator's entry follows the server's respawn time.
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AVeloxCharacter* Other = W.World->SpawnActor<AVeloxCharacter>(AVeloxCharacter::StaticClass(), FVector(0, 500, 100), FRotator::ZeroRotator, Params);
+		AAIController* OtherController = W.World->SpawnActor<AAIController>(AAIController::StaticClass(), FTransform::Identity, Params);
+		AVeloxPlayerState* OtherPS = W.World->SpawnActor<AVeloxPlayerState>();
+		if (!TestNotNull(TEXT("spectator: other pawn"), Other) || !OtherController || !OtherPS)
+		{
+			return false;
+		}
+		OtherController->PlayerState = OtherPS;
+		OtherPS->SetOwner(OtherController);
+		OtherController->Possess(Other);
+		W.Advance(0.5f);
+		TestTrue(TEXT("spectator: the other player takes the Mega"), Pickup->TryPickup(Other));
+		Entry = W.PS->GetItemTimer(Pickup->GetItemIndex());
+		TestTrue(*FString::Printf(TEXT("spectator: entry = server respawn time (%.3f vs %.3f)"), Entry ? Entry->RespawnServerTime : -1.f, Pickup->GetRespawnServerTime()),
+			Entry && Entry->RespawnServerTime == Pickup->GetRespawnServerTime() && Entry->RespawnServerTime > 0.f);
+		TestEqual(TEXT("the taker (a player) gets nothing"), OtherPS->GetItemTimers().Num(), 0);
+		{
+			UVeloxHUDViewModel* ViewModel = NewObject<UVeloxHUDViewModel>(GetTransientPackage());
+			ViewModel->UpdateFromGame(*W.PC);
+			TestTrue(TEXT("spectator HUD: timers shown"), ViewModel->bShowItemTimers && ViewModel->ItemTimers.Num() == 1);
+			TestTrue(TEXT("spectator HUD: ~35 s left from the PlayerState entry"), ViewModel->ItemTimers.Num() == 1 && FMath::IsNearlyEqual(ViewModel->ItemTimers[0].SecondsLeft, 35.0, 0.2));
+			ViewModel->Unbind();
+		}
+		// Taking a slot clears them with the flag.
+		TestTrue(TEXT("spectator joins"), W.GameMode->RequestJoin(W.PC));
+		TestFalse(TEXT("joined: only-spectator flag cleared"), W.PS->IsOnlyASpectator());
+		TestEqual(TEXT("joined: timers cleared"), W.PS->GetItemTimers().Num(), 0);
 	}
 	return true;
 }

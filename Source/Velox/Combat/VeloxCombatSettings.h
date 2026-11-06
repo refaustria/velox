@@ -122,16 +122,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Weapons", Meta = (ClampMin = "0", Units = "s"))
 	float BeamKeepAliveSeconds = 0.25f;
 
-	/**
-	 * ADR 0004 C10: a client does not announce (OnPickupTaken) a take older than this when it first sees it (late joiner on
-	 * a placed pickup). Server-side broadcasts are unaffected.
-	 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Items", Meta = (ClampMin = "0", Units = "s"))
-	float PickupTakeEventMaxAgeSeconds = 1.0f;
-
 	/** Fields above with the non-shipping `velox.combat.<Field>` cvars applied. */
 	float GetBeamKeepAliveSeconds() const;
-	float GetPickupTakeEventMaxAgeSeconds() const;
 
 	// Lag compensation (task 03).
 	/**

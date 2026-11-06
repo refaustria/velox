@@ -496,6 +496,11 @@ void AVeloxGameMode::Logout(AController* Exiting)
 		}
 		LeavingPlayerStates.Add(ExitingPS);
 	}
+	if (AVeloxPlayerState* ExitingVeloxPS = Exiting ? Exiting->GetPlayerState<AVeloxPlayerState>() : nullptr)
+	{
+		// ADR 0007 section 5.5: nothing more for a leaving connection.
+		ExitingVeloxPS->ClearItemTimers();
+	}
 	Super::Logout(Exiting);
 	RequestMatchEvaluation();
 }

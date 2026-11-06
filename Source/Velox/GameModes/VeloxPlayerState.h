@@ -18,6 +18,24 @@ class UVeloxHealthSet;
 class UVeloxPawnData;
 class UVeloxWeaponInventoryComponent;
 
+/**
+ * One major item's respawn time as the server sends it to an entitled PlayerState (ADR 0007 section 5.5): the pickup's
+ * registry index and the server world time of the respawn (0 = available). 5 bytes of payload.
+ */
+USTRUCT()
+struct FVeloxItemTimerEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	uint8 ItemIndex = 0;
+
+	UPROPERTY()
+	float RespawnServerTime = 0.f;
+
+	bool operator==(const FVeloxItemTimerEntry& Other) const { return ItemIndex == Other.ItemIndex && RespawnServerTime == Other.RespawnServerTime; }
+};
+
 UCLASS(Config = Game)
 class VELOX_API AVeloxPlayerState : public APlayerState, public IAbilitySystemInterface
 {
@@ -126,6 +144,22 @@ public:
 	/** Server. Returns true if the value changed. */
 	bool SetReady(bool bInReady);
 
+	/**
+	 * Item timers this connection is entitled to (ADR 0007 section 5.5): owner-only, written by UVeloxItemRegistrySubsystem
+	 * on the server, empty for players (alive or dead). Sorted by ItemIndex.
+	 */
+	const TArray<FVeloxItemTimerEntry>& GetItemTimers() const { return ItemTimers; }
+	/** The entry of the pickup with this registry index; null when the server sent none. */
+	const FVeloxItemTimerEntry* GetItemTimer(uint8 ItemIndex) const;
+	/** Server: replaces the whole set (entitlement gained / re-evaluated). */
+	void SetItemTimers(TArray<FVeloxItemTimerEntry>&& InTimers);
+	/** Server: adds or updates one entry (a take or respawn of a major item). */
+	void SetItemTimer(uint8 ItemIndex, float RespawnServerTime);
+	/** Server: entitlement lost (ServerRequestJoin, logout) or level reset. */
+	void ClearItemTimers();
+	/** "n=<count> entries=[<item>#<index>@<time>,...]" (log lines; item names from this world's registry). */
+	FString DescribeItemTimers() const;
+
 protected:
 	/**
 	 * Replication rate for this PlayerState (Hz). The 1 Hz engine default is far too low because the ASC lives here;
@@ -141,6 +175,9 @@ protected:
 private:
 	UFUNCTION()
 	void OnRep_SkinIndex();
+
+	UFUNCTION()
+	void OnRep_ItemTimers();
 
 	void RefreshPawnColor() const;
 	void HandleAbilityActivated(UGameplayAbility* Ability);
@@ -158,6 +195,10 @@ private:
 
 	UPROPERTY(Replicated)
 	int32 Deaths = 0;
+
+	/** ADR 0007 section 5.5: COND_OwnerOnly, push model. */
+	UPROPERTY(ReplicatedUsing = OnRep_ItemTimers)
+	TArray<FVeloxItemTimerEntry> ItemTimers;
 
 	UPROPERTY(VisibleAnywhere, Category = "Velox|PlayerState")
 	TObjectPtr<UVeloxAbilitySystemComponent> AbilitySystemComponent;

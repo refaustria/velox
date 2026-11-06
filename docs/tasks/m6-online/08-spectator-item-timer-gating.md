@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev-hard
-**Status:** todo
+**Status:** partially done (stopped by the lead: disk below 10 GB)
 **Depends on:** ADR 0007 §5.5; ADR 0004 §1–§2, §5, C10, C11 amendment 3 (vii)
 
 ## Goal
@@ -43,4 +43,12 @@ Item respawn times stop leaving the server toward anyone not entitled to them. P
 Standard format plus: the engine line proving the `PostNetReceive` → `CallRepNotifies` order, the final replicated property list of `AVeloxPickup`, the entitlement function, and the `ItemGateRun` log excerpts for both rounds.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+2026-11-06 (dev-hard), report: `docs/tasks/m6-online/notes/08-report.md`.
+- Done: pickup replication split (no `RespawnServerTime` on the wire, push model), baseline rule, owner-only
+  `AVeloxPlayerState::ItemTimers` + registry entitlement (dead player not entitled; ViewAPlayer/CanSpectate refused for
+  dead players, architect F1.2), HUD reads the PlayerState, `IsStaleTake` / `PickupTakeEventMaxAgeSeconds` deleted.
+  Unit rows `Velox.Items.Replication`, `Velox.GameMode.ItemTimerGating`, `Velox.UI.DeadIsNotSpectator` (+array empty).
+  Editor build + 132/132 tests green. ItemGateRun spectator round PASS x3 (dedicated).
+- Remaining: the ItemGateRun player round failed x3 for a harness reason (FFA Countdown->Live reset replaced the scripted
+  pawn before the kill; all client lines n=0, all pushes remote=0). Fix committed but **unverified** (server forces Live
+  1 s after start). Not run: ItemGateRun x3 with the fix, listen mode, ItemRun/DeathSpectateRun, BotRun x3, fts.sh.

@@ -15,6 +15,7 @@
 #include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
+#include "GameModes/VeloxSpectateMath.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 
@@ -129,6 +130,11 @@ FString AVeloxGameMode::InitNewPlayer(APlayerController* NewPlayerController, co
 void AVeloxGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
+	// ADR 0007 section 5.5: a spectator (requested or the mode is full) gets the item timers now; a player never.
+	if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
+	{
+		Registry->PushTimersTo(NewPlayer ? NewPlayer->GetPlayerState<AVeloxPlayerState>() : nullptr);
+	}
 	if (bMatchRulesEnabled && NewPlayer)
 	{
 		const APlayerState* PS = NewPlayer->PlayerState;
@@ -161,6 +167,22 @@ void AVeloxGameMode::Reset()
 {
 	Super::Reset();
 	ClearAllPendingRespawns();
+	// ResetLevel resets this last: every pickup has its new (initial) schedule, so the entitled sets are rebuilt from it.
+	if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
+	{
+		Registry->RefreshAllItemTimers();
+	}
+}
+
+bool AVeloxGameMode::CanSpectate_Implementation(APlayerController* Viewer, APlayerState* ViewTarget)
+{
+	const APlayerState* ViewerPS = Viewer ? Viewer->PlayerState.Get() : nullptr;
+	if (!ViewerPS || !VeloxSpectate::MayViewOtherPlayers(ViewerPS->IsOnlyASpectator()))
+	{
+		return false;
+	}
+	// Nothing to follow in another spectator (the listen host's spectator-only PlayerState included).
+	return ViewTarget && ViewTarget != ViewerPS && !ViewTarget->IsOnlyASpectator() && Super::CanSpectate_Implementation(Viewer, ViewTarget);
 }
 
 bool AVeloxGameMode::ShouldReset_Implementation(AActor* ActorToReset)
@@ -513,6 +535,11 @@ bool AVeloxGameMode::RequestJoin(APlayerController* Controller)
 	--NumSpectators;
 	++NumPlayers;
 	PS->SetIsOnlyASpectator(false);
+	// ADR 0007 section 5.5: the timers go with the flag.
+	if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
+	{
+		Registry->PushTimersTo(Cast<AVeloxPlayerState>(PS));
+	}
 	Controller->bPlayerIsWaiting = true;
 	if (PlayerCanRestart(Controller))
 	{

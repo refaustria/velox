@@ -435,6 +435,11 @@ void UVeloxHUDViewModel::UpdateItemTimers()
 	{
 		return;
 	}
+	// ADR 0007 section 5.5: the respawn times are what the server sent this connection on its own PlayerState (owner-only,
+	// entitled PlayerStates only); the pickup actor only knows whether it is up. ItemTimersVisible stays the display rule.
+	const AVeloxPlayerState* LocalState = Cast<AVeloxPlayerState>(LocalPlayerState.Get());
+	const AGameStateBase* GameState = BoundWorld.IsValid() ? BoundWorld->GetGameState() : nullptr;
+	const double ServerNow = GameState ? GameState->GetServerWorldTimeSeconds() : (BoundWorld.IsValid() ? BoundWorld->GetTimeSeconds() : 0.0);
 	for (const AVeloxPickup* Pickup : Registry->GetMajorPickups())
 	{
 		const UVeloxItemDefinition* Definition = Pickup ? Pickup->GetDefinition() : nullptr;
@@ -445,7 +450,8 @@ void UVeloxHUDViewModel::UpdateItemTimers()
 		VeloxScoreboardFormat::FItemTimer& Timer = ItemTimers.AddDefaulted_GetRef();
 		Timer.ItemName = Definition->DisplayName.ToString();
 		Timer.bAvailable = Pickup->IsAvailable();
-		Timer.SecondsLeft = Pickup->GetTimeUntilRespawn();
+		const FVeloxItemTimerEntry* Entry = LocalState ? LocalState->GetItemTimer(Pickup->GetItemIndex()) : nullptr;
+		Timer.SecondsLeft = (Entry && !Timer.bAvailable && Entry->RespawnServerTime > 0.f) ? FMath::Max(static_cast<double>(Entry->RespawnServerTime) - ServerNow, 0.0) : 0.0;
 		if (const APlayerState* Taker = Pickup->GetLastTakenBy())
 		{
 			Timer.TakenBy = AVeloxPlayerState::VeloxPlayerLabel(Taker);
