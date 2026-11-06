@@ -1,0 +1,1 @@
+PadRun             moves=2818  C=0   echoes=0   gaps=1   repaired=21  repaired_extra=6   resent=1431  resent_extra=1423 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=56.4 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_2'] replays=0 acks_ignored=0 rpcs=1446  

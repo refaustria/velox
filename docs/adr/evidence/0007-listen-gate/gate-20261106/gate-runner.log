@@ -1,0 +1,7 @@
+SET G1-dedicated-default rc=0 07:20:46
+SET G2-listen-default rc=0 07:47:06
+SET G3-listen-botrun3 rc=1 08:05:25
+SET G4-listen-botduel3 rc=1 08:20:45
+SET G5-dedicated-botrun3 rc=1 08:45:26
+SET G6-dedicated-botduel3 rc=0 09:15:01
+GATE DONE

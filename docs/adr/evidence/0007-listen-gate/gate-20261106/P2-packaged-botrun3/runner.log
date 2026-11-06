@@ -1,0 +1,128 @@
+[ci] Server mode: listen (packaged /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox, -UserDir=/tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv-userdir/p2)
+[ci] Net soak: scripts=BotRun rounds=3 port=7784 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P2-packaged-botrun3/20261106-090525-2369784/nettest
+[ci] bands=L_ItemTest
+[ci] [BotRun] load gate: load1=1.26 at round start (gate 2.0, waited 0s)
+[ci] [BotRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P2-packaged-botrun3/20261106-090525-2369784/nettest/round-1/BotRun-server.log
+[ci] [BotRun] host ready after 1.0 s: [2026.11.06-08.05.26:553][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7784
+[ci] [BotRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P2-packaged-botrun3/20261106-090525-2369784/nettest/round-1/BotRun-client.log
+Terminated
+[ci] [BotRun] server (listen) rss_max_kb=371424 rss_mean_kb=370777 rss_last_kb=370352 rss_samples=22
+
+=== Velox net soak round 1/3 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+BotRun             PASS cost=PASS kills=9 frags=9 pickups=45 stuck=0 max_dwell_s=3 link_max_dt=1.07 budget_mean_us=50.1 clean=12/20 P=8
+    . kills_by_bots=9 frags=9 suicides=0 pickups_by_bots=45 [Ammo_Shells=1 Ammo_Slugs=2 Armor_Red=5 Armor_Yellow=4 Health_Large=1 Health_Mega=3 Powerup_BattleSuit=1 Powerup_Haste=1 Powerup_Quad=1 Powerup_Regen=1 Weapon_LightningGun=4 Weapon_MachineGun=3 Weapon_PlasmaGun=4 Weapon_Railgun=4 Weapon_RocketLauncher=7 Weapon_Shotgun=3] major=[Armor_Red,Armor_Yellow,Health_Mega,Powerup_BattleSuit,Powerup_Haste,Powerup_Quad,Powerup_Regen]
+    . links ok=20/28 longest_dt=1.07 [Rapidus:VeloxNavLink_4:relaunched] failed_reasons=[relaunched=8]
+    . stuck=0 rules=[] bursts=0 pocket_strikes=0 at: -
+    . max_dwell_s=3 [Rapidus@(1701,1142),goal=item] timed_waits=8 wait_samples=9 wait_max_s=5.0 [Celer:Armor_Red:R=5.5,lead=0.7] wait_capped=0 repaths=31 offmesh recovered=0 no_nav_point=0 no_clear_point=0 not_at_goal=0 giveup=0 refused=0 hear=3 dodge=0 camp_route_lines=0
+    . budget cost=PASS (clean windows 12/20 P=8) mean_us=50.1 run_mean_us=114.3 max_us=648 max_path_us=2004 max_fire_us=1609 (clean windows over 2000 us: 0/12) paths/s=14.1 max_deferred_frames=12 over_share_pct=[0,0,0,0,0,0,0,0,0,0,0,0,1,3,1,1,1,1,1,1]
+    . window classes [............PPPPPPPP] (. clean, P process-slow, C contended, X cost, ? unverified (no host data, no reference), F frames only): clean=12/20 P=8 contended=0 cost=0 unverified=0 frames=0; stalls=0 frame_deficit_pct=[0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    . reference (D47): frame_other_ref=807 us mean_ref=49.0 us; process-slow windows: p_norm_mean_us=55.3 rr_round=1.13 max_fire_us=2646 max_path_us=1806 stalls=0 (printed, not judged)
+    . cost breakdown (us per bot tick / per frame; clean|P|other windows 12|8|0): super=1.2|5.4|- perceive=2.3|7.8|- traces=1.3|4.1|- decide=4.6|17.9|- move=1.5|5.9|- offmesh=0.4|1.3|- follow=4.0|20.2|- segment=0.8|3.5|- overlay=1.0|3.6|- act=7.2|40.1|- apply=27.5|109.0|- fire=14.7|53.3|- frame_bots_us=142.9|604.0|- frame_other_us=791.5|3077.1|- frame_dispatch_us=83.6|642.0|- frame_actors_us=665.8|2278.5|- frame_flush_us=185.0|760.5|- calib_alu_us=47.0|43.1|- calib_mem_us=182.5|250.3|- calib_alloc_us=25.6|31.2|- calib_clock_us=25.7|25.8|-; slowdown P/clean: bots=4.2 frame_other=3.9
+    . host sidecar: 22 samples; load_start=1.26 load_end=1.76 gate=2.0 waited_s=0; server_mode=listen rss_max_mb=363 rss_mean_mb=362 mean_us=114.5
+    . goals=[fight=65 item=222 none=18] fight_share=21.3% armed_fight_share=42.1% (61/145) supp1=0.0% fire_noammo=15/305 allunreachable air=0 ground=0 fight_yields=0
+    . ra returns (s, respawn->take, report-only): n=3 lags=[2.5,0.2,0.0] within_3s=3 within_6s=3
+    . client corrections (report-only) non-echo=16 max=16.6 cm (t >= 2 s) possession_snap_cm=1100.3 echoes=33
+    . left_arena=none world_kills=0 [] fell_out_lines=0
+    . camp_lines=0 camp_episodes=0 camp_share_pct=0.0 (of 76 goal changes) camp_max_lead_s=0.0
+    . near-human (Live, D51; preset=Medium): acc_hitscan_pct=15.8 acc_proj_pct=19.5 shots_per_kill=93.1 trigger_share_pct=32.9[>=30 IN] held_share_pct=34.3[20-50 IN] acc_mg_pct=14.8[10-24 IN] acc_rg_pct=50.0[30-60 IN] acc_rl_pct=34.6[15-45 IN] rl_self_only=0 acc_by_weapon={LG:15.3,MG:14.8,PG:14.9,RG:50.0,RL:34.6} camp_time_pct=0.0
+    . near-human bot Celer: acc_hitscan_pct=14.8 acc_proj_pct=14.8 shots_per_kill=105.0 trigger_share_pct=26.0 held_share_pct=36.8 camp_time_pct=0.0 (hitscan 27/183 proj 4/27 kills 2 vis 73 fire 19 held 7)
+    . near-human bot Fulgur: acc_hitscan_pct=18.7 acc_proj_pct=21.7 shots_per_kill=274.0 trigger_share_pct=50.8 held_share_pct=34.4 camp_time_pct=0.0 (hitscan 47/251 proj 5/23 kills 1 vis 63 fire 32 held 11)
+    . near-human bot Rapidus: acc_hitscan_pct=10.5 acc_proj_pct=20.6 shots_per_kill=42.0 trigger_share_pct=24.7 held_share_pct=31.6 camp_time_pct=0.0 (hitscan 11/105 proj 13/63 kills 4 vis 77 fire 19 held 6)
+    . window 13 PROCESS-SLOW: mean_us=215 over_share=1% frame_deficit=0% stalls=0 R_other=3.65 R_bots=4.39 rr=1.20 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.1
+    . window 14 PROCESS-SLOW: mean_us=242 over_share=3% frame_deficit=0% stalls=0 R_other=3.99 R_bots=4.93 rr=1.23 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 15 PROCESS-SLOW: mean_us=198 over_share=1% frame_deficit=0% stalls=0 R_other=3.57 R_bots=4.04 rr=1.13 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 16 PROCESS-SLOW: mean_us=178 over_share=1% frame_deficit=0% stalls=0 R_other=3.64 R_bots=3.62 rr=1.00 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 17 PROCESS-SLOW: mean_us=193 over_share=1% frame_deficit=0% stalls=0 R_other=3.59 R_bots=3.93 rr=1.09 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 18 PROCESS-SLOW: mean_us=206 over_share=1% frame_deficit=0% stalls=0 R_other=3.72 R_bots=4.20 rr=1.13 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 19 PROCESS-SLOW: mean_us=236 over_share=1% frame_deficit=0% stalls=0 R_other=4.15 R_bots=4.81 rr=1.16 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.1
+    . window 20 PROCESS-SLOW: mean_us=222 over_share=1% frame_deficit=0% stalls=0 R_other=4.19 R_bots=4.53 rr=1.08 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . client watch lines=58 (feed=8 phase=2 pickup=37)
+[ci] [BotRun] load gate: load1=1.76 at round start (gate 2.0, waited 0s)
+[ci] [BotRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P2-packaged-botrun3/20261106-090525-2369784/nettest/round-2/BotRun-server.log
+[ci] [BotRun] host ready after 1.0 s: [2026.11.06-08.07.12:646][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7784
+[ci] [BotRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P2-packaged-botrun3/20261106-090525-2369784/nettest/round-2/BotRun-client.log
+[ci] [BotRun] server (listen) rss_max_kb=371176 rss_mean_kb=370078 rss_last_kb=369144 rss_samples=22
+
+=== Velox net soak round 2/3 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+BotRun             PASS cost=PASS kills=11 frags=11 pickups=49 stuck=0 max_dwell_s=3 link_max_dt=0.87 budget_mean_us=48.9 clean=12/21 P=9
+    . kills_by_bots=11 frags=11 suicides=0 pickups_by_bots=49 [Ammo_Lightning=2 Ammo_Slugs=2 Armor_Red=4 Armor_Yellow=4 Health_Mega=4 Powerup_BattleSuit=1 Powerup_Haste=1 Powerup_Quad=1 Powerup_Regen=1 Weapon_LightningGun=6 Weapon_MachineGun=1 Weapon_PlasmaGun=5 Weapon_Railgun=6 Weapon_RocketLauncher=9 Weapon_Shotgun=2] major=[Armor_Red,Armor_Yellow,Health_Mega,Powerup_BattleSuit,Powerup_Haste,Powerup_Quad,Powerup_Regen]
+    . links ok=13/17 longest_dt=0.87 [Celer:VeloxNavLink_5:ok] failed_reasons=[below_start=1 relaunched=3]
+    . stuck=0 rules=[] bursts=0 pocket_strikes=0 at: -
+    . max_dwell_s=3 [Celer@(-44,-1962),goal=fight] timed_waits=3 wait_samples=4 wait_max_s=4.5 [Celer:Health_Mega:R=5.4,lead=-0.8] wait_capped=0 repaths=26 offmesh recovered=0 no_nav_point=0 no_clear_point=0 not_at_goal=1 giveup=0 refused=0 hear=1 dodge=0 camp_route_lines=0
+    . budget cost=PASS (clean windows 12/21 P=9) mean_us=48.9 run_mean_us=100.9 max_us=632 max_path_us=1722 max_fire_us=1484 (clean windows over 2000 us: 0/12) paths/s=15.2 max_deferred_frames=8 over_share_pct=[0,0,0,0,0,0,0,0,0,0,0,0,2,5,2,1,1,1,1,1,0]
+    . window classes [............PPPPPPPPP] (. clean, P process-slow, C contended, X cost, ? unverified (no host data, no reference), F frames only): clean=12/21 P=9 contended=0 cost=0 unverified=0 frames=0; stalls=0 frame_deficit_pct=[0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    . reference (D47): frame_other_ref=777 us mean_ref=48.2 us; process-slow windows: p_norm_mean_us=45.1 rr_round=0.94 max_fire_us=2364 max_path_us=1468 stalls=0 (printed, not judged)
+    . cost breakdown (us per bot tick / per frame; clean|P|other windows 12|9|0): super=1.2|5.4|- perceive=2.2|9.8|- traces=1.3|6.0|- decide=4.7|15.9|- move=1.4|5.6|- offmesh=0.4|1.3|- follow=3.6|19.5|- segment=0.7|3.0|- overlay=1.0|3.1|- act=7.0|31.5|- apply=27.0|77.9|- fire=14.7|18.5|- frame_bots_us=139.2|482.5|- frame_other_us=765.2|2918.5|- frame_dispatch_us=87.7|501.3|- frame_actors_us=648.3|2171.0|- frame_flush_us=168.3|728.7|- calib_alu_us=49.3|46.9|- calib_mem_us=169.5|226.1|- calib_alloc_us=28.1|27.0|- calib_clock_us=28.8|29.0|-; slowdown P/clean: bots=3.5 frame_other=3.8
+    . host sidecar: 22 samples; load_start=1.76 load_end=1.50 gate=2.0 waited_s=0; server_mode=listen rss_max_mb=362 rss_mean_mb=361 mean_us=100.7
+    . goals=[fight=94 item=194 none=18] fight_share=30.7% armed_fight_share=55.1% (86/156) supp1=1.3% fire_noammo=6/306 allunreachable air=0 ground=0 fight_yields=1
+    . ra returns (s, respawn->take, report-only): n=2 lags=[0.0,3.8] within_3s=1 within_6s=2
+    . client corrections (report-only) non-echo=7 max=6.8 cm (t >= 2 s) possession_snap_cm=2300.2 echoes=13
+    . left_arena=none world_kills=0 [] fell_out_lines=0
+    . camp_lines=0 camp_episodes=0 camp_share_pct=0.0 (of 86 goal changes) camp_max_lead_s=0.0
+    . near-human (Live, D51; preset=Medium): acc_hitscan_pct=12.0 acc_proj_pct=37.5 shots_per_kill=54.4 trigger_share_pct=30.7[>=30 IN] held_share_pct=28.6[20-50 IN] acc_mg_pct=11.1[10-24 IN] acc_rg_pct=29.4[30-60 OUT] acc_rl_pct=40.5[15-45 IN] rl_self_only=0 acc_by_weapon={LG:6.5,MG:11.1,PG:33.3,RG:29.4,RL:40.5,SG:100.0} camp_time_pct=0.0
+    . near-human bot Celer: acc_hitscan_pct=18.0 acc_proj_pct=30.0 shots_per_kill=60.5 trigger_share_pct=24.7 held_share_pct=16.7 camp_time_pct=0.0 (hitscan 20/111 proj 3/10 kills 2 vis 73 fire 18 held 3)
+    . near-human bot Fulgur: acc_hitscan_pct=11.3 acc_proj_pct=36.7 shots_per_kill=260.0 trigger_share_pct=42.2 held_share_pct=40.7 camp_time_pct=0.0 (hitscan 26/230 proj 11/30 kills 1 vis 64 fire 27 held 11)
+    . near-human bot Rapidus: acc_hitscan_pct=5.9 acc_proj_pct=41.7 shots_per_kill=18.2 trigger_share_pct=26.5 held_share_pct=22.2 camp_time_pct=0.0 (hitscan 5/85 proj 10/24 kills 6 vis 68 fire 18 held 4)
+    . window 13 PROCESS-SLOW: mean_us=186 over_share=2% frame_deficit=0% stalls=0 R_other=3.51 R_bots=3.85 rr=1.10 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 14 PROCESS-SLOW: mean_us=231 over_share=5% frame_deficit=0% stalls=0 R_other=4.04 R_bots=4.79 rr=1.19 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 15 PROCESS-SLOW: mean_us=189 over_share=2% frame_deficit=0% stalls=0 R_other=3.80 R_bots=3.93 rr=1.03 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.3
+    . window 16 PROCESS-SLOW: mean_us=172 over_share=1% frame_deficit=0% stalls=0 R_other=3.88 R_bots=3.56 rr=0.92 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 17 PROCESS-SLOW: mean_us=159 over_share=1% frame_deficit=0% stalls=0 R_other=3.82 R_bots=3.31 rr=0.87 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 18 PROCESS-SLOW: mean_us=143 over_share=1% frame_deficit=0% stalls=0 R_other=3.95 R_bots=2.97 rr=0.75 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 19 PROCESS-SLOW: mean_us=156 over_share=1% frame_deficit=0% stalls=0 R_other=4.05 R_bots=3.23 rr=0.80 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 20 PROCESS-SLOW: mean_us=179 over_share=1% frame_deficit=0% stalls=0 R_other=4.01 R_bots=3.71 rr=0.93 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 21 PROCESS-SLOW: mean_us=113 over_share=0% frame_deficit=0% stalls=0 R_other=2.76 R_bots=2.35 rr=0.85 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.1
+    . client watch lines=64 (feed=10 phase=2 pickup=41)
+[ci] [BotRun] load gate: load1=1.50 at round start (gate 2.0, waited 0s)
+[ci] [BotRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P2-packaged-botrun3/20261106-090525-2369784/nettest/round-3/BotRun-server.log
+[ci] [BotRun] host ready after 1.0 s: [2026.11.06-08.08.59:898][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7784
+[ci] [BotRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P2-packaged-botrun3/20261106-090525-2369784/nettest/round-3/BotRun-client.log
+Terminated
+[ci] [BotRun] server (listen) rss_max_kb=370144 rss_mean_kb=369465 rss_last_kb=369108 rss_samples=22
+
+=== Velox net soak round 3/3 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+BotRun             PASS cost=PASS kills=14 frags=14 pickups=57 stuck=0 max_dwell_s=3 link_max_dt=1.20 budget_mean_us=47.2 clean=12/21 P=9
+    . kills_by_bots=14 frags=14 suicides=0 pickups_by_bots=57 [Ammo_Bullets=1 Ammo_Cells=1 Ammo_Shells=2 Ammo_Slugs=1 Armor_Red=5 Armor_Yellow=5 Health_Mega=4 Powerup_BattleSuit=1 Powerup_Haste=1 Powerup_Quad=1 Powerup_Regen=1 Weapon_LightningGun=6 Weapon_MachineGun=3 Weapon_PlasmaGun=5 Weapon_Railgun=8 Weapon_RocketLauncher=8 Weapon_Shotgun=4] major=[Armor_Red,Armor_Yellow,Health_Mega,Powerup_BattleSuit,Powerup_Haste,Powerup_Quad,Powerup_Regen]
+    . links ok=17/28 longest_dt=1.20 [Celer:VeloxNavLink_4:missed] failed_reasons=[below_start=1 missed=3 relaunched=5 replaced=2]
+    . stuck=0 rules=[] bursts=0 pocket_strikes=0 at: -
+    . max_dwell_s=3 [Celer@(-88,88),goal=fight] timed_waits=6 wait_samples=7 wait_max_s=3.6 [Fulgur:Armor_Yellow:R=4.2,lead=-0.3] wait_capped=0 repaths=19 offmesh recovered=0 no_nav_point=0 no_clear_point=0 not_at_goal=0 giveup=0 refused=0 hear=5 dodge=0 camp_route_lines=0
+    . budget cost=PASS (clean windows 12/21 P=9) mean_us=47.2 run_mean_us=112.0 max_us=634 max_path_us=1343 max_fire_us=636 (clean windows over 2000 us: 0/12) paths/s=14.0 max_deferred_frames=11 over_share_pct=[0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,3,1,1,3,1,1]
+    . window classes [............PPPPPPPPP] (. clean, P process-slow, C contended, X cost, ? unverified (no host data, no reference), F frames only): clean=12/21 P=9 contended=0 cost=0 unverified=0 frames=0; stalls=0 frame_deficit_pct=[0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    . reference (D47): frame_other_ref=756 us mean_ref=44.3 us; process-slow windows: p_norm_mean_us=53.8 rr_round=1.22 max_fire_us=2200 max_path_us=1906 stalls=0 (printed, not judged)
+    . cost breakdown (us per bot tick / per frame; clean|P|other windows 12|9|0): super=1.2|7.6|- perceive=2.4|11.6|- traces=1.4|7.1|- decide=4.5|17.7|- move=1.4|6.6|- offmesh=0.3|1.7|- follow=3.8|19.4|- segment=0.7|3.1|- overlay=0.9|4.5|- act=6.4|29.4|- apply=25.7|100.1|- fire=13.0|35.1|- frame_bots_us=131.5|562.4|- frame_other_us=777.3|2782.9|- frame_dispatch_us=82.7|390.5|- frame_actors_us=648.7|2207.1|- frame_flush_us=177.4|747.7|- calib_alu_us=45.9|45.9|- calib_mem_us=172.1|221.0|- calib_alloc_us=27.9|34.2|- calib_clock_us=27.2|29.3|-; slowdown P/clean: bots=4.3 frame_other=3.6
+    . host sidecar: 22 samples; load_start=1.50 load_end=1.40 gate=2.0 waited_s=0; server_mode=listen rss_max_mb=361 rss_mean_mb=361 mean_us=112.0
+    . goals=[fight=82 item=204 none=20] fight_share=26.8% armed_fight_share=50.7% (75/148) supp1=1.3% fire_noammo=0/306 allunreachable air=0 ground=0 fight_yields=1
+    . ra returns (s, respawn->take, report-only): n=3 lags=[2.0,0.9,0.0] within_3s=3 within_6s=3
+    . client corrections (report-only) non-echo=18 max=20.8 cm (t >= 2 s) possession_snap_cm=1100.3 echoes=25
+    . left_arena=none world_kills=0 [] fell_out_lines=0
+    . camp_lines=0 camp_episodes=0 camp_share_pct=0.0 (of 89 goal changes) camp_max_lead_s=0.0
+    . near-human (Live, D51; preset=Medium): acc_hitscan_pct=17.6 acc_proj_pct=25.0 shots_per_kill=58.6 trigger_share_pct=31.1[>=30 IN] held_share_pct=25.8[20-50 IN] acc_mg_pct=14.5[10-24 IN] acc_rg_pct=50.0[30-60 IN] acc_rl_pct=25.0[15-45 IN] rl_self_only=0 acc_by_weapon={LG:23.9,MG:14.5,RG:50.0,RL:25.0} camp_time_pct=0.0
+    . near-human bot Celer: acc_hitscan_pct=22.0 acc_proj_pct=20.0 shots_per_kill=46.8 trigger_share_pct=28.8 held_share_pct=14.3 camp_time_pct=0.0 (hitscan 39/177 proj 2/10 kills 4 vis 73 fire 21 held 3)
+    . near-human bot Fulgur: acc_hitscan_pct=16.2 acc_proj_pct=28.6 shots_per_kill=46.5 trigger_share_pct=26.5 held_share_pct=50.0 camp_time_pct=0.0 (hitscan 29/179 proj 2/7 kills 4 vis 68 fire 18 held 9)
+    . near-human bot Rapidus: acc_hitscan_pct=15.0 acc_proj_pct=28.6 shots_per_kill=106.5 trigger_share_pct=38.0 held_share_pct=18.5 camp_time_pct=0.0 (hitscan 31/206 proj 2/7 kills 2 vis 71 fire 27 held 5)
+    . window 13 PROCESS-SLOW: mean_us=212 over_share=1% frame_deficit=0% stalls=0 R_other=3.88 R_bots=4.78 rr=1.23 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 14 PROCESS-SLOW: mean_us=234 over_share=2% frame_deficit=0% stalls=0 R_other=3.95 R_bots=5.29 rr=1.34 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 15 PROCESS-SLOW: mean_us=217 over_share=2% frame_deficit=0% stalls=0 R_other=3.77 R_bots=4.90 rr=1.30 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 16 PROCESS-SLOW: mean_us=209 over_share=3% frame_deficit=0% stalls=0 R_other=3.79 R_bots=4.71 rr=1.24 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 17 PROCESS-SLOW: mean_us=214 over_share=1% frame_deficit=0% stalls=0 R_other=3.68 R_bots=4.84 rr=1.31 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.1
+    . window 18 PROCESS-SLOW: mean_us=181 over_share=1% frame_deficit=0% stalls=0 R_other=3.47 R_bots=4.08 rr=1.18 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 19 PROCESS-SLOW: mean_us=187 over_share=3% frame_deficit=0% stalls=0 R_other=4.00 R_bots=4.23 rr=1.06 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 20 PROCESS-SLOW: mean_us=178 over_share=1% frame_deficit=0% stalls=0 R_other=3.65 R_bots=4.01 rr=1.10 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 21 PROCESS-SLOW: mean_us=154 over_share=1% frame_deficit=0% stalls=0 R_other=2.96 R_bots=3.47 rr=1.17 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . client watch lines=70 (feed=13 phase=2 pickup=44)
+=== BotRun set evaluation over 3 round(s) (D36/D46) ===
+  per round: kills=[9, 11, 14] frags=[9, 11, 14] stuck=[0, 0, 0] pickups=[45, 49, 57] max_dwell_s=[3, 3, 3] repaths=[31, 26, 19]
+  dwell waits (ADR 0006 E2): timed_waits=[8, 3, 6] wait_max_s=[5.0, 4.5, 3.6] wait_capped=0 flags=0
+  sums: stuck=0 kills=34 frags=34 pocket_strikes=0 major_covered=7/7 [Armor_Red,Armor_Yellow,Health_Mega,Powerup_BattleSuit,Powerup_Haste,Powerup_Quad,Powerup_Regen] not_at_goal=1
+  left_arena=[none,none,none] world_kills=[0,0,0]
+  bands=L_ItemTest
+  link success by type (invariant >= 90 %, min 30 attempts; failed = missed/timeout/noimpulse/tooslow, aborted = replaced/below_start/ineligible/air_start/relaunched): Drop=28/28 (100.0 %, aborted=10, < 30 attempts: not judged) JumpPad=22/25 (88.0 %, aborted=10, < 30 attempts: not judged)
+  near-human (D51, Live, pooled over 3 round(s), preset=Medium; report-only): acc_hitscan_pct=15.4 acc_proj_pct=25.9 shots_per_kill=66.5 trigger_share_pct=31.6[>=30 IN] held_share_pct=29.6[20-50 IN] acc_mg_pct=13.6[10-24 IN] acc_rg_pct=43.9[30-60 IN] acc_rl_pct=34.5[15-45 IN] rl_self_only=0
+    acc_by_weapon={LG:17.0,MG:13.6,PG:19.3,RG:43.9,RL:34.5,SG:100.0} camp_time_pct=0.0 (hitscan 235/1527 proj 52/201 kills 26 vis 630 fire 199 held 59 samples 744)
+  cost (D47): frame_other_ref per round ['807', '777', '756'] (set min 756); mean_ref ['49.0', '48.2', '44.3']; P windows [8, 9, 9]; rr_round ['1.13', '0.94', '1.22']; p_norm_mean_us ['55.3', '45.1', '53.8']
+  cost: windows clean/total per round ['12/20', '12/21', '12/21']; contended [0, 0, 0]; cost windows [0, 0, 0]; union of clean windows: 36 window(s) mean_us=48.7 max_fire_us=1609
+  set behaviour PASS, cost PASS
+  set PASS
+Rounds passed: 3/3 (requested 3)
+Logs: /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P2-packaged-botrun3/20261106-090525-2369784/nettest
+[ci] NET SOAK OK
