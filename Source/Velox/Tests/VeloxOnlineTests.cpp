@@ -13,6 +13,7 @@
 #include "Core/VeloxOnlineSettings.h"
 #include "Dom/JsonObject.h"
 #include "GameModes/VeloxMatchEffects.h"
+#include "Net/VeloxServerHeartbeatSubsystem.h"
 #include "Net/VeloxServerStatus.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -108,6 +109,10 @@ bool FVeloxHeartbeatJsonTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("empty id"), VeloxServerStatus::SanitizeId(FString()), FString(TEXT("server")));
 	TestEqual(TEXT("long id"), VeloxServerStatus::SanitizeId(FString::ChrN(40, TEXT('a'))).Len(), VeloxServerStatus::MaxId);
+	// Activation rule: only directory servers (-ServerId) post, and only while the master switch is on.
+	TestTrue(TEXT("enabled with id posts"), UVeloxServerHeartbeatSubsystem::IsHeartbeatActive(true, TEXT("test")));
+	TestFalse(TEXT("enabled without id is inactive"), UVeloxServerHeartbeatSubsystem::IsHeartbeatActive(true, FString()));
+	TestFalse(TEXT("disabled never posts"), UVeloxServerHeartbeatSubsystem::IsHeartbeatActive(false, TEXT("test")));
 	TestEqual(TEXT("mode leaf"), VeloxServerStatus::TagLeaf(TEXT("Velox.Mode.Duel")), FString(TEXT("Duel")));
 
 	// Time left (ADR 0004 section 6).

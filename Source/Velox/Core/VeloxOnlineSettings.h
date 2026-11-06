@@ -50,7 +50,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Heartbeat", Meta = (ClampMin = "0", Units = "s"))
 	float HeartbeatFailureLogSeconds = 60.f;
 
-	/** Server: false = never post unless -ServerId= is on the command line (the systemd unit passes it). */
+	/** Server master switch: false = never post. True still posts only with -ServerId= on the command line (the systemd unit passes it). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Heartbeat")
 	bool bHeartbeatEnabled = true;
 

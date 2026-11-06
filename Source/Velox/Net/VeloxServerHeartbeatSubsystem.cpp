@@ -26,26 +26,34 @@ namespace
 	constexpr float SchedulerPeriod = 0.1f;
 }
 
+bool UVeloxServerHeartbeatSubsystem::IsHeartbeatActive(const bool bEnabled, const FString& InServerId)
+{
+	return bEnabled && !InServerId.IsEmpty();
+}
+
 bool UVeloxServerHeartbeatSubsystem::WantsHeartbeat()
 {
 	FString Id;
-	if (FParse::Value(FCommandLine::Get(), TEXT("ServerId="), Id) && !Id.IsEmpty())
-	{
-		return true;
-	}
-	return UVeloxOnlineSettings::Get().bHeartbeatEnabled;
+	FParse::Value(FCommandLine::Get(), TEXT("ServerId="), Id);
+	return IsHeartbeatActive(UVeloxOnlineSettings::Get().bHeartbeatEnabled, Id);
 }
 
 bool UVeloxServerHeartbeatSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
 	// Whether this instance really hosts is only known once a world runs (ClassifyWorld); here only the cheap exclusions.
-	return !IsRunningCommandlet() && WantsHeartbeat() && Super::ShouldCreateSubsystem(Outer);
+	return !IsRunningCommandlet() && Super::ShouldCreateSubsystem(Outer);
 }
 
 void UVeloxServerHeartbeatSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	FParse::Value(FCommandLine::Get(), TEXT("ServerId="), ServerId);
+	if (!WantsHeartbeat())
+	{
+		// Not a directory server: no delegates, no ticker, nothing posted.
+		UE_LOG(LogVeloxOnline, Log, TEXT("VeloxHeartbeat inactive (no -ServerId)"));
+		return;
+	}
 	FParse::Value(FCommandLine::Get(), TEXT("ServerName="), ServerName);
 	bHeadless = FParse::Param(FCommandLine::Get(), TEXT("nullrhi"));
 	PostLoginHandle = FGameModeEvents::OnGameModePostLoginEvent().AddUObject(this, &UVeloxServerHeartbeatSubsystem::OnPostLogin);

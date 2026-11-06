@@ -32,7 +32,10 @@ public:
 	virtual void Deinitialize() override;
 	//~End of USubsystem interface
 
-	/** True when the process will host: -ServerId= on the command line, or UVeloxOnlineSettings::bHeartbeatEnabled. */
+	/** Activation rule: the master switch is on AND a non-empty -ServerId= was given (directory servers only). */
+	static bool IsHeartbeatActive(bool bEnabled, const FString& InServerId);
+
+	/** IsHeartbeatActive for this process (command line + UVeloxOnlineSettings::bHeartbeatEnabled). */
 	static bool WantsHeartbeat();
 
 	/** A phase change, join or leave happened: one extra heartbeat after UVeloxOnlineSettings::HeartbeatDebounceSeconds. */
