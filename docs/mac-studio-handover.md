@@ -19,10 +19,8 @@ Conventions: shell blocks are copy-pasteable in Terminal (zsh). `$REPO` is the c
    ```
    brew install git git-lfs coreutils
    git lfs install
-   # macOS has no `timeout`; bake.sh needs it by that name (see "Known script gaps"):
-   echo 'export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"' >> ~/.zshrc && exec zsh
-   command -v timeout          # must print a path
    ```
+   (`coreutils` is optional: the scripts use `gtimeout` if present and a built-in bash fallback otherwise.)
 5. **Clone and branch.** `m6-online` contains `main` (M0-M5 VM part) plus the M6 work merged so far; the lead names a different branch if that changes.
    ```
    git clone https://github.com/refaustria/velox "$HOME/velox" && cd "$HOME/velox"   # REPO=$HOME/velox
@@ -57,9 +55,9 @@ Spec: `docs/tasks/m5-map-characters/16-lighting-bake-and-perf-audit.md` part B, 
    ```
    cd "$REPO"
    git checkout -b mac/m5-bake
-   VELOX_BAKE_TIMEOUT=14400 caffeinate -i infra/ci/build-mac.sh --bake /Game/Maps/DM1/L_DM1 Production
+   caffeinate -i infra/ci/build-mac.sh --bake /Game/Maps/DM1/L_DM1 Production
    ```
-   `--bake <Map> <Quality>` is passed through to `infra/ci/bake.sh` with `VELOX_BAKE_PLATFORM=Mac`; quality is `Preview|Medium|High|Production`; env knobs `VELOX_BAKE_TIMEOUT` (default 5400 s, so raise it for Production) and `VELOX_BAKE_EXTRA`. Log: `Saved/CI/<timestamp>-bake/bake.log`. It exits non-zero unless the log shows Lightmass completion and a save line for `L_DM1`. **Read "Known script gaps" first**: `/usr/bin/time -v` in `bake.sh` does not exist on macOS and will abort the run before the commandlet starts; if you see "illegal option", use the manual command given there.
+   `--bake <Map> <Quality>` is passed through to `infra/ci/bake.sh` with `VELOX_BAKE_PLATFORM=Mac`; quality is `Preview|Medium|High|Production`; env knobs `VELOX_BAKE_TIMEOUT` (default 14400 s for Production, 5400 s otherwise) and `VELOX_BAKE_EXTRA`. Log: `Saved/CI/<timestamp>-bake/bake.log`. It exits non-zero unless the log shows Lightmass completion and a save line for `L_DM1`.
 2. **Verify the bake** (the figures `Velox.Maps.LightingBuilt` asserts):
    ```
    UE="/Users/Shared/Epic Games/UE_5.8"   # or your UE_ROOT
@@ -89,7 +87,7 @@ All have been blocked since 2026-10-30 only by the missing renderer (STATUS "Hum
 | 3 | `docs/playtests/m3-gameloop-checklist.md` | the template at the end of the file |
 | 4 | `docs/playtests/m4-bots-checklist.md` (M4 playtest; difficulty rows relate to STATUS q30) | section 6 |
 
-Their sign-off templates still say "Intel Mac" in places; use the Apple Silicon Mac and ignore the wording. Check STATUS.md "Done" / "Blocked" before starting in case the lead has signed one off from other evidence.
+Check STATUS.md "Done" / "Blocked" before starting in case the lead has signed one off from other evidence.
 
 ## 5. M6 items queued for the Mac
 
@@ -109,18 +107,8 @@ Everything goes via the repo or a share; never commit secrets or `infra/.env`.
 - **Machine facts** for `docs/machine.md`: `sw_vers`, `xcodebuild -version`, `sysctl -n machdep.cpu.brand_string`, `df -h /`, the UE version shown in the Launcher.
 - **How**: `git push -u origin <branch>` (LFS files go with it); large zips via `scp` to the VM or any share. Then tell the lead "Mac ready / M5 baked / playtests done"; the lead merges and updates STATUS and ROADMAP.
 
-## Known script gaps (found while writing this runbook; the lead should fix)
+## Known script gaps
 
-1. `infra/ci/bake.sh`: `[[ -x /usr/bin/time ]] && WRAP+=(/usr/bin/time -v)`. macOS `/usr/bin/time` is BSD and has no `-v` (it has `-l`), so the bake aborts with "illegal option". Workaround (same commandlet and log layout; needs the gnubin PATH from step 1.4; run from `$REPO`):
-   ```
-   UE="/Users/Shared/Epic Games/UE_5.8"   # or your UE_ROOT
-   OUT="Saved/CI/$(date +%Y%m%d-%H%M%S)-bake"; mkdir -p "$OUT"
-   timeout --kill-after=60 14400 "$UE/Engine/Binaries/Mac/UnrealEditor.app/Contents/MacOS/UnrealEditor-Cmd" "$PWD/Velox.uproject" \
-     -run=ResavePackages -BuildLighting -Quality=Production -MapsOnly -Map=/Game/Maps/DM1/L_DM1 \
-     -AllowCommandletRendering -unattended -nopause -nosplash -stdout -FullStdOutLogOutput 2>&1 | tee "$OUT/bake.log"
-   grep -a LogLightmassSolver "$OUT/bake.log" | tail -3
-   ```
-   Fix: use `-l` on Darwin or skip `time`.
-2. `build-mac.sh` defines a `timeout` shell function (gtimeout shim), but `--bake` `exec`s `bake.sh`, a new process that does not see it; `bake.sh` calls `timeout` directly. Without coreutils' gnubin on PATH the bake dies with "timeout: command not found". Workaround: the PATH line in step 1.4. Fix: define the shim in `bake.sh` too.
-3. `bake.sh` default `VELOX_BAKE_TIMEOUT` is 5400 s (1.5 h) while Production is expected to take 1-3 h; set a larger value as shown.
-4. `build-mac.sh --package` (task 11) is missing; `--net-soak` is Linux only, so there is no network soak on the Mac (playtests use PIE).
+(The earlier bake gaps - GNU-only `time -v`, missing `timeout`, a too-short default timeout - are fixed in `bake.sh`/`lib.sh`.)
+
+1. `build-mac.sh --package` (task 11) is missing; `--net-soak` is Linux only, so there is no network soak on the Mac (playtests use PIE).

@@ -2,7 +2,7 @@
 # Lighting bake (ADR 0006 section 5): ResavePackages -BuildLighting through the local UnrealLightmass.
 # Usage: infra/ci/bake.sh <Map, e.g. /Game/Maps/L_ItemTest> <Preview|Medium|High|Production>
 # Env: UE_ROOT, VELOX_PROJECT (or infra/.env), VELOX_OUT, SOAK_LOCK (default /tmp/velox-soak.lock),
-#      VELOX_BAKE_TIMEOUT seconds (default 5400), VELOX_BAKE_PLATFORM (Linux|Mac, default Linux),
+#      VELOX_BAKE_TIMEOUT seconds (default 14400 for Production, else 5400), VELOX_BAKE_PLATFORM (Linux|Mac, default Linux),
 #      VELOX_BAKE_EXTRA (extra commandlet args, e.g. -nullrhi for the probe).
 # Linux: software Vulkan (lavapipe) under the soak lock. Mac: Metal, no lock/ICD (run by the human).
 # Exit non-zero unless the log shows Lightmass completion and the map was saved.
@@ -24,7 +24,7 @@ EDITOR="$(find_editor_cmd)" || die "UnrealEditor-Cmd not found under $UE_ROOT"
 OUT="${VELOX_OUT:-$REPO_ROOT/Saved/CI}/$(date +%Y%m%d-%H%M%S)-bake"
 mkdir -p "$OUT"; LOG="$OUT/bake.log"
 SOAK_LOCK="${SOAK_LOCK:-/tmp/velox-soak.lock}"
-TMO="${VELOX_BAKE_TIMEOUT:-5400}"
+if [[ "$QUALITY" == Production ]]; then TMO="${VELOX_BAKE_TIMEOUT:-14400}"; else TMO="${VELOX_BAKE_TIMEOUT:-5400}"; fi
 
 CMD=("$EDITOR" "$VELOX_PROJECT" -run=ResavePackages -BuildLighting "-Quality=$QUALITY" -MapsOnly "-Map=$MAP"
      -AllowCommandletRendering -unattended -nopause -nosplash -stdout -FullStdOutLogOutput)
@@ -36,7 +36,9 @@ if [[ "$PLATFORM" == Linux ]]; then
   export VK_ICD_FILENAMES="${VK_ICD_FILENAMES:-/usr/share/vulkan/icd.d/lvp_icd.json}"
   WRAP=(flock -o "$SOAK_LOCK" "${WRAP[@]}")
 fi
-[[ -x /usr/bin/time ]] && WRAP+=(/usr/bin/time -v)
+if [[ -x /usr/bin/time ]]; then
+  if [[ "$(uname)" == Darwin ]]; then WRAP+=(/usr/bin/time -l); else WRAP+=(/usr/bin/time -v); fi  # BSD time has -l, GNU -v
+fi
 info "Bake $MAP $QUALITY platform=$PLATFORM log=$LOG"
 START=$(date +%s)
 set +e
