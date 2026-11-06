@@ -23,4 +23,18 @@ namespace VeloxNet
 	 * returns false, so the engine disconnects the sender (RPC_ValidateFailed).
 	 */
 	VELOX_API bool ValidateTestRpc(const UObject* Context, const TCHAR* RpcName);
+
+	/** The configured server password and where it came from ("cmdline", "url", "env" or "none"); the value is never logged. */
+	struct FServerPasswordResolution
+	{
+		FString Password;
+		const TCHAR* Source = TEXT("none");
+	};
+
+	/**
+	 * World-free source selection for the server password (ADR 0007 section 5.2, amendment F1.3; Velox.Net.PasswordRule):
+	 * `-ServerPassword=` in CmdLine wins over `?ServerPassword=` in HostOptions, which wins over EnvValue
+	 * (VELOX_SERVER_PASSWORD, the production path). An empty value at any level falls through to the next one.
+	 */
+	VELOX_API FServerPasswordResolution ResolveServerPassword(const TCHAR* CmdLine, const FString& HostOptions, const FString& EnvValue);
 }

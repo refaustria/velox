@@ -9,7 +9,7 @@ were run. Still open: the Game Development + Shipping builds, KnockbackRun x10, 
 | RPC | owner | rule |
 |---|---|---|
 | `ServerExecRPC` (engine) | `AVeloxPlayerController` | `IsLocalController()`, else `VeloxRpcRefused reason=remote` -> false |
-| `ServerPause` (engine; not in the ADR, added) | `AVeloxPlayerController` | same as ServerExecRPC |
+| `ServerPause` (engine; kept by ADR 0007 F1.2) | `AVeloxPlayerController` | same as ServerExecRPC; plus `bPauseable=false` in the `AVeloxGameMode` constructor, so `AllowPausing` is false for every networked controller (standalone still pauses via `NM_Standalone`); pinned in `Velox.Net.NoCheatManagerForRemote` |
 | `ServerAddBot`, `ServerKickBot` (now `WithValidation`) | `AVeloxPlayerController` | `IsLocalController() \|\| VeloxNet::ValidateTestRpc` (the args and rate checks stay in `AcceptBotCommand`) |
 | `ServerApplyTestKnockback` | `UVeloxScriptedInputComponent` | Shipping false; `ValidateTestRpc` && the existing impulse bound |
 | `ServerGiveTestHaste` | same | Shipping false; `ValidateTestRpc` && `0 < s <= MaxTestHasteSeconds` |
@@ -61,3 +61,64 @@ the speed hack is 20 % *slower* than an honest client (not within 5 %); with it 
    "Player<id>". A name with a space breaks the `\S+` log parsing if multi-human soaks ever key on names.
 6. **New nettest knobs:** `VELOX_NETTEST_SERVER_ARGS`, `VELOX_TIME_SCALE`, and `SpeedHackRun` (not in the default list). The
    default list is now 17 scripts.
+
+
+---
+
+# Update 2026-11-06 (dev-hard): ADR 0007 amendment F1 checklist
+
+Status: **partially done** (stopped by the lead: disk below 10 GB, no new UE steps). Branch `wip/m6-07-hardening`, merged
+with `origin/m6-online` (01b, 02 part A, 04b; one trivial conflict in `nettest.sh` `analyze_round`: both gates kept).
+
+## Done
+- F1.1 (i): `MovementTimeDiscrepancyDriftAllowance=0.005` in `Config/DefaultGame.ini`.
+- F1.2: `bPauseable=false` in the `AVeloxGameMode` constructor; `AllowPausing(Remote)==false` row in
+  `Velox.Net.NoCheatManagerForRemote`.
+- F1.3 (ii): `VeloxNet::ResolveServerPassword(CmdLine, HostOptions, EnvValue) -> {Password, Source}` (world-free, in
+  `Net/VeloxNetCheats.h/.cpp`), used by `AVeloxGameMode::InitGame`; 4 new `Velox.Net.PasswordRule` rows. **Bug found by the new
+  row and fixed:** `FParse::Value` skips whitespace after `=`, so an empty `-ServerPassword= -nullrhi` used to set the password
+  to `-nullrhi`; the value is now parsed only when it starts right after the `=`. Also new: an empty `?ServerPassword=` falls
+  through to the environment (before: source `url`, password off).
+- F1.1 (ii): server branch of `velox.move.DebugTimeScaleLog`: `VeloxTimeScale role=server pawn= player= real_t= world_t= pos=
+  speed2d=` per remote player's pawn, 1 Hz. Both branches now log `pos=` as `FVector::ToString` (`ToCompactString` drops zero
+  components).
+- F1.1 (iii): `SpeedHackRun` server gets `velox.move.DebugTimeScaleLog 1`; `analyze_round` prints `dx_server=`/`dx_client=`
+  (10 s of real time from the first 1 Hz sample that moved by 1-600 cm; the cap skips the script's teleport).
+- F1.3 (i): `run_password` starts the server with `VELOX_SERVER_PASSWORD` in its environment (exported only around the server
+  start; `nettest.sh` unsets it globally so every other soak server is open), asserts `source=env`, and FAILs on
+  `pw_cmdline_echo_lines > 0`. `Login request:`/`Join request:` echoes are counted in `pw_engine_echo_lines` but not judged.
+- Pre-existing Game-target compile error fixed: `VeloxNetTests.cpp` used `TGuardValue<bool>(GIsEditor, ...)`, but `GIsEditor`
+  is a `#define false` without `WITH_EDITORONLY_DATA`. Now behind a macro that matches CoreGlobals.h's condition.
+
+## Verification
+- Builds: Editor + Game Development (`infra/ci/build.sh`, Server/Client SKIPPED: installed engine) green; Game Shipping
+  (`Build.sh Velox Linux Shipping`) Succeeded. The Game Development/Shipping outputs were deleted afterwards (disk).
+- Automation: **131/131** pass (`Saved/CI/20261106-091046-2378293`).
+- StrafeRun+PadRun x10: 10/10 PASS, 1 non-echo correction (2.62 cm), Σ strays 0, 0 `VeloxTimeDiscrepancy`.
+- KnockbackRun x10: 10/10 PASS.
+- RpcGateRun,PasswordRun --repeat 3: 3/3 each (`exec_dt=0.032`, `kill_dt=0.033`, `ConnectionLost`; `wrong=failed:Wrong_password
+  spectator=failed:Wrong_password right=joined pw_cmdline_echo_lines=0 pw_engine_echo_lines=2`).
+- SpeedHackRun (server-side, `docs/adr/evidence/0007-discrepancy/README.md`): honest 1998.3 cm; 1.3 on 1588.8 cm (**-20.5 %**,
+  15 resolutions, client 1513.0 cm); 1.3 off 2591.7 cm (+29.7 %). Diagnostic run with `p.DebugTimeDiscrepancy 2`: 0.94 simulated
+  / server time, plus a velocity reset at every payback (likely).
+
+## Password source table
+| source | precedence | in the server log? | use |
+|---|---|---|---|
+| `-ServerPassword=<s>` | 1 (empty value falls through) | yes (`LogInit: Command Line:`, CSV metadata, crash context) | developer convenience |
+| `?ServerPassword=<s>` on the host URL | 2 (empty falls through) | yes (`LoadMap`/`Browse`) | developer convenience |
+| `VELOX_SERVER_PASSWORD` (environment, systemd EnvironmentFile) | 3 | no (only the clients' `Login request:`/`Join request:` echo, per F1.3 (b)) | **production** |
+
+## Remaining (not run: stopped by the lead)
+1. **Full default list `--repeat 1`** with the new allowance, and a clean BotRun (or BotRun/BotDuel x3). Not run.
+2. **Speed-hack criterion not met on the server side** (-20.5 %, not within +-5 %). Needs an architect ruling: either restate
+   the criterion as "the hack gains nothing (server-side <= honest + 5 %)", which is met, or look for a knob. The cause is
+   engine-side (resolution accounting plus the payback ticks at `MIN_TICK_TIME`); a fix would mean either `ResolutionRate` < 1,
+   which F1.1 rejected, or a change in the movement component, which is out of scope here.
+3. The `dx_*` window rule was committed after the three SpeedHackRun rounds. It was checked offline on their logs and then by
+   the diagnostic round (nettest printed `dx_server=1493.2`). The honest / 1.3 on / 1.3 off rows were not re-run with the
+   committed code.
+4. **Heartbeat flag:** task 04b is merged. `VeloxServerHeartbeatSubsystem.cpp:242` has `Out.bPassword = false; // Task 07 sets it.`.
+   It needs one line, `bPassword` from `AVeloxGameMode::HasServerPassword()`. Not done, because it could not be compiled
+   (no new builds).
+5. Carried over: menu password field (Core/, task 05).

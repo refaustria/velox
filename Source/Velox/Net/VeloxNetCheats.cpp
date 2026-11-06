@@ -7,7 +7,9 @@
 //                                       character of a client world gets CustomTimeDilation = s, so its movement
 //                                       component ticks, and stamps its moves, s times faster than real time. Default 1.
 //   velox.move.DebugTimeScaleLog 0|1    with 1 (or a scale != 1) logs `VeloxTimeScale` once per real second: scale, real
-//                                       time, world time, position, 2-D speed of the local character.
+//                                       time, world time, position, 2-D speed of the local character. On a server world
+//                                       (dedicated / listen) with 1: `VeloxTimeScale role=server pawn= player= real_t= pos=
+//                                       speed2d=` for every remote player's pawn (ADR 0007 F1.1; nothing is scaled there).
 //   velox.net.ConnectProbe [timeout]    client: waits for the connect to finish; logs `VeloxConnectProbe result=joined` or
 //                                       `result=failed failure= error="..."` (the server's PreLogin text) and quits 0;
 //                                       `result=timeout` quits 1 (nettest PasswordRun).
@@ -32,6 +34,8 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/Parse.h"
 #include "Movement/VeloxScriptedInputComponent.h"
 
 namespace VeloxNetCheatsPrivate
@@ -97,6 +101,36 @@ bool VeloxNet::ValidateTestRpc(const UObject* Context, const TCHAR* RpcName)
 	return false;
 }
 
+VeloxNet::FServerPasswordResolution VeloxNet::ResolveServerPassword(const TCHAR* CmdLine, const FString& HostOptions, const FString& EnvValue)
+{
+	FServerPasswordResolution Result;
+	FString Value;
+	// FParse::Value skips whitespace after '=', so an empty `-ServerPassword= -nullrhi` would read "-nullrhi": only parse a
+	// value that starts right after the '='.
+	const TCHAR* const Switch = TEXT("ServerPassword=");
+	const TCHAR* const Found = CmdLine ? FCString::Strifind(CmdLine, Switch, /*bSkipQuotedChars*/ true) : nullptr;
+	const TCHAR* const After = Found ? Found + FCString::Strlen(Switch) : nullptr;
+	if (After && *After && !FChar::IsWhitespace(*After) && FParse::Value(CmdLine, Switch, Value, /*bShouldStopOnSeparator*/ false) && !Value.IsEmpty())
+	{
+		Result.Password = MoveTemp(Value);
+		Result.Source = TEXT("cmdline");
+		return Result;
+	}
+	Value = UGameplayStatics::ParseOption(HostOptions, TEXT("ServerPassword"));
+	if (!Value.IsEmpty())
+	{
+		Result.Password = MoveTemp(Value);
+		Result.Source = TEXT("url");
+		return Result;
+	}
+	if (!EnvValue.IsEmpty())
+	{
+		Result.Password = EnvValue;
+		Result.Source = TEXT("env");
+	}
+	return Result;
+}
+
 #if !UE_BUILD_SHIPPING
 namespace VeloxNetCheatsPrivate
 {
@@ -107,6 +141,29 @@ namespace VeloxNetCheatsPrivate
 	FTSTicker::FDelegateHandle TimeScaleTicker;
 	double TimeScaleStart = -1.0;
 	double TimeScaleLastLog = -1e9;
+	double ServerTimeScaleStart = -1.0;
+	double ServerTimeScaleLastLog = -1e9;
+
+	/**
+	 * Server branch of velox.move.DebugTimeScaleLog (ADR 0007 amendment F1.1 (ii)): once per real second, the server-side
+	 * position of every remote player's pawn, so nettest SpeedHackRun can measure the guard's output (dx_server). Nothing
+	 * is scaled here; the scale is client-only.
+	 */
+	void LogServerTimeScale(UWorld* World, double Now)
+	{
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			const APlayerController* PC = It->Get();
+			const APawn* Pawn = PC && !PC->IsLocalController() ? PC->GetPawn() : nullptr;
+			if (!Pawn)
+			{
+				continue;
+			}
+			UE_LOG(LogVeloxNet, Log, TEXT("VeloxTimeScale role=server pawn=%s player=%s real_t=%.3f world_t=%.3f pos=%s speed2d=%.1f"), *Pawn->GetName(),
+				*AVeloxPlayerState::VeloxPlayerLabel(PC->PlayerState), Now - ServerTimeScaleStart, World->GetTimeSeconds(), *Pawn->GetActorLocation().ToString(),
+				Pawn->GetVelocity().Size2D());
+		}
+	}
 
 	bool TickTimeScale(float)
 	{
@@ -117,9 +174,20 @@ namespace VeloxNetCheatsPrivate
 		{
 			return true;
 		}
+		const bool bServerLog = DebugTimeScaleLog != 0 && Now - ServerTimeScaleLastLog >= 1.0;
+		bool bServerLogged = false;
 		for (const FWorldContext& Context : GEngine->GetWorldContexts())
 		{
 			UWorld* World = Context.World();
+			if (World && bServerLog && (World->GetNetMode() == NM_DedicatedServer || World->GetNetMode() == NM_ListenServer))
+			{
+				if (ServerTimeScaleStart < 0.0)
+				{
+					ServerTimeScaleStart = Now;
+				}
+				LogServerTimeScale(World, Now);
+				bServerLogged = true;
+			}
 			if (!World || World->GetNetMode() != NM_Client)
 			{
 				continue;   // client-side only: the server and standalone worlds are never scaled
@@ -145,9 +213,13 @@ namespace VeloxNetCheatsPrivate
 					}
 					TimeScaleLastLog = Now;
 					UE_LOG(LogVeloxNet, Log, TEXT("VeloxTimeScale scale=%.3f real_t=%.3f world_t=%.3f pos=%s speed2d=%.1f"), Scale, Now - TimeScaleStart, World->GetTimeSeconds(),
-						*Character->GetActorLocation().ToCompactString(), Character->GetVelocity().Size2D());
+						*Character->GetActorLocation().ToString(), Character->GetVelocity().Size2D());
 				}
 			}
+		}
+		if (bServerLogged)
+		{
+			ServerTimeScaleLastLog = Now;
 		}
 		return true;
 	}
@@ -170,7 +242,7 @@ namespace VeloxNetCheatsPrivate
 	FAutoConsoleVariableRef CVarDebugTimeScaleLog(
 		TEXT("velox.move.DebugTimeScaleLog"),
 		DebugTimeScaleLog,
-		TEXT("1: log VeloxTimeScale (position, speed) once per real second for the local Velox character of a client world."),
+		TEXT("1: log VeloxTimeScale (position, speed) once per real second for the local Velox character of a client world, and (role=server) for every remote player's pawn of a server world."),
 		FConsoleVariableDelegate::CreateStatic(&EnsureTimeScaleTicker),
 		ECVF_Default);
 

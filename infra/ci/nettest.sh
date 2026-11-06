@@ -33,6 +33,8 @@ SCRIPTS_ARG="StrafeRun,PadRun,DM1Run,KnockbackRun,KnockbackGroundRun,LatchRun,Cr
 TEST_RPC_EXEC="velox.net.AllowTestRpcs 1"
 # PasswordRun's throwaway server password (a test value, not a secret).
 PASSWORD_RUN_PW="velox-soak-pw"
+# ADR 0007 F1.3: VELOX_SERVER_PASSWORD is the production path; every soak server is open unless PasswordRun sets it.
+unset VELOX_SERVER_PASSWORD
 # SpeedHackRun (task 07 report row, not in the default list): the client's velox.move.DebugTimeScale (VELOX_TIME_SCALE, default 1.3).
 SPEEDHACK_SCALE="${VELOX_TIME_SCALE:-1.3}"
 REPEAT=1
@@ -96,9 +98,10 @@ for 5 s at 50 ms one way (ADR 0003 B38: one move-carried schedule per shot seque
 RpcGateRun and PasswordRun (M6 task 07, ADR 0007 sections 5.1/5.2; no packet simulation, one server, several short clients):
 RpcGateRun's server runs without velox.net.AllowTestRpcs; one client sends ServerExec, another ServerKillSelfTest, and each
 must be disconnected within 2 s (client VeloxRpcGate result=disconnected, server VeloxRpcRefused + the engine's
-RPC_ValidateFailed). PasswordRun's server has -ServerPassword=; a wrong password and a spectator without one are refused with
+RPC_ValidateFailed). PasswordRun's server gets VELOX_SERVER_PASSWORD in its environment (the production path, ADR 0007
+F1.3; a command-line echo of the value FAILs); a wrong password and a spectator without one are refused with
 the PreLogin text, the right one joins. SpeedHackRun (task 07, not in the default list) crouch-walks the corridor with the
-client's velox.move.DebugTimeScale (VELOX_TIME_SCALE, default 1.3; report-only: VeloxTimeScale / VeloxTimeDiscrepancy lines).
+client's velox.move.DebugTimeScale (VELOX_TIME_SCALE, default 1.3; report-only: dx_server / dx_client over 10 s and time_discrepancies=).
 BotRun and BotDuel (M4 task 07, ADR 0005 D36) run on L_ItemTest with the server's game options in the map URL. BotRun:
 FFA, 3 Medium bots (velox.bots.Debug 1), the client plays BotWatch.json (90 s, no input) with velox.bots.Watch.
 BotDuel: Duel, 2 Hard bots, the client joins with ?SpectatorOnly=1 and velox.bots.Watch 120 quits it. Both are judged
@@ -346,6 +349,9 @@ run_one() {
   if [[ "$script" == SpeedHackRun ]]; then
     # Task 07 report row: client-side time scale (speed-hack proxy) and the 1 Hz VeloxTimeScale position log.
     cexec="$cexec, velox.move.DebugTimeScale ${SPEEDHACK_SCALE}, velox.move.DebugTimeScaleLog 1"
+    # ADR 0007 F1.1 (iii): the server logs the remote pawn's position too (VeloxTimeScale role=server), so the row can
+    # judge the guard's output (dx_server) and not only the cheater's own view (dx_client).
+    sexec="${sexec:+$sexec, }velox.move.DebugTimeScaleLog 1"
   fi
   # ADR 0007 section 5.1: the soak server accepts the test RPCs (RpcGateRun, which runs without it, returned above).
   sexec="${TEST_RPC_EXEC}${sexec:+, $sexec}"
@@ -489,7 +495,7 @@ for probe, log, rc, rpc in (("exec", exec_log, exec_rc, "ServerExecRPC"), ("kill
     if rc != "0":
         fails.append("%s: client exit code %s" % (probe, rc))
     sent = any(("VeloxRpcGate probe=%s sent" % probe) in l for l in C)
-    res = next((l for l in reversed(C) if ("VeloxRpcGate probe=%s result=" % probe) in l), None)
+    res = next((l for l in reversed(C) if ("VeloxRpcGate probe=%s result=" % probe) in l) < 600.0), None)
     if not sent:
         fails.append("%s: the probe never sent the RPC" % probe)
     if res is None:
@@ -529,8 +535,11 @@ run_password() {
   local script=PasswordRun slog="$OUT_DIR/PasswordRun-server.log" rc_wrong rc_spec rc_right alive=1
   load_gate "$script" "$OUT_DIR/$script-gate.txt"
   if port_busy; then echo "FAILED: UDP port $PORT is in use (ss -ulnp)" >&2; return 1; fi
-  info "[$script] starting dedicated server with -ServerPassword= (log $slog)"
-  gate_start_server "$slog" L_MovementTest "$TEST_RPC_EXEC" -ServerPassword="$PASSWORD_RUN_PW" || return 1
+  # ADR 0007 F1.3: the production path, VELOX_SERVER_PASSWORD in the server's environment (never on its command line).
+  info "[$script] starting dedicated server with VELOX_SERVER_PASSWORD in its environment (log $slog)"
+  export VELOX_SERVER_PASSWORD="$PASSWORD_RUN_PW"
+  gate_start_server "$slog" L_MovementTest "$TEST_RPC_EXEC" || { unset VELOX_SERVER_PASSWORD; return 1; }
+  unset VELOX_SERVER_PASSWORD
   info "[$script] client 1: wrong password"
   gate_client "$OUT_DIR/PasswordRun-wrong-client.log" "127.0.0.1:$PORT?Password=not-it" "velox.net.ConnectProbe 30"; rc_wrong=$GATE_RC
   info "[$script] client 2: spectator without a password"
@@ -554,8 +563,8 @@ S = read(slog)
 fails, detail = [], []
 if alive != "1":
     fails.append("server died")
-if not any("VeloxNet password=on source=cmdline" in l for l in S):
-    fails.append("server: no 'VeloxNet password=on source=cmdline' line")
+if not any("VeloxNet password=on source=env" in l for l in S):
+    fails.append("server: no 'VeloxNet password=on source=env' line (VELOX_SERVER_PASSWORD not picked up)")
 for name, log, rc, want in rows:
     C = read(log)
     if rc != "0":
@@ -578,10 +587,15 @@ if refusals != 2:
     fails.append("server logged %d password refusals (expected 2)" % refusals)
 # Velox code never writes the password. The engine echoes it (command line: LogInit / LogCsvProfiler metadata; the client's
 # login URL: LogNet "Login request:" / "Join request:"); those echoes are counted and reported, not judged.
-ENGINE_ECHO = ("Command Line:", "commandline=", "Login request:", "Join request:")
-leaks = [l for l in S if pw in l and not any(e in l for e in ENGINE_ECHO)]
+# ADR 0007 F1.3: on the env path the command line never carries the value; a command-line echo is a FAIL.
+CMDLINE_ECHO = ("Command Line:", "commandline=")
+ENGINE_ECHO = ("Login request:", "Join request:")
+leaks = [l for l in S if pw in l and not any(e in l for e in CMDLINE_ECHO + ENGINE_ECHO)]
+cmdline_echo = sum(1 for l in S if pw in l and any(e in l for e in CMDLINE_ECHO))
 echo = sum(1 for l in S if pw in l and any(e in l for e in ENGINE_ECHO))
-detail.append("pw_engine_echo_lines=%d" % echo)
+detail.append("pw_cmdline_echo_lines=%d pw_engine_echo_lines=%d" % (cmdline_echo, echo))
+if cmdline_echo:
+    fails.append("password value echoed from the server command line (%d line(s)); the env path must keep it off" % cmdline_echo)
 if leaks:
     fails.append("password value in the server log outside the engine's echoes: %s" % leaks[0].strip()[:160])
 row = "%-18s %s  %s" % ("PasswordRun", "FAIL" if fails else "PASS", " ".join(detail))
@@ -657,6 +671,37 @@ for l in S:
 disc = [l for l in S if "VeloxTimeDiscrepancy controller=" in l]
 if script == "SpeedHackRun":
     notes.append("time_discrepancies=%d" % len(disc))
+    # ADR 0007 F1.1 (iii): 2-D displacement over 10 s of real time from the pawn's first movement, server-side (the guard's
+    # output, `VeloxTimeScale role=server`) and client-side (the cheater's own view, `VeloxTimeScale scale=`), 1 Hz samples,
+    # from the first sample already in motion, linearly interpolated at start + 10 s.
+    def ts_samples(lines, server):
+        out = []
+        for l in lines:
+            if "VeloxTimeScale " not in l or (" role=server " in l) != server:
+                continue
+            m = re.search(r"real_t=([-\d.]+).*?pos=X=([-\d.]+) Y=([-\d.]+) Z=[-\d.]+ speed2d=([-\d.]+)", l)
+            if m:
+                out.append(tuple(float(v) for v in m.groups()))
+        return out
+    def dx10(samples):
+        # Window start: the first sample that moved since the previous one (the server's speed2d reads 0 during the
+        # resolution payback ticks, so position, not velocity, marks the start).
+        # A step over 600 cm per 1 Hz sample is the script's teleport to the start, not movement.
+        start = next((i for i in range(1, len(samples)) if 1.0 < math.hypot(samples[i][1] - samples[i - 1][1], samples[i][2] - samples[i - 1][2]) < 600.0), None)
+        if start is None:
+            return None
+        t0, x0, y0 = samples[start][:3]
+        prev = samples[start]
+        for smp in samples[start + 1:]:
+            if smp[0] >= t0 + 10.0:
+                a = (t0 + 10.0 - prev[0]) / max(1e-6, smp[0] - prev[0])
+                x, y = prev[1] + a * (smp[1] - prev[1]), prev[2] + a * (smp[2] - prev[2])
+                return math.hypot(x - x0, y - y0)
+            prev = smp
+        return None
+    for side, lines, server in (("server", S, True), ("client", C, False)):
+        d = dx10(ts_samples(lines, server))
+        notes.append("dx_%s=%s" % (side, "n/a" if d is None else "%.1f" % d))
 elif disc:
     fails.append("server: %d VeloxTimeDiscrepancy line(s) for an honest client: %s" % (len(disc), disc[0].strip()[:160]))
 for l in S:

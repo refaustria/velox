@@ -4,13 +4,15 @@
 //                                   24-code-point clamp (200-char name, surrogate pairs never split), empty -> "Player",
 //                                   " (2)" / " (3)" suffixes within the limit, case-insensitive.
 //   Velox.Net.PasswordRule          world-free AVeloxGameMode::IsPasswordAccepted: unset -> anything passes; set -> equal
-//                                   passes, missing / other / longer / case-different fails.
+//                                   passes, missing / other / longer / case-different fails. VeloxNet::ResolveServerPassword:
+//                                   cmdline > url > env, an empty value falls through, nothing -> source none.
 //   Velox.Net.NoCheatManagerForRemote  AVeloxGameMode (and FFA / Duel) do not override AGameModeBase::AllowCheats (compile-time
 //                                   pin); in a game world with an AVeloxGameMode on a listen-server URL and GIsEditor false (a
 //                                   deployed server), a remote AVeloxPlayerController gets no CheatManager, while the same
 //                                   spawn in a standalone world does (the fixture can see one). RPC gate: ServerExecRPC /
 //                                   ServerPause validation refuses the remote controller (counted, OnRpcRefused) and accepts
-//                                   a local one; velox.net.AllowTestRpcs 0 refuses a test RPC, 1 accepts it.
+//                                   a local one; AllowPausing(remote) is false (bPauseable=false, ADR 0007 F1.2);
+//                                   velox.net.AllowTestRpcs 0 refuses a test RPC, 1 accepts it.
 //   Velox.Net.NameApply             game world: AVeloxGameMode::ChangeName sanitizes a human's name and dedupes it against the
 //                                   other PlayerStates; an AI controller's name is untouched.
 // The network kick itself (RPC_ValidateFailed -> connection closed) and PreLogin's rejection are proven by nettest RpcGateRun /
@@ -37,6 +39,13 @@
 #include "Net/VeloxNetCheats.h"
 
 #include <type_traits>
+
+// GIsEditor is a variable only in editor builds (CoreGlobals.h defines it as false otherwise, Game targets compile these tests too).
+#if WITH_EDITORONLY_DATA || USING_CODE_ANALYSIS
+#define VELOX_NET_TEST_NOT_EDITOR() TGuardValue<bool> NotEditor(GIsEditor, false)
+#else
+#define VELOX_NET_TEST_NOT_EDITOR() do {} while (0)
+#endif
 
 namespace VeloxNetTest
 {
@@ -202,6 +211,21 @@ bool FVeloxNetPasswordRuleTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("set: longer fails"), AVeloxGameMode::IsPasswordAccepted(TEXT("hunter2"), TEXT("hunter22")));
 	TestFalse(TEXT("set: prefix fails"), AVeloxGameMode::IsPasswordAccepted(TEXT("hunter2"), TEXT("hunter")));
 	TestFalse(TEXT("set: case matters"), AVeloxGameMode::IsPasswordAccepted(TEXT("hunter2"), TEXT("Hunter2")));
+
+	// Source selection (ADR 0007 amendment F1.3): cmdline > url > env; an empty value at a level falls through.
+	using VeloxNet::ResolveServerPassword;
+	const VeloxNet::FServerPasswordResolution All = ResolveServerPassword(TEXT("L_X -log -ServerPassword=fromcmd -nullrhi"), TEXT("?listen?ServerPassword=fromurl"), TEXT("fromenv"));
+	TestEqual(TEXT("cmdline wins over url and env"), All.Password, FString(TEXT("fromcmd")));
+	TestEqual(TEXT("cmdline source"), FString(All.Source), FString(TEXT("cmdline")));
+	const VeloxNet::FServerPasswordResolution Url = ResolveServerPassword(TEXT("L_X -log"), TEXT("?listen?ServerPassword=fromurl"), TEXT("fromenv"));
+	TestEqual(TEXT("url wins over env"), Url.Password, FString(TEXT("fromurl")));
+	TestEqual(TEXT("url source"), FString(Url.Source), FString(TEXT("url")));
+	const VeloxNet::FServerPasswordResolution Env = ResolveServerPassword(TEXT("L_X -log -ServerPassword= -nullrhi"), TEXT("?listen?ServerPassword="), TEXT("fromenv"));
+	TestEqual(TEXT("empty cmdline and url values fall through to env"), Env.Password, FString(TEXT("fromenv")));
+	TestEqual(TEXT("env source"), FString(Env.Source), FString(TEXT("env")));
+	const VeloxNet::FServerPasswordResolution None = ResolveServerPassword(TEXT("L_X -log"), TEXT("?listen"), FString());
+	TestTrue(TEXT("nothing configured: empty password"), None.Password.IsEmpty());
+	TestEqual(TEXT("nothing configured: source none"), FString(None.Source), FString(TEXT("none")));
 	return true;
 }
 
@@ -218,7 +242,7 @@ bool FVeloxNetNoCheatManagerForRemoteTest::RunTest(const FString& Parameters)
 
 	{
 		// A deployed server: networked (listen URL, as the headless host runs) and not the editor.
-		TGuardValue<bool> NotEditor(GIsEditor, false);
+		VELOX_NET_TEST_NOT_EDITOR();
 		W.World->NextURL = TEXT("?listen");
 		ON_SCOPE_EXIT { W.World->NextURL.Reset(); };
 		TestEqual(TEXT("fixture world reports a listen server"), static_cast<int32>(W.World->GetNetMode()), static_cast<int32>(NM_ListenServer));
@@ -228,6 +252,8 @@ bool FVeloxNetNoCheatManagerForRemoteTest::RunTest(const FString& Parameters)
 			TestFalse(TEXT("remote PC is not local"), Remote->IsLocalController());
 			TestFalse(TEXT("engine AllowCheats: false for a remote PC on a networked server"), W.GameMode->AllowCheats(Remote));
 			TestNull(TEXT("remote PC has no CheatManager"), Remote->CheatManager.Get());
+			// ADR 0007 amendment F1.2: bPauseable=false, so a networked match cannot be paused by anyone.
+			TestFalse(TEXT("AllowPausing: false for a remote PC on a networked server"), W.GameMode->AllowPausing(Remote));
 
 			// RPC gate (section 5.1): the remote sender fails validation, counted and broadcast.
 			int32 Broadcasts = 0;
@@ -259,7 +285,7 @@ bool FVeloxNetNoCheatManagerForRemoteTest::RunTest(const FString& Parameters)
 	}
 	{
 		// Contrast: the same spawn in a standalone world gets a CheatManager, so the fixture can see one.
-		TGuardValue<bool> NotEditor(GIsEditor, false);
+		VELOX_NET_TEST_NOT_EDITOR();
 		TestEqual(TEXT("fixture world back to standalone"), static_cast<int32>(W.World->GetNetMode()), static_cast<int32>(NM_Standalone));
 		AVeloxPlayerController* Standalone = W.SpawnPC();
 		if (TestNotNull(TEXT("standalone PC spawned"), Standalone))

@@ -20,6 +20,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Net/VeloxNames.h"
+#include "Net/VeloxNetCheats.h"
 #include "UI/VeloxUISettings.h"
 #include "TimerManager.h"
 
@@ -28,8 +29,6 @@ namespace VeloxGameModeMatchPrivate
 	const TCHAR* const FragLimitOption = TEXT("FragLimit");
 	const TCHAR* const TimeLimitOption = TEXT("TimeLimit");
 	// ADR 0007 section 5.2 (M6 task 07).
-	const TCHAR* const ServerPasswordOption = TEXT("ServerPassword");
-	const TCHAR* const ServerPasswordSwitch = TEXT("ServerPassword=");
 	const TCHAR* const ServerPasswordEnv = TEXT("VELOX_SERVER_PASSWORD");
 	const TCHAR* const PasswordOption = TEXT("Password");
 	const TCHAR* const NameOption = TEXT("Name");
@@ -65,24 +64,10 @@ void AVeloxGameMode::InitGame(const FString& MapName, const FString& Options, FS
 	// ADR 0007 section 5.2: server password. Command line wins over the host URL; the environment variable (systemd
 	// EnvironmentFile, never on a command line or in the log) is the last fallback. The value itself is never logged.
 	{
-		FString Password;
-		const TCHAR* Source = TEXT("none");
-		if (FParse::Value(FCommandLine::Get(), VeloxGameModeMatchPrivate::ServerPasswordSwitch, Password, /*bShouldStopOnSeparator*/ false) && !Password.IsEmpty())
-		{
-			Source = TEXT("cmdline");
-		}
-		else if (UGameplayStatics::HasOption(Options, VeloxGameModeMatchPrivate::ServerPasswordOption))
-		{
-			Password = UGameplayStatics::ParseOption(Options, VeloxGameModeMatchPrivate::ServerPasswordOption);
-			Source = TEXT("url");
-		}
-		else
-		{
-			Password = FPlatformMisc::GetEnvironmentVariable(VeloxGameModeMatchPrivate::ServerPasswordEnv);
-			Source = Password.IsEmpty() ? TEXT("none") : TEXT("env");
-		}
-		ServerPassword = Password;
-		UE_LOG(LogVeloxMatch, Log, TEXT("VeloxNet password=%s source=%s"), HasServerPassword() ? TEXT("on") : TEXT("off"), HasServerPassword() ? Source : TEXT("none"));
+		const VeloxNet::FServerPasswordResolution Resolved = VeloxNet::ResolveServerPassword(FCommandLine::Get(), Options,
+			FPlatformMisc::GetEnvironmentVariable(VeloxGameModeMatchPrivate::ServerPasswordEnv));
+		ServerPassword = Resolved.Password;
+		UE_LOG(LogVeloxMatch, Log, TEXT("VeloxNet password=%s source=%s"), HasServerPassword() ? TEXT("on") : TEXT("off"), HasServerPassword() ? Resolved.Source : TEXT("none"));
 	}
 	// The GameState may already exist (AGameModeBase::PreInitializeComponents spawns it and calls InitGameState); hand
 	// the rules over to it now as well. InitGameState covers the other order and every ResetLevel.
