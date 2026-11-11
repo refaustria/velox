@@ -287,23 +287,30 @@ def pickup(definition_path, location, tags=(), name=None, folder="Items", layout
     return a, da
 
 
-def jump_pad(name, location_xy, target_location, pad_label=None, target_label=None, folder=None, tags=(), layout=None):
+def jump_pad(name, location_xy, target_location, pad_label=None, target_label=None, folder=None, tags=(), layout=None,
+             trigger_extent=None):
     """AVeloxJumpPad (AimAtTarget) with its trigger centre PAD_LAUNCH_Z above the floor, a TargetPoint at target_location
-    and the visible green disc. Returns the pad."""
+    and the visible green disc. Returns the pad.
+    trigger_extent (task m6-16): half extents (x, y, z) of a lower/narrower trigger. The box then rests on the floor
+    (actor z = extent z), so a pawn only fires the pad while its feet are within 2 x extent z of the floor (a pawn
+    hopping through the old 140 cm box launched from up to 140 cm high and overshot). The caller shifts target_location
+    z by (extent z - PAD_LAUNCH_Z) to keep the launch velocity (launch origin = trigger centre)."""
+    ext = tuple(trigger_extent) if trigger_extent else PAD_TRIGGER_EXTENT
+    launch_z = ext[2] if trigger_extent else PAD_LAUNCH_Z
     tp = spawn(unreal.TargetPoint, target_label or f"{name}_TargetPoint", target_location, None, folder, "targetpoint", tags, layout)
-    a = spawn(unreal.VeloxJumpPad, pad_label or name, (location_xy[0], location_xy[1], PAD_LAUNCH_Z), None, folder, "jumppad",
+    a = spawn(unreal.VeloxJumpPad, pad_label or name, (location_xy[0], location_xy[1], launch_z), None, folder, "jumppad",
               tags, layout)
     a.set_editor_property("mode", unreal.VeloxJumpPadMode.AIM_AT_TARGET)
     a.set_editor_property("target", tp)
     a.set_editor_property("override_velocity", True)
     a.set_editor_property("max_launch_speed", PAD_MAX_LAUNCH_SPEED)
-    a.get_editor_property("trigger").set_box_extent(unreal.Vector(*PAD_TRIGGER_EXTENT), False)
+    a.get_editor_property("trigger").set_box_extent(unreal.Vector(*ext), False)
     # Visible pad: flat green disc on the floor, as wide as the trigger, no collision (set by the class).
     pm = a.get_editor_property("pad_mesh")
     pm.set_static_mesh(mesh(CYLINDER))
     pm.set_material(0, MATS["Pad"])
-    pm.set_relative_location(unreal.Vector(0, 0, 5 - PAD_LAUNCH_Z), False, False)
-    pm.set_relative_scale3d(unreal.Vector(PAD_TRIGGER_EXTENT[0] / 50.0, PAD_TRIGGER_EXTENT[1] / 50.0, 0.1))
+    pm.set_relative_location(unreal.Vector(0, 0, 5 - launch_z), False, False)
+    pm.set_relative_scale3d(unreal.Vector(ext[0] / 50.0, ext[1] / 50.0, 0.1))
     PADS.append(a)
     return a
 
