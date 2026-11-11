@@ -185,7 +185,7 @@ ci_smoke_stop() {
 # Smoke (ADR 0007 fact 8, task M6-01b): server archive runs as a headless listen host on port 7797 for VELOX_SMOKE_SECONDS (default
 # 120 s); a Development client from the same archive joins it (proves the join handshake and makes the server log its network
 # version) and stays for the whole window; the Shipping binary from the player archive runs 20 s with -game -nullrhi and must stay
-# alive (a Shipping build has no log and cannot be made to join headless, see the task notes). GC: gc.CollectGarbageEveryFrame stays
+# alive and must join the server (-VeloxConnect; a Shipping build has no log and ignores a command-line URL, task m6-online/01c). GC: gc.CollectGarbageEveryFrame stays
 # at its default 0; both Development processes force a GC at start (`obj gc`) and run periodic GC every 20 s instead of 61 s, so the
 # window holds several GCs after the audio preload, each with VerifyGCAssumptions (Development default). The first periodic GC is
 # where a Disregard-for-GC violation used to be fatal (task 01 finding 2). Then every process gets SIGTERM by PID and must exit
@@ -195,7 +195,7 @@ ci_smoke() {
   local slog="$d/server.log" dlog="$d/devclient.log" clog="$d/client.log"
   local gcexec="t.MaxFPS 60, gc.TimeBetweenPurgingPendingKillObjects 20, obj gc"
   (( secs >= 30 )) || secs=30
-  info "smoke: Development server on port ${port} (${secs} s, periodic GC 20 s), Development client joining, Shipping client -game (20 s)"
+  info "smoke: Development server on port ${port} (${secs} s, periodic GC 20 s), Development client joining, Shipping client -VeloxConnect (20 s)"
   ci_smoke_start "$d/server" "$slog" "L_ItemTest?listen?game=FFA?SpectatorOnly=1?Name=Server" \
     -nullrhi -nosound -unattended -nopause -nosplash -log -port="$port" -LogCmds="LogNetVersion Log, LogGarbage Log" -UserDir="$d/saved" -ExecCmds="$gcexec"
   spid=$SMOKE_PID
@@ -204,11 +204,15 @@ ci_smoke() {
   ci_smoke_start "$d/server" "$dlog" "127.0.0.1:$port" -nullrhi -nosound -unattended -nopause -nosplash -log -LogCmds="LogVeloxAudio Verbose, LogGarbage Log" \
     -UserDir="$d/saved-devclient" -ExecCmds="$gcexec"
   dpid=$SMOKE_PID
-  ci_smoke_start "$d/client" "$clog" /Game/Maps/L_MainMenu -game -nullrhi -nosound -unattended -nopause -nosplash -log -UserDir="$d/saved-client"
+  ci_smoke_start "$d/client" "$clog" -VeloxConnect="127.0.0.1:$port" -game -nullrhi -nosound -unattended -nopause -nosplash -log -UserDir="$d/saved-client"
   cpid=$SMOKE_PID
   for i in $(seq 1 20); do kill -0 "$cpid" 2>/dev/null || break; sleep 1; done
   local c_alive=0 s_alive=0 d_alive=0
   kill -0 "$cpid" 2>/dev/null && c_alive=1
+  # Shipping client (task m6-online/01c): a Shipping build prints no log and ignores a map/URL on the command line, so it joins
+  # through -VeloxConnect (UVeloxGameInstance::OnStart). The proof is server-side: two "Join succeeded" (Development + Shipping).
+  local joins; joins="$(/usr/bin/grep -a -c 'LogNet: Join succeeded' "$slog" 2>/dev/null || true)"
+  (( ${joins:-0} >= 2 )) || { echo "smoke: Shipping client did not join the server (Join succeeded lines: ${joins:-0}, need 2: Development + Shipping)" >&2; ok=0; }
   ci_smoke_stop "$cpid"
   while (( SECONDS - tstart < secs )); do kill -0 "$spid" 2>/dev/null || break; kill -0 "$dpid" 2>/dev/null || break; sleep 2; done
   kill -0 "$spid" 2>/dev/null && s_alive=1
@@ -236,7 +240,7 @@ ci_smoke() {
     SMOKE_NETVER="$(/usr/bin/grep -a 'LogNetVersion: Velox' "$slog" | /usr/bin/grep -a -o 'Checksum: [0-9]*' | head -1 | tr -dc '0-9' || true)"
     echo "smoke: NOTE no 'Checksum from delegate' line in the server log; net_version falls back to the base engine checksum '${SMOKE_NETVER:-none}' (tag hash not covered)" >&2
   fi
-  info "smoke: ${secs} s window; verified GCs server=${gcs:-0} devclient=${dgcs:-0}; server exit ${sterm}s after SIGTERM; net version (delegate) ='${SMOKE_NETVER:-none}'; Shipping client log lines: $(wc -l < "$clog")"
+  info "smoke: ${secs} s window; verified GCs server=${gcs:-0} devclient=${dgcs:-0}; server exit ${sterm}s after SIGTERM; net version (delegate) ='${SMOKE_NETVER:-none}'; server joins=${joins:-0}"
   [[ "$ok" == 1 ]]
 }
 
