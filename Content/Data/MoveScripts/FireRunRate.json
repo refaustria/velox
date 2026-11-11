@@ -1,0 +1,41 @@
+{
+ "name": "FireRunRate",
+ "note": "L_CombatTest, task m6-online/09b (review 0007-09 open point 3, ADR 0003 B32). Run with the client cvar velox.combat.DebugFireRateScale 2 (infra/ci/nettest.sh): the client fires the machine gun at twice its refire rate, the server's B32 token bucket rejects the excess as VeloxShotRejected reason=rate and counts it in the VeloxAnomaly line (rejects{rate:n}). From the FireRun start pose against FireRun.json's invulnerable strafing dummy: a 5 s warm-up selecting the MG (B24), then fire held for 5 s, then 2 s settle.",
+ "startYaw": 0,
+ "startLocation": [
+  -1700,
+  0,
+  100
+ ],
+ "rows": [
+  {
+   "duration": 5.0,
+   "label": "warm-up (select MG)",
+   "weapon": 2,
+   "aimAt": [
+    -700,
+    0,
+    110
+   ]
+  },
+  {
+   "duration": 5.0,
+   "label": "MG hold at 2x rate",
+   "fire": true,
+   "aimAt": [
+    -700,
+    0,
+    110
+   ]
+  },
+  {
+   "duration": 2.0,
+   "label": "settle",
+   "aimAt": [
+    -700,
+    0,
+    110
+   ]
+  }
+ ]
+}

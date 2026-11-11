@@ -5,6 +5,7 @@
 #include "AbilitySystemInterface.h"
 #include "Combat/VeloxAbilitySet.h"
 #include "GameFramework/PlayerState.h"
+#include "Net/VeloxAnomalyStats.h"
 
 #include "VeloxPlayerState.generated.h"
 
@@ -160,6 +161,26 @@ public:
 	/** "n=<count> entries=[<item>#<index>@<time>,...]" (log lines; item names from this world's registry). */
 	FString DescribeItemTimers() const;
 
+	/**
+	 * Server: counts one anomaly surface for this player (ADR 0007 section 5.4, task m6-online/09). Counting only, at
+	 * the surface's existing log line; no client effect, not replicated. Ignored without authority.
+	 */
+	void NoteAnomaly(EVeloxAnomaly Kind, int32 Count = 1, FName Reason = NAME_None);
+	/**
+	 * Server: NoteAnomaly on the AVeloxPlayerState of Actor (the PlayerState itself, a pawn, a controller, or a component
+	 * owner chain reaching one of those). No-op when none is found (dummies without a PlayerState).
+	 */
+	static void NoteAnomalyFor(const AActor* Actor, EVeloxAnomaly Kind, int32 Count = 1, FName Reason = NAME_None);
+	/** Server: cumulative counters since login. */
+	const FVeloxPlayerAnomalyStats& GetAnomalyStats() const { return AnomalyStats; }
+	/** Server, UVeloxAnomalyLog: the counters printed by the last VeloxAnomaly line (the deltas' base). */
+	FVeloxPlayerAnomalyStats& GetAnomalyStatsAtLastLine() { return AnomalyStatsAtLastLine; }
+	/** Server, UVeloxAnomalyLog: the final line (logout / world teardown) was printed. */
+	bool IsAnomalySummaryLogged() const { return bAnomalySummaryLogged; }
+	void SetAnomalySummaryLogged() { bAnomalySummaryLogged = true; }
+	/** Server, UVeloxAnomalyLog: samples the smoothed ping into the counters before a line. */
+	void SampleAnomalyRtt() { AnomalyStats.RttMs = GetPingInMilliseconds(); }
+
 protected:
 	/**
 	 * Replication rate for this PlayerState (Hz). The 1 Hz engine default is far too low because the ASC lives here;
@@ -225,4 +246,9 @@ private:
 	TObjectPtr<const UVeloxPawnData> GrantedPawnData;
 
 	bool bDefaultAbilitySetsGranted = false;
+
+	/** ADR 0007 section 5.4: server-side, not replicated, not reset by Reset (a match restart keeps the connection). */
+	FVeloxPlayerAnomalyStats AnomalyStats;
+	FVeloxPlayerAnomalyStats AnomalyStatsAtLastLine;
+	bool bAnomalySummaryLogged = false;
 };

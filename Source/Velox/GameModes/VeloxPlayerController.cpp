@@ -382,6 +382,7 @@ bool AVeloxPlayerController::ServerPause_Validate()
 void AVeloxPlayerController::NotifyRpcRefused(FName Rpc, const TCHAR* Reason)
 {
 	++NumRpcRefused;
+	AVeloxPlayerState::NoteAnomalyFor(this, EVeloxAnomaly::RpcRefused); // ADR 0007 section 5.4
 	const UWorld* World = GetWorld();
 	const double Now = World ? World->GetRealTimeSeconds() : 0.0;
 	if (Now - LastRpcRefusedLogTime >= RpcRefusedLogIntervalSeconds)
@@ -426,6 +427,7 @@ void AVeloxPlayerController::PollTimeDiscrepancy()
 	if (bResolving && !bWasResolvingTimeDiscrepancy)
 	{
 		++NumTimeDiscrepancies;
+		AVeloxPlayerState::NoteAnomalyFor(this, EVeloxAnomaly::Discrepancy); // ADR 0007 section 5.4
 		const UWorld* World = GetWorld();
 		UE_LOG(LogVeloxNet, Warning, TEXT("VeloxTimeDiscrepancy controller=%s player=%s t=%.3f payback_s=%.3f lifetime_raw_s=%.3f lifetime_s=%.1f count=%d"), *GetName(),
 			*AVeloxPlayerState::VeloxPlayerLabel(PlayerState), World ? World->GetTimeSeconds() : 0.0, ServerData->TimeDiscrepancy, ServerData->LifetimeRawTimeDiscrepancy,

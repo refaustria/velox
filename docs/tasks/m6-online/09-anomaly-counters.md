@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev-hard
-**Status:** todo
+**Status:** done (branch `wip/m6-09-anomaly`, pending review)
 **Depends on:** ADR 0007 §5.4; task 07 merged (shared files `VeloxPlayerController.*`, `VeloxPlayerState.*`; the refused-RPC and discrepancy hooks)
 
 ## Goal
@@ -39,4 +39,15 @@ Every bounded cheat surface the combat ADR accepted and deferred to M6 (B25 clam
 Standard format plus: the final line format with one real example per row type (honest, hold, 2× rate), the list of call sites, and your reading of what an honest client at 250 ms / 2 % produces over a 10-minute FFA (run one BotRun round at `--lag 125` and report the line).
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+Done 2026-11-11 (dev-hard), report: `notes/09-report.md`. Build and 140 tests green. All nettest rows PASS: FireRun,
+FireRunControl, RocketJumpRun, PlasmaRun, FireRunHold, RocketJumpRunHold, RpcGateRun (`rpc_refused=1` on both refused
+clients' logout lines) and SpeedHackRun (`discrepancies=14` = 14 VeloxTimeDiscrepancy lines). Deviations:
+- An honest `late_retargets` is reported, not failed: 2 of 5 honest 50 ms rounds had one B42 `mode=late` retarget. Nettest
+  checks the count against the server's `mode=late` lines instead.
+- The hold rows move no counter (B36 and B35/B38 absorb the hold).
+- No 2x fire-rate cheat row exists in the tree; `rejects{rate:n}` is covered by the unit rows only.
+- `pid=` replaces `id=` and `player=` is printed last.
+
+Review `docs/adr/reviews/0007-09-review.md`: approve with follow-ups. Follow-ups F1 (print gate on the net mode), F2
+(reject_share over attempts), F3 (a), T1 (`velox.combat.DebugFireRateScale`, nettest `FireRunRate`) and the ADR 0007
+amendment F4 are done in task 09b on this branch; T2 (orphan drop mode) remains for M7.
