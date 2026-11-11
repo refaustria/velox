@@ -139,6 +139,7 @@ package_main() {
   tar -C "$smoke/client" -I zstd -xf "$out/$pa"
   SMOKE_NETVER=""
   ci_smoke "$smoke" || rc=1
+  ci_smoke_content "$smoke" || rc=1
   nv="$SMOKE_NETVER"
   rm -rf "${smoke:?}/server" "${smoke:?}/client"
   [[ "$rc" == 0 ]] || die "smoke failed (logs: $smoke/*.log)"
@@ -231,6 +232,35 @@ ci_smoke() {
   (( sterm <= 30 )) || { echo "smoke: server did not exit within 30 s of SIGTERM" >&2; ok=0; }
   SMOKE_NETVER="$(/usr/bin/grep -a 'LogNetVersion: Velox' "$slog" | /usr/bin/grep -a -o 'Checksum: [0-9]*' | head -1 | tr -dc '0-9' || true)"
   info "smoke: ${secs} s window; verified GCs server=${gcs:-0} devclient=${dgcs:-0}; server exit ${sterm}s after SIGTERM; net version checksum='${SMOKE_NETVER:-none}'; Shipping client log lines: $(wc -l < "$clog")"
+  [[ "$ok" == 1 ]]
+}
+
+# Content smoke (M6 task 02b, findings B2 and decision 51): the cooked server must load L_DM1 and every bot preset. Bot presets are
+# resolved by string (?BotDifficulty=<name>), so a missing cook entry only shows at runtime ("Failed to find object '/Game/Bots/DA_Bot_X'",
+# "VeloxBot url bots not added"). One short listen-host run per preset on L_DM1, each must log "VeloxBot add ... difficulty=DA_Bot_<P>".
+ci_smoke_content() {
+  local d="$1" ok=1 p slog spid i port="${VELOX_SMOKE_PORT:-7797}"
+  port=$((port + 1))
+  for p in Easy Medium Hard Expert; do
+    slog="$d/content-$p.log"
+    ci_smoke_start "$d/server" "$slog" "L_DM1?listen?game=FFA?Bots=2?BotDifficulty=$p?SpectatorOnly=1?Name=Server" \
+      -nullrhi -nosound -unattended -nopause -nosplash -log -port="$port" -UserDir="$d/saved-content-$p" -ExecCmds="t.MaxFPS 60"
+    spid=$SMOKE_PID
+    for i in $(seq 1 60); do
+      /usr/bin/grep -a -q "VeloxBot add .*difficulty=DA_Bot_$p" "$slog" 2>/dev/null && break
+      kill -0 "$spid" 2>/dev/null || break
+      sleep 1
+    done
+    sleep 5
+    ci_smoke_stop "$spid"
+    if /usr/bin/grep -a -q "VeloxBot add .*difficulty=DA_Bot_$p" "$slog"; then
+      info "smoke content: BotDifficulty=$p ok: $(/usr/bin/grep -a -m1 "VeloxBot add .*difficulty=DA_Bot_$p" "$slog" | cut -c1-200)"
+    else
+      echo "smoke content: no bot with difficulty DA_Bot_$p on L_DM1 (see $slog): $(/usr/bin/grep -a -m2 -E "Failed to find object|bots not added" "$slog" | tr '\n' ' ')" >&2; ok=0
+    fi
+    /usr/bin/grep -a -q "Bringing World /Game/Maps/DM1/L_DM1\.L_DM1 up for play" "$slog" || { echo "smoke content: L_DM1 was not loaded ($p, see $slog)" >&2; ok=0; }
+    if /usr/bin/grep -a -E 'Fatal error|Ensure condition failed' "$slog" | head -3 | /usr/bin/grep -a .; then echo "smoke content: fatal/ensure in $slog" >&2; ok=0; fi
+  done
   [[ "$ok" == 1 ]]
 }
 

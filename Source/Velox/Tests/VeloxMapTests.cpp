@@ -33,7 +33,9 @@ namespace VeloxMapTests
 	/** Maps that may stay unbaked: test maps, the menu backdrop, and blockouts. */
 	static bool IsExemptMap(const FString& ShortName)
 	{
-		static const TCHAR* const Exempt[] = { TEXT("L_Empty"), TEXT("L_MovementTest"), TEXT("L_CombatTest"), TEXT("L_ItemTest"), TEXT("L_MainMenu") };
+		static const TCHAR* const Exempt[] = { TEXT("L_Empty"), TEXT("L_MovementTest"), TEXT("L_CombatTest"), TEXT("L_ItemTest"), TEXT("L_MainMenu"),
+			// M6-02b (decision 51): L_DM1 is cooked and served unbaked until the Mac Production bake (M5 task 16 part B) lands; remove then.
+			TEXT("L_DM1") };
 		for (const TCHAR* E : Exempt)
 		{
 			if (ShortName == E) { return true; }

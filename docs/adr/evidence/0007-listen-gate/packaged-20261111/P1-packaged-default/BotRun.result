@@ -1,0 +1,33 @@
+BotRun             PASS cost=PASS kills=13 frags=13 pickups=61 stuck=0 max_dwell_s=3 link_max_dt=1.07 budget_mean_us=62.9 clean=8/21 P=13
+    . kills_by_bots=13 frags=13 suicides=0 pickups_by_bots=61 [Ammo_Cells=1 Ammo_Lightning=2 Ammo_Shells=1 Ammo_Slugs=1 Armor_Red=5 Armor_Yellow=4 Health_Large=1 Health_Mega=3 Powerup_BattleSuit=1 Powerup_Haste=1 Powerup_Quad=1 Powerup_Regen=1 Weapon_LightningGun=9 Weapon_PlasmaGun=7 Weapon_Railgun=8 Weapon_RocketLauncher=11 Weapon_Shotgun=4] major=[Armor_Red,Armor_Yellow,Health_Mega,Powerup_BattleSuit,Powerup_Haste,Powerup_Quad,Powerup_Regen]
+    . links ok=19/24 longest_dt=1.07 [Rapidus:VeloxNavLink_0:ok] failed_reasons=[relaunched=4 replaced=1]
+    . stuck=0 rules=[] bursts=0 pocket_strikes=0 at: -
+    . max_dwell_s=3 [Celer@(88,-236),goal=item] timed_waits=7 wait_samples=8 wait_max_s=4.7 [Rapidus:Armor_Red:R=5.0,lead=0.3] wait_capped=0 repaths=21 offmesh recovered=0 no_nav_point=0 no_clear_point=0 not_at_goal=0 giveup=0 refused=0 hear=7 dodge=0 camp_route_lines=0
+    . budget cost=PASS (clean windows 8/21 P=13) mean_us=62.9 run_mean_us=152.5 max_us=1265 max_path_us=1080 max_fire_us=1372 (clean windows over 2000 us: 0/8) paths/s=15.9 max_deferred_frames=12 over_share_pct=[0,0,0,0,0,0,0,5,9,10,2,3,2,4,9,5,5,2,2,3,5]
+    . window classes [........PPPPPPPPPPPPP] (. clean, P process-slow, C contended, X cost, ? unverified (no host data, no reference), F frames only): clean=8/21 P=13 contended=0 cost=0 unverified=0 frames=0; stalls=0 frame_deficit_pct=[0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    . reference (D47): frame_other_ref=790 us mean_ref=54.0 us; process-slow windows: p_norm_mean_us=63.3 rr_round=1.17 max_fire_us=2098 max_path_us=2127 stalls=0 (printed, not judged)
+    . cost breakdown (us per bot tick / per frame; clean|P|other windows 8|13|0): super=2.0|6.9|- perceive=3.0|9.0|- traces=1.6|5.1|- decide=5.8|16.4|- move=1.9|5.4|- offmesh=0.6|1.7|- follow=5.5|19.9|- segment=0.9|3.3|- overlay=1.4|4.3|- act=11.2|41.0|- apply=31.3|106.4|- fire=14.3|42.0|- frame_bots_us=184.4|583.5|- frame_other_us=866.3|2630.7|- frame_dispatch_us=93.8|423.6|- frame_actors_us=757.5|2152.2|- frame_flush_us=199.5|638.3|- calib_alu_us=45.6|46.3|- calib_mem_us=206.0|229.8|- calib_alloc_us=32.2|35.5|- calib_clock_us=28.3|26.8|-; slowdown P/clean: bots=3.2 frame_other=3.0
+    . host sidecar: 22 samples; load_start=1.90 load_end=2.54 gate=2.0 waited_s=0; server_mode=listen rss_max_mb=357 rss_mean_mb=356 mean_us=154.2
+    . goals=[fight=73 item=211 none=20] fight_share=24.0% armed_fight_share=39.0% (64/164) supp1=0.0% fire_noammo=2/304 allunreachable air=0 ground=0 fight_yields=0
+    . ra returns (s, respawn->take, report-only): n=3 lags=[0.0,1.5,0.6] within_3s=3 within_6s=3
+    . client corrections (report-only) non-echo=5 max=20.8 cm (t >= 2 s) possession_snap_cm=1700.2 echoes=14
+    . left_arena=none world_kills=0 [] fell_out_lines=0
+    . camp_lines=0 camp_episodes=0 camp_share_pct=0.0 (of 92 goal changes) camp_max_lead_s=0.0
+    . near-human (Live, D51; preset=Medium): acc_hitscan_pct=21.1 acc_proj_pct=19.5 shots_per_kill=47.5 trigger_share_pct=29.2[>=30 OUT] held_share_pct=33.9[20-50 IN] acc_mg_pct=17.6[10-24 IN] acc_rg_pct=40.9[30-60 IN] acc_rl_pct=30.2[15-45 IN] rl_self_only=1 acc_by_weapon={LG:30.5,MG:17.6,PG:7.9,RG:40.9,RL:29.5} camp_time_pct=0.0
+    . near-human bot Celer: acc_hitscan_pct=22.5 acc_proj_pct=19.1 shots_per_kill=22.7 trigger_share_pct=22.2 held_share_pct=12.5 camp_time_pct=0.0 (hitscan 20/89 proj 9/47 kills 6 vis 72 fire 16 held 2)
+    . near-human bot Fulgur: acc_hitscan_pct=21.5 acc_proj_pct=9.1 shots_per_kill=108.0 trigger_share_pct=32.8 held_share_pct=45.0 camp_time_pct=0.0 (hitscan 44/205 proj 1/11 kills 2 vis 61 fire 20 held 9)
+    . near-human bot Rapidus: acc_hitscan_pct=19.9 acc_proj_pct=25.0 shots_per_kill=56.7 trigger_share_pct=33.3 held_share_pct=39.1 camp_time_pct=0.0 (hitscan 29/146 proj 6/24 kills 3 vis 69 fire 23 held 9)
+    . window 9 PROCESS-SLOW: mean_us=225 over_share=9% frame_deficit=0% stalls=0 R_other=3.20 R_bots=4.16 rr=1.30 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 10 PROCESS-SLOW: mean_us=222 over_share=10% frame_deficit=0% stalls=0 R_other=3.22 R_bots=4.11 rr=1.28 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 11 PROCESS-SLOW: mean_us=182 over_share=2% frame_deficit=0% stalls=0 R_other=3.54 R_bots=3.37 rr=0.95 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 12 PROCESS-SLOW: mean_us=176 over_share=3% frame_deficit=0% stalls=0 R_other=3.50 R_bots=3.26 rr=0.93 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 13 PROCESS-SLOW: mean_us=162 over_share=2% frame_deficit=0% stalls=0 R_other=3.27 R_bots=3.01 rr=0.92 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 14 PROCESS-SLOW: mean_us=210 over_share=4% frame_deficit=0% stalls=0 R_other=3.19 R_bots=3.90 rr=1.22 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 15 PROCESS-SLOW: mean_us=223 over_share=9% frame_deficit=0% stalls=0 R_other=3.12 R_bots=4.13 rr=1.32 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 16 PROCESS-SLOW: mean_us=212 over_share=5% frame_deficit=0% stalls=0 R_other=3.21 R_bots=3.93 rr=1.22 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 17 PROCESS-SLOW: mean_us=227 over_share=5% frame_deficit=0% stalls=0 R_other=3.37 R_bots=4.20 rr=1.25 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 18 PROCESS-SLOW: mean_us=210 over_share=2% frame_deficit=0% stalls=0 R_other=3.29 R_bots=3.89 rr=1.18 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 19 PROCESS-SLOW: mean_us=237 over_share=2% frame_deficit=0% stalls=0 R_other=3.32 R_bots=4.39 rr=1.32 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.5
+    . window 20 PROCESS-SLOW: mean_us=227 over_share=3% frame_deficit=0% stalls=0 R_other=3.54 R_bots=4.20 rr=1.19 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 21 PROCESS-SLOW: mean_us=222 over_share=5% frame_deficit=0% stalls=0 R_other=3.54 R_bots=4.10 rr=1.16 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.5
+    . client watch lines=77 (feed=11 phase=2 pickup=53)

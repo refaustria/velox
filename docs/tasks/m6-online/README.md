@@ -8,7 +8,7 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 | 01b | [gc-disregard-audio-settings](01b-gc-disregard-audio-settings.md) | dev-hard | 2–3 h | 01 | 0 | — | done (nettest default list still to run) |
 | 01c | [shipping-client-headless-join](01c-shipping-client-headless-join.md) | dev | 2 h | 01, 01b | 1 | — | todo |
 | 02 | [headless-listen-server-gate](02-headless-listen-server-gate.md) | dev-hard | 3 h (+ soak time) | ADR §1 gate; editor part now, packaged part after 01 | 0 / 1 | — | part A **gate PASSED (listen)** (ADR 0007 F2 (i), 2026-11-06); packaged FAIL on B1/B2 → 02b; open: `notes/02-report.md` audit table |
-| 02b | [packaged-tag-table-and-cook-set](02b-packaged-tag-table-and-cook-set.md) | dev | 2–3 h (+ soak time) | 02, ADR 0007 F2, decision 51 | 1 | — | todo (acceptance amended by F2: tag hash in the net version, idle-host P1–P3) |
+| 02b | [packaged-tag-table-and-cook-set](02b-packaged-tag-table-and-cook-set.md) | dev | 2–3 h (+ soak time) | 02, ADR 0007 F2, decision 51 | 1 | — | **done 2026-11-11** (132/132 tests, tag parity + net-version refusal proven, P1 15/15, P2 and P3 set PASS on the packaged server; host not idle: foreign load 2-3, see task notes; evidence `packaged-20261111/`) |
 | 03 | [directory-service-rust](03-directory-service-rust.md) | dev | 3 h | ADR §2 | 0 | — | done |
 | 04 | [server-heartbeat-and-map-registry](04-server-heartbeat-and-map-registry.md) | dev | 3 h | ADR §2; schema shared with 03/05 | 0 | — | done |
 | 04b | [heartbeat-only-with-server-id](04b-heartbeat-only-with-server-id.md) | dev | 1 h | 04 | 0 | — | todo |

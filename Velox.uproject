@@ -46,6 +46,22 @@
 			]
 		},
 		{
+			"Name": "StateTree",
+			"Enabled": false
+		},
+		{
+			"Name": "GameplayStateTree",
+			"Enabled": false
+		},
+		{
+			"Name": "GameplayCameras",
+			"Enabled": false
+		},
+		{
+			"Name": "CameraShakePreviewer",
+			"Enabled": false
+		},
+		{
 			"Name": "Bridge",
 			"Enabled": false
 		},

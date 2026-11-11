@@ -1,0 +1,34 @@
+BotDuel            PASS cost=PASS kills=9 frags=9 pickups=46 stuck=0 max_dwell_s=2 link_max_dt=1.65 budget_mean_us=67.2 clean=15/27 P=12
+    . kills_by_bots=9 frags=9 suicides=0 pickups_by_bots=46 [Ammo_Slugs=1 Armor_Red=6 Armor_Yellow=5 Health_Mega=4 Powerup_BattleSuit=1 Powerup_Haste=1 Powerup_Regen=1 Weapon_LightningGun=6 Weapon_PlasmaGun=4 Weapon_Railgun=6 Weapon_RocketLauncher=9 Weapon_Shotgun=2] major=[Armor_Red,Armor_Yellow,Health_Mega,Powerup_BattleSuit,Powerup_Haste,Powerup_Regen]
+    . links ok=18/32 longest_dt=1.65 [Celer:VeloxNavLink_4:missed] failed_reasons=[missed=4 relaunched=10]
+    . stuck=0 rules=[] bursts=0 pocket_strikes=0 at: -
+    . max_dwell_s=2 [Celer@(-148,1136),goal=item] timed_waits=6 wait_samples=7 wait_max_s=4.1 [Celer:Powerup_Regen:R=4.5,lead=1.4] wait_capped=0 repaths=20 offmesh recovered=0 no_nav_point=0 no_clear_point=0 not_at_goal=0 giveup=0 refused=0 hear=5 dodge=41 camp_route_lines=4
+    . budget cost=PASS (clean windows 15/27 P=12) mean_us=67.2 run_mean_us=150.0 max_us=735 max_path_us=1104 max_fire_us=1869 (clean windows over 2000 us: 0/15) paths/s=10.2 max_deferred_frames=5 over_share_pct=[0,0,0,3,3,4,1,13,10,8,9,7,5,2,0,0,0,0,0,0,0,0,0,0,0,0,20]
+    . window classes [...PPPPPPPPPP............PP] (. clean, P process-slow, C contended, X cost, ? unverified (no host data, no reference), F frames only): clean=15/27 P=12 contended=0 cost=0 unverified=0 frames=0; stalls=0 frame_deficit_pct=[0,1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1]
+    . reference (D47): frame_other_ref=717 us mean_ref=62.7 us; process-slow windows: p_norm_mean_us=79.2 rr_round=1.28 max_fire_us=2336 max_path_us=1455 stalls=0 (printed, not judged)
+    . cost breakdown (us per bot tick / per frame; clean|P|other windows 15|12|0): super=2.2|10.6|- perceive=2.9|11.2|- traces=1.5|6.0|- decide=7.3|22.9|- move=2.1|7.8|- offmesh=0.5|2.4|- follow=6.6|30.5|- segment=1.0|4.6|- overlay=1.3|5.2|- act=10.6|42.0|- apply=33.1|125.5|- fire=12.4|35.3|- frame_bots_us=130.0|474.6|- frame_other_us=743.6|2283.8|- frame_dispatch_us=57.8|245.0|- frame_actors_us=623.0|1945.1|- frame_flush_us=192.8|568.3|- calib_alu_us=48.5|45.8|- calib_mem_us=173.3|197.1|- calib_alloc_us=31.2|32.4|- calib_clock_us=29.0|27.6|-; slowdown P/clean: bots=3.6 frame_other=3.1
+    . host sidecar: 28 samples; load_start=1.96 load_end=2.04 gate=2.0 waited_s=104; server_mode=listen rss_max_mb=359 rss_mean_mb=359 mean_us=151.4
+    . goals=[fight=16 item=224 none=15 roam=6] fight_share=6.1% armed_fight_share=12.6% (14/111) supp1=0.0% fire_noammo=5/261 allunreachable air=0 ground=0 fight_yields=0
+    . ra returns (s, respawn->take, report-only): n=4 lags=[1.5,2.4,0.5,0.0] within_3s=4 within_6s=4
+    . phases=Warmup>Countdown>Live mega_takes=4 first_after_live_s=16.8 timed_returns_s=[8.5,7.2] within_3s=0 within_4s=0
+    . FLAG no timed Mega return within 6 s of its respawn (takes=4 timed=['8.5', '7.2']); not a round fail, the set band judges (D48 b)
+    . mega timed take lag=8.5 s cycle=1 by=Celer lead=-4.2 state_at_respawn=item:Powerup_Haste
+    . mega timed take lag=7.2 s cycle=2 by=Rapidus lead=-6.0 state_at_respawn=item:Weapon_LightningGun
+    . left_arena=none world_kills=0 [] fell_out_lines=0
+    . camp_lines=4 camp_episodes=4 camp_share_pct=6.2 (of 65 goal changes) camp_max_lead_s=19.8
+    . near-human (Live, D51; preset=Hard): acc_hitscan_pct=60.1[51-61 IN] acc_proj_pct=23.8 shots_per_kill=41.4 trigger_share_pct=29.9 held_share_pct=0.0[<=10 IN] acc_mg_pct=60.4[47-61 IN] acc_rg_pct=27.3[35-60 OUT] acc_rl_pct=30.0[15-45 IN] rl_self_only=0 acc_by_weapon={LG:75.0,MG:60.4,PG:20.0,RG:27.3,RL:30.0,SG:100.0} camp_time_pct=2.7
+    . near-human bot Celer: acc_hitscan_pct=62.9 acc_proj_pct=21.7 shots_per_kill=25.0 trigger_share_pct=29.6 held_share_pct=0.0 camp_time_pct=4.4 (hitscan 88/140 proj 13/60 kills 8 vis 81 fire 24 held 0)
+    . near-human bot Rapidus: acc_hitscan_pct=57.5 acc_proj_pct=30.0 shots_per_kill=173.0 trigger_share_pct=30.1 held_share_pct=0.0 camp_time_pct=0.9 (hitscan 88/153 proj 6/20 kills 1 vis 83 fire 25 held 0)
+    . window 4 PROCESS-SLOW: mean_us=161 over_share=3% frame_deficit=0% stalls=0 R_other=2.15 R_bots=2.56 rr=1.19 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 5 PROCESS-SLOW: mean_us=248 over_share=3% frame_deficit=0% stalls=0 R_other=3.35 R_bots=3.95 rr=1.18 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 6 PROCESS-SLOW: mean_us=266 over_share=4% frame_deficit=0% stalls=0 R_other=3.37 R_bots=4.25 rr=1.26 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 7 PROCESS-SLOW: mean_us=247 over_share=1% frame_deficit=0% stalls=0 R_other=3.41 R_bots=3.94 rr=1.16 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 8 PROCESS-SLOW: mean_us=321 over_share=13% frame_deficit=0% stalls=0 R_other=3.38 R_bots=5.12 rr=1.51 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.5
+    . window 9 PROCESS-SLOW: mean_us=323 over_share=10% frame_deficit=0% stalls=0 R_other=3.42 R_bots=5.15 rr=1.51 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 10 PROCESS-SLOW: mean_us=279 over_share=8% frame_deficit=1% stalls=0 R_other=3.49 R_bots=4.45 rr=1.28 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 11 PROCESS-SLOW: mean_us=265 over_share=9% frame_deficit=0% stalls=0 R_other=3.29 R_bots=4.22 rr=1.28 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.5
+    . window 12 PROCESS-SLOW: mean_us=264 over_share=7% frame_deficit=0% stalls=0 R_other=3.34 R_bots=4.20 rr=1.26 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 13 PROCESS-SLOW: mean_us=256 over_share=5% frame_deficit=1% stalls=0 R_other=3.45 R_bots=4.09 rr=1.19 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 26 PROCESS-SLOW: mean_us=94 over_share=0% frame_deficit=1% stalls=0 R_other=2.06 R_bots=1.51 rr=0.73 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.4
+    . window 27 PROCESS-SLOW: mean_us=356 over_share=20% frame_deficit=1% stalls=0 R_other=3.53 R_bots=5.68 rr=1.61 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.5
+    . client watch lines=65 (feed=9 phase=2 pickup=40)

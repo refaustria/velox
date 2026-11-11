@@ -466,6 +466,16 @@ if os.environ.get("VELOX_SERVER_MODE", "dedicated") == "listen":
     if joins and "spectator=1" not in joins[0]:
         # the host logs in during LoadMap, before any client: its join line is the first one (match-rule modes only)
         fails.append("server: the listen host joined as an active player (?SpectatorOnly=1 not honoured): %s" % joins[0].strip()[:160])
+# Task m6-online/02b (B1): both processes must index gameplay tags identically (FastReplication=True: a differing tag table shifts
+# every later net index). UVeloxGameInstance::Init logs "VeloxNet netversion=<u32> taghash=<h> tags=<n>" once per process.
+_tag_s = [l for l in S if "VeloxNet netversion=" in l]
+_tag_c = [l for l in C if "VeloxNet netversion=" in l]
+if _tag_s and _tag_c:
+    _ts = re.search(r"VeloxNet netversion=\d+ taghash=(\w+) tags=(\d+)", _tag_s[0]); _tc = re.search(r"VeloxNet netversion=\d+ taghash=(\w+) tags=(\d+)", _tag_c[0])
+    if _ts and _tc and _ts.groups() != _tc.groups():
+        fails.append("gameplay tag table differs: server taghash=%s tags=%s, client taghash=%s tags=%s (B1)" % (_ts.group(1), _ts.group(2), _tc.group(1), _tc.group(2)))
+else:
+    fails.append("no 'VeloxNet netversion=' line in the %s log (binary older than task m6-online/02b?)" % ("server" if not _tag_s else "client"))
 if not server_alive:
     fails.append("server process died during the run")
 if crc != 0:
