@@ -7,7 +7,8 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 | 01 | [release-package-linux](01-release-package-linux.md) | dev | 3 h | ADR §1 (a), §4 | 0 | — | done (GC crash → 01b, Shipping join → 01c) |
 | 01b | [gc-disregard-audio-settings](01b-gc-disregard-audio-settings.md) | dev-hard | 2–3 h | 01 | 0 | — | done (nettest default list still to run) |
 | 01c | [shipping-client-headless-join](01c-shipping-client-headless-join.md) | dev | 2 h | 01, 01b | 1 | — | todo |
-| 02 | [headless-listen-server-gate](02-headless-listen-server-gate.md) | dev-hard | 3 h (+ soak time) | ADR §1 gate; editor part now, packaged part after 01 | 0 / 1 | — | todo |
+| 02 | [headless-listen-server-gate](02-headless-listen-server-gate.md) | dev-hard | 3 h (+ soak time) | ADR §1 gate; editor part now, packaged part after 01 | 0 / 1 | — | part A **gate PASSED (listen)** (ADR 0007 F2 (i), 2026-11-06); packaged FAIL on B1/B2 → 02b; open: `notes/02-report.md` audit table |
+| 02b | [packaged-tag-table-and-cook-set](02b-packaged-tag-table-and-cook-set.md) | dev | 2–3 h (+ soak time) | 02, ADR 0007 F2, decision 51 | 1 | — | **done 2026-11-11** (132/132 tests, tag parity + net-version refusal proven, P1 15/15, P2 and P3 set PASS on the packaged server; host not idle: foreign load 2-3, see task notes; evidence `packaged-20261111/`) |
 | 03 | [directory-service-rust](03-directory-service-rust.md) | dev | 3 h | ADR §2 | 0 | — | done |
 | 04 | [server-heartbeat-and-map-registry](04-server-heartbeat-and-map-registry.md) | dev | 3 h | ADR §2; schema shared with 03/05 | 0 | — | done |
 | 04b | [heartbeat-only-with-server-id](04b-heartbeat-only-with-server-id.md) | dev | 1 h | 04 | 0 | — | todo |
@@ -22,6 +23,7 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 | 13 | [release-smoke-and-playtest-checklist](13-release-smoke-and-playtest-checklist.md) | dev | 2 h | 01, 03, 04, 05, 06 | 2 | — | todo |
 | 14 | [windows-client](14-windows-client.md) | dev (script) / human (host) | 1 h + host | ADR §4 | — | **46** | blocked |
 | 15 | [server-capable-installed-build](15-server-capable-installed-build.md) | dev-hard | 1 day on a build box + swap | ADR §1 (c) | — | **41** | blocked |
+| 16 | [itemtest-jumppad-links](16-itemtest-jumppad-links.md) | dev | 2–3 h (+ soak time) | ADR 0007 F2 | 2 | — | todo |
 
 ## Wave plan (from ADR 0007 implementation notes)
 

@@ -26,6 +26,8 @@ One script proves a fresh release end to end on this VM without a human — pack
 - [ ] `docs/playtests/m6-online-checklist.md`: prerequisites (Apple Silicon Mac set up per q26, the download URL), steps with expected results and a sign-off table: download + Gatekeeper (q47), main menu → Servers shows the public server with "Praesidium"/FFA/players, Connect, warm-up with bots, 5 minutes of play (movement feel and hit registration against the M1/M2 checklists' rows at real internet latency — note the scoreboard ping), scoreboard, death camera, disconnect → menu with no error, reconnect by direct IP, wrong-password attempt (if 45 chose a password), a second human if available (two Macs or a friend with the Linux build), server status row on the landing page, and what to report (ping, any correction jitter, FPS). Plus the lead's section: `release-smoke.sh --public` PASS, `journalctl` clean, `nft list ruleset` as expected.
 - [ ] `infra/ci/README.md` documents both modes.
 
+**Amendment (ADR 0007 F2, 2026-11-06) — release gate:** every release runs the packaged gate P1 (default list against the packaged server, ~11 min) — mandatory; P2 (BotRun ×3) and P3 (BotDuel ×3) are required when `Source/Velox/Bots/`, `Source/Velox/Movement/`, nav data or cooked maps changed since the last release. Sets on an idle host (loadavg < 2.0 at set start, recorded).
+
 ## Verification steps
 1. `flock -o <scratchpad>/soak.lock infra/ci/release-smoke.sh --server-archive … --client-archive …` on task 01's `--dev` archives → PASS lines; total time.
 2. After task 06 phase B: `… --public` → PASS.

@@ -41,6 +41,8 @@ Everything needed to run `velox-server@ffa` and `veloxmaster` on this host as un
 - [ ] `systemctl stop velox-server@ffa` exits cleanly within 30 s (journal: exit status 143 or 0, no SIGKILL); `start` again recovers; a `kill -SEGV` of the process is restarted by systemd within 10 s.
 - [ ] `docs/machine.md` gains a "Services" section (units, users, ports, paths, the firewall file).
 
+**Amendment (ADR 0007 F2, 2026-11-06):** phase B deploys the **packaged Development Game build** (`Velox-<ver>-LinuxServer.tar.zst`) as headless listen server (`VELOX_SERVER_MODE=listen`), only after task 02b's P1–P3 pass on an idle host. The editor binary is never the production server; an `editor`-mode fallback is allowed only under F2 (ii) (equal tag hash). Decision 52: apply approved once 02b and 07 are green; the lead announces each root step. Decision 51: the instance serves `L_DM1`.
+
 ## Verification steps
 1. Phase A: `shellcheck infra/deploy/*.sh infra/systemd/*.sh 2>/dev/null; systemd-analyze verify infra/systemd/velox-server@.service` (verify runs without root) → clean; `nft -c -f infra/firewall/nftables.conf` (check-only, may need sudo — state it).
 2. Phase B: the commands in the criteria, in order, each stated in one line before it runs; outputs pasted.

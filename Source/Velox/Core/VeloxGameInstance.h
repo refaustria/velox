@@ -24,6 +24,12 @@ public:
 	virtual void OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld) override;
 	//~End of UGameInstance interface
 
+	/**
+	 * Binds FNetworkVersion::GetLocalNetworkVersionOverride to HashCombine(engine network version, gameplay tag net index hash)
+	 * (task m6-online/02b, ADR 0007 F2) and logs `VeloxNet netversion=<u32> taghash=<hex> tags=<n>`. Idempotent; Init calls it.
+	 */
+	static void BindTagHashIntoNetworkVersion();
+
 	/** Address plus `?Name=<UVeloxGameUserSettings::PlayerName>`: the URL to ClientTravel to (the menu's connect, task 10). */
 	UFUNCTION(BlueprintCallable, Category = "Velox|Settings")
 	FString BuildConnectURL(const FString& Address) const;
