@@ -230,8 +230,13 @@ ci_smoke() {
   [[ "$d_alive" == 1 ]] || { echo "smoke: Development client exited on its own" >&2; ok=0; }
   [[ "$c_alive" == 1 ]] || { echo "smoke: Shipping client exited on its own within 20 s (see $clog)" >&2; ok=0; }
   (( sterm <= 30 )) || { echo "smoke: server did not exit within 30 s of SIGTERM" >&2; ok=0; }
-  SMOKE_NETVER="$(/usr/bin/grep -a 'LogNetVersion: Velox' "$slog" | /usr/bin/grep -a -o 'Checksum: [0-9]*' | head -1 | tr -dc '0-9' || true)"
-  info "smoke: ${secs} s window; verified GCs server=${gcs:-0} devclient=${dgcs:-0}; server exit ${sterm}s after SIGTERM; net version checksum='${SMOKE_NETVER:-none}'; Shipping client log lines: $(wc -l < "$clog")"
+  # ADR 0007 F2: the version in force is the delegate value (tag hash folded in), not the base 'Checksum:'.
+  SMOKE_NETVER="$(/usr/bin/grep -a 'LogNetVersion: Checksum from delegate' "$slog" | /usr/bin/grep -a -o 'delegate: [0-9]*' | head -1 | tr -dc '0-9' || true)"
+  if [[ -z "$SMOKE_NETVER" ]]; then
+    SMOKE_NETVER="$(/usr/bin/grep -a 'LogNetVersion: Velox' "$slog" | /usr/bin/grep -a -o 'Checksum: [0-9]*' | head -1 | tr -dc '0-9' || true)"
+    echo "smoke: NOTE no 'Checksum from delegate' line in the server log; net_version falls back to the base engine checksum '${SMOKE_NETVER:-none}' (tag hash not covered)" >&2
+  fi
+  info "smoke: ${secs} s window; verified GCs server=${gcs:-0} devclient=${dgcs:-0}; server exit ${sterm}s after SIGTERM; net version (delegate) ='${SMOKE_NETVER:-none}'; Shipping client log lines: $(wc -l < "$clog")"
   [[ "$ok" == 1 ]]
 }
 
