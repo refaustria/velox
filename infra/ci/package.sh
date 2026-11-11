@@ -195,7 +195,7 @@ ci_smoke() {
   local slog="$d/server.log" dlog="$d/devclient.log" clog="$d/client.log"
   local gcexec="t.MaxFPS 60, gc.TimeBetweenPurgingPendingKillObjects 20, obj gc"
   (( secs >= 30 )) || secs=30
-  info "smoke: Development server on port ${port} (${secs} s, periodic GC 20 s), Development client joining, Shipping client -VeloxConnect (20 s)"
+  info "smoke: Development server on port ${port} (${secs} s, periodic GC 20 s), Development client joining, Shipping client -VeloxConnect (up to 45 s)"
   ci_smoke_start "$d/server" "$slog" "L_ItemTest?listen?game=FFA?SpectatorOnly=1?Name=Server" \
     -nullrhi -nosound -unattended -nopause -nosplash -log -port="$port" -LogCmds="LogNetVersion Log, LogGarbage Log" -UserDir="$d/saved" -ExecCmds="$gcexec"
   spid=$SMOKE_PID
@@ -206,7 +206,9 @@ ci_smoke() {
   dpid=$SMOKE_PID
   ci_smoke_start "$d/client" "$clog" -VeloxConnect="127.0.0.1:$port" -game -nullrhi -nosound -unattended -nopause -nosplash -log -UserDir="$d/saved-client"
   cpid=$SMOKE_PID
-  for i in $(seq 1 20); do kill -0 "$cpid" 2>/dev/null || break; sleep 1; done
+  # Wait (up to 45 s) for the Shipping client to show up as the second join on the server.
+  for i in $(seq 1 45); do kill -0 "$cpid" 2>/dev/null || break; (( $(/usr/bin/grep -a -c 'LogNet: Join succeeded' "$slog" 2>/dev/null || true) >= 2 )) && break; sleep 1; done
+  sleep 3
   local c_alive=0 s_alive=0 d_alive=0
   kill -0 "$cpid" 2>/dev/null && c_alive=1
   # Shipping client (task m6-online/01c): a Shipping build prints no log and ignores a map/URL on the command line, so it joins
