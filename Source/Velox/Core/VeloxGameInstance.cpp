@@ -10,7 +10,10 @@
 #include "GameplayTagsManager.h"
 #include "GameplayTagsModule.h"
 #include "Misc/NetworkVersion.h"
+#include "Containers/Ticker.h"
+#include "Misc/CommandLine.h"
 #include "Misc/CString.h"
+#include "Misc/Parse.h"
 #include "UI/VeloxGameUserSettings.h"
 #include "UI/VeloxMenuMath.h"
 
@@ -70,8 +73,42 @@ void UVeloxGameInstance::Init()
 	UE_LOG(LogVelox, Log, TEXT("UVeloxGameInstance initialised."));
 }
 
+void UVeloxGameInstance::OnStart()
+{
+	Super::OnStart();
+
+	FString Address;
+	if (IsRunningDedicatedServer() || !FParse::Value(FCommandLine::Get(), TEXT("-VeloxConnect="), Address) || Address.IsEmpty())
+	{
+		return;
+	}
+	UE_LOG(LogVelox, Log, TEXT("VeloxConnect: launch option, connecting to '%s' once the front end is up"), *Address);
+	TWeakObjectPtr<UVeloxGameInstance> WeakThis(this);
+	int32 Attempts = 0;
+	LaunchConnectHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakThis, Address, Attempts](float) mutable
+	{
+		UVeloxGameInstance* Self = WeakThis.Get();
+		if (!Self)
+		{
+			return false;
+		}
+		if (!Self->GetFirstLocalPlayerController() && ++Attempts < 600)
+		{
+			return true; // front end not up yet; try again next tick (about 10 s at 60 fps)
+		}
+		FString Error;
+		if (!Self->ConnectToServer(Address, Error))
+		{
+			UE_LOG(LogVelox, Warning, TEXT("VeloxConnect: '%s' refused: %s"), *Address, *Error);
+		}
+		Self->LaunchConnectHandle.Reset();
+		return false;
+	}));
+}
+
 void UVeloxGameInstance::Shutdown()
 {
+	FTSTicker::RemoveTicker(LaunchConnectHandle);
 	if (GEngine)
 	{
 		GEngine->OnNetworkFailure().Remove(NetworkFailureHandle);

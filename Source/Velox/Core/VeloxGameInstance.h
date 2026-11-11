@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Containers/Ticker.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Engine/GameInstance.h"
 
@@ -20,6 +21,13 @@ public:
 	//~UGameInstance interface
 	virtual void Init() override;
 	virtual void Shutdown() override;
+	/**
+	 * `-VeloxConnect=<host[:port]>` on the command line connects to that server right after start-up (task m6-online/01c).
+	 * Needed because a Shipping client ignores the URL/map on the command line (UGameInstance::StartGameInstance blanks it
+	 * unless UE_ALLOW_MAP_OVERRIDE_IN_SHIPPING, which is an engine-module define) and -ExecCmds is compiled out of Shipping.
+	 * It travels like the menu's connect (ConnectToServer), once the first local player controller exists.
+	 */
+	virtual void OnStart() override;
 	/** A new world needs the sound mix again (ADR 0004 section 7). */
 	virtual void OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld) override;
 	//~End of UGameInstance interface
@@ -93,5 +101,6 @@ private:
 	FString PendingMenuMessage;
 	FString LastConnectTarget;
 	FDelegateHandle NetworkFailureHandle;
+	FTSTicker::FDelegateHandle LaunchConnectHandle;
 	FDelegateHandle TravelFailureHandle;
 };
