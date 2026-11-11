@@ -38,3 +38,8 @@ Standard format plus: the step table with timings, the allow-list entries you ne
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+### Outcome (2026-11-11, branch `wip/m6-13-release`, release 0.6.1) - partially done
+- Done: `ProjectVersion` 0.6.1; `docs/playtests/m6-online-checklist.md` (human + lead sections, Mac-only rows marked); build.sh (VeloxEditor, Velox) 140 automation tests Success, fts.sh 8/8; `package.sh --dev` (run from a temporary copy with the `/` guard lowered to 10 GB, copy deleted, guard not committed; cooked/staged/out on tmpfs) PASS incl. smoke (server joins=2, 4 BotDifficulty content smokes); packaged gate P1/P2/P3 PASS on the packaged Development server (evidence `docs/adr/evidence/0007-listen-gate/release-0.6.1/`, host.txt has loadavg at each set start: 1.10 / 1.98 / 1.90).
+- Archives: `Velox-0.6.1+6d8f35f-{Linux,LinuxServer}.tar.zst`, `SHA256SUMS`, `MANIFEST.json` (net_version 2513597612; 0.6.0 had 4065349793, so ProjectVersion is part of it) kept in `/mnt/oldroot/velox-scratch/t13/`. These are `--dev` archives (do not publish); a public release needs a `v0.6.1` tag on the commit.
+- NOT done: `infra/ci/release-smoke.sh` and its README section (not trivial); checklist section 7 refers to it as planned. Replace the `curl` check with the script when it exists.

@@ -1,0 +1,42 @@
+== P1-default start 2026-11-11T14:21:27Z loadavg: 1.10 1.46 1.57 3/1379 1016194
+    256237 velox       03:50:24 /srv/velox/current/Velox/Binaries/Linux/Velox L_DM1?listen?game=FFA?SpectatorOnly=1?Name=Server?MaxPlayers=16?MaxSpectators=5?Bots=3?BotsFill=1?BotDifficulty=Medium -nullr
+   1016189 bojan          00:00 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/
+   1016190 bojan          00:00 /bin/bash /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/evidence/0007-listen-gate/release-0.6.1/runset.sh P1-default --server-binary /tmp/claude-100
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545 / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t13): 1
+   df /: /dev/vdb        125G  109G   10G  92% /
+   rc=0
+== P1-default end 2026-11-11T14:38:44Z loadavg: 1.98 1.91 1.89 2/1155 1061640
+    256237 velox       04:07:40 /srv/velox/current/Velox/Binaries/Linux/Velox L_DM1?listen?game=FFA?SpectatorOnly=1?Name=Server?MaxPlayers=16?MaxSpectators=5?Bots=3?BotsFill=1?BotDifficulty=Medium -nullr
+   1016189 bojan          17:16 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/
+   1016190 bojan          17:16 /bin/bash /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/evidence/0007-listen-gate/release-0.6.1/runset.sh P1-default --server-binary /tmp/claude-100
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545 / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t13): 1
+   df /: /dev/vdb        125G  105G   14G  89% /
+== P2-botrun3 start 2026-11-11T14:38:44Z loadavg: 1.98 1.91 1.89 1/1153 1061658
+    256237 velox       04:07:40 /srv/velox/current/Velox/Binaries/Linux/Velox L_DM1?listen?game=FFA?SpectatorOnly=1?Name=Server?MaxPlayers=16?MaxSpectators=5?Bots=3?BotsFill=1?BotDifficulty=Medium -nullr
+   1061655 bojan          00:00 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/
+   1061656 bojan          00:00 /bin/bash /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/evidence/0007-listen-gate/release-0.6.1/runset.sh P2-botrun3 --server-binary /tmp/claude-100
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545 / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t13): 1
+   df /: /dev/vdb        125G  105G   14G  89% /
+   rc=0
+== P2-botrun3 end 2026-11-11T14:44:05Z loadavg: 1.90 1.75 1.81 4/1171 1069955
+    256237 velox       04:13:01 /srv/velox/current/Velox/Binaries/Linux/Velox L_DM1?listen?game=FFA?SpectatorOnly=1?Name=Server?MaxPlayers=16?MaxSpectators=5?Bots=3?BotsFill=1?BotDifficulty=Medium -nullr
+   1061655 bojan          05:20 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/
+   1061656 bojan          05:20 /bin/bash /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/evidence/0007-listen-gate/release-0.6.1/runset.sh P2-botrun3 --server-binary /tmp/claude-100
+   1067251 bojan          01:42 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1067248
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545 / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t13): 1
+   df /: /dev/vdb        125G  105G   14G  89% /
+== P3-botduel3 start 2026-11-11T14:44:05Z loadavg: 1.90 1.75 1.81 2/1171 1069973
+    256237 velox       04:13:01 /srv/velox/current/Velox/Binaries/Linux/Velox L_DM1?listen?game=FFA?SpectatorOnly=1?Name=Server?MaxPlayers=16?MaxSpectators=5?Bots=3?BotsFill=1?BotDifficulty=Medium -nullr
+   1067251 bojan          01:42 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1067248
+   1069970 bojan          00:00 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/
+   1069971 bojan          00:00 /bin/bash /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/evidence/0007-listen-gate/release-0.6.1/runset.sh P3-botduel3 --server-binary /tmp/claude-10
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545 / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t13): 1
+   df /: /dev/vdb        125G  105G   14G  89% /
+   rc=0
+== P3-botduel3 end 2026-11-11T14:50:55Z loadavg: 2.23 1.92 1.83 1/1127 1080315
+    256237 velox       04:19:51 /srv/velox/current/Velox/Binaries/Linux/Velox L_DM1?listen?game=FFA?SpectatorOnly=1?Name=Server?MaxPlayers=16?MaxSpectators=5?Bots=3?BotsFill=1?BotDifficulty=Medium -nullr
+   1069970 bojan          06:50 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/
+   1069971 bojan          06:50 /bin/bash /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545/docs/adr/evidence/0007-listen-gate/release-0.6.1/runset.sh P3-botduel3 --server-binary /tmp/claude-10
+   1077016 bojan          02:13 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=1077012
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-ad5cb31d71d240545 / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t13): 1
+   df /: /dev/vdb        125G  105G   14G  89% /
