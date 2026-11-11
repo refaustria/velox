@@ -65,6 +65,8 @@ AVeloxGameMode::AVeloxGameMode(const FObjectInitializer& ObjectInitializer)
 	HUDClass = AVeloxHUD::StaticClass();
 	// C11: copied to AGameStateBase::SpectatorClass by InitGameState; spawned by the engine on owning clients only.
 	SpectatorClass = AVeloxSpectatorPawn::StaticClass();
+	// ADR 0007 amendment F1.2: a networked match never pauses (AllowPausing keeps its NM_Standalone clause for PIE/offline).
+	bPauseable = false;
 }
 
 const UVeloxCombatSettings& AVeloxGameMode::GetCombatSettingsFor(const AController* Controller)

@@ -25,6 +25,7 @@
 #include "Misc/Paths.h"
 #include "Movement/VeloxMoveDebug.h"
 #include "Movement/VeloxMovementComponent.h"
+#include "Net/VeloxNetCheats.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Weapons/VeloxCombatFeedbackComponent.h"
@@ -939,6 +940,10 @@ bool UVeloxScriptedInputComponent::ServerApplyTestKnockback_Validate(FVector Imp
 #if UE_BUILD_SHIPPING
 	return false;
 #else
+	if (!VeloxNet::ValidateTestRpc(this, TEXT("ServerApplyTestKnockback")))   // M6 task 07: velox.net.AllowTestRpcs
+	{
+		return false;
+	}
 	const AVeloxCharacter* Character = GetVeloxCharacter();
 	const UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
 	return Movement && Impulse.Size() <= VeloxScriptedInput::MaxKnockbackInGroundSpeeds * Movement->GetSimParams().MaxGroundSpeed;
@@ -987,6 +992,10 @@ bool UVeloxScriptedInputComponent::ServerGiveTestHaste_Validate(float Seconds)
 #if UE_BUILD_SHIPPING
 	return false;
 #else
+	if (!VeloxNet::ValidateTestRpc(this, TEXT("ServerGiveTestHaste")))   // M6 task 07: velox.net.AllowTestRpcs
+	{
+		return false;
+	}
 	return Seconds > 0.f && Seconds <= VeloxScriptedInput::MaxTestHasteSeconds;
 #endif
 }
@@ -1029,7 +1038,7 @@ bool UVeloxScriptedInputComponent::ServerKillSelfTest_Validate()
 #if UE_BUILD_SHIPPING
 	return false;
 #else
-	return true;
+	return VeloxNet::ValidateTestRpc(this, TEXT("ServerKillSelfTest"));   // M6 task 07: velox.net.AllowTestRpcs
 #endif
 }
 
@@ -1086,7 +1095,7 @@ bool UVeloxScriptedInputComponent::ServerTeleportTestPawn_Validate(FVector Locat
 #if UE_BUILD_SHIPPING
 	return false;
 #else
-	return true;
+	return VeloxNet::ValidateTestRpc(this, TEXT("ServerTeleportTestPawn"));   // M6 task 07: velox.net.AllowTestRpcs
 #endif
 }
 
