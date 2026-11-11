@@ -13,9 +13,10 @@ Spec: `docs/adr/0007-online.md` (ADR 0007). Template: `docs/tasks/TEMPLATE.md`. 
 | 04 | [server-heartbeat-and-map-registry](04-server-heartbeat-and-map-registry.md) | dev | 3 h | ADR §2; schema shared with 03/05 | 0 | — | done |
 | 04b | [heartbeat-only-with-server-id](04b-heartbeat-only-with-server-id.md) | dev | 1 h | 04 | 0 | — | todo |
 | 05 | [server-browser](05-server-browser.md) | dev | 3 h | ADR §2; 04's `VeloxServerStatus.h` schema | 0 | — | todo |
-| 06 | [deploy-systemd-firewall](06-deploy-systemd-firewall.md) | dev | 3 h (files) + 1 h (apply) | ADR §3; files now; apply after 02 PASS | 1 / 2 | **43, 44** (apply only) | todo |
+| 06 | [deploy-systemd-firewall](06-deploy-systemd-firewall.md) | dev | 3 h (files) + 1 h (apply) | ADR §3; files now; apply after 02 PASS | 1 / 2 | **43, 44** (apply only) | done (applied 2026-11-11) |
 | 07 | [server-hardening-rpc-gate-and-connection-policy](07-server-hardening-rpc-gate-and-connection-policy.md) | dev-hard | 3 h (+ soak) | ADR §5.1–5.3 | 0 | 45 (password default only) | todo |
 | 08 | [spectator-item-timer-gating](08-spectator-item-timer-gating.md) | dev-hard | 3 h (+ soak) | ADR §5.5 | 0 | — | todo |
+| 08b | [review-followups](08b-review-followups.md) | dev | 1–2 h | 08, review 0007-08 | 2 | — | todo |
 | 09 | [anomaly-counters](09-anomaly-counters.md) | dev-hard | 2–3 h | ADR §5.4; after 07 if both touch `VeloxPlayerController` (coordinate) | 0 | — | todo |
 | 10 | [replication-budget-measurement](10-replication-budget-measurement.md) | dev | 2 h (+ soak) | ADR §5.6; 02 | 2 | — | todo |
 | 11 | [mac-client-package](11-mac-client-package.md) | dev + human | 2 h + Mac time | ADR §4; 01 (shared script shape); the Apple Silicon Mac | 3 | 47 | todo |

@@ -86,6 +86,13 @@ public:
 	/** Makes a joiner a spectator when every player slot of the mode is taken (ADR 0004 section 5). */
 	virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal) override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
+	/** Connection policy (ADR 0007 section 5.2): with a server password set, ?Password= must match (players and spectators). */
+	virtual void PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
+	/**
+	 * Every human name (login's ?Name=, the engine's ServerChangeName) goes through VeloxNames::Sanitize and Dedupe against
+	 * the other PlayerStates before it is set. Non-player controllers (bots name themselves, ADR 0005) pass unchanged.
+	 */
+	virtual void ChangeName(AController* Controller, const FString& NewName, bool bNameChange) override;
 	/** Level reset (match restart): drops every pending respawn. */
 	virtual void Reset() override;
 	/** Local spectator pawns survive ResetLevel (APawn::Reset would destroy them: they have no controller). */
@@ -98,6 +105,21 @@ public:
 	/** Match rules on: the engine match starts as soon as the GameState exists (players spawn and frag in Warmup). */
 	virtual bool ReadyToStartMatch_Implementation() override;
 	//~End of AGameMode interface
+
+	// ---- Connection policy (ADR 0007 section 5.2; M6 task 07) ----
+
+	/** A server password is configured (-ServerPassword= on the command line, else ?ServerPassword= on the host URL). */
+	bool HasServerPassword() const { return !ServerPassword.IsEmpty(); }
+
+	/**
+	 * World-free password rule (Velox.Net.PasswordRule): no password configured -> any offer passes; otherwise Offered must
+	 * equal Required. Lengths are compared first; equal-length strings are compared in constant time (no early exit).
+	 */
+	static bool IsPasswordAccepted(const FString& Required, const FString& Offered);
+
+	/** Longest human player name in code points (VeloxNames::Sanitize). M6 task 04's UVeloxOnlineSettings will own it. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Net", meta = (ClampMin = "1", ClampMax = "64"))
+	int32 MaxPlayerNameLength = 24;
 
 	// ---- Match phase machine (ADR 0004 section 5; task 05) ----
 
@@ -179,6 +201,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UVeloxGameModeDefinition> GameModeDefinition;
+
+	/** Server password (never logged); empty = open server (ADR 0007 question 45). */
+	FString ServerPassword;
 
 	FVeloxMatchRulesConfig MatchRules;
 	bool bMatchRulesEnabled = false;

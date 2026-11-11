@@ -30,6 +30,7 @@
 #include "Core/VeloxGameplayTags.h"
 #include "Input/VeloxInputConfig.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
+#include "Net/VeloxNetCheats.h"
 #include "UI/VeloxAnnouncerComponent.h"
 #include "UI/VeloxGameUserSettings.h"
 #include "UI/VeloxPauseMenuWidget.h"
@@ -345,6 +346,96 @@ void AVeloxPlayerController::ServerKickBot_Implementation(const FString& NameOrA
 		Bots->KickBot(NameOrAll.IsEmpty() ? FString(TEXT("all")) : NameOrAll);
 	}
 }
+
+// ---- RPC gate (ADR 0007 section 5.1, M6 task 07) -------------------------------------------------------------------
+
+bool AVeloxPlayerController::ServerAddBot_Validate(const FString& DifficultyName, const FString& BotName)
+{
+	return IsLocalController() || VeloxNet::ValidateTestRpc(this, TEXT("ServerAddBot"));
+}
+
+bool AVeloxPlayerController::ServerKickBot_Validate(const FString& NameOrAll)
+{
+	return IsLocalController() || VeloxNet::ValidateTestRpc(this, TEXT("ServerKickBot"));
+}
+
+bool AVeloxPlayerController::ServerExecRPC_Validate(const FString& Msg)
+{
+	if (IsLocalController())
+	{
+		return true;
+	}
+	NotifyRpcRefused(TEXT("ServerExecRPC"), TEXT("remote"));
+	return false;
+}
+
+bool AVeloxPlayerController::ServerPause_Validate()
+{
+	if (IsLocalController())
+	{
+		return true;
+	}
+	NotifyRpcRefused(TEXT("ServerPause"), TEXT("remote"));
+	return false;
+}
+
+void AVeloxPlayerController::NotifyRpcRefused(FName Rpc, const TCHAR* Reason)
+{
+	++NumRpcRefused;
+	const UWorld* World = GetWorld();
+	const double Now = World ? World->GetRealTimeSeconds() : 0.0;
+	if (Now - LastRpcRefusedLogTime >= RpcRefusedLogIntervalSeconds)
+	{
+		UE_LOG(LogVeloxNet, Warning, TEXT("VeloxRpcRefused controller=%s player=%s rpc=%s reason=%s count=%d suppressed=%d"), *GetName(),
+			*AVeloxPlayerState::VeloxPlayerLabel(PlayerState), *Rpc.ToString(), Reason, NumRpcRefused, NumRpcRefusedLogSuppressed);
+		LastRpcRefusedLogTime = Now;
+		NumRpcRefusedLogSuppressed = 0;
+	}
+	else
+	{
+		++NumRpcRefusedLogSuppressed;
+	}
+	OnRpcRefused.Broadcast(this, Rpc);
+}
+
+void AVeloxPlayerController::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (HasAuthority() && !IsLocalController())
+	{
+		PollTimeDiscrepancy();
+	}
+}
+
+void AVeloxPlayerController::PollTimeDiscrepancy()
+{
+	APawn* MyPawn = GetPawn();
+	if (MyPawn != TimeDiscrepancyPawn.Get())
+	{
+		TimeDiscrepancyPawn = MyPawn;
+		bWasResolvingTimeDiscrepancy = false;
+	}
+	const ACharacter* Character = Cast<ACharacter>(MyPawn);
+	UCharacterMovementComponent* Movement = Character ? Character->GetCharacterMovement() : nullptr;
+	if (!Movement || !Movement->HasPredictionData_Server())
+	{
+		return;
+	}
+	const FNetworkPredictionData_Server_Character* ServerData = Movement->GetPredictionData_Server_Character();
+	const bool bResolving = ServerData && ServerData->bResolvingTimeDiscrepancy;
+	if (bResolving && !bWasResolvingTimeDiscrepancy)
+	{
+		++NumTimeDiscrepancies;
+		const UWorld* World = GetWorld();
+		UE_LOG(LogVeloxNet, Warning, TEXT("VeloxTimeDiscrepancy controller=%s player=%s t=%.3f payback_s=%.3f lifetime_raw_s=%.3f lifetime_s=%.1f count=%d"), *GetName(),
+			*AVeloxPlayerState::VeloxPlayerLabel(PlayerState), World ? World->GetTimeSeconds() : 0.0, ServerData->TimeDiscrepancy, ServerData->LifetimeRawTimeDiscrepancy,
+			World ? World->GetTimeSeconds() - ServerData->WorldCreationTime : 0.0, NumTimeDiscrepancies);
+		OnTimeDiscrepancy.Broadcast(this, ServerData->TimeDiscrepancy);
+	}
+	bWasResolvingTimeDiscrepancy = bResolving;
+}
+
+// ---- end RPC gate ---------------------------------------------------------------------------------------------------
 
 void AVeloxPlayerController::ServerSetReady_Implementation(bool bInReady)
 {
