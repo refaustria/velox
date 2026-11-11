@@ -1,0 +1,281 @@
+[2026.11.11-12.46.09:484][  6]LogVeloxBots: VeloxBotWatch started seconds=180
+[2026.11.11-12.46.09:485][  6]LogVeloxBots: VeloxBotWatch phase=Countdown old=-
+[2026.11.11-12.46.09:485][  6]LogVeloxBots: VeloxBotWatch t=0 phase=Countdown players=3 feed=0 pickups_taken=0
+[2026.11.11-12.46.09:734][ 21]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Cursor
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Cursor
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Rapidus
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Rapidus
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Rapidus
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Impetus
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Celer
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Celer
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Fulgur
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Rockets taken_by=Fulgur
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Ventus
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Slugs taken_by=Impetus
+[2026.11.11-12.46.09:734][ 22]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Powerup_Quad taken_by=-
+[2026.11.11-12.46.09:984][ 37]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Aquila
+[2026.11.11-12.46.10:099][ 43]LogVeloxBots: VeloxBotWatch feed seq=4 killer=Cursor victim=Sagitta tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.46.10:234][ 52]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Volucer
+[2026.11.11-12.46.10:483][ 66]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Procella
+[2026.11.11-12.46.13:986][276]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Turbo
+[2026.11.11-12.46.14:487][306]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Aquila
+[2026.11.11-12.46.15:990][397]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Ventus
+[2026.11.11-12.46.17:185][467]LogVeloxBots: VeloxBotWatch feed seq=5 killer=Cursor victim=Impetus tag=Velox.Damage.Telefrag suicide=0
+[2026.11.11-12.46.17:251][471]LogVeloxBots: VeloxBotWatch phase=Live old=Countdown
+[2026.11.11-12.46.17:750][501]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Rapidus
+[2026.11.11-12.46.18:501][546]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Turbo
+[2026.11.11-12.46.18:749][561]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Celer
+[2026.11.11-12.46.18:997][577]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Fulgur
+[2026.11.11-12.46.18:997][577]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Lightning taken_by=Turbo
+[2026.11.11-12.46.19:246][591]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Aquila
+[2026.11.11-12.46.19:501][606]LogVeloxBots: VeloxBotWatch t=10 phase=Live players=14 feed=2 pickups_taken=25
+[2026.11.11-12.46.19:999][637]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Ventus
+[2026.11.11-12.46.20:494][666]LogVeloxBots: VeloxBotWatch feed seq=6 killer=Fulgur victim=Procella tag=Velox.Damage.MachineGun suicide=0
+[2026.11.11-12.46.21:499][726]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Ventus
+[2026.11.11-12.46.21:500][727]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Fulgur
+[2026.11.11-12.46.21:746][742]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Ventus
+[2026.11.11-12.46.22:249][772]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Ventus
+[2026.11.11-12.46.22:249][772]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Rapidus
+[2026.11.11-12.46.22:249][772]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Volucer
+[2026.11.11-12.46.24:749][922]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Celer
+[2026.11.11-12.46.24:997][936]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Cursor
+[2026.11.11-12.46.25:249][951]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Celer
+[2026.11.11-12.46.25:498][967]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Celer
+[2026.11.11-12.46.25:498][967]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Procella
+[2026.11.11-12.46.26:751][ 41]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Impetus
+[2026.11.11-12.46.26:751][ 42]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Aquila
+[2026.11.11-12.46.26:999][ 56]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Mega taken_by=Celer
+[2026.11.11-12.46.29:181][187]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=60.03 cpu_ms_mean=6.897 wall_ms_p99=23.245
+[2026.11.11-12.46.29:750][222]LogVeloxBots: VeloxBotWatch t=20 phase=Live players=14 feed=3 pickups_taken=40
+[2026.11.11-12.46.30:247][251]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Impetus
+[2026.11.11-12.46.30:750][281]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Aquila
+[2026.11.11-12.46.30:861][288]LogVeloxBots: VeloxBotWatch feed seq=7 killer=Impetus victim=Procella tag=Velox.Damage.Plasma suicide=0
+[2026.11.11-12.46.32:746][402]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Celer
+[2026.11.11-12.46.32:997][417]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Turbo
+[2026.11.11-12.46.34:249][492]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Rockets taken_by=Aquila
+[2026.11.11-12.46.35:911][591]LogVeloxBots: VeloxBotWatch feed seq=8 killer=Cursor victim=Procella tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.46.35:996][596]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Aquila
+[2026.11.11-12.46.38:747][762]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Rapidus
+[2026.11.11-12.46.38:997][777]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Procella
+[2026.11.11-12.46.39:181][788]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=60.00 cpu_ms_mean=6.893 wall_ms_p99=23.030
+[2026.11.11-12.46.39:997][837]LogVeloxBots: VeloxBotWatch t=31 phase=Live players=14 feed=5 pickups_taken=48
+[2026.11.11-12.46.41:194][908]LogVeloxBots: VeloxBotWatch feed seq=9 killer=Rapidus victim=Turbo tag=Velox.Damage.Lightning suicide=0
+[2026.11.11-12.46.41:462][924]LogVeloxBots: VeloxBotWatch feed seq=10 killer=Procella victim=Rapidus tag=Velox.Damage.Shotgun suicide=0
+[2026.11.11-12.46.41:878][949]LogVeloxBots: VeloxBotWatch feed seq=11 killer=Cursor victim=Procella tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.46.42:578][991]LogVeloxBots: VeloxBotWatch feed seq=12 killer=Aquila victim=Ventus tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.46.43:996][ 77]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Procella
+[2026.11.11-12.46.45:251][152]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Rapidus
+[2026.11.11-12.46.46:003][196]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Aquila
+[2026.11.11-12.46.46:497][226]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Volucer
+[2026.11.11-12.46.47:498][287]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Volucer
+[2026.11.11-12.46.48:003][316]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Volucer
+[2026.11.11-12.46.48:479][345]LogVeloxBots: VeloxBotWatch feed seq=13 killer=Turbo victim=Procella tag=Velox.Damage.MachineGun suicide=0
+[2026.11.11-12.46.48:846][367]LogVeloxBots: VeloxBotWatch feed seq=14 killer=Volucer victim=Turbo tag=Velox.Damage.Shotgun suicide=0
+[2026.11.11-12.46.49:182][388]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=59.99 cpu_ms_mean=6.690 wall_ms_p99=23.872
+[2026.11.11-12.46.49:247][392]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Volucer
+[2026.11.11-12.46.50:000][436]LogVeloxBots: VeloxBotWatch t=41 phase=Live players=14 feed=11 pickups_taken=55
+[2026.11.11-12.46.52:498][586]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Ictus
+[2026.11.11-12.46.52:498][587]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Rapidus
+[2026.11.11-12.46.53:252][631]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Sagitta
+[2026.11.11-12.46.54:252][692]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Ventus
+[2026.11.11-12.46.54:253][692]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Celer
+[2026.11.11-12.46.54:749][722]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Celer
+[2026.11.11-12.46.56:000][796]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Turbo
+[2026.11.11-12.46.56:255][812]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Large taken_by=Impetus
+[2026.11.11-12.46.56:546][829]LogVeloxBots: VeloxBotWatch feed seq=15 killer=Celer victim=Procella tag=Velox.Damage.Lightning suicide=0
+[2026.11.11-12.46.57:749][902]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Celer
+[2026.11.11-12.46.57:779][903]LogVeloxBots: VeloxBotWatch feed seq=16 killer=Cursor victim=Turbo tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.46.57:998][917]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Ictus
+[2026.11.11-12.46.59:186][988]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=59.98 cpu_ms_mean=6.862 wall_ms_p99=23.534
+[2026.11.11-12.47.00:000][ 37]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Impetus
+[2026.11.11-12.47.00:256][ 52]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Procella
+[2026.11.11-12.47.00:256][ 52]LogVeloxBots: VeloxBotWatch t=51 phase=Live players=14 feed=13 pickups_taken=67
+[2026.11.11-12.47.01:713][139]LogVeloxBots: VeloxBotWatch feed seq=17 killer=Rapidus victim=Impetus tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.01:747][141]LogVeloxBots: VeloxBotWatch feed seq=18 killer=Rapidus victim=Procella tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.01:754][142]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Procella
+[2026.11.11-12.47.03:397][240]LogVeloxBots: VeloxBotWatch feed seq=19 killer=Rapidus victim=Volucer tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.03:397][240]LogVeloxBots: VeloxBotWatch feed seq=20 killer=Rapidus victim=Ventus tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.03:504][247]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Mega taken_by=Rapidus
+[2026.11.11-12.47.04:751][321]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Procella
+[2026.11.11-12.47.05:251][351]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Rapidus
+[2026.11.11-12.47.05:755][381]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Volucer
+[2026.11.11-12.47.06:753][441]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Slugs taken_by=Aquila
+[2026.11.11-12.47.07:504][486]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Sagitta
+[2026.11.11-12.47.07:504][487]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Lightning taken_by=Procella
+[2026.11.11-12.47.07:504][487]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Rapidus
+[2026.11.11-12.47.09:187][587]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=59.99 cpu_ms_mean=8.895 wall_ms_p99=22.812
+[2026.11.11-12.47.09:663][616]LogVeloxBots: VeloxBotWatch feed seq=21 killer=Celer victim=Ventus tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.09:798][624]LogVeloxBots: VeloxBotWatch feed seq=22 killer=Rapidus victim=Rapidus tag=Velox.Damage.Rocket suicide=1
+[2026.11.11-12.47.10:096][642]LogVeloxBots: VeloxBotWatch feed seq=23 killer=Cursor victim=Procella tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.10:213][649]LogVeloxBots: VeloxBotWatch feed seq=24 killer=Ictus victim=Fulgur tag=Velox.Damage.Plasma suicide=0
+[2026.11.11-12.47.10:500][666]LogVeloxBots: VeloxBotWatch t=61 phase=Live players=14 feed=21 pickups_taken=76
+[2026.11.11-12.47.10:907][688]LogVeloxBots: VeloxBotWatch feed seq=25 killer=Volucer victim=Turbo tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.11:010][694]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Turbo
+[2026.11.11-12.47.12:010][754]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Rapidus
+[2026.11.11-12.47.13:511][844]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Celer
+[2026.11.11-12.47.13:764][859]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Fulgur
+[2026.11.11-12.47.15:275][950]LogVeloxBots: VeloxBotWatch feed seq=26 killer=Aquila victim=Sagitta tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.16:012][995]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Fulgur
+[2026.11.11-12.47.16:012][995]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Cursor
+[2026.11.11-12.47.18:014][115]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Procella
+[2026.11.11-12.47.19:010][175]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Sagitta
+[2026.11.11-12.47.19:193][185]LogVeloxNet: VeloxNetStats role=client window=10.01 frames=598 fps=59.76 cpu_ms_mean=7.158 wall_ms_p99=23.354
+[2026.11.11-12.47.19:343][194]LogVeloxBots: VeloxBotWatch feed seq=27 killer=Celer victim=Ventus tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.19:512][205]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Impetus
+[2026.11.11-12.47.20:261][250]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Volucer
+[2026.11.11-12.47.20:513][264]LogVeloxBots: VeloxBotWatch t=71 phase=Live players=14 feed=24 pickups_taken=86
+[2026.11.11-12.47.20:766][279]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Shells taken_by=Impetus
+[2026.11.11-12.47.21:512][325]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Impetus
+[2026.11.11-12.47.22:009][354]LogVeloxBots: VeloxBotWatch feed seq=28 killer=Impetus victim=Procella tag=Velox.Damage.Shotgun suicide=0
+[2026.11.11-12.47.22:760][399]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Sagitta
+[2026.11.11-12.47.23:014][415]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Rockets taken_by=Rapidus
+[2026.11.11-12.47.23:014][415]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Volucer
+[2026.11.11-12.47.24:010][474]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Ictus
+[2026.11.11-12.47.24:010][475]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Ventus
+[2026.11.11-12.47.24:261][490]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Celer
+[2026.11.11-12.47.24:515][504]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Aquila
+[2026.11.11-12.47.25:012][535]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Aquila
+[2026.11.11-12.47.26:514][624]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Aquila
+[2026.11.11-12.47.27:425][679]LogVeloxBots: VeloxBotWatch feed seq=29 killer=Rapidus victim=Sagitta tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.28:263][729]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Turbo
+[2026.11.11-12.47.28:642][752]LogVeloxBots: VeloxBotWatch feed seq=30 killer=Aquila victim=Impetus tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.47.29:198][785]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=59.97 cpu_ms_mean=6.787 wall_ms_p99=23.520
+[2026.11.11-12.47.29:293][791]LogVeloxBots: VeloxBotWatch feed seq=31 killer=Ventus victim=Procella tag=Velox.Damage.Lightning suicide=0
+[2026.11.11-12.47.30:261][850]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Sagitta
+[2026.11.11-12.47.30:763][880]LogVeloxBots: VeloxBotWatch t=81 phase=Live players=14 feed=28 pickups_taken=99
+[2026.11.11-12.47.33:511][ 45]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Ictus
+[2026.11.11-12.47.36:514][224]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Procella
+[2026.11.11-12.47.37:512][284]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Celer
+[2026.11.11-12.47.38:766][359]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Sagitta
+[2026.11.11-12.47.39:196][385]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=60.01 cpu_ms_mean=6.793 wall_ms_p99=22.297
+[2026.11.11-12.47.39:511][405]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Impetus
+[2026.11.11-12.47.40:014][434]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Mega taken_by=Procella
+[2026.11.11-12.47.40:515][464]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Celer
+[2026.11.11-12.47.40:766][479]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Celer
+[2026.11.11-12.47.40:766][480]LogVeloxBots: VeloxBotWatch t=91 phase=Live players=14 feed=28 pickups_taken=107
+[2026.11.11-12.47.41:013][494]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Celer
+[2026.11.11-12.47.41:226][507]LogVeloxBots: VeloxBotWatch feed seq=32 killer=Turbo victim=Procella tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.47.41:762][539]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Rapidus
+[2026.11.11-12.47.41:762][540]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Volucer
+[2026.11.11-12.47.43:766][660]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Procella
+[2026.11.11-12.47.45:011][734]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Rapidus
+[2026.11.11-12.47.46:515][824]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Impetus
+[2026.11.11-12.47.46:560][827]LogVeloxBots: VeloxBotWatch feed seq=33 killer=Rapidus victim=Procella tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.47:015][854]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Slugs taken_by=Ictus
+[2026.11.11-12.47.48:267][929]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Fulgur
+[2026.11.11-12.47.49:199][985]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=59.98 cpu_ms_mean=6.678 wall_ms_p99=22.546
+[2026.11.11-12.47.50:263][ 49]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Procella
+[2026.11.11-12.47.50:765][ 79]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Large taken_by=Aquila
+[2026.11.11-12.47.50:765][ 80]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Turbo
+[2026.11.11-12.47.51:016][ 95]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Turbo
+[2026.11.11-12.47.51:016][ 95]LogVeloxBots: VeloxBotWatch t=102 phase=Live players=14 feed=30 pickups_taken=119
+[2026.11.11-12.47.52:513][184]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Procella
+[2026.11.11-12.47.52:743][198]LogVeloxBots: VeloxBotWatch feed seq=34 killer=Ictus victim=Ventus tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.52:763][200]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Turbo
+[2026.11.11-12.47.55:013][335]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Impetus
+[2026.11.11-12.47.55:095][339]LogVeloxBots: VeloxBotWatch feed seq=35 killer=Sagitta victim=Impetus tag=Velox.Damage.Plasma suicide=0
+[2026.11.11-12.47.55:513][365]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Ventus
+[2026.11.11-12.47.57:543][486]LogVeloxBots: VeloxBotWatch feed seq=36 killer=Celer victim=Procella tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.57:794][501]LogVeloxBots: VeloxBotWatch feed seq=37 killer=Ictus victim=Cursor tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.58:645][552]LogVeloxBots: VeloxBotWatch feed seq=38 killer=Ictus victim=Turbo tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.47.59:196][586]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=60.01 cpu_ms_mean=6.547 wall_ms_p99=23.704
+[2026.11.11-12.48.00:268][649]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Ventus
+[2026.11.11-12.48.00:766][679]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Cursor
+[2026.11.11-12.48.00:766][679]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Turbo
+[2026.11.11-12.48.01:018][694]LogVeloxBots: VeloxBotWatch t=112 phase=Live players=14 feed=35 pickups_taken=126
+[2026.11.11-12.48.03:429][839]LogVeloxBots: VeloxBotWatch feed seq=39 killer=Turbo victim=Sagitta tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.48.03:764][860]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Impetus
+[2026.11.11-12.48.05:110][940]LogVeloxBots: VeloxBotWatch feed seq=40 killer=Volucer victim=Procella tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.48.07:016][ 55]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Sagitta
+[2026.11.11-12.48.08:770][159]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Sagitta
+[2026.11.11-12.48.08:770][159]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Sagitta
+[2026.11.11-12.48.08:770][159]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Procella
+[2026.11.11-12.48.09:019][174]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Ventus
+[2026.11.11-12.48.09:199][185]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=59.98 cpu_ms_mean=8.764 wall_ms_p99=22.717
+[2026.11.11-12.48.10:020][234]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Fulgur
+[2026.11.11-12.48.10:397][257]LogVeloxBots: VeloxBotWatch feed seq=41 killer=Turbo victim=Aquila tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.48.11:268][309]LogVeloxBots: VeloxBotWatch t=122 phase=Live players=14 feed=38 pickups_taken=133
+[2026.11.11-12.48.11:596][329]LogVeloxBots: VeloxBotWatch feed seq=42 killer=Impetus victim=Procella tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.48.12:150][360]LogVeloxBots: VeloxBotWatch feed seq=43 killer=Fulgur victim=Turbo tag=Velox.Damage.Shotgun suicide=0
+[2026.11.11-12.48.12:667][391]LogVeloxBots: VeloxBotWatch feed seq=44 killer=Volucer victim=Ictus tag=Velox.Damage.MachineGun suicide=0
+[2026.11.11-12.48.14:023][472]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Aquila
+[2026.11.11-12.48.14:770][517]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Turbo
+[2026.11.11-12.48.17:022][653]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Ictus
+[2026.11.11-12.48.19:206][783]LogVeloxNet: VeloxNetStats role=client window=10.01 frames=598 fps=59.76 cpu_ms_mean=7.401 wall_ms_p99=22.191
+[2026.11.11-12.48.19:419][796]LogVeloxBots: VeloxBotWatch feed seq=45 killer=Fulgur victim=Procella tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.48.20:027][832]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Impetus
+[2026.11.11-12.48.20:524][863]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Cursor
+[2026.11.11-12.48.20:584][866]LogVeloxBots: VeloxBotWatch feed seq=46 killer=Rapidus victim=Cursor tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.48.21:022][893]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Aquila
+[2026.11.11-12.48.21:272][907]LogVeloxBots: VeloxBotWatch t=132 phase=Live players=14 feed=43 pickups_taken=139
+[2026.11.11-12.48.21:771][938]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Impetus
+[2026.11.11-12.48.23:271][ 28]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Cursor
+[2026.11.11-12.48.24:021][ 73]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Lightning taken_by=Ventus
+[2026.11.11-12.48.24:271][ 87]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Rockets taken_by=Sagitta
+[2026.11.11-12.48.24:773][118]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Cursor
+[2026.11.11-12.48.25:022][133]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Aquila
+[2026.11.11-12.48.27:273][267]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Cursor
+[2026.11.11-12.48.27:273][268]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Slugs taken_by=Celer
+[2026.11.11-12.48.29:205][383]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=60.01 cpu_ms_mean=6.938 wall_ms_p99=21.307
+[2026.11.11-12.48.30:468][459]LogVeloxBots: VeloxBotWatch feed seq=47 killer=Turbo victim=Procella tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.48.30:772][478]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Ventus
+[2026.11.11-12.48.31:275][507]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Volucer
+[2026.11.11-12.48.31:275][507]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Large taken_by=Rapidus
+[2026.11.11-12.48.31:275][507]LogVeloxBots: VeloxBotWatch t=142 phase=Live players=14 feed=44 pickups_taken=150
+[2026.11.11-12.48.32:022][552]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Volucer
+[2026.11.11-12.48.32:272][568]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Fulgur
+[2026.11.11-12.48.35:273][747]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Ventus
+[2026.11.11-12.48.35:273][747]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Sagitta
+[2026.11.11-12.48.35:771][777]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Procella
+[2026.11.11-12.48.36:218][804]LogVeloxBots: VeloxBotWatch feed seq=48 killer=Ictus victim=Procella tag=Velox.Damage.Lightning suicide=0
+[2026.11.11-12.48.36:735][835]LogVeloxBots: VeloxBotWatch feed seq=49 killer=Impetus victim=Turbo tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.48.36:772][838]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Fulgur
+[2026.11.11-12.48.37:774][898]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Shells taken_by=Fulgur
+[2026.11.11-12.48.38:022][913]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Celer
+[2026.11.11-12.48.39:020][973]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Procella
+[2026.11.11-12.48.39:208][983]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=59.98 cpu_ms_mean=6.953 wall_ms_p99=21.460
+[2026.11.11-12.48.40:521][ 62]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Procella
+[2026.11.11-12.48.40:521][ 63]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Celer
+[2026.11.11-12.48.41:023][ 93]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Procella
+[2026.11.11-12.48.41:523][123]LogVeloxBots: VeloxBotWatch t=152 phase=Live players=14 feed=46 pickups_taken=162
+[2026.11.11-12.48.41:772][138]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Volucer
+[2026.11.11-12.48.44:522][303]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Turbo
+[2026.11.11-12.48.44:522][303]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Small taken_by=Rapidus
+[2026.11.11-12.48.45:502][361]LogVeloxBots: VeloxBotWatch feed seq=50 killer=Impetus victim=Procella tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.48.45:774][377]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Rapidus
+[2026.11.11-12.48.45:774][377]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Cursor
+[2026.11.11-12.48.49:209][583]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=59.99 cpu_ms_mean=7.167 wall_ms_p99=22.214
+[2026.11.11-12.48.49:619][608]LogVeloxBots: VeloxBotWatch feed seq=51 killer=Volucer victim=Sagitta tag=Velox.Damage.Plasma suicide=0
+[2026.11.11-12.48.49:988][630]LogVeloxBots: VeloxBotWatch feed seq=52 killer=Volucer victim=Impetus tag=Velox.Damage.Plasma suicide=0
+[2026.11.11-12.48.50:219][644]LogVeloxBots: VeloxBotWatch feed seq=53 killer=Cursor victim=Celer tag=Velox.Damage.Plasma suicide=0
+[2026.11.11-12.48.51:275][708]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Yellow taken_by=Rapidus
+[2026.11.11-12.48.51:525][723]LogVeloxBots: VeloxBotWatch t=162 phase=Live players=14 feed=50 pickups_taken=168
+[2026.11.11-12.48.51:702][733]LogVeloxBots: VeloxBotWatch feed seq=54 killer=Fulgur victim=Procella tag=Velox.Damage.Rail suicide=0
+[2026.11.11-12.48.53:025][813]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Impetus
+[2026.11.11-12.48.53:169][821]LogVeloxBots: VeloxBotWatch feed seq=55 killer=Turbo victim=Cursor tag=Velox.Damage.Shotgun suicide=0
+[2026.11.11-12.48.53:272][827]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Aquila
+[2026.11.11-12.48.53:272][828]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Sagitta
+[2026.11.11-12.48.53:771][857]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Rapidus
+[2026.11.11-12.48.54:275][887]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Fulgur
+[2026.11.11-12.48.57:336][ 71]LogVeloxBots: VeloxBotWatch feed seq=56 killer=Sagitta victim=Ictus tag=Velox.Damage.MachineGun suicide=0
+[2026.11.11-12.48.58:276][128]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_RocketLauncher taken_by=Celer
+[2026.11.11-12.48.58:653][150]LogVeloxBots: VeloxBotWatch feed seq=57 killer=Volucer victim=Procella tag=Velox.Damage.Lightning suicide=0
+[2026.11.11-12.48.58:953][168]LogVeloxBots: VeloxBotWatch feed seq=58 killer=Turbo victim=Volucer tag=Velox.Damage.Shotgun suicide=0
+[2026.11.11-12.48.59:209][183]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=60.00 cpu_ms_mean=8.035 wall_ms_p99=22.139
+[2026.11.11-12.48.59:276][188]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Shotgun taken_by=Cursor
+[2026.11.11-12.49.00:022][232]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_Railgun taken_by=Ventus
+[2026.11.11-12.49.00:087][236]LogVeloxBots: VeloxBotWatch feed seq=59 killer=Impetus victim=Turbo tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.49.01:523][323]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_PlasmaGun taken_by=Procella
+[2026.11.11-12.49.01:776][338]LogVeloxBots: VeloxBotWatch t=172 phase=Live players=14 feed=56 pickups_taken=177
+[2026.11.11-12.49.02:022][353]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Celer
+[2026.11.11-12.49.02:276][367]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Red taken_by=Cursor
+[2026.11.11-12.49.02:276][368]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Armor_Shard taken_by=Celer
+[2026.11.11-12.49.04:778][518]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Health_Medium taken_by=Impetus
+[2026.11.11-12.49.06:288][608]LogVeloxBots: VeloxBotWatch feed seq=60 killer=Impetus victim=Fulgur tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.49.07:272][667]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Weapon_LightningGun taken_by=Sagitta
+[2026.11.11-12.49.07:386][674]LogVeloxBots: VeloxBotWatch feed seq=61 killer=Rapidus victim=Procella tag=Velox.Damage.Lightning suicide=0
+[2026.11.11-12.49.08:436][737]LogVeloxBots: VeloxBotWatch feed seq=62 killer=Celer victim=Turbo tag=Velox.Damage.Rocket suicide=0
+[2026.11.11-12.49.09:207][783]LogVeloxNet: VeloxNetStats role=client window=10.00 frames=600 fps=60.01 cpu_ms_mean=7.188 wall_ms_p99=22.841
+[2026.11.11-12.49.09:273][787]LogVeloxBots: VeloxBotWatch pickup item=DA_Item_Ammo_Slugs taken_by=Volucer
+[2026.11.11-12.49.09:523][802]LogVeloxBots: VeloxBotWatch done seconds=180 phase=Live feed=59 pickups_taken=183

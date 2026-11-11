@@ -26,7 +26,17 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 GREP=/usr/bin/grep   # the interactive shell's grep is a ugrep wrapper; use the real one
 PORT=7777
-SCRIPTS_ARG="StrafeRun,PadRun,DM1Run,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun,BotRun,BotDuel,DeathSpectateRun"
+SCRIPTS_ARG="StrafeRun,PadRun,DM1Run,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun,BotRun,BotDuel,DeathSpectateRun,RpcGateRun,PasswordRun,ItemGateRun"
+# ADR 0007 section 5.1 (M6 task 07): every soak server accepts the project's test RPCs (teleport, knockback, haste, kill);
+# RpcGateRun runs without it. VELOX_NETTEST_SERVER_ARGS adds raw server arguments (e.g. the -ini: override of the
+# time-discrepancy baseline, task 07 verification step 2).
+TEST_RPC_EXEC="velox.net.AllowTestRpcs 1"
+# PasswordRun's throwaway server password (a test value, not a secret).
+PASSWORD_RUN_PW="velox-soak-pw"
+# ADR 0007 F1.3: VELOX_SERVER_PASSWORD is the production path; every soak server is open unless PasswordRun sets it.
+unset VELOX_SERVER_PASSWORD
+# SpeedHackRun (task 07 report row, not in the default list): the client's velox.move.DebugTimeScale (VELOX_TIME_SCALE, default 1.3).
+SPEEDHACK_SCALE="${VELOX_TIME_SCALE:-1.3}"
 REPEAT=1
 KEEP_GOING=0
 CLIENT_TIMEOUT="${VELOX_NETTEST_TIMEOUT:-120}"
@@ -41,7 +51,9 @@ FIRE_LAG_MS=50
 LAG_OVERRIDE=""
 PKT_ARGS=()
 # Scripts on L_CombatTest (task 08); everything else runs on L_MovementTest.
-COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun RocketJumpRunHold PlasmaRun "
+COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold FireRunRate RocketJumpRun RocketJumpRunHold PlasmaRun "
+# FireRunRate (task m6-online/09b): the client's velox.combat.DebugFireRateScale (VELOX_FIRE_RATE_SCALE, default 2.0).
+FIRE_RATE_SCALE="${VELOX_FIRE_RATE_SCALE:-2.0}"
 # Scripts on L_ItemTest (M3 task 04); the client runs velox.items.Watch.
 ITEM_SCRIPTS=" ItemRun "
 # Scripts on L_DM1_Blockout (M5 task 06, ADR 0006 section 7): the scripted map regression, judged like PadRun.
@@ -49,6 +61,9 @@ DM1_SCRIPTS=" DM1Run "
 # Bot soaks (M4 task 07, ADR 0005 section 14 / D36), both on L_ItemTest with the server options in the map URL.
 BOT_SCRIPTS=" BotRun BotDuel "
 BOT_RUN_SECONDS=90      # BotWatch.json
+# ADR 0007 section 5.5 (task m6-online/08): ItemGateRun = a spectator round (velox.bots.Watch quits it) and a player round
+# (ItemGateRun.json: 40 s idle, serverKill, forced respawn 4 s), both FFA with 3 Medium bots on L_ItemTest.
+ITEM_GATE_SPECTATOR_SECONDS=75
 BOT_DUEL_SECONDS=120    # velox.bots.Watch 120 (wall time after the spectator connected)
 # ADR 0005 D46: host sidecar every HOST_SAMPLE_S seconds, and a load gate before every round (1-min load average below
 # VELOX_LOAD_GATE, at most VELOX_LOAD_GATE_WAIT seconds, then the round starts anyway and says so).
@@ -56,6 +71,13 @@ HOST_SAMPLE_S=5
 LOAD_GATE="${VELOX_LOAD_GATE:-2.0}"
 LOAD_GATE_WAIT="${VELOX_LOAD_GATE_WAIT:-120}"
 REEVAL_DIR=""
+# ADR 0007 section 1 (a) / task m6-online/02: --server-mode listen runs the server as a headless listen host (the shape of the
+# packaged Game build: <map>?listen?SpectatorOnly=1?Name=Server -game -nullrhi, t.MaxFPS 60); --server-binary <Velox> runs a
+# staged packaged binary in that shape (implies listen) with -UserDir (--server-userdir, default <logs>/server-userdir).
+# dedicated (default) is the soak configuration every milestone used, unchanged.
+SERVER_MODE="dedicated"
+SERVER_BINARY=""
+SERVER_USERDIR=""
 # ADR 0006 section 7: --map <Map> replaces the map part of the BotRun / BotDuel URLs (the ?game=...?Bots=... options stay). The
 # soak bands are per map (infra/ci/bands/<Map>.sh, ci_load_bands in lib.sh); without a band file a map runs report-only.
 MAP_OVERRIDE=""
@@ -74,15 +96,28 @@ net-soak pass criteria. Exit code is non-zero if any script fails. FireRun, Fire
 velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest. ItemRun runs on
 L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest. DeathSpectateRun (ADR 0004 C11) runs on L_CombatTest with
 velox.combat.ForceRespawnDelay 4 on the server (free-spectate death camera, forced respawn). FireRunHold (task 08g, not in the default list) is FireRun
-with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3). RocketJumpRunHold
+with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3). FireRunRate (task
+m6-online/09b, not in the default list) holds MG fire 5 s with the client cvar velox.combat.DebugFireRateScale
+(VELOX_FIRE_RATE_SCALE, default 2.0) and asserts rejects{rate} >= 1, reject_share > 0 and no accepted rate above the honest one. RocketJumpRunHold
 (task 08f, not in the default list) is RocketJumpRun with the server holding the rocket's fire RPC 300 ms
 (velox.combat.DebugHoldShotRpc 300 5 1, ADR 0003 B35). PlasmaRun (task 08i, not in the default list) holds plasma fire
 for 5 s at 50 ms one way (ADR 0003 B38: one move-carried schedule per shot sequence).
+RpcGateRun and PasswordRun (M6 task 07, ADR 0007 sections 5.1/5.2; no packet simulation, one server, several short clients):
+RpcGateRun's server runs without velox.net.AllowTestRpcs; one client sends ServerExec, another ServerKillSelfTest, and each
+must be disconnected within 2 s (client VeloxRpcGate result=disconnected, server VeloxRpcRefused + the engine's
+RPC_ValidateFailed). PasswordRun's server gets VELOX_SERVER_PASSWORD in its environment (the production path, ADR 0007
+F1.3; a command-line echo of the value FAILs); a wrong password and a spectator without one are refused with
+the PreLogin text, the right one joins. SpeedHackRun (task 07, not in the default list) crouch-walks the corridor with the
+client's velox.move.DebugTimeScale (VELOX_TIME_SCALE, default 1.3; report-only: dx_server / dx_client over 10 s and time_discrepancies=).
 BotRun and BotDuel (M4 task 07, ADR 0005 D36) run on L_ItemTest with the server's game options in the map URL. BotRun:
 FFA, 3 Medium bots (velox.bots.Debug 1), the client plays BotWatch.json (90 s, no input) with velox.bots.Watch.
 BotDuel: Duel, 2 Hard bots, the client joins with ?SpectatorOnly=1 and velox.bots.Watch 120 quits it. Both are judged
 from the server log (per-round rules); after the last round the runner evaluates the repeat set (D36: sums over
 --repeat 3) from <script>.stats.json and prints "set evaluation" lines. Set bands are only judged for --repeat 3.
+ItemGateRun (ADR 0007 section 5.5, task m6-online/08) runs two rounds on L_ItemTest (FFA, 3 Medium bots, velox.items.LogTimers 1
+on the client): ItemGateSpectator (?SpectatorOnly=1, velox.bots.Watch ${ITEM_GATE_SPECTATOR_SECONDS}: owner-only item timers arrive,
+every respawn known to 0.1 s) and ItemGatePlayer (ItemGateRun.json, velox.bots.Peaceful 1, serverKill + forced respawn 4 s:
+n=0 throughout, the dead window included). ItemGateRun.result holds both.
 
 Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
@@ -102,12 +137,19 @@ Options:
                    bursts, max dwell <= 5 s, nav build <= 2 s, link success >= 90 % per type over a set) are judged on every
                    map. With --reeval, --map names the band file to apply (default ${BAND_MAP_DEFAULT}); the arena floor of
                    the left_arena label is VELOX_ARENA_FLOOR_Z (default 0).
+  --server-mode M  dedicated (default: UnrealEditor-Cmd ... -server) or listen (ADR 0007 section 1 (a): a headless listen host,
+                   <map>?listen?SpectatorOnly=1?Name=Server -game -nullrhi -nosound, -ExecCmds "t.MaxFPS 60, ..."; ready when
+                   "Game Engine Initialized" and "IpNetDriver listening on port <port>" are both logged)
+  --server-binary B  Run the server from a staged packaged binary B (e.g. <dir>/Velox/Binaries/Linux/Velox), same URL and
+                   switches as listen plus -UserDir; implies --server-mode listen
+  --server-userdir D  -UserDir for --server-binary (default <logs>/server-userdir)
   --bot-difficulty P  Calibration (ADR 0005 D50 4): BotRun/BotDuel run with BotDifficulty=P (Easy|Medium|Hard|Expert); the
                    rounds carry calibration=P, print every quantity and judge no D36/D48/D49 band (per-round misses are
                    printed as "~ not judged" notes, the set line reports only)
   -h, --help       Show this help
 
-Environment: UE_ROOT, VELOX_PROJECT, VELOX_OUT (as for build.sh), VELOX_NETTEST_TIMEOUT, VELOX_LOAD_GATE (1-min load
+Environment: UE_ROOT, VELOX_PROJECT, VELOX_OUT (as for build.sh), VELOX_NETTEST_TIMEOUT, VELOX_NETTEST_SERVER_ARGS (extra
+server arguments), VELOX_TIME_SCALE (SpeedHackRun), VELOX_LOAD_GATE (1-min load
 average that must be undercut before a round starts, default 2.0), VELOX_LOAD_GATE_WAIT (max seconds to wait, default 120).
 Logs: \$VELOX_OUT/<timestamp>-<pid>/nettest/[round-<k>/]<script>-{server,client}.log
 USAGE
@@ -144,7 +186,7 @@ cleanup() {
 # (/proc/<pid>/task/<pid>/schedstat, the game thread). -1 = not available.
 host_sample() {
   local pid="$1" file="$2" now l1 u n sy idle iow irq sirq st rest ptot busy psi_c=-1 psi_m=-1 psi_i=-1
-  local srun=-1 swait=-1 mrun=-1 mwait=-1 majflt=-1 scpu=-1 stat f v
+  local srun=-1 swait=-1 mrun=-1 mwait=-1 majflt=-1 scpu=-1 rss=-1 stat f v
   now="$(date +%s.%N)"
   read -r l1 _ < /proc/loadavg || l1=-1
   read -r _ u n sy idle iow irq sirq st rest < /proc/stat || true
@@ -168,7 +210,9 @@ host_sample() {
     set -- $stat
     majflt="${10:--1}"; scpu=$(( ${12:-0} + ${13:-0} ))
   fi
-  echo "t=$now load1=$l1 cpu_total=$ptot cpu_busy=$busy cpu_steal=${st:-0} psi_cpu_us=$psi_c psi_mem_us=$psi_m psi_io_us=$psi_i srv_run_ns=${srun:--1} srv_wait_ns=${swait:--1} srv_majflt=$majflt srv_cpu=$scpu main_run_ns=${mrun:--1} main_wait_ns=${mwait:--1}" >> "$file"
+  # task m6-online/02: server resident set (kB), VmRSS of /proc/<pid>/status
+  if [[ -r /proc/$pid/status ]]; then rss="$(sed -n 's/^VmRSS:[[:space:]]*\([0-9]*\).*/\1/p' "/proc/$pid/status" 2>/dev/null)"; [[ -n "$rss" ]] || rss=-1; fi
+  echo "t=$now load1=$l1 cpu_total=$ptot cpu_busy=$busy cpu_steal=${st:-0} psi_cpu_us=$psi_c psi_mem_us=$psi_m psi_io_us=$psi_i srv_run_ns=${srun:--1} srv_wait_ns=${swait:--1} srv_majflt=$majflt srv_cpu=$scpu main_run_ns=${mrun:--1} main_wait_ns=${mwait:--1} srv_rss_kb=$rss" >> "$file"
 }
 
 start_host_sampler() {
@@ -222,7 +266,7 @@ trap 'exit 130' INT TERM
 script_lag() {
   if [[ -n "$LAG_OVERRIDE" ]]; then echo "$LAG_OVERRIDE"; return; fi
   case "$1" in
-    FireRun|FireRunControl|FireRunHold|PlasmaRun) echo "$FIRE_LAG_MS" ;;
+    FireRun|FireRunControl|FireRunHold|FireRunRate|PlasmaRun) echo "$FIRE_LAG_MS" ;;
     *) echo "$LAG_MS" ;;
   esac
 }
@@ -232,6 +276,21 @@ port_busy() { ss -H -ulnp 2>/dev/null | "$GREP" -q ":${PORT}[[:space:]]"; }
 # run_one <script> : leaves results in $OUT_DIR/<script>.result; returns 0 pass / 1 fail
 run_one() {
   local script="$1" slog clog extra=() crc=0 waited=0
+  if [[ "$script" == ItemGateRun ]]; then
+    # ADR 0007 section 5.5: two rounds (spectator, then player); ItemGateRun.result carries both verdicts.
+    local sub gate_rc=0
+    for sub in ItemGateSpectator ItemGatePlayer; do
+      run_one "$sub" || gate_rc=1
+      [[ -f "$OUT_DIR/$sub.result" ]] || { echo "$sub: no result (run aborted)" > "$OUT_DIR/$sub.result"; gate_rc=1; }
+    done
+    { printf '%-18s %s (spectator round + player round)\n' ItemGateRun "$( ((gate_rc)) && echo FAIL || echo PASS )"
+      sed 's/^/  /' "$OUT_DIR/ItemGateSpectator.result" "$OUT_DIR/ItemGatePlayer.result"; } > "$OUT_DIR/ItemGateRun.result"
+    return "$gate_rc"
+  fi
+  case "$script" in
+    RpcGateRun) run_rpc_gate; return $? ;;
+    PasswordRun) run_password; return $? ;;
+  esac
   slog="$OUT_DIR/$script-server.log"; clog="$OUT_DIR/$script-client.log"
   # Real-time pacing, not -UseFixedTimeStep: that mode runs frames as fast as possible, so the (wall-clock) packet
   # simulation would add seconds of game time per 100 ms. The server is paced by NetServerMaxTickRate=60, the client by t.MaxFPS.
@@ -257,6 +316,17 @@ run_one() {
       map="L_ItemTest?game=Duel?Bots=2?BotsFill=1?BotDifficulty=Hard"; sexec="velox.bots.Debug 1"
       cexec="$cexec, velox.bots.Watch $BOT_DUEL_SECONDS"; connect_url="127.0.0.1:$PORT?SpectatorOnly=1"; script_args=()
       client_timeout=$(( CLIENT_TIMEOUT > BOT_DUEL_SECONDS + 90 ? CLIENT_TIMEOUT : BOT_DUEL_SECONDS + 90 )) ;;
+    ItemGateSpectator)
+      # ADR 0007 section 5.5: a ?SpectatorOnly=1 client is entitled; it logs its owner-only timers once a second.
+      map="L_ItemTest?game=FFA?Bots=3?BotDifficulty=Medium"
+      cexec="$cexec, velox.items.LogTimers 1, velox.bots.Watch $ITEM_GATE_SPECTATOR_SECONDS"; connect_url="127.0.0.1:$PORT?SpectatorOnly=1"; script_args=()
+      client_timeout=$(( CLIENT_TIMEOUT > ITEM_GATE_SPECTATOR_SECONDS + 90 ? CLIENT_TIMEOUT : ITEM_GATE_SPECTATOR_SECONDS + 90 )) ;;
+    ItemGatePlayer)
+      # A playing client (bots peaceful, so the only death is the script's serverKill) holds nothing, alive or dead.
+      # FFA's Countdown -> Live ResetLevel (20 s after start) would replace the scripted pawn mid-script: force Live 1 s
+      # after the server starts, before the client connects (verified x3 dedicated + listen, notes/08-report.md).
+      map="L_ItemTest?game=FFA?Bots=3?BotDifficulty=Medium"; sexec="velox.bots.Peaceful 1, velox.combat.ForceRespawnDelay 4, velox.bots.After 1 velox.match.Phase Live"
+      cexec="$cexec, velox.items.LogTimers 1"; script_args=(-VeloxScript=ItemGateRun) ;;
   esac
   if [[ -n "$BOT_DIFFICULTY" && "$BOT_SCRIPTS" == *" $script "* ]]; then
     map="$(sed -E "s/BotDifficulty=[A-Za-z]+/BotDifficulty=$BOT_DIFFICULTY/" <<< "$map")"
@@ -275,7 +345,7 @@ run_one() {
     map="L_ItemTest"; cexec="$cexec, velox.items.Watch"
   fi
   case "$script" in
-    FireRun|FireRunControl|FireRunHold)
+    FireRun|FireRunControl|FireRunHold|FireRunRate)
       # Task 08: invulnerable strafing target at FireRun.json's dummyLocation, every weapon, per-pawn rewind lines.
       # FireRunHold (task 08g, ADR 0003 B36): FireRun with the server holding the first three rail target-data RPCs
       # (slot 7) for 300 ms each, a deterministic stand-in for a reliable resend.
@@ -285,7 +355,13 @@ run_one() {
       [[ "$script" == FireRunControl ]] && lagcomp=0
       sexec="velox.combat.GiveAllWeapons, velox.combat.SpawnDummy $dummy invulnerable, velox.lagcomp.Debug 1, velox.combat.LagComp $lagcomp"
       [[ "$script" == FireRunHold ]] && sexec="$sexec, velox.combat.DebugHoldShotRpc 300 7 3"
-      script_args=(-VeloxScript=FireRun) ;;
+      script_args=(-VeloxScript=FireRun)
+      if [[ "$script" == FireRunRate ]]; then
+        # Task m6-online/09b (review 0007-09 open point 3, ADR 0003 B32): the client fires the MG at FIRE_RATE_SCALE x its
+        # refire rate (client-only, non-shipping cvar); the server's bucket must reject the excess (reason=rate).
+        cexec="$cexec, velox.combat.DebugFireRateScale ${FIRE_RATE_SCALE}"
+        script_args=(-VeloxScript=FireRunRate)
+      fi ;;
     RocketJumpRun|RocketJumpRunHold)
       # Task 08 / ADR 0003 B25: wraps the task-05 test command; VeloxCorrection lines come from velox.move.LogCorrections.
       sexec="velox.combat.GiveAllWeapons"
@@ -309,21 +385,53 @@ run_one() {
     DeathSpectateRun)
       map="L_CombatTest"; sexec="velox.combat.ForceRespawnDelay ${DEATH_SPECTATE_FORCE_RESPAWN_S}" ;;
   esac
+  if [[ "$script" == SpeedHackRun ]]; then
+    # Task 07 report row: client-side time scale (speed-hack proxy) and the 1 Hz VeloxTimeScale position log.
+    cexec="$cexec, velox.move.DebugTimeScale ${SPEEDHACK_SCALE}, velox.move.DebugTimeScaleLog 1"
+    # ADR 0007 F1.1 (iii): the server logs the remote pawn's position too (VeloxTimeScale role=server), so the row can
+    # judge the guard's output (dx_server) and not only the cheater's own view (dx_client).
+    sexec="${sexec:+$sexec, }velox.move.DebugTimeScaleLog 1"
+  fi
+  # ADR 0007 section 5.1: the soak server accepts the test RPCs (RpcGateRun, which runs without it, returned above).
+  sexec="${TEST_RPC_EXEC}${sexec:+, $sexec}"
   # Debug knob: VELOX_NETTEST_EXEC="p.NetShowCorrections 1" runs extra console commands on both processes.
   if [[ -n "${VELOX_NETTEST_EXEC:-}" ]]; then cexec="$cexec, $VELOX_NETTEST_EXEC"; sexec="${sexec:+$sexec, }$VELOX_NETTEST_EXEC"; fi
   if [[ -n "$sexec" ]]; then extra=(-ExecCmds="$sexec"); fi
+  local server_args_extra=()
+  if [[ -n "${VELOX_NETTEST_SERVER_ARGS:-}" ]]; then read -r -a server_args_extra <<< "$VELOX_NETTEST_SERVER_ARGS"; fi
   load_gate "$script" "$OUT_DIR/$script-gate.txt"
   if port_busy; then echo "FAILED: UDP port $PORT is in use (ss -ulnp)" >&2; return 1; fi
 
+  local ready_pat="" t_start
+  t_start="$(date +%s.%N)"
+  if [[ "$SERVER_MODE" == dedicated ]]; then
   info "[$script] starting dedicated server (${SERVER_FPS} Hz), log $slog"
   "$EDITOR_CMD" "$VELOX_PROJECT" "$map" -server -log -stdout -FullStdOutLogOutput -nullrhi -unattended -nopause -nosplash \
-    -port="$PORT" "${extra[@]}" >"$slog" 2>&1 &
+    -port="$PORT" "${extra[@]}" "${server_args_extra[@]}" >"$slog" 2>&1 &
   SERVER_PID=$!
-  while ! "$GREP" -aq "Game Engine Initialized" "$slog"; do
+  else
+    # ADR 0007 section 1 (a): headless listen host with a spectator-only local player, pinned to 60 fps (STATUS q29).
+    local host_url="${map}?listen?SpectatorOnly=1?Name=Server" host_exec="t.MaxFPS ${SERVER_FPS}${sexec:+, $sexec}"
+    ready_pat="IpNetDriver listening on port $PORT"
+    if [[ -n "$SERVER_BINARY" ]]; then
+      info "[$script] starting packaged headless listen host ${SERVER_BINARY} (${SERVER_FPS} fps), log $slog"
+      "$SERVER_BINARY" "$host_url" -game -nullrhi -nosound -unattended -nopause -nosplash -log -stdout -FullStdOutLogOutput \
+        -port="$PORT" -UserDir="$SERVER_USERDIR" -ExecCmds="$host_exec" >"$slog" 2>&1 &
+    else
+      info "[$script] starting headless listen host (${SERVER_FPS} fps), log $slog"
+      "$EDITOR_CMD" "$VELOX_PROJECT" "$host_url" -game -nullrhi -nosound -unattended -nopause -nosplash -log -stdout -FullStdOutLogOutput \
+        -port="$PORT" -ExecCmds="$host_exec" >"$slog" 2>&1 &
+    fi
+    SERVER_PID=$!
+  fi
+  while ! "$GREP" -aq "Game Engine Initialized" "$slog" || { [[ -n "$ready_pat" ]] && ! "$GREP" -aq "$ready_pat" "$slog"; }; do
     if ! kill -0 "$SERVER_PID" 2>/dev/null; then echo "FAILED: server exited during startup (log: $slog)" >&2; SERVER_PID=""; return 1; fi
     if (( waited >= SERVER_START_TIMEOUT )); then echo "FAILED: server not ready after ${SERVER_START_TIMEOUT}s (log: $slog)" >&2; cleanup; return 1; fi
     sleep 1; waited=$((waited + 1))
   done
+  if [[ -n "$ready_pat" ]]; then
+    info "[$script] host ready after $(awk -v a="$t_start" -v b="$(date +%s.%N)" 'BEGIN { printf "%.1f", b - a }') s: $("$GREP" -a -m1 "$ready_pat" "$slog" | tr -d '\r')"
+  fi
   start_host_sampler "$SERVER_PID" "$OUT_DIR/$script-host.log"
   sleep 2
 
@@ -352,8 +460,198 @@ run_one() {
   local load_end
   read -r load_end _ < /proc/loadavg || load_end=0
   echo "load_end=$load_end" >> "$OUT_DIR/$script-gate.txt"
+  # task m6-online/02: server RSS over the round (sidecar srv_rss_kb), printed for every script and kept in the gate file.
+  local rss_line
+  rss_line="$(awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^srv_rss_kb=/) { v = substr($i, 12) + 0; if (v > 0) { n++; s += v; if (v > m) m = v; l = v } } }
+    END { if (n) printf "rss_max_kb=%d rss_mean_kb=%d rss_last_kb=%d rss_samples=%d", m, s / n, l, n; else printf "rss_max_kb=n/a" }' "$OUT_DIR/$script-host.log" 2>/dev/null)"
+  echo "server_mode=$SERVER_MODE $rss_line" >> "$OUT_DIR/$script-gate.txt"
+  info "[$script] server ($SERVER_MODE) $rss_line"
 
-  VELOX_BOT_CALIBRATION="$BOT_DIFFICULTY" analyze_round "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$lag" "$OUT_DIR"
+  VELOX_SERVER_MODE="$SERVER_MODE" VELOX_BOT_CALIBRATION="$BOT_DIFFICULTY" analyze_round "$script" "$slog" "$clog" "$crc" "$server_alive" "$OUT_DIR/$script.result" "$lag" "$OUT_DIR"
+}
+
+# ---- RpcGateRun / PasswordRun (M6 task 07, ADR 0007 sections 5.1 / 5.2): one server, several short clients, no packet
+# simulation (the verdict is a disconnect or a login refusal, not movement).
+
+# gate_start_server <log> <map> <exec or ""> [server args...] : starts the server, waits for "Game Engine Initialized"
+gate_start_server() {
+  local slog="$1" map="$2" sexec="$3" waited=0 extra=()
+  shift 3
+  if [[ -n "$sexec" ]]; then extra=(-ExecCmds="$sexec"); fi
+  "$EDITOR_CMD" "$VELOX_PROJECT" "$map" -server -log -stdout -FullStdOutLogOutput -nullrhi -unattended -nopause -nosplash \
+    -port="$PORT" "${extra[@]}" "$@" >"$slog" 2>&1 &
+  SERVER_PID=$!
+  while ! "$GREP" -aq "Game Engine Initialized" "$slog"; do
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then echo "FAILED: server exited during startup (log: $slog)" >&2; SERVER_PID=""; return 1; fi
+    if (( waited >= SERVER_START_TIMEOUT )); then echo "FAILED: server not ready after ${SERVER_START_TIMEOUT}s (log: $slog)" >&2; cleanup; return 1; fi
+    sleep 1; waited=$((waited + 1))
+  done
+  sleep 2
+}
+
+# gate_client <log> <url> <exec> : runs one client to its own exit (the probe quits it); sets GATE_RC
+gate_client() {
+  local clog="$1" url="$2" cexec="$3" waited=0
+  GATE_RC=0
+  "$EDITOR_CMD" "$VELOX_PROJECT" "$url" -game -log -stdout -FullStdOutLogOutput -nullrhi -nosound -unattended -nopause -nosplash \
+    -ExecCmds="t.MaxFPS 60, $cexec" -WINDOWED -ResX=320 -ResY=240 >"$clog" 2>&1 &
+  CLIENT_PID=$!
+  while kill -0 "$CLIENT_PID" 2>/dev/null; do
+    if (( waited >= CLIENT_TIMEOUT )); then echo "client timeout after ${CLIENT_TIMEOUT}s ($clog)" >&2; break; fi
+    sleep 1; waited=$((waited + 1))
+  done
+  if kill -0 "$CLIENT_PID" 2>/dev/null; then GATE_RC=124; kill_proc "$CLIENT_PID"; else wait "$CLIENT_PID" 2>/dev/null; GATE_RC=$?; fi
+  CLIENT_PID=""
+}
+
+run_rpc_gate() {
+  local script=RpcGateRun slog="$OUT_DIR/RpcGateRun-server.log" rc_exec rc_kill alive=1
+  load_gate "$script" "$OUT_DIR/$script-gate.txt"
+  if port_busy; then echo "FAILED: UDP port $PORT is in use (ss -ulnp)" >&2; return 1; fi
+  info "[$script] starting dedicated server without velox.net.AllowTestRpcs (log $slog)"
+  gate_start_server "$slog" L_MovementTest "" || return 1
+  info "[$script] client 1: ServerExec stat fps"
+  gate_client "$OUT_DIR/RpcGateRun-exec-client.log" "127.0.0.1:$PORT" "velox.net.RpcGateProbe exec 30"; rc_exec=$GATE_RC
+  info "[$script] client 2: ServerKillSelfTest"
+  gate_client "$OUT_DIR/RpcGateRun-kill-client.log" "127.0.0.1:$PORT" "velox.net.RpcGateProbe kill 30"; rc_kill=$GATE_RC
+  sleep 1
+  kill -0 "$SERVER_PID" 2>/dev/null || alive=0
+  cleanup
+  python3 -I - "$slog" "$OUT_DIR/RpcGateRun-exec-client.log" "$rc_exec" "$OUT_DIR/RpcGateRun-kill-client.log" "$rc_kill" "$alive" "$OUT_DIR/$script.result" <<'PY'
+import re, sys
+slog, exec_log, exec_rc, kill_log, kill_rc, alive, result = sys.argv[1:8]
+def read(p):
+    with open(p, encoding="utf-8", errors="replace") as f:
+        return f.read().splitlines()
+def fields(line, marker):
+    return dict(re.findall(r'(\w+)=("[^"]*"|\S+)', line.split(marker, 1)[1]))
+S = read(slog)
+fails, detail = [], []
+if alive != "1":
+    fails.append("server died")
+for probe, log, rc, rpc in (("exec", exec_log, exec_rc, "ServerExecRPC"), ("kill", kill_log, kill_rc, "ServerKillSelfTest")):
+    C = read(log)
+    if rc != "0":
+        fails.append("%s: client exit code %s" % (probe, rc))
+    sent = any(("VeloxRpcGate probe=%s sent" % probe) in l for l in C)
+    res = next((l for l in reversed(C) if ("VeloxRpcGate probe=%s result=" % probe) in l), None)
+    if not sent:
+        fails.append("%s: the probe never sent the RPC" % probe)
+    if res is None:
+        fails.append("%s: no VeloxRpcGate result line" % probe)
+    else:
+        d = fields(res, "VeloxRpcGate")
+        if d.get("result") != "disconnected":
+            fails.append("%s: result=%s" % (probe, d.get("result")))
+        else:
+            dt = float(d.get("dt", "99"))
+            detail.append("%s_dt=%.3f %s_failure=%s %s_error=%s" % (probe, dt, probe, d.get("failure"), probe, d.get("error", "").replace(" ", "_")))
+            if dt > 2.0:
+                fails.append("%s: disconnected after %.3f s (> 2 s)" % (probe, dt))
+    refused = [l for l in S if "VeloxRpcRefused" in l and ("rpc=%s " % rpc) in l]
+    validate = [l for l in S if ("RPC_GetLastFailedReason: %s_Validate" % rpc) in l]
+    if not refused:
+        fails.append("%s: no server VeloxRpcRefused rpc=%s line" % (probe, rpc))
+    if not validate:
+        fails.append("%s: no engine 'RPC_GetLastFailedReason: %s_Validate' line" % (probe, rpc))
+    detail.append("%s_refused=%d %s_validate_failed=%d" % (probe, len(refused), probe, len(validate)))
+# ADR 0007 section 5.4 (task m6-online/09): every refused client's anomaly summary (at=logout) shows rpc_refused >= 1.
+an = [l.split("VeloxAnomaly ", 1)[1].strip() for l in S if "VeloxAnomaly at=" in l]
+an_refused = [a for a in an if int((re.search(r"\brpc_refused=(\d+)", a) or [0, 0])[1]) >= 1]
+detail.append("anomaly_lines=%d anomaly_rpc_refused=%d" % (len(an), len(an_refused)))
+for a in an:
+    print("[RpcGateRun] VeloxAnomaly " + a)
+if len(an_refused) < 2:
+    fails.append("expected 2 VeloxAnomaly lines with rpc_refused>=1 (one per refused client), got %d" % len(an_refused))
+if any("VeloxNetSoak event=kill_server" in l for l in S):
+    fails.append("kill: the server executed ServerKillSelfTest")
+joins = sum(1 for l in S if "Join succeeded" in l)
+detail.append("server_joins=%d" % joins)
+if joins < 2:
+    fails.append("server saw %d joins (expected 2)" % joins)
+row = "%-18s %s  %s" % ("RpcGateRun", "FAIL" if fails else "PASS", " ".join(detail))
+with open(result, "w") as out:
+    out.write(row + "\n")
+    for fl in fails:
+        out.write("    - " + fl + "\n")
+sys.exit(1 if fails else 0)
+PY
+}
+
+run_password() {
+  local script=PasswordRun slog="$OUT_DIR/PasswordRun-server.log" rc_wrong rc_spec rc_right alive=1
+  load_gate "$script" "$OUT_DIR/$script-gate.txt"
+  if port_busy; then echo "FAILED: UDP port $PORT is in use (ss -ulnp)" >&2; return 1; fi
+  # ADR 0007 F1.3: the production path, VELOX_SERVER_PASSWORD in the server's environment (never on its command line).
+  info "[$script] starting dedicated server with VELOX_SERVER_PASSWORD in its environment (log $slog)"
+  export VELOX_SERVER_PASSWORD="$PASSWORD_RUN_PW"
+  gate_start_server "$slog" L_MovementTest "$TEST_RPC_EXEC" || { unset VELOX_SERVER_PASSWORD; return 1; }
+  unset VELOX_SERVER_PASSWORD
+  info "[$script] client 1: wrong password"
+  gate_client "$OUT_DIR/PasswordRun-wrong-client.log" "127.0.0.1:$PORT?Password=not-it" "velox.net.ConnectProbe 30"; rc_wrong=$GATE_RC
+  info "[$script] client 2: spectator without a password"
+  gate_client "$OUT_DIR/PasswordRun-spectator-client.log" "127.0.0.1:$PORT?SpectatorOnly=1" "velox.net.ConnectProbe 30"; rc_spec=$GATE_RC
+  info "[$script] client 3: right password"
+  gate_client "$OUT_DIR/PasswordRun-right-client.log" "127.0.0.1:$PORT?Password=$PASSWORD_RUN_PW" "velox.net.ConnectProbe 30"; rc_right=$GATE_RC
+  sleep 1
+  kill -0 "$SERVER_PID" 2>/dev/null || alive=0
+  cleanup
+  python3 -I - "$slog" "$alive" "$OUT_DIR/$script.result" "$PASSWORD_RUN_PW" \
+    "wrong" "$OUT_DIR/PasswordRun-wrong-client.log" "$rc_wrong" "failed" \
+    "spectator" "$OUT_DIR/PasswordRun-spectator-client.log" "$rc_spec" "failed" \
+    "right" "$OUT_DIR/PasswordRun-right-client.log" "$rc_right" "joined" <<'PY'
+import re, sys
+slog, alive, result, pw = sys.argv[1:5]
+rows = [sys.argv[i:i + 4] for i in range(5, len(sys.argv), 4)]
+def read(p):
+    with open(p, encoding="utf-8", errors="replace") as f:
+        return f.read().splitlines()
+S = read(slog)
+fails, detail = [], []
+if alive != "1":
+    fails.append("server died")
+if not any("VeloxNet password=on source=env" in l for l in S):
+    fails.append("server: no 'VeloxNet password=on source=env' line (VELOX_SERVER_PASSWORD not picked up)")
+for name, log, rc, want in rows:
+    C = read(log)
+    if rc != "0":
+        fails.append("%s: client exit code %s" % (name, rc))
+    res = next((l for l in reversed(C) if "VeloxConnectProbe result=" in l), None)
+    if res is None:
+        fails.append("%s: no VeloxConnectProbe result line" % name)
+        continue
+    d = dict(re.findall(r'(\w+)=("[^"]*"|\S+)', res.split("VeloxConnectProbe", 1)[1]))
+    got = d.get("result")
+    err = d.get("error", "").strip('"')
+    detail.append("%s=%s%s" % (name, got, (":" + err.replace(" ", "_")) if got == "failed" else ""))
+    if got != want:
+        fails.append("%s: result=%s (expected %s)" % (name, got, want))
+    if want == "failed" and got == "failed" and err != "Wrong password":
+        fails.append("%s: failure text '%s' (expected 'Wrong password')" % (name, err))
+refusals = sum(1 for l in S if "VeloxLoginRefused reason=password" in l)
+detail.append("server_refusals=%d" % refusals)
+if refusals != 2:
+    fails.append("server logged %d password refusals (expected 2)" % refusals)
+# Velox code never writes the password. The engine echoes it (command line: LogInit / LogCsvProfiler metadata; the client's
+# login URL: LogNet "Login request:" / "Join request:"); those echoes are counted and reported, not judged.
+# ADR 0007 F1.3: on the env path the command line never carries the value; a command-line echo is a FAIL.
+CMDLINE_ECHO = ("Command Line:", "commandline=")
+ENGINE_ECHO = ("Login request:", "Join request:")
+leaks = [l for l in S if pw in l and not any(e in l for e in CMDLINE_ECHO + ENGINE_ECHO)]
+cmdline_echo = sum(1 for l in S if pw in l and any(e in l for e in CMDLINE_ECHO))
+echo = sum(1 for l in S if pw in l and any(e in l for e in ENGINE_ECHO))
+detail.append("pw_cmdline_echo_lines=%d pw_engine_echo_lines=%d" % (cmdline_echo, echo))
+if cmdline_echo:
+    fails.append("password value echoed from the server command line (%d line(s)); the env path must keep it off" % cmdline_echo)
+if leaks:
+    fails.append("password value in the server log outside the engine's echoes: %s" % leaks[0].strip()[:160])
+row = "%-18s %s  %s" % ("PasswordRun", "FAIL" if fails else "PASS", " ".join(detail))
+with open(result, "w") as out:
+    out.write(row + "\n")
+    for fl in fails:
+        out.write("    - " + fl + "\n")
+sys.exit(1 if fails else 0)
+PY
 }
 
 # analyze_round <script> <server log> <client log> <client rc> <server alive 0|1> <result file> <lag ms> <dir> [<stats dir>]
@@ -415,10 +713,233 @@ for name, lines in (("server", S), ("client", C)):
 for l in S:
     if re.search(r"VeloxAudio play|VeloxViewModel weapon=|VeloxCosmetics .*: mesh=|VeloxProjectileMesh |VeloxTracer ", l):
         fails.append("server: cosmetic/audio line in the dedicated server log (ADR 0006 section 1): %s" % l.strip()[:160]); break
+# ADR 0007 sections 5.1 / 5.3 (M6 task 07): an honest soak client is never refused an RPC and never triggers a movement
+# time-discrepancy resolution. SpeedHackRun (the speed-hack proxy) reports its resolutions instead.
+disc = [l for l in S if "VeloxTimeDiscrepancy controller=" in l]
+if script == "SpeedHackRun":
+    notes.append("time_discrepancies=%d" % len(disc))
+    # ADR 0007 F1.1 (iii): 2-D displacement over 10 s of real time from the pawn's first movement, server-side (the guard's
+    # output, `VeloxTimeScale role=server`) and client-side (the cheater's own view, `VeloxTimeScale scale=`), 1 Hz samples,
+    # from the first sample already in motion, linearly interpolated at start + 10 s.
+    def ts_samples(lines, server):
+        out = []
+        for l in lines:
+            if "VeloxTimeScale " not in l or (" role=server " in l) != server:
+                continue
+            m = re.search(r"real_t=([-\d.]+).*?pos=X=([-\d.]+) Y=([-\d.]+) Z=[-\d.]+ speed2d=([-\d.]+)", l)
+            if m:
+                out.append(tuple(float(v) for v in m.groups()))
+        return out
+    def dx10(samples):
+        # Window start: the first sample that moved since the previous one (the server's speed2d reads 0 during the
+        # resolution payback ticks, so position, not velocity, marks the start).
+        # A step over 600 cm per 1 Hz sample is the script's teleport to the start, not movement.
+        start = next((i for i in range(1, len(samples)) if 1.0 < math.hypot(samples[i][1] - samples[i - 1][1], samples[i][2] - samples[i - 1][2]) < 600.0), None)
+        if start is None:
+            return None
+        t0, x0, y0 = samples[start][:3]
+        prev = samples[start]
+        for smp in samples[start + 1:]:
+            if smp[0] >= t0 + 10.0:
+                a = (t0 + 10.0 - prev[0]) / max(1e-6, smp[0] - prev[0])
+                x, y = prev[1] + a * (smp[1] - prev[1]), prev[2] + a * (smp[2] - prev[2])
+                return math.hypot(x - x0, y - y0)
+            prev = smp
+        return None
+    for side, lines, server in (("server", S, True), ("client", C, False)):
+        d = dx10(ts_samples(lines, server))
+        notes.append("dx_%s=%s" % (side, "n/a" if d is None else "%.1f" % d))
+elif disc:
+    fails.append("server: %d VeloxTimeDiscrepancy line(s) for an honest client: %s" % (len(disc), disc[0].strip()[:160]))
+for l in S:
+    if "VeloxRpcRefused" in l:
+        fails.append("server: RPC refused during a soak (velox.net.AllowTestRpcs not set?): %s" % l.strip()[:160]); break
+# ADR 0007 task m6-online/02: a headless listen host must recognise itself (VeloxServerKind::IsHeadlessHost, logged once per
+# process) so that the cosmetic/audio gate above holds for it as for a dedicated server.
+if os.environ.get("VELOX_SERVER_MODE", "dedicated") == "listen":
+    if not any("VeloxServerKind headless_host=1" in l for l in S):
+        fails.append("server: listen host never logged 'VeloxServerKind headless_host=1' (spectator-only -nullrhi host not recognised)")
+    joins = [l for l in S if "VeloxMatch join " in l]
+    if joins and "spectator=1" not in joins[0]:
+        # the host logs in during LoadMap, before any client: its join line is the first one (match-rule modes only)
+        fails.append("server: the listen host joined as an active player (?SpectatorOnly=1 not honoured): %s" % joins[0].strip()[:160])
+# Task m6-online/02b (B1): both processes must index gameplay tags identically (FastReplication=True: a differing tag table shifts
+# every later net index). UVeloxGameInstance::Init logs "VeloxNet netversion=<u32> taghash=<h> tags=<n>" once per process.
+_tag_s = [l for l in S if "VeloxNet netversion=" in l]
+_tag_c = [l for l in C if "VeloxNet netversion=" in l]
+if _tag_s and _tag_c:
+    _ts = re.search(r"VeloxNet netversion=\d+ taghash=(\w+) tags=(\d+)", _tag_s[0]); _tc = re.search(r"VeloxNet netversion=\d+ taghash=(\w+) tags=(\d+)", _tag_c[0])
+    if _ts and _tc and _ts.groups() != _tc.groups():
+        fails.append("gameplay tag table differs: server taghash=%s tags=%s, client taghash=%s tags=%s (B1)" % (_ts.group(1), _ts.group(2), _tc.group(1), _tc.group(2)))
+else:
+    fails.append("no 'VeloxNet netversion=' line in the %s log (binary older than task m6-online/02b?)" % ("server" if not _tag_s else "client"))
+# ADR 0007 section 5.4 (task m6-online/09): per-player anomaly counters. The server prints "VeloxAnomaly at=interval|logout|shutdown
+# pid=<id> shots=n(+d) ... player=<name>" (player last: names may contain spaces, rows are matched by pid=). The last line per pid
+# is that player's summary. Honest combat rounds: snaps, orphans and rpc_refused are 0 for every client. late_retargets is
+# reported, not failed: B42 accepts mode=late within the resend tolerance and an honest 50 ms / 2 % client produces one now
+# and then (task 09 report); its count must equal the server's mode=late lines. SpeedHackRun: the counted discrepancies equal
+# the VeloxTimeDiscrepancy lines. The hold rows (FireRunHold, RocketJumpRunHold) report their counters.
+def anomaly_rows(lines):
+    rows = {}
+    for l in lines:
+        if "VeloxAnomaly at=" not in l:
+            continue
+        body = "VeloxAnomaly " + l.split("VeloxAnomaly ", 1)[1].rstrip()
+        head, _, player = body.partition(" player=")
+        m = re.search(r"\bat=(\w+) pid=(-?\d+)", head)
+        if not m:
+            continue
+        d = {k: int(v) for k, v in re.findall(r"(\w+)=(-?\d+)\(\+-?\d+\)", head)}
+        rj = re.search(r"rejects\{([^}]*)\}", head)
+        d["rejects"] = {k: int(v) for k, v in re.findall(r"(\w+):(\d+)\(\+\d+\)", rj.group(1))} if rj else {}
+        d["at"], d["pid"], d["player"] = m.group(1), int(m.group(2)), player
+        for k in ("late_share", "reject_share"):
+            mm = re.search(r"\b%s=([\d.]+)" % k, head)
+            d[k] = float(mm.group(1)) if mm else 0.0
+        d["line"] = body
+        rows[d["pid"]] = d
+    return rows
+anomaly = anomaly_rows(S)
+for _pid, _d in sorted(anomaly.items()):
+    notes.append(_d["line"])
+if script in ("FireRun", "FireRunControl", "RocketJumpRun", "PlasmaRun"):
+    if not anomaly:
+        fails.append("no VeloxAnomaly line on the server (the client fired: its logout line must exist, task m6-online/09)")
+    for _pid, _d in sorted(anomaly.items()):
+        for _k in ("snaps", "orphans", "rpc_refused"):
+            if _d.get(_k, 0) > 0:
+                fails.append("honest client pid=%d: VeloxAnomaly %s=%d (want 0, ADR 0007 section 5.4)" % (_pid, _k, _d[_k]))
+        if _d.get("shots", 0) <= 0:
+            fails.append("honest client pid=%d: VeloxAnomaly shots=0 (the accepted shots were not counted)" % _pid)
+if script in ("FireRun", "FireRunControl", "FireRunHold", "FireRunRate", "RocketJumpRun", "RocketJumpRunHold", "PlasmaRun"):
+    _late_lines = sum(1 for l in S if "VeloxWeaponSwitch retarget" in l and " mode=late " in l)
+    _late_counted = sum(_d.get("late_retargets", 0) for _d in anomaly.values())
+    if _late_counted != _late_lines:
+        fails.append("VeloxAnomaly late_retargets=%d != %d server 'retarget ... mode=late' lines" % (_late_counted, _late_lines))
+if script == "SpeedHackRun":
+    _counted = sum(_d.get("discrepancies", 0) for _d in anomaly.values())
+    if disc and _counted != len(disc):
+        fails.append("VeloxAnomaly discrepancies=%d != %d VeloxTimeDiscrepancy lines" % (_counted, len(disc)))
 if not server_alive:
     fails.append("server process died during the run")
 if crc != 0:
     fails.append("client exit code %d" % crc)
+
+if script in ("ItemGateSpectator", "ItemGatePlayer"):
+    # ADR 0007 section 5.5 (task m6-online/08): item respawn times leave the server only toward entitled connections.
+    # Server lines: VeloxItemTimerEntitlement player= entitled= only_spectator= (PostLogin, join), VeloxItemTimerPush item=
+    # index= respawn_t= entitled= remote= (every timer change of a major item; remote = entitled PlayerStates of remote
+    # connections, the listen host's own spectator PlayerState is local), VeloxPickupRespawn item= t=. Client lines
+    # (velox.items.LogTimers 1): VeloxItemTimers n= entries=[<item>#<index>@<server time>,...] reason=rep|tick ... state=
+    # only_spectator= pawn=. Judged from these alone; the movement rules of the scripted rounds do not apply here.
+    ENT_RE = re.compile(r"entries=\[([^\]]*)\]")
+    def entries_of(line):
+        m = ENT_RE.search(line)
+        out = []
+        if m and m.group(1):
+            for part in m.group(1).split(","):
+                mm = re.match(r"(.+)#(\d+)@(-?[\d.]+)$", part)
+                if mm:
+                    out.append((mm.group(1), int(mm.group(2)), float(mm.group(3))))
+        return out
+    spectator = script == "ItemGateSpectator"
+    # Names are not unique (and may contain spaces, which kv() cannot parse): the listen host's own PlayerState and the
+    # remote client both log in as "Player". Rows are matched by pid=<PlayerId> (server VeloxItemTimerEntitlement /
+    # VeloxItemTimerPush to=[name#pid,...] and the client's VeloxItemTimers lines). The host's rows carry local=1
+    # (entitled spectator, nothing on the wire) and are not the client's.
+    ct = [l for l in C if "VeloxItemTimers n=" in l]
+    me = next((kv(l).get("pid") for l in ct if kv(l).get("pid")), None)
+    ents = [(i, kv(l)) for i, l in enumerate(S) if "VeloxItemTimerEntitlement player=" in l and kv(l).get("local") != "1"]
+    mine = [(i, d) for i, d in ents if d.get("pid") == me] if me else []
+    pushes = [(i, kv(l)) for i, l in enumerate(S) if "VeloxItemTimerPush item=" in l]
+    respawns = [(i, kv(l)) for i, l in enumerate(S) if "VeloxPickupRespawn item=" in l]
+    detail_g = []
+    if not ct:
+        fails.append("no client 'VeloxItemTimers n=' lines (velox.items.LogTimers not running)")
+    if not mine:
+        fails.append("no server VeloxItemTimerEntitlement line for the client (pid=%s)" % me)
+    e_idx = mine[0][0] if mine else len(S)
+    # Pushes after the client's connection closed (it quits itself when velox.bots.Watch ends) go to nobody remote: not judged.
+    close_i = next((i for i in range(e_idx + 1, len(S)) if "UNetConnection::Close" in S[i]), len(S))
+    pushes = [(i, d) for i, d in pushes if i < close_i]
+    takes_after = [d for i, d in pushes if i > e_idx and num(d, "respawn_t") > 0.0]
+    if spectator:
+        if mine and mine[0][1].get("entitled") != "1":
+            fails.append("spectator not entitled at login: %s" % S[mine[0][0]].strip()[-120:])
+        if not takes_after:
+            fails.append("no major take while the spectator was connected (no VeloxItemTimerPush respawn_t>0 after its login): round proves nothing")
+        bad = [d for d in takes_after if int(num(d, "remote")) < 1]
+        if bad:
+            fails.append("%d major take(s) after the spectator's login not pushed to a remote connection: %s" % (len(bad), bad[0]))
+        rep_n = [int(num(kv(l), "n")) for l in ct if "reason=rep" in l]
+        if not any(n >= 1 for n in rep_n):
+            fails.append("the spectator never received a non-empty ItemTimers (reason=rep n>=1)")
+        seen = collections.defaultdict(set)
+        for l in ct:
+            for name, _idx, t in entries_of(l):
+                if t > 0.0:
+                    seen[name].add(t)
+        # Every respawn while the spectator was connected and entitled (the respawn's own push has remote >= 1) must have
+        # been known in advance to 0.1 s: the entry's RespawnServerTime against the server's VeloxPickupRespawn t=.
+        matched, missed = [], []
+        for i, d in pushes:
+            if i <= e_idx or num(d, "respawn_t", -1.0) != 0.0 or int(num(d, "remote")) < 1:
+                continue
+            r = next((rd for j, rd in respawns if i < j <= i + 6 and rd.get("item") == d.get("item")), None)
+            if r is None:
+                continue   # a reset / initial schedule, not a respawn
+            t = num(r, "t")
+            best = min((abs(v - t) for v in seen.get(d.get("item"), ())), default=None)
+            (matched if best is not None and best <= 0.1 else missed).append((d.get("item"), t, best))
+        if not matched:
+            fails.append("no major respawn observed while the spectator watched (nothing to compare the entries with)")
+        if missed:
+            fails.append("%d respawn(s) not matched by a client entry within 0.1 s: %s" % (len(missed), missed[:3]))
+        detail_g.append("entitled=%s takes_pushed=%d respawns_matched=%d max_err_s=%.3f client_lines=%d max_n=%d" % (
+            mine[0][1].get("entitled") if mine else "-", len(takes_after), len(matched), max((m[2] for m in matched), default=0.0), len(ct),
+            max((int(num(kv(l), "n")) for l in ct), default=0)))
+        for m in matched[:3]:
+            notes.append("%s respawn t=%.3f entry_err=%.3f s" % (m[0].replace("DA_Item_", ""), m[1], m[2]))
+    else:
+        if mine and mine[0][1].get("entitled") != "0":
+            fails.append("player entitled at login: %s" % S[mine[0][0]].strip()[-120:])
+        if any(d.get("entitled") != "0" for _i, d in mine):
+            fails.append("player entitled at some point: %s" % [d for _i, d in mine if d.get("entitled") != "0"][:1])
+        if not takes_after:
+            fails.append("no major take while the player was connected (no VeloxItemTimerPush respawn_t>0 after its login): round proves nothing")
+        leaked = [d for i, d in pushes if int(num(d, "remote")) > 0]
+        if leaked:
+            fails.append("%d push(es) to a remote connection while only a player was connected: %s" % (len(leaked), leaked[0]))
+        nonzero = [l for l in ct if int(num(kv(l), "n")) != 0]
+        if nonzero:
+            fails.append("%d client line(s) with n>0 (player must hold no timers): %s" % (len(nonzero), nonzero[0].strip()[-140:]))
+        dead = [l for l in ct if "reason=tick" in l and kv(l).get("state") == "Spectating" and kv(l).get("only_spectator") == "0" and kv(l).get("pawn") == "0"]
+        if len(dead) < 2:
+            fails.append("only %d client tick line(s) in the dead window (state=Spectating only_spectator=0 pawn=0), want >= 2" % len(dead))
+        kill_i = next((i for i, l in enumerate(C) if "VeloxNetSoak event=kill " in l), None)
+        seen_i = next((i for i, l in enumerate(C) if "VeloxNetSoak event=respawn_seen" in l), None)
+        if kill_i is None:
+            fails.append("no client 'VeloxNetSoak event=kill' line (serverKill row)")
+        if seen_i is None:
+            fails.append("client never saw the respawned pawn")
+        final = next((l for l in reversed(C) if "VeloxNetSoak: script=" in l), None)
+        if final is None or kv(final).get("result") != "PASS":
+            fails.append("script result: %s" % (final.strip()[-80:] if final else "no VeloxNetSoak line"))
+        refused = sum(1 for l in S if "VeloxViewRefused" in l)
+        detail_g.append("entitled=%s takes_pushed=%d client_lines=%d dead_lines=%d all_n0=%d view_refused=%d" % (
+            mine[0][1].get("entitled") if mine else "-", len(takes_after), len(ct), len(dead), 0 if nonzero else 1, refused))
+    ERR_RE = re.compile(r"\bError: ")
+    for name, lines in (("server", S), ("client", C)):
+        errs = [l for l in lines if ERR_RE.search(l) and not ENGINE_NOISE_RE.search(l)]
+        if errs:
+            fails.append("%d Error: line(s) in the %s log: %s" % (len(errs), name, errs[0].strip()[:140]))
+    row = "%-18s %s  %s  %s" % (script, "FAIL" if fails else "PASS", " ".join(detail_g), "; ".join(notes))
+    with open(result_path, "w") as out:
+        out.write(row + "\n")
+        for fl in fails:
+            out.write("    - " + fl + "\n")
+    sys.exit(1 if fails else 0)
+
 
 if script in ("RocketJumpRun", "RocketJumpRunHold"):
     # velox.combat.RocketJumpTest's result line instead of a script's VeloxNetSoak line.
@@ -1124,6 +1645,56 @@ elif script == "PlasmaRun":
                       nshots, len(fired), len(ms_all), nshots - len(bad_src), one_splash, splash_hit, ts_mismatch, rpc_first, short_moves, moves_per_rpc,
                       counts["late"], counts["orphan"], counts["pending_timeout"], counts["rpc_done"], counts["rejected"]))
 
+elif script == "FireRunRate":
+    # Task m6-online/09b (review 0007-09 open point 3, ADR 0003 B32, ADR 0007 section 5.4): the client runs
+    # velox.combat.DebugFireRateScale <scale> (VELOX_FIRE_RATE_SCALE, 2.0) and holds MG fire for 5 s at the invulnerable
+    # dummy. The server's token bucket rejects the excess: the client's VeloxAnomaly summary must show rejects{rate:n} with
+    # n >= 1 and reject_share > 0 (rejects / attempts, review F2), and the server's accepted MG rate must not exceed the
+    # honest rate (accepted shots per second stand in for damage per second: same weapon, same damage per hit). The honest
+    # rate is the client's measured rate / scale (self-calibrating; the client fires on its own frame grid). VeloxShotRejected
+    # lines are throttled per player (nit 12), so the counter, not the line count, is judged.
+    WALL_RE = re.compile(r"^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]")
+    def wall(line):
+        m = WALL_RE.match(line)
+        if not m:
+            return None
+        y, mo, d, h, mi, se, ms = (int(v) for v in m.groups())
+        return ((d * 24 + h) * 60 + mi) * 60 + se + ms / 1000.0
+    scale = float(os.environ.get("VELOX_FIRE_RATE_SCALE", "2.0") or 2.0)
+    fired = sorted(num(kv(l), "t") for l in C if "VeloxShotFired t=" in l and "MachineGun" in kv(l).get("weapon", ""))
+    acc = sorted(w for w in (wall(l) for l in S if "VeloxShot seq=" in l and "rewind_ms=" in l and "MachineGun" in kv(l).get("weapon", "")) if w is not None)
+    rej_lines = sum(1 for l in S if "VeloxShotRejected" in l and "reason=rate" in l)
+    act_failed = sum(1 for l in C if "ClientActivateAbilityFailed" in l)
+    def rate(ts):
+        return (len(ts) - 1) / (ts[-1] - ts[0]) if len(ts) >= 2 and ts[-1] > ts[0] else 0.0
+    client_rate, server_rate = rate(fired), rate(acc)
+    honest_rate = client_rate / scale if scale > 0 else 0.0
+    if len(fired) < 30:
+        fails.append("client fired only %d MG shots (want >= 30 from a 5 s hold at %gx)" % (len(fired), scale))
+    if not anomaly:
+        fails.append("no VeloxAnomaly line on the server (the client fired: its logout line must exist)")
+    rate_rejects = sum(_d["rejects"].get("rate", 0) for _d in anomaly.values())
+    shares = [_d.get("reject_share", 0.0) for _d in anomaly.values()]
+    attempts = sum(_d.get("shots", 0) + sum(_d["rejects"].values()) for _d in anomaly.values())
+    if rate_rejects < 1:
+        fails.append("VeloxAnomaly rejects{rate}=%d (want >= 1: the B32 bucket must reject a %gx client)" % (rate_rejects, scale))
+    if not any(v > 0.0 for v in shares):
+        fails.append("VeloxAnomaly reject_share=0 for every player (want > 0)")
+    for _pid, _d in sorted(anomaly.items()):
+        for _k in ("snaps", "orphans", "rpc_refused"):
+            if _d.get(_k, 0) > 0:
+                fails.append("client pid=%d: VeloxAnomaly %s=%d (want 0: the rate cheat moves no other counter)" % (_pid, _k, _d[_k]))
+    if honest_rate > 0.0 and server_rate > 1.15 * honest_rate:
+        fails.append("server accepted MG rate %.2f/s > 1.15 x honest %.2f/s (client %.2f/s / %g)" % (server_rate, honest_rate, client_rate, scale))
+    if len(acc) < 2:
+        fails.append("only %d accepted server MG VeloxShot lines" % len(acc))
+    detail.append("scale=%g mg_fired=%d client_rate=%.2f/s honest_rate=%.2f/s server_accepted=%d server_rate=%.2f/s rate_rejects=%d reject_share=%s "
+                  "attempts=%d rate_reject_lines=%d (throttled) act_failed=%d" % (
+                      scale, len(fired), client_rate, honest_rate, len(acc), server_rate, rate_rejects, ",".join("%.2f" % v for v in shares),
+                      attempts, rej_lines, act_failed))
+    if attempts and attempts != len(fired):
+        notes.append("attempts %d (shots + rejects) != client MG shots fired %d (activation failures or other weapons)" % (attempts, len(fired)))
+
 elif script == "DeathSpectateRun":
     # ADR 0004 C11 (2), task m4-followups/04: free-spectate death camera. Server: VeloxDeath step=6 spectate=free, the
     # forced respawn after 4 s (velox.combat.ForceRespawnDelay 4), VeloxSpectate end_server with spectator_pawn=0 (no
@@ -1825,6 +2396,12 @@ if script in ("BotRun", "BotDuel"):
         v_ = [x_ for x_ in (cost_val(w_, k_) for w_ in ws_) if x_ is not None]
         return sum(v_) / len(v_) if v_ else None
     FPS_SERVER = 60.0
+    # task m6-online/02: server RSS (sidecar srv_rss_kb, absent in older sidecars) and the all-window VeloxBotBudget mean.
+    rss_v = [num(h_, "srv_rss_kb", -1.0) for h_ in host]
+    rss_v = [v_ for v_ in rss_v if v_ > 0]
+    rss_max_kb = max(rss_v) if rss_v else None
+    rss_mean_kb = sum(rss_v) / len(rss_v) if rss_v else None
+    budget_mean_all = (sum(num(d_, "mean_us") for d_ in budget_windows) / len(budget_windows)) if budget_windows else None
     windows = []
     for i_, (d, ts_) in enumerate(zip(budget_windows, budget_stamps)):
         win = num(d, "window", 5.0); tk = num(d, "ticks"); ov = num(d, "over")
@@ -2045,9 +2622,11 @@ if script in ("BotRun", "BotDuel"):
             if p_norm_mean is not None else ("%d (< 3: p_norm/rr_round not computed)" % len(p_w))))
          if fo_ref is not None else "reference (D47): n/a (< 5 windows or no VeloxBotCost lines; D46 classes)",
         cost_breakdown,
-        "host sidecar: %s; load_start=%s load_end=%s gate=%s waited_s=%s%s" % (
+        "host sidecar: %s; load_start=%s load_end=%s gate=%s waited_s=%s%s; server_mode=%s rss_max_mb=%s rss_mean_mb=%s mean_us=%s" % (
             "%d samples" % len(host) if host else "n/a (no sidecar)", gate.get("load_start", "n/a"), gate.get("load_end", "n/a"), gate.get("gate", "n/a"),
-            gate.get("gate_waited_s", "n/a"), " TIMEOUT (started above the gate)" if gate.get("gate_timeout") == "1" else ""),
+            gate.get("gate_waited_s", "n/a"), " TIMEOUT (started above the gate)" if gate.get("gate_timeout") == "1" else "",
+            gate.get("server_mode", "dedicated"), "%.0f" % (rss_max_kb / 1024.0) if rss_max_kb else "n/a", "%.0f" % (rss_mean_kb / 1024.0) if rss_mean_kb else "n/a",
+            "%.1f" % budget_mean_all if budget_mean_all is not None else "n/a"),
         "goals=[%s] fight_share=%.1f%% armed_fight_share=%.1f%% (%d/%d) supp1=%.1f%% fire_noammo=%d/%d allunreachable air=%d ground=%d fight_yields=%d" % (
             " ".join("%s=%d" % kv_ for kv_ in sorted(goals.items())), fight_share, armed_share, vis_armed_fight, vis_armed, supp_share, noammo, debug_lines,
             allun.get("air", 0), allun.get("ground", 0), sum(1 for l_ in S if "VeloxBotFightYield " in l_)),
@@ -2106,7 +2685,9 @@ if script in ("BotRun", "BotDuel"):
              "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w],
              "preset": preset, "calibration": calibration or None, "nh": nh_sum, "nh_bots": dict((b_, nh[b_]) for b_ in sorted(bots)),
              "nh_weapon": dict(nh_weapon), "rl_self_only": nh_rl_so["n"], "max_fire_us": max([w["fire"] for w in windows] or [0]), "mega_takes": len(mega), "link_max": link_max,
-             "link_types": dict(link_types), "link_unknown": dict(link_unknown), "nav_seconds": max(nav_secs) if nav_secs else None}
+             "link_types": dict(link_types), "link_unknown": dict(link_unknown), "nav_seconds": max(nav_secs) if nav_secs else None,
+             "server_mode": gate.get("server_mode", "dedicated"), "rss_max_kb": rss_max_kb, "rss_mean_kb": rss_mean_kb, "budget_mean_us": budget_mean_all,
+             "frame_deficit_mean_pct": (sum(w["fdef"] for w in windows if w["fdef"] is not None) / max(1, sum(1 for w in windows if w["fdef"] is not None))) if windows else None}
     with open(os.path.join(stats_dir, script + ".stats.json"), "w") as sf:
         json.dump(stats, sf)
     cost_txt = ("n/j" if not cost_judged else ("FAIL" if cost_w or budget_mean > BUDGET_MAX or (p_norm_mean or 0) > BUDGET_MAX or (rr_round or 0) > RR_ROUND_MAX else "PASS"))
@@ -2136,7 +2717,7 @@ rest = [c for c in nonecho if c not in excluded]
 xs = [c[1] for c in rest]
 x = max(xs) if xs else 0.0
 y = sum(xs) / len(xs) if xs else 0.0
-if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "FireRunHold", "HasteRun", "DeathSpectateRun"):
+if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "FireRunHold", "FireRunRate", "HasteRun", "DeathSpectateRun"):
     if len(rest) > 3 * Lexp:
         fails.append("corrections C=%d > 3 x L_exp (%.1f)" % (len(rest), 3 * Lexp))
     if x > 30.0:
@@ -2518,6 +3099,9 @@ main() {
       --keep-going) KEEP_GOING=1; shift ;;
       --reeval)  [[ $# -ge 2 ]] || die "--reeval needs a directory"; REEVAL_DIR="$2"; shift 2 ;;
       --map)     [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9_]+$ ]] || die "--map needs a map name (letters, digits, underscore)"; MAP_OVERRIDE="$2"; shift 2 ;;
+      --server-mode) [[ $# -ge 2 && "$2" =~ ^(dedicated|listen)$ ]] || die "--server-mode needs dedicated|listen"; SERVER_MODE="$2"; shift 2 ;;
+      --server-binary) [[ $# -ge 2 ]] || die "--server-binary needs a path"; SERVER_BINARY="$2"; shift 2 ;;
+      --server-userdir) [[ $# -ge 2 ]] || die "--server-userdir needs a path"; SERVER_USERDIR="$2"; shift 2 ;;
       --bot-difficulty) [[ $# -ge 2 && "$2" =~ ^(Easy|Medium|Hard|Expert)$ ]] || die "--bot-difficulty needs Easy|Medium|Hard|Expert"; BOT_DIFFICULTY="$2"; shift 2 ;;
       -h|--help) nettest_usage; exit 0 ;;
       *) nettest_usage >&2; die "unknown option: $1" ;;
@@ -2534,6 +3118,16 @@ main() {
   local base_dir
   if [[ -n "${VELOX_CI_LOG_DIR:-}" ]]; then base_dir="$VELOX_CI_LOG_DIR/nettest"; else base_dir="$VELOX_OUT/$(date +%Y%m%d-%H%M%S)-$$/nettest"; fi
   mkdir -p "$base_dir"
+  if [[ -n "$SERVER_BINARY" ]]; then
+    SERVER_MODE=listen   # --server-binary implies listen (a packaged Game build cannot be a dedicated server, ADR 0007 fact 2)
+    [[ -x "$SERVER_BINARY" && -f "$SERVER_BINARY" ]] || die "--server-binary $SERVER_BINARY is not an executable file"
+    SERVER_BINARY="$(cd "$(dirname "$SERVER_BINARY")" && pwd)/$(basename "$SERVER_BINARY")"
+    [[ -n "$SERVER_USERDIR" ]] || SERVER_USERDIR="$base_dir/server-userdir"
+    mkdir -p "$SERVER_USERDIR"
+  elif [[ -n "$SERVER_USERDIR" ]]; then
+    die "--server-userdir needs --server-binary"
+  fi
+  info "Server mode: $SERVER_MODE${SERVER_BINARY:+ (packaged $SERVER_BINARY, -UserDir=$SERVER_USERDIR)}"
   local lag_desc
   if [[ -n "$LAG_OVERRIDE" ]]; then lag_desc="${LAG_OVERRIDE} ms (all scripts)"; else lag_desc="${LAG_MS} ms (FireRun/FireRunControl ${FIRE_LAG_MS} ms)"; fi
   info "Net soak: scripts=${scripts[*]} rounds=$REPEAT port=$PORT lag=${lag_desc} logs=$base_dir"
@@ -2541,9 +3135,11 @@ main() {
   for s in "${scripts[@]}"; do
     case "$s" in
       FireRunControl|FireRunHold) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "$s needs FireRun.json" ;;
+      FireRunRate) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" && -f "$REPO_ROOT/Content/Data/MoveScripts/FireRunRate.json" ]] || die "$s needs FireRun.json and FireRunRate.json" ;;
       RocketJumpRun|RocketJumpRunHold) ;;   # drive velox.combat.RocketJumpTest, no JSON script
       BotRun) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/BotWatch.json" ]] || die "BotRun needs BotWatch.json" ;;
       BotDuel) ;;   # a spectator client: velox.bots.Watch, no JSON script (BotRun uses BotWatch.json)
+      RpcGateRun|PasswordRun) ;;   # M6 task 07: console probes (velox.net.RpcGateProbe / ConnectProbe), no JSON script
       *) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/$s.json" ]] || die "unknown script '$s'" ;;
     esac
   done

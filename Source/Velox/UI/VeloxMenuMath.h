@@ -88,6 +88,30 @@ namespace VeloxMenuMath
 		return true;
 	}
 
+	/**
+	 * Appends `?Password=<Password>` to Url (ADR 0007 section 5.2; task M6-05). An empty password leaves Url unchanged, so
+	 * nothing is sent to a server that has none. False and OutError when the password has characters that would break the
+	 * travel URL (whitespace, control characters, `?`, `#`, `"`, backslash).
+	 */
+	inline bool AppendPasswordOption(const FString& Url, const FString& Password, FString& OutUrl, FString& OutError)
+	{
+		OutUrl = Url;
+		if (Password.IsEmpty())
+		{
+			return true;
+		}
+		for (const TCHAR C : Password)
+		{
+			if (C <= 32 || C == 127 || C == TEXT('?') || C == TEXT('#') || C == TEXT('"') || C == TEXT('\\'))
+			{
+				OutError = TEXT("The password may not contain spaces or any of ? # \" \\");
+				return false;
+			}
+		}
+		OutUrl = Url + TEXT("?Password=") + Password;
+		return true;
+	}
+
 	/** One line for the menu after a failed connect (the engine's error string is appended when it has one). */
 	inline FString NetworkFailureMessage(ENetworkFailure::Type Type, const FString& Error)
 	{

@@ -86,10 +86,10 @@ Acceptance criteria:
 Goal: people can download the client and play on a server hosted here.
 
 Acceptance criteria:
-- [ ] Dedicated server build (Linux) packaged by `infra/ci/`; systemd unit under an unprivileged user; UDP 7777 (and only that) opened; status JSON served via nginx.
-- [ ] Online subsystem (Steam or EOS, decision via ADR; credentials from the human) for sessions and NAT traversal; server browser in the main menu.
-- [ ] Client downloads (Linux, macOS, Windows) and server status on `https://games.inceptum.at`.
-- [ ] Rust master-server/status service only if the online subsystem's listing is insufficient (ADR decides).
+- [x] Dedicated server build (Linux) packaged by `infra/ci/`; systemd unit under an unprivileged user; UDP 7777 (and only that) opened; status JSON served via nginx. *(2026-11-11: packaged Development Game build as headless listen server per ADR 0007 §1/F2; `velox-server@ffa` live.)*
+- [x] Online subsystem (Steam or EOS, decision via ADR; credentials from the human) for sessions and NAT traversal; server browser in the main menu. *(ADR 0007 / q42: plain IP + own `veloxmaster` directory for M6, Steam/EOS later; server browser done.)*
+- [ ] Client downloads (Linux, macOS, Windows) and server status on `https://games.inceptum.at`. *(Linux 0.6.1 + status live 2026-11-11; macOS waits for the Mac Studio (task 11); Windows deferred to M7 (q46).)*
+- [x] Rust master-server/status service only if the online subsystem's listing is insufficient (ADR decides). *(`veloxmaster`, ADR 0007 §2.)*
 
 ## M7 — Polish
 

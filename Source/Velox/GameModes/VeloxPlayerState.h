@@ -5,6 +5,7 @@
 #include "AbilitySystemInterface.h"
 #include "Combat/VeloxAbilitySet.h"
 #include "GameFramework/PlayerState.h"
+#include "Net/VeloxAnomalyStats.h"
 
 #include "VeloxPlayerState.generated.h"
 
@@ -17,6 +18,24 @@ class UVeloxCombatSettings;
 class UVeloxHealthSet;
 class UVeloxPawnData;
 class UVeloxWeaponInventoryComponent;
+
+/**
+ * One major item's respawn time as the server sends it to an entitled PlayerState (ADR 0007 section 5.5): the pickup's
+ * registry index and the server world time of the respawn (0 = available). 5 bytes of payload.
+ */
+USTRUCT()
+struct FVeloxItemTimerEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	uint8 ItemIndex = 0;
+
+	UPROPERTY()
+	float RespawnServerTime = 0.f;
+
+	bool operator==(const FVeloxItemTimerEntry& Other) const { return ItemIndex == Other.ItemIndex && RespawnServerTime == Other.RespawnServerTime; }
+};
 
 UCLASS(Config = Game)
 class VELOX_API AVeloxPlayerState : public APlayerState, public IAbilitySystemInterface
@@ -126,6 +145,42 @@ public:
 	/** Server. Returns true if the value changed. */
 	bool SetReady(bool bInReady);
 
+	/**
+	 * Item timers this connection is entitled to (ADR 0007 section 5.5): owner-only, written by UVeloxItemRegistrySubsystem
+	 * on the server, empty for players (alive or dead). Sorted by ItemIndex.
+	 */
+	const TArray<FVeloxItemTimerEntry>& GetItemTimers() const { return ItemTimers; }
+	/** The entry of the pickup with this registry index; null when the server sent none. */
+	const FVeloxItemTimerEntry* GetItemTimer(uint8 ItemIndex) const;
+	/** Server: replaces the whole set (entitlement gained / re-evaluated). */
+	void SetItemTimers(TArray<FVeloxItemTimerEntry>&& InTimers);
+	/** Server: adds or updates one entry (a take or respawn of a major item). */
+	void SetItemTimer(uint8 ItemIndex, float RespawnServerTime);
+	/** Server: entitlement lost (ServerRequestJoin, logout) or level reset. */
+	void ClearItemTimers();
+	/** "n=<count> entries=[<item>#<index>@<time>,...]" (log lines; item names from this world's registry). */
+	FString DescribeItemTimers() const;
+
+	/**
+	 * Server: counts one anomaly surface for this player (ADR 0007 section 5.4, task m6-online/09). Counting only, at
+	 * the surface's existing log line; no client effect, not replicated. Ignored without authority.
+	 */
+	void NoteAnomaly(EVeloxAnomaly Kind, int32 Count = 1, FName Reason = NAME_None);
+	/**
+	 * Server: NoteAnomaly on the AVeloxPlayerState of Actor (the PlayerState itself, a pawn, a controller, or a component
+	 * owner chain reaching one of those). No-op when none is found (dummies without a PlayerState).
+	 */
+	static void NoteAnomalyFor(const AActor* Actor, EVeloxAnomaly Kind, int32 Count = 1, FName Reason = NAME_None);
+	/** Server: cumulative counters since login. */
+	const FVeloxPlayerAnomalyStats& GetAnomalyStats() const { return AnomalyStats; }
+	/** Server, UVeloxAnomalyLog: the counters printed by the last VeloxAnomaly line (the deltas' base). */
+	FVeloxPlayerAnomalyStats& GetAnomalyStatsAtLastLine() { return AnomalyStatsAtLastLine; }
+	/** Server, UVeloxAnomalyLog: the final line (logout / world teardown) was printed. */
+	bool IsAnomalySummaryLogged() const { return bAnomalySummaryLogged; }
+	void SetAnomalySummaryLogged() { bAnomalySummaryLogged = true; }
+	/** Server, UVeloxAnomalyLog: samples the smoothed ping into the counters before a line. */
+	void SampleAnomalyRtt() { AnomalyStats.RttMs = GetPingInMilliseconds(); }
+
 protected:
 	/**
 	 * Replication rate for this PlayerState (Hz). The 1 Hz engine default is far too low because the ASC lives here;
@@ -141,6 +196,9 @@ protected:
 private:
 	UFUNCTION()
 	void OnRep_SkinIndex();
+
+	UFUNCTION()
+	void OnRep_ItemTimers();
 
 	void RefreshPawnColor() const;
 	void HandleAbilityActivated(UGameplayAbility* Ability);
@@ -158,6 +216,10 @@ private:
 
 	UPROPERTY(Replicated)
 	int32 Deaths = 0;
+
+	/** ADR 0007 section 5.5: COND_OwnerOnly, push model. */
+	UPROPERTY(ReplicatedUsing = OnRep_ItemTimers)
+	TArray<FVeloxItemTimerEntry> ItemTimers;
 
 	UPROPERTY(VisibleAnywhere, Category = "Velox|PlayerState")
 	TObjectPtr<UVeloxAbilitySystemComponent> AbilitySystemComponent;
@@ -184,4 +246,9 @@ private:
 	TObjectPtr<const UVeloxPawnData> GrantedPawnData;
 
 	bool bDefaultAbilitySetsGranted = false;
+
+	/** ADR 0007 section 5.4: server-side, not replicated, not reset by Reset (a match restart keeps the connection). */
+	FVeloxPlayerAnomalyStats AnomalyStats;
+	FVeloxPlayerAnomalyStats AnomalyStatsAtLastLine;
+	bool bAnomalySummaryLogged = false;
 };

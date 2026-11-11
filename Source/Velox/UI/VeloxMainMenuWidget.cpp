@@ -19,6 +19,7 @@
 #include "Engine/World.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "UI/VeloxGameUserSettings.h"
+#include "UI/VeloxServerBrowserWidget.h"
 #include "UI/VeloxSettingsWidget.h"
 #include "UI/VeloxUISettings.h"
 
@@ -73,6 +74,14 @@ UWidget* UVeloxMainMenuWidget::BuildDefaultTree()
 	AddressSize->AddChild(AddressBox);
 	AddToColumn(AddressSize, RowPadding);
 
+	PasswordBox = MakeWidget<UEditableTextBox>(TEXT("PasswordBox"));
+	PasswordBox->SetIsPassword(true);
+	PasswordBox->SetHintText(FText::FromString(UI.ServerBrowserPasswordHint));
+	USizeBox* PasswordSize = MakeWidget<USizeBox>(NAME_None);
+	PasswordSize->SetWidthOverride(UI.MenuButtonWidth);
+	PasswordSize->AddChild(PasswordBox);
+	AddToColumn(PasswordSize, RowPadding);
+
 	auto AddButton = [&](TObjectPtr<UButton>& Out, const TCHAR* Name, const TCHAR* Label)
 	{
 		Out = MakeButton(Name, Label);
@@ -82,6 +91,7 @@ UWidget* UVeloxMainMenuWidget::BuildDefaultTree()
 		AddToColumn(Size, RowPadding);
 	};
 	AddButton(ConnectButton, TEXT("ConnectButton"), TEXT("Connect"));
+	AddButton(ServersButton, TEXT("ServersButton"), TEXT("Servers"));
 	AddButton(HostButton, TEXT("HostButton"), TEXT("Host local game"));
 	AddButton(SettingsButton, TEXT("SettingsButton"), TEXT("Settings"));
 	AddButton(QuitButton, TEXT("QuitButton"), TEXT("Quit"));
@@ -103,6 +113,10 @@ void UVeloxMainMenuWidget::NativeConstruct()
 	if (ConnectButton)
 	{
 		ConnectButton->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleConnect);
+	}
+	if (ServersButton)
+	{
+		ServersButton->OnClicked.AddUniqueDynamic(this, &ThisClass::HandleServers);
 	}
 	if (HostButton)
 	{
@@ -157,7 +171,7 @@ bool UVeloxMainMenuWidget::Connect()
 		return false;
 	}
 	FString Error;
-	if (!GameInstance->ConnectToServer(AddressBox ? AddressBox->GetText().ToString() : FString(), Error))
+	if (!GameInstance->ConnectToServerWithPassword(AddressBox ? AddressBox->GetText().ToString() : FString(), PasswordBox ? PasswordBox->GetText().ToString() : FString(), Error))
 	{
 		SetStatus(Error, true);
 		return false;
@@ -201,6 +215,33 @@ void UVeloxMainMenuWidget::HandleSettingsClosed()
 	SetKeyboardFocus();
 }
 
+void UVeloxMainMenuWidget::OpenServerBrowser()
+{
+	if (ServerBrowserWidget)
+	{
+		return;
+	}
+	TSubclassOf<UVeloxServerBrowserWidget> BrowserClass = UVeloxUISettings::Get().ServerBrowserWidgetClass;
+	if (!BrowserClass)
+	{
+		BrowserClass = UVeloxServerBrowserWidget::StaticClass();
+	}
+	ServerBrowserWidget = CreateWidget<UVeloxServerBrowserWidget>(GetOwningPlayer(), BrowserClass);
+	if (!ServerBrowserWidget)
+	{
+		return;
+	}
+	ServerBrowserWidget->OnClosed.AddUObject(this, &ThisClass::HandleServerBrowserClosed);
+	ServerBrowserWidget->AddToViewport(UVeloxUISettings::Get().SettingsZOrder);
+	ServerBrowserWidget->SetKeyboardFocus();
+}
+
+void UVeloxMainMenuWidget::HandleServerBrowserClosed()
+{
+	ServerBrowserWidget = nullptr;
+	SetKeyboardFocus();
+}
+
 void UVeloxMainMenuWidget::QuitGame()
 {
 	UKismetSystemLibrary::QuitGame(this, GetOwningPlayer(), EQuitPreference::Quit, false);
@@ -216,6 +257,12 @@ void UVeloxMainMenuWidget::HandleHost()
 {
 	UVeloxAudioSettings::PlayUIClick(this);
 	HostLocal();
+}
+
+void UVeloxMainMenuWidget::HandleServers()
+{
+	UVeloxAudioSettings::PlayUIClick(this);
+	OpenServerBrowser();
 }
 
 void UVeloxMainMenuWidget::HandleSettings()

@@ -1,0 +1,13 @@
+[ci] Server mode: dedicated
+[ci] Net soak: scripts=FireRun rounds=1 port=8414 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m6-02/out/F1-dedicated-firerun/20261101-132428-1693417/nettest
+[ci] bands=L_ItemTest
+[ci] [FireRun] load gate: load1=1.95 at round start (gate 2.0, waited 6s)
+[ci] [FireRun] starting dedicated server (60 Hz), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m6-02/out/F1-dedicated-firerun/20261101-132428-1693417/nettest/FireRun-server.log
+[ci] [FireRun] starting client (120 Hz, packet simulation 50 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m6-02/out/F1-dedicated-firerun/20261101-132428-1693417/nettest/FireRun-client.log
+[ci] [FireRun] server (dedicated) rss_max_kb=1791220 rss_mean_kb=1777150 rss_last_kb=1791220 rss_samples=13
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+FireRun            moves=4841  C=0   echoes=0   gaps=23  repaired=47  repaired_extra=9   resent=2457  resent_extra=2457 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=96.8 rails=11 hits=11 stamp=11 rewind_med=133.2 dmean=7.2 aim_max=0.0 delay_med=28.8 mg=40 rejected=0 act_failed=0 confirms=51/53 rl=direct=None/victims=1/sent=1,direct=None/victims=1/sent=1 warmup_shots=0 late_max=166.7 late_gt40=2 retarget client=4 server=4 modes=pending:4 switch_corrections=0 raise_switches=2 rail_confirms=10/10 rl_confirms=2 replays=2 acks_ignored=0 rpcs=2466  non-held shots with late_ms > 40 (a lost RPC resent, RTT + ~80 ms): [('27', 166.7), ('28', 66.7)]
+Rounds passed: 1/1 (requested 1)
+Logs: /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m6-02/out/F1-dedicated-firerun/20261101-132428-1693417/nettest
+[ci] NET SOAK OK

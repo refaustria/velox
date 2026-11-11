@@ -1,0 +1,54 @@
+== users and groups
+ROOT: create system group velox
+      $ groupadd --system velox
+ROOT: create unprivileged system user velox (home /srv/velox, no login shell)
+      $ useradd --system --gid velox --home-dir /srv/velox --no-create-home --shell /usr/sbin/nologin velox
+ROOT: create system group veloxmaster
+      $ groupadd --system veloxmaster
+ROOT: create unprivileged system user veloxmaster (home /srv/veloxmaster, no login shell)
+      $ useradd --system --gid veloxmaster --home-dir /srv/veloxmaster --no-create-home --shell /usr/sbin/nologin veloxmaster
+== game server tree /srv/velox
+ROOT: directory /srv/velox (root:root, mode 0755)
+      $ install -d -o root -g root -m 0755 /srv/velox
+ROOT: directory /srv/velox/releases (root:root, mode 0755)
+      $ install -d -o root -g root -m 0755 /srv/velox/releases
+ROOT: directory /srv/velox/bin (root:root, mode 0755)
+      $ install -d -o root -g root -m 0755 /srv/velox/bin
+ROOT: directory /srv/velox/config (root:velox, mode 0750)
+      $ install -d -o root -g velox -m 0750 /srv/velox/config
+ROOT: directory /srv/velox/saved (velox:velox, mode 0750)
+      $ install -d -o velox -g velox -m 0750 /srv/velox/saved
+ROOT: install /srv/velox/bin/run-server.sh from infra/deploy/run-server.sh (root:root, mode 0755)
+      $ install -o root -g root -m 0755 /home/bojan/velox/.claude/worktrees/agent-af8d1d05e3024f29b/infra/deploy/run-server.sh /srv/velox/bin/run-server.sh
+ROOT: install /srv/velox/config/ffa.env from infra/systemd/velox-server.env.example (root:velox, mode 0640)
+      $ install -o root -g velox -m 0640 /home/bojan/velox/.claude/worktrees/agent-af8d1d05e3024f29b/infra/systemd/velox-server.env.example /srv/velox/config/ffa.env
+== veloxmaster
+ROOT: directory /srv/veloxmaster (root:root, mode 0755)
+      $ install -d -o root -g root -m 0755 /srv/veloxmaster
+ROOT: install /srv/veloxmaster/veloxmaster from infra/master/target/release/veloxmaster (root:root, mode 0755)
+      $ install -o root -g root -m 0755 /home/bojan/velox/.claude/worktrees/agent-af8d1d05e3024f29b/infra/master/target/release/veloxmaster /srv/veloxmaster/veloxmaster
+ROOT: install /etc/veloxmaster.env from /tmp/tmp.D0HdOIiySO (root:veloxmaster, mode 0640)
+      $ install -o root -g veloxmaster -m 0640 /tmp/tmp.D0HdOIiySO /etc/veloxmaster.env
+== status directory (veloxmaster writes servers.json, nginx reads it)
+ROOT: directory /var/www/games.inceptum.at/status (veloxmaster:www-data, mode 2755)
+      $ install -d -o veloxmaster -g www-data -m 2755 /var/www/games.inceptum.at/status
+== systemd units, drop-in, tmpfiles
+ROOT: install /etc/systemd/system/velox-server@.service from infra/systemd/velox-server@.service (root:root, mode 0644)
+      $ install -o root -g root -m 0644 /home/bojan/velox/.claude/worktrees/agent-af8d1d05e3024f29b/infra/systemd/velox-server@.service /etc/systemd/system/velox-server@.service
+ROOT: install /etc/systemd/system/veloxmaster.service from infra/master/veloxmaster.service (root:root, mode 0644)
+      $ install -o root -g root -m 0644 /home/bojan/velox/.claude/worktrees/agent-af8d1d05e3024f29b/infra/master/veloxmaster.service /etc/systemd/system/veloxmaster.service
+ROOT: directory /etc/systemd/system/veloxmaster.service.d (root:root, mode 0755)
+      $ install -d -o root -g root -m 0755 /etc/systemd/system/veloxmaster.service.d
+ROOT: install /etc/systemd/system/veloxmaster.service.d/10-hardening.conf from infra/systemd/veloxmaster.service.d/10-hardening.conf (root:root, mode 0644)
+      $ install -o root -g root -m 0644 /home/bojan/velox/.claude/worktrees/agent-af8d1d05e3024f29b/infra/systemd/veloxmaster.service.d/10-hardening.conf /etc/systemd/system/veloxmaster.service.d/10-hardening.conf
+ROOT: install /etc/tmpfiles.d/velox.conf from infra/systemd/velox-tmpfiles.conf (root:root, mode 0644)
+      $ install -o root -g root -m 0644 /home/bojan/velox/.claude/worktrees/agent-af8d1d05e3024f29b/infra/systemd/velox-tmpfiles.conf /etc/tmpfiles.d/velox.conf
+ROOT: reload systemd unit files
+      $ systemctl daemon-reload
+
+Done. Nothing was enabled or started and the firewall/nginx were not touched. Next (each is a separate, announced root step):
+  1. sudo systemctl enable --now veloxmaster                         # then: curl -s 127.0.0.1:8790/healthz
+  2. sudo infra/deploy/release.sh <ver> <Velox-ver-LinuxServer.tar.zst>
+  3. edit /srv/velox/config/ffa.env if needed (password: VELOX_SERVER_PASSWORD there, never on a command line)
+  4. sudo systemctl enable --now velox-server@ffa                    # then: journalctl -u velox-server@ffa -f
+  5. firewall: infra/firewall/README.md (armed rollback first)

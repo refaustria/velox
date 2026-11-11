@@ -65,6 +65,8 @@ AVeloxGameMode::AVeloxGameMode(const FObjectInitializer& ObjectInitializer)
 	HUDClass = AVeloxHUD::StaticClass();
 	// C11: copied to AGameStateBase::SpectatorClass by InitGameState; spawned by the engine on owning clients only.
 	SpectatorClass = AVeloxSpectatorPawn::StaticClass();
+	// ADR 0007 amendment F1.2: a networked match never pauses (AllowPausing keeps its NM_Standalone clause for PIE/offline).
+	bPauseable = false;
 }
 
 const UVeloxCombatSettings& AVeloxGameMode::GetCombatSettingsFor(const AController* Controller)
@@ -495,6 +497,11 @@ void AVeloxGameMode::Logout(AController* Exiting)
 			UE_LOG(LogVeloxMatch, Log, TEXT("VeloxMatch leave player=%s phase=%s"), *AVeloxPlayerState::VeloxPlayerLabel(ExitingPS), LexToString(Phase));
 		}
 		LeavingPlayerStates.Add(ExitingPS);
+	}
+	if (AVeloxPlayerState* ExitingVeloxPS = Exiting ? Exiting->GetPlayerState<AVeloxPlayerState>() : nullptr)
+	{
+		// ADR 0007 section 5.5: nothing more for a leaving connection.
+		ExitingVeloxPS->ClearItemTimers();
 	}
 	Super::Logout(Exiting);
 	RequestMatchEvaluation();

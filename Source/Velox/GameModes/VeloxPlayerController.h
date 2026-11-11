@@ -106,6 +106,12 @@ public:
 	virtual void BeginSpectatingState() override;
 	/** The engine's sync with the point VeloxSpectate::ClampViewPoint accepts (nav-bounds box, KillZ, speed step). */
 	virtual void ServerSetSpectatorLocation_Implementation(FVector NewLoc, FRotator NewRot) override;
+	/**
+	 * ADR 0007 section 5.5 / F1.2: ServerViewNextPlayer / ServerViewPrevPlayer (and the engine's StartFire while spectating)
+	 * reach this in any NAME_Spectating controller. A dead player may not follow anybody (refused, logged
+	 * VeloxViewRefused); the engine's fallback would otherwise retarget the view to its own PlayerState.
+	 */
+	virtual void ViewAPlayer(int32 Dir) override;
 	//~End of APlayerController interface
 
 	// ---- In-game menu (ADR 0004 section 7; task M3-10) ----
@@ -133,12 +139,52 @@ public:
 	 * Client -> server: the `AddBot [Easy|Medium|Hard|Expert] [Name]` console command typed on a client. Non-shipping
 	 * builds only (the shipping server ignores it until M6's admin auth) and rate-limited per controller.
 	 */
-	UFUNCTION(Server, Reliable)
+	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerAddBot(const FString& DifficultyName, const FString& BotName);
 
 	/** Client -> server: `KickBot [Name|all]` from a client console. Same guard and rate limit as ServerAddBot. */
-	UFUNCTION(Server, Reliable)
+	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerKickBot(const FString& NameOrAll);
+
+	// ---- RPC gate (ADR 0007 section 5.1, M6 task 07) -------------------------------------------------------------
+	// ServerAddBot / ServerKickBot are test RPCs: _Validate = local controller or VeloxNet::TestRpcsAllowed()
+	// (velox.net.AllowTestRpcs, never in Shipping); a refusal disconnects the sender. AcceptBotCommand's argument and
+	// rate checks stay in the implementation.
+
+	/**
+	 * The engine's ServerExec executes any console command on a non-Shipping server (ADR 0007 fact 8). Accepted only for
+	 * a local controller (a listen host's own console); a remote sender fails validation and the engine disconnects it.
+	 */
+	virtual bool ServerExecRPC_Validate(const FString& Msg) override;
+
+	/** The engine's ServerPause would let any client pause the server (AGameModeBase::bPauseable). Same rule as ServerExecRPC. */
+	virtual bool ServerPause_Validate() override;
+
+	/**
+	 * Server: an RPC of this controller (or of its pawn's components) was refused. Counts it, broadcasts OnRpcRefused and
+	 * logs `VeloxRpcRefused controller= player= rpc= reason= count=` (at most one line per RpcRefusedLogIntervalSeconds;
+	 * suppressed lines are reported as suppressed= on the next one).
+	 */
+	void NotifyRpcRefused(FName Rpc, const TCHAR* Reason);
+
+	/** Server: refused RPCs of this controller so far (task 09's anomaly counters read this or bind OnRpcRefused). */
+	int32 GetNumRpcRefused() const { return NumRpcRefused; }
+
+	/** Server: movement time-discrepancy resolutions started for this controller's pawns (ADR 0007 section 5.3). */
+	int32 GetNumTimeDiscrepancies() const { return NumTimeDiscrepancies; }
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnVeloxRpcRefused, AVeloxPlayerController* /*Controller*/, FName /*Rpc*/);
+	/** Server: fired for every refused RPC (before the engine closes the connection). */
+	FOnVeloxRpcRefused OnRpcRefused;
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnVeloxTimeDiscrepancy, AVeloxPlayerController* /*Controller*/, float /*TimeDiscrepancySeconds*/);
+	/** Server: fired when the engine starts resolving a movement time discrepancy of this controller's pawn. */
+	FOnVeloxTimeDiscrepancy OnTimeDiscrepancy;
+
+	/** Minimum time between two VeloxRpcRefused lines of one controller (s). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Net", meta = (ClampMin = "0", Units = "s"))
+	float RpcRefusedLogIntervalSeconds = 1.f;
+	// ---- end RPC gate ------------------------------------------------------------------------------------------------
 
 	/** Minimum time between two accepted bot commands of one client (s). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bots", meta = (ClampMin = "0", Units = "s"))
@@ -176,6 +222,8 @@ public:
 	virtual void BeginPlay() override;
 	/** A death spectate still running ends with reason=logout. */
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	/** Server, remote controllers: watches the pawn's time-discrepancy resolution (RPC gate block, M6 task 07). */
+	virtual void Tick(float DeltaSeconds) override;
 	//~End of AActor interface
 
 	//~APlayerController interface
@@ -257,6 +305,17 @@ private:
 	bool AcceptBotCommand(const TCHAR* Command, const FString& Args);
 	bool bInIntermission = false;
 	bool bScoreboardHeld = false;
+
+	// ---- RPC gate state (M6 task 07) ----
+	int32 NumRpcRefused = 0;
+	int32 NumRpcRefusedLogSuppressed = 0;
+	double LastRpcRefusedLogTime = -1e9;
+	int32 NumTimeDiscrepancies = 0;
+	bool bWasResolvingTimeDiscrepancy = false;
+	TWeakObjectPtr<APawn> TimeDiscrepancyPawn;
+	/** Server, remote controller: rising edge of the engine's bResolvingTimeDiscrepancy -> `VeloxTimeDiscrepancy` line. */
+	void PollTimeDiscrepancy();
+	// ---- end RPC gate state ----
 
 	/** C11: logs the end (server: syncs/clamps/spectator_pawn; owning client: reason) and clears the death spectate. */
 	void EndDeathSpectate(const TCHAR* Reason);

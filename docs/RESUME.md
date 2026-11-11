@@ -1,56 +1,20 @@
-# Resume notes — paused 2026-10-25 for server maintenance
+# Resume — state of 2026-11-06 (waiting for disk)
 
-Read this after `CLAUDE.md`, `ROADMAP.md` and `STATUS.md`. It tells the lead where the work stopped and what to do first. Delete or rewrite it when the state has moved on.
+Session of 2026-11-06 stopped by the human: wait until the micasa Docker builds are done (they pushed / below 10 GB free); the human re-triggers manually. No agent, soak or UE process is running; everything is pushed. `git worktree list` should show only the main checkout.
 
-## State at the pause
+## Merged into `m6-online` today
+04b (heartbeat only with `-ServerId`), 02 part A + gate run (ADR 0007 F2: listen gate PASSED; packaged server is the deploy target after 02b), 05 (server browser, 130 tests), 06 phase A (deploy/systemd/firewall files, not applied), Mac Studio runbook `docs/mac-studio-handover.md` + Mac bake-script fixes, task files 02b, 16, F2 amendments to 06/13. Decisions 50–52 in STATUS.md.
 
-- `main`: M0 + M1 merged and green (M1-06 human playtest still open: needs UE 5.8 on the human's Mac).
-- `m2-combat` head 3356731 + docs: tasks 01, 01b, 02, 03, 03b, 04, 04b, 05, 06, 07 done and merged; 04 architect-reviewed (ADR 0003 B18–B24); 05 and 06 **not yet reviewed**. Agent reports in `docs/tasks/m2-combat/notes/0{4,4b,5,6}-report.md`.
-- Last CI on the merged head: `infra/ci/build.sh` CI OK, 47 tests, 0 failures (`Saved/CI/20261025-033805-2754505`). No worktree is open, no agent is running.
-- Watch item: KnockbackRun soak failed once ("response container lost grace 0.150 < 0.167", `Saved/CI/20261025-034018-2760259/nettest`) and passed on rerun; see STATUS.md Blocked.
-- GitHub: `main`, `m0-infrastructure`, `m1-movement`, `m2-combat` pushed to `refaustria/velox` on 2026-10-25 (LFS objects included); the branches track `origin/*`. Push again after the pause-day merges.
+## WIP branches (pushed, not merged) — resume in this order
+1. `wip/m6-02b-cook` @ 7b684ff — StateTree/GameplayCameras/CameraShakePreviewer disabled (B1 root cause), `/Game/Bots` + `L_DM1` cooked, tag hash folded into the net version (F2), content smoke in package.sh, nettest taghash compare, `L_DM1` exempt from `LightingBuilt` until the bake (lead: accepted). **Not yet compiled with the F2 code.** Next: build + tests, tagprobe parity, negative NMT_Hello run, package.sh, P1–P3 on an idle host (gate scripts hard-code the removed worktree path `agent-af959…` — copy and adapt). Needs ≥ 15 GB free.
+2. `wip/m6-07-hardening` @ 76e448a — F1 checklist done, 131 tests, Strafe/Pad ×10, Knockback ×10, RpcGate/Password ×3 PASS. **Architect ruling needed:** server-side speed-hack result −20.5 % vs the F1.1 "±5 % of honest" criterion (agent found two engine losses: unsimulated payback client time ≈ −6 %, standstill after each payback ≈ −14 %); restate as "≤ honest + 5 %" or demand a fix. Remaining: full default list `--repeat 1`, heartbeat `bPassword` from `HasServerPassword()` (VeloxServerHeartbeatSubsystem.cpp:242), rerun the three SpeedHackRun rows with the committed `dx_*` rule.
+3. `wip/m6-08-spectator` @ 41f5ec4 — code + tests done (132 tests). ItemGateSpectator PASS ×3; ItemGatePlayer FAIL ×3 from the harness (FFA Countdown→Live reset replaces the scripted pawn; no leak, all n=0) — fix committed, not run. Remaining: ItemGateRun ×3 dedicated + listen, ItemRun/DeathSpectateRun, BotRun ×3, fts.sh. Design review by architect after (netcode).
 
-## Environment facts that survive a reboot
+## Then
+16 (L_ItemTest JumpPad links, after 02b — both need an idle host), 01c, 09 (after 07), 06 apply (decision 52: after 02b and 07 green; announce each root step), 10, 13. Follow-ups: infra/ci/README.md smoke duration (120 s); heartbeat host via `IsLocalController()`; `docs/adr/evidence/0007-listen-gate/SUMMARY.md` (subagents may not write it — lead copies the table from the 02 notes).
 
-- UE 5.8.4 installed build: `/opt/UnrealEngine-5.8` (trimmed; never delete `Engine/Extras/ThirdPartyNotUE`, see `infra/engine/README.md` and `TRIM-REPORT.md`). `infra/.env` (gitignored) holds `UE_ROOT` and `VELOX_PROJECT`.
-- `/swapfile` 4 GB is in `/etc/fstab`; nginx vhost `games.inceptum.at` is a systemd-enabled unit with a Let's Encrypt cert (auto-renew via certbot timer).
-- `/tmp` is tmpfs: anything an agent left there is gone after a reboot (session scratch only, nothing of value).
-- Disk: ~30 GB free of 125 GB, cannot be enlarged. `Saved/CI/*` and `Intermediate/` under worktrees are the first things to delete when space runs low.
-- Shell: `grep` is a ugrep wrapper, use `/usr/bin/grep -a` on logs. Headless VM: run the game with `-nullrhi`.
-- Parallel agents must use separate `infra/ci/nettest.sh --port NNNN` values (7777 is the default and collides).
+## Host / disk
+/ had 7.9 GB free at worst; containerd grew 21→24 GB from another project's builds. Velox worktrees are ~0.6–2.5 GB each; package runs need ≥ 15 GB. Mac Studio (Apple Silicon, 2 TB, 128 GB) arrives ~2026-11-20 — see `docs/mac-studio-handover.md`.
 
-## Next steps, in order
-
-1. **Sanity check**: `git status`, `git worktree list` (expect only the main checkout), `infra/ci/build.sh` on `m2-combat` (expect 47 tests, 0 failures).
-2. **KnockbackRun decision** (dev): `infra/ci/nettest.sh --scripts KnockbackRun --repeat 10` (check the real flag names in `infra/ci/README.md`) on the merged head, and the same on commit 06df0fa (before 05) in a worktree. 10/10 on both = load flakiness, note and move on; failures only on the head = regression from 05's knockback channel → dev-hard with the logs, architect if a second attempt fails.
-3. **Task 04c** `docs/tasks/m2-combat/04c-server-pattern-seed.md` (dev-hard): server chooses the pellet/MG seed, impact cues server-only/unkeyed, owner predicts only the fire cue. Must land before task 09.
-4. **Architect review of 05 and 06** in one pass (both touch GAS/netcode). Rulings needed: move-timed owner self-splash via `FireMoveTimeStamp` (05 departure 1), B15 origin rules duplicated in the projectile ability, next-tick corpse/UnPossess vs B8 "UnPossess last", `SpawnAvoidRadiusCm` added to the farthest-half rule, AI auto-respawn at arbitrary starts, spawn protection 0 s, no cancel-all for move-timed events on death (projectile owner cancels, or Movement gets `CancelAllMoveTimedEvents`), `VeloxKill` victim/killer names empty or odd (cosmetic), projectile ability should adopt `ValidateServerShot` from 04b. Follow-up task 05b/06b if must-fixes come back.
-5. **Task 08** `08-fire-nettest.md` (dev): FireRun / RocketJumpRun soak scripts with the addendum from the 04 review (5 s warm-up rule B24, switch sequence RG→MG→RG with 0 rejections, MG 40 shots 0 rejections, hit-confirm accounting, 250 ms repeat, `aim_err_cm`, CrouchRun in the default list).
-6. **Task 09** `09-human-playtest.md` (dev): combat playtest checklist for the Mac, including "switch feel at 100 ms" and "redirect a switch mid-drop".
-7. **Merge `m2-combat` → `main`** when Editor/Client/Server compile and all tests pass; then update ROADMAP.md (tick M2 items) and STATUS.md.
-8. **Mac**: human installs UE 5.8 via the Epic Games Launcher, runs `git lfs pull` and `infra/ci/build-mac.sh` from `main`, then the M1 checklist `docs/playtests/m1-movement-checklist.md` and the M2 checklist from task 09. Feed findings back as tuning tasks.
-9. **M3 Game loop**: dispatch `architect` for ADR 0004 (pickups/item timers, FFA/Duel, scoreboard, HUD, menu) before writing tasks.
-
-## Open questions for the human (also in STATUS.md)
-
-- Mac: Apple Silicon or Intel? (affects `build-mac.sh` architecture flags)
-- M2 defaults currently taken from ADR 0003 without veto: Q3 vanilla weapon numbers, spawn protection 0 s, bitmask inventory, server-confirmed hit markers, corpse death cam, corpses transparent to hitscan (B17).
-
-## How to restart the lead session
-
-From `/home/bojan/velox`, start Claude Code and use this as the first message:
-
-> Lies CLAUDE.md, ROADMAP.md, STATUS.md und docs/RESUME.md. Du bist der Projektleiter wie in CLAUDE.md beschrieben; die Subagenten dev/dev-hard/architect liegen in .claude/agents/. Mach dort weiter, wo docs/RESUME.md aufhört: zuerst der Sanity-Check (Schritt 1), dann die nächsten Schritte in der angegebenen Reihenfolge. Frag mich nur bei den offenen Fragen aus STATUS.md.
-
-If the agent types `dev`, `dev-hard`, `architect` are not offered in a fresh session, the fallback is `general-purpose` with `model: sonnet | opus | fable` and the instruction "You are acting as the `<name>` subagent: read `.claude/agents/<name>.md` first" (see memory note `velox-agent-routing-workaround`).
-
-## Merged before the pause
-
-| Task | Commit | Merge | Evidence |
-|---|---|---|---|
-| 04 weapons/hitscan | 12a5221 | direct | 39 tests, nettest 2/2 port 7795 |
-| 04b review fixes | 85e15b7 | 9d0cf5f | 41 tests, nettest 1/1 port 7807 |
-| 05 projectiles | feae626 | b9fed9a | 41 tests, nettest 1/1 port 7805, rocket jump 0 corrections |
-| 06 death/respawn | be0184d | 3356731 (conflict in `VeloxPlayerController.cpp` resolved, `VeloxMoveSimTest` using-directive scoped) | 43 tests in worktree; merged head 47 tests |
-
-Not merged / not started: 04c, 08, 09. Architect review of 05+06 outstanding.
+## Rules learnt
+Shared agent preamble (scratchpad `m6-preamble.txt` is tmpfs — rewrite from: worktree reset, own `infra/.env`, soak lock, kill only own PIDs, never delete outside own worktree/scratch, disk floor + pause rule, no root unless "apply", grep → /usr/bin/grep -a, commit trailer). Deleting remote branches is blocked by the permission classifier — leave merged `wip/*` branches on origin for the human.

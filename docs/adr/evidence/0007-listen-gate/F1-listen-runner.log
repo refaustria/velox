@@ -1,0 +1,15 @@
+[ci] Server mode: listen
+[ci] Net soak: scripts=FireRun rounds=1 port=8413 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m6-02/out/F1-listen-firerun/20261101-132321-1691412/nettest
+[ci] bands=L_ItemTest
+[ci] [FireRun] load gate: load1=1.92 at round start (gate 2.0, waited 0s)
+[ci] [FireRun] starting headless listen host (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m6-02/out/F1-listen-firerun/20261101-132321-1691412/nettest/FireRun-server.log
+[ci] [FireRun] host ready after 10.1 s: [2026.11.01-12.23.30:984][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_0 IpNetDriver listening on port 8413
+[ci] [FireRun] starting client (120 Hz, packet simulation 50 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m6-02/out/F1-listen-firerun/20261101-132321-1691412/nettest/FireRun-client.log
+Terminated
+[ci] [FireRun] server (listen) rss_max_kb=1895908 rss_mean_kb=1890339 rss_last_kb=1895908 rss_samples=12
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+FireRun            moves=4833  C=0   echoes=0   gaps=32  repaired=59  repaired_extra=11  resent=2454  resent_extra=2454 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=96.7 rails=11 hits=11 stamp=11 rewind_med=133.3 dmean=8.5 aim_max=0.0 delay_med=29.1 mg=40 rejected=0 act_failed=0 confirms=52/53 rl=direct=None/victims=1/sent=1,direct=None/victims=1/sent=1 warmup_shots=0 late_max=0.0 late_gt40=0 retarget client=4 server=4 modes=pending:4 switch_corrections=0 raise_switches=2 rail_confirms=9/10 rl_confirms=2 replays=2 acks_ignored=0 rpcs=2462  
+Rounds passed: 1/1 (requested 1)
+Logs: /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/m6-02/out/F1-listen-firerun/20261101-132321-1691412/nettest
+[ci] NET SOAK OK

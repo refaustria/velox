@@ -450,7 +450,6 @@ def apply_combat_settings(name, table, defs, overrides):
         "weapon_raise_time": 0.25,
         "switch_waits_for_refire": True,
         "beam_keep_alive_seconds": 0.25,  # B23
-        "pickup_take_event_max_age_seconds": 1.0,  # ADR 0004 C10
         "max_rewind_seconds": 0.35,  # ADR 0003 B34
         "history_window_seconds": 1.0,
         "max_origin_error_cm": 75.0,

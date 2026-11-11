@@ -12,6 +12,7 @@
 class UButton;
 class UEditableTextBox;
 class UTextBlock;
+class UVeloxServerBrowserWidget;
 class UVeloxSettingsWidget;
 
 UCLASS(Blueprintable, Config = Game)
@@ -33,6 +34,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Velox|Menu")
 	void OpenSettings();
 
+	/** Opens the server browser (task M6-05) on top; the menu is hidden to input until it closes. */
+	UFUNCTION(BlueprintCallable, Category = "Velox|Menu")
+	void OpenServerBrowser();
+
 	UFUNCTION(BlueprintCallable, Category = "Velox|Menu")
 	void QuitGame();
 
@@ -42,11 +47,17 @@ public:
 	/** Status line text and whether it is an error (tests, dumps). */
 	FString GetStatusString() const;
 	UVeloxSettingsWidget* GetSettingsWidget() const { return SettingsWidget; }
+	UVeloxServerBrowserWidget* GetServerBrowserWidget() const { return ServerBrowserWidget; }
 
 	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
 	TObjectPtr<UEditableTextBox> AddressBox;
+	/** Optional server password for the direct connect (sent as ?Password= only when non-empty). */
+	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
+	TObjectPtr<UEditableTextBox> PasswordBox;
 	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StatusText;
+	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
+	TObjectPtr<UButton> ServersButton;
 	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
 	TObjectPtr<UButton> ConnectButton;
 	UPROPERTY(BlueprintReadOnly, Transient, Meta = (BindWidgetOptional))
@@ -75,6 +86,8 @@ private:
 	UFUNCTION()
 	void HandleHost();
 	UFUNCTION()
+	void HandleServers();
+	UFUNCTION()
 	void HandleSettings();
 	UFUNCTION()
 	void HandleQuit();
@@ -82,7 +95,11 @@ private:
 	void HandleAddressCommitted(const FText& Text, ETextCommit::Type CommitMethod);
 
 	void HandleSettingsClosed();
+	void HandleServerBrowserClosed();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVeloxSettingsWidget> SettingsWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVeloxServerBrowserWidget> ServerBrowserWidget;
 };

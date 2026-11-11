@@ -8,6 +8,7 @@
 #include "Combat/VeloxGameplayEffects.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
+#include "GameModes/VeloxPlayerState.h"
 #include "GameplayPrediction.h"
 #include "Weapons/VeloxFireTiming.h"
 #include "Weapons/VeloxGameplayAbility_Fire.h"
@@ -148,6 +149,7 @@ bool UVeloxGameplayAbility_WeaponSwitch::ApplyRetarget(const FGameplayAbilityAct
 	{
 	case VeloxFireTiming::ERemoteRetarget::Pending:
 		Inventory.RetargetPendingIndex(Target);
+		AVeloxPlayerState::NoteAnomalyFor(ActorInfo->OwnerActor.Get(), EVeloxAnomaly::Switch); // ADR 0007 section 5.4
 		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxWeaponSwitch retarget %s -> %s mode=pending drop_left=%.3f switch_left=%.3f role=%s"), *GetNameSafe(Inventory.GetDefinition(From)),
 			*GetNameSafe(Inventory.GetDefinition(Target)), Inventory.GetPendingDropRemaining(), RunningSwitchRemaining(ActorInfo), Role);
 		return true;
@@ -158,12 +160,15 @@ bool UVeloxGameplayAbility_WeaponSwitch::ApplyRetarget(const FGameplayAbilityAct
 		Inventory.SetCurrentIndex(Target);
 		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxWeaponSwitch retarget %s -> %s mode=late since_drop=%.3f switch_left=%.3f role=%s"), *GetNameSafe(Inventory.GetDefinition(Current)),
 			*GetNameSafe(Inventory.GetDefinition(Target)), Now - Inventory.GetLastDropEndTime(), RunningSwitchRemaining(ActorInfo), Role);
+		AVeloxPlayerState::NoteAnomalyFor(ActorInfo->OwnerActor.Get(), EVeloxAnomaly::Switch); // ADR 0007 section 5.4
+		AVeloxPlayerState::NoteAnomalyFor(ActorInfo->OwnerActor.Get(), EVeloxAnomaly::LateRetarget);
 		return true;
 	}
 	case VeloxFireTiming::ERemoteRetarget::Fresh:
 	default:
 		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxWeaponSwitch retarget -> %s mode=fresh since_drop=%.3f tol=%.3f role=%s"), *GetNameSafe(Inventory.GetDefinition(Target)),
 			Inventory.GetLastDropEndTime() >= 0.0 ? Now - Inventory.GetLastDropEndTime() : -1.0, Tolerance, Role);
+		AVeloxPlayerState::NoteAnomalyFor(ActorInfo->OwnerActor.Get(), EVeloxAnomaly::FreshRetarget); // ADR 0007 section 5.4 (the switch counts below)
 		return false;
 	}
 }
@@ -288,6 +293,10 @@ void UVeloxGameplayAbility_WeaponSwitch::ActivateAbility(const FGameplayAbilityS
 	}
 	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxWeaponSwitch %s -> %s wait=%.3f running=%.3f drop=%.2f raise=%.2f role=%s"), *GetNameSafe(Inventory->GetCurrentDefinition()),
 		*GetNameSafe(Inventory->GetDefinition(TargetIndex)), Wait, Running, Drop, Raise, ActorInfo->IsNetAuthority() ? TEXT("server") : TEXT("client"));
+	if (UVeloxGameplayAbility_Fire::IsServerForRemoteShooter(ActorInfo))
+	{
+		AVeloxPlayerState::NoteAnomalyFor(ActorInfo->OwnerActor.Get(), EVeloxAnomaly::Switch); // ADR 0007 section 5.4
+	}
 
 	// B37 (iii), B42: the inventory owns the drop end on every machine (server: SetCurrentIndex, owning client: the
 	// predicted index), so the instance ends now and a press during the drop reaches PrepareInputActivation.

@@ -260,6 +260,7 @@ void UVeloxGameplayAbility_FireProjectile::Reject(uint8 ShotSeq, const TCHAR* Re
 	const UWorld* World = GetWorld();
 	const bool bLog = !Inventory || !World || Inventory->ShouldLogRejectionAtLog(World->GetTimeSeconds());
 	const FString Line = FString::Printf(TEXT("VeloxShotRejected seq=%u shooter=%s weapon=%s reason=%s"), ShotSeq, *GetNameSafe(GetShooterPawn()), *GetNameSafe(GetCurrentDefinition()), Reason);
+	AVeloxPlayerState::NoteAnomalyFor(CurrentActorInfo ? CurrentActorInfo->OwnerActor.Get() : nullptr, EVeloxAnomaly::Reject, 1, FName(Reason)); // ADR 0007 section 5.4
 	if (bLog)
 	{
 		UE_LOG(LogVeloxCombat, Log, TEXT("%s"), *Line);
@@ -327,6 +328,7 @@ void UVeloxGameplayAbility_FireProjectile::OnServerTargetData(const FGameplayAbi
 			FinalisePendingSwitch(*Definition);
 			// B37: no NextFireTime carry on receive time; the switch's refire wait reads this instead.
 			NoteAcceptedRemoteShot(Now);
+			AVeloxPlayerState::NoteAnomalyFor(CurrentActorInfo ? CurrentActorInfo->OwnerActor.Get() : nullptr, EVeloxAnomaly::Shot); // ADR 0007 section 5.4
 			FVeloxMoveShotRecord Record;
 			if (bRecorded && Inventory->AdoptMoveShotRecord(Valid.ShotSeq, Record))
 			{
@@ -493,6 +495,7 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 			const FString LateForLog = ShotEye.bHasLate ? FString::Printf(TEXT("%.1f"), ShotEye.LateMs) : FString(TEXT("na"));
 			UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s source=rpc late_ms=%s eye=%s"), ShotSeq, *GetNameSafe(Shooter),
 				ClientOrigin.ContainsNaN() ? -1.0 : FVector::Dist(ClientOrigin, Origin), SnapReason, *LateForLog, ShotEye.bFromRing ? TEXT("ring") : TEXT("live"));
+			AVeloxPlayerState::NoteAnomalyFor(Shooter, EVeloxAnomaly::OriginSnap); // ADR 0007 section 5.4
 		}
 	}
 
@@ -539,6 +542,7 @@ void UVeloxGameplayAbility_FireProjectile::LaunchServerShot(const UVeloxWeaponDe
 			{
 				UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotTimeClamp seq=%u client_ts=%.6f last_ts=%.6f clamped_ts=%.6f"), ShotSeq, ClientFireMoveTimeStamp, LastMoveTimeStamp,
 					FireMoveTimeStamp);
+				AVeloxPlayerState::NoteAnomalyFor(Shooter, EVeloxAnomaly::TimeClamp); // ADR 0007 section 5.4
 			}
 			else if (StampResult == EVeloxFireStampClamp::Reset)
 			{

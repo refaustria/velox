@@ -6,6 +6,27 @@
 CI_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$CI_LIB_DIR/../.." && pwd)"
 
+# Portable `timeout` (macOS ships no coreutils): real timeout, else gtimeout, else a pure-bash watchdog that
+# TERMs then KILLs the child. Usage as coreutils: timeout [--kill-after=S] SECONDS cmd args...
+# Only defined when no real `timeout` exists; a shell function, so it cannot sit behind exec/flock (Linux has the real one).
+if ! command -v timeout >/dev/null 2>&1; then
+  if command -v gtimeout >/dev/null 2>&1; then
+    timeout() { gtimeout "$@"; }
+  else
+    timeout() {
+      local kill_after=10 secs pid wd rc
+      [[ "${1:-}" == --kill-after=* ]] && { kill_after="${1#--kill-after=}"; shift; }
+      secs="$1"; shift
+      "$@" & pid=$!
+      ( sleep "$secs"; kill -TERM "$pid" 2>/dev/null; sleep "$kill_after"; kill -KILL "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+      wd=$!
+      wait "$pid"; rc=$?
+      kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
+      return "$rc"
+    }
+  fi
+fi
+
 die() { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "[ci] $*"; }
 
@@ -23,6 +44,7 @@ Options:
   --tests-only     Run tests only, no build
   --clean          Clean the selected targets before building
   --net-soak       After build/tests run infra/ci/nettest.sh (dedicated server + scripted client, 100 ms / 2 % loss; Linux only)
+  --package        After a green build + tests run infra/ci/package.sh (release package; --dev unless HEAD is tagged vX.Y.Z; Linux only)
   --dry-run        Print commands without running them (no engine required)
   -h, --help       Show this help
 
@@ -83,7 +105,7 @@ run_logged() {
 
 ci_parse_args() {
   CONFIG="${VELOX_CONFIG:-Development}"
-  TARGETS_ARG=""; DO_BUILD=1; DO_TESTS=1; DO_CLEAN=0; DRY_RUN=0; DO_NETSOAK=0
+  TARGETS_ARG=""; DO_BUILD=1; DO_TESTS=1; DO_CLEAN=0; DRY_RUN=0; DO_NETSOAK=0; DO_PACKAGE=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --config)   [[ $# -ge 2 ]] || die "--config needs a value"; CONFIG="$2"; shift 2 ;;
@@ -92,6 +114,7 @@ ci_parse_args() {
       --tests-only) DO_BUILD=0; shift ;;
       --clean)    DO_CLEAN=1; shift ;;
       --net-soak) DO_NETSOAK=1; shift ;;
+      --package)  DO_PACKAGE=1; shift ;;
       --dry-run)  DRY_RUN=1; shift ;;
       -h|--help)  usage; exit 0 ;;
       *) usage >&2; die "unknown option: $1" ;;
@@ -104,7 +127,10 @@ ci_parse_args() {
   if [[ "$DO_NETSOAK" == 1 && "$CI_PLATFORM" != Linux ]]; then
     die "--net-soak is only supported on Linux"
   fi
-  if [[ "$DO_BUILD" == 0 && "$DO_TESTS" == 0 && "$DO_NETSOAK" == 0 ]]; then
+  if [[ "$DO_PACKAGE" == 1 && "$CI_PLATFORM" != Linux ]]; then
+    die "--package is only supported on Linux"
+  fi
+  if [[ "$DO_BUILD" == 0 && "$DO_TESTS" == 0 && "$DO_NETSOAK" == 0 && "$DO_PACKAGE" == 0 ]]; then
     die "--no-tests and --tests-only together leave nothing to do"
   fi
 }
@@ -218,6 +244,15 @@ PY
   fi
 }
 
+# ci_package : entry point for build.sh --package. Release build if HEAD is tagged vX.Y.Z, else --dev.
+ci_package() {
+  local flag=--dev
+  if git -C "$REPO_ROOT" describe --exact-match --tags >/dev/null 2>&1; then flag=; fi
+  if [[ "$DRY_RUN" == 1 ]]; then info "dry-run: would run $CI_LIB_DIR/package.sh $flag"; return 0; fi
+  # shellcheck disable=SC2086
+  "$CI_LIB_DIR/package.sh" $flag --out "$LOG_DIR/packages"
+}
+
 ci_main() {
   cd "$REPO_ROOT"
   load_env_file
@@ -245,6 +280,7 @@ ci_main() {
       elif ! VELOX_CI_LOG_DIR="$LOG_DIR" "$CI_LIB_DIR/nettest.sh"; then echo "FAILED: net soak (logs: $LOG_DIR/nettest)" >&2; TESTS_FAILED=1; fi
     fi
   fi
+  if [[ "$DO_PACKAGE" == 1 && "$BUILD_FAILED" == 0 && "$TESTS_FAILED" == 0 ]]; then ci_package || { echo "FAILED: package" >&2; exit 1; }; fi
   if [[ "$BUILD_FAILED" == 1 || "$TESTS_FAILED" == 1 ]]; then
     echo "CI FAILED. Logs: $LOG_DIR" >&2; exit 1
   fi

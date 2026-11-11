@@ -15,13 +15,24 @@
 #include "GameModes/VeloxMatchEffects.h"
 #include "GameModes/VeloxPlayerController.h"
 #include "GameModes/VeloxPlayerState.h"
+#include "GameModes/VeloxSpectateMath.h"
 #include "Kismet/GameplayStatics.h"
+#include "HAL/PlatformMisc.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Net/VeloxNames.h"
+#include "Net/VeloxNetCheats.h"
+#include "UI/VeloxUISettings.h"
 #include "TimerManager.h"
 
 namespace VeloxGameModeMatchPrivate
 {
 	const TCHAR* const FragLimitOption = TEXT("FragLimit");
 	const TCHAR* const TimeLimitOption = TEXT("TimeLimit");
+	// ADR 0007 section 5.2 (M6 task 07).
+	const TCHAR* const ServerPasswordEnv = TEXT("VELOX_SERVER_PASSWORD");
+	const TCHAR* const PasswordOption = TEXT("Password");
+	const TCHAR* const NameOption = TEXT("Name");
 }
 
 double AVeloxGameMode::GetServerTime() const
@@ -50,6 +61,14 @@ void AVeloxGameMode::InitGame(const FString& MapName, const FString& Options, FS
 		// Q3 fraglimit / timelimit as URL options (server command line, tests): ?FragLimit=3?TimeLimit=120 (seconds).
 		MatchRules.FragLimit = FMath::Max(0, UGameplayStatics::GetIntOption(Options, VeloxGameModeMatchPrivate::FragLimitOption, MatchRules.FragLimit));
 		MatchRules.TimeLimitSeconds = FMath::Max(0, UGameplayStatics::GetIntOption(Options, VeloxGameModeMatchPrivate::TimeLimitOption, MatchRules.TimeLimitSeconds));
+	}
+	// ADR 0007 section 5.2: server password. Command line wins over the host URL; the environment variable (systemd
+	// EnvironmentFile, never on a command line or in the log) is the last fallback. The value itself is never logged.
+	{
+		const VeloxNet::FServerPasswordResolution Resolved = VeloxNet::ResolveServerPassword(FCommandLine::Get(), Options,
+			FPlatformMisc::GetEnvironmentVariable(VeloxGameModeMatchPrivate::ServerPasswordEnv));
+		ServerPassword = Resolved.Password;
+		UE_LOG(LogVeloxMatch, Log, TEXT("VeloxNet password=%s source=%s"), HasServerPassword() ? TEXT("on") : TEXT("off"), HasServerPassword() ? Resolved.Source : TEXT("none"));
 	}
 	// The GameState may already exist (AGameModeBase::PreInitializeComponents spawns it and calls InitGameState); hand
 	// the rules over to it now as well. InitGameState covers the other order and every ResetLevel.
@@ -100,9 +119,83 @@ void AVeloxGameMode::HandleMatchHasStarted()
 	GetWorldTimerManager().SetTimer(RulesTimer, this, &ThisClass::OnRulesTimer, FMath::Max(RulesTimerIntervalSeconds, 0.1f), true);
 }
 
+bool AVeloxGameMode::IsPasswordAccepted(const FString& Required, const FString& Offered)
+{
+	if (Required.IsEmpty())
+	{
+		return true;
+	}
+	if (Required.Len() != Offered.Len())
+	{
+		return false;
+	}
+	// Constant time for equal lengths: no early exit on the first difference.
+	uint32 Diff = 0;
+	for (int32 I = 0; I < Required.Len(); ++I)
+	{
+		Diff |= static_cast<uint32>(Required[I]) ^ static_cast<uint32>(Offered[I]);
+	}
+	return Diff == 0;
+}
+
+void AVeloxGameMode::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage)
+{
+	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
+	if (!ErrorMessage.IsEmpty() || !HasServerPassword())
+	{
+		return;
+	}
+	// Spectators (?SpectatorOnly=1) need it too: PreLogin runs for every remote connection before Login.
+	if (!IsPasswordAccepted(ServerPassword, UGameplayStatics::ParseOption(Options, VeloxGameModeMatchPrivate::PasswordOption)))
+	{
+		ErrorMessage = UVeloxUISettings::Get().WrongPasswordMessage;
+		UE_LOG(LogVeloxMatch, Log, TEXT("VeloxLoginRefused reason=password address=%s offered=%d"), *Address,
+			UGameplayStatics::HasOption(Options, VeloxGameModeMatchPrivate::PasswordOption) ? 1 : 0);
+	}
+}
+
+void AVeloxGameMode::ChangeName(AController* Controller, const FString& NewName, bool bNameChange)
+{
+	APlayerController* PC = Cast<APlayerController>(Controller);
+	APlayerState* PS = Controller ? Controller->PlayerState.Get() : nullptr;
+	if (!PC || !PS || PS->IsABot())
+	{
+		Super::ChangeName(Controller, NewName, bNameChange);
+		return;
+	}
+	TArray<FString> Others;
+	if (GameState)
+	{
+		for (const APlayerState* Other : GameState->PlayerArray)
+		{
+			if (Other && Other != PS)
+			{
+				Others.Add(Other->GetPlayerName());
+			}
+		}
+	}
+	const FString Clean = VeloxNames::Dedupe(VeloxNames::Sanitize(NewName, MaxPlayerNameLength), Others, MaxPlayerNameLength);
+	if (Clean != NewName)
+	{
+		UE_LOG(LogVeloxMatch, Log, TEXT("VeloxName sanitized player_id=%d in_len=%d out=%s change=%d"), PS->GetPlayerId(), NewName.Len(), *Clean, bNameChange ? 1 : 0);
+	}
+	if (Clean == PS->GetPlayerName())
+	{
+		return;
+	}
+	Super::ChangeName(Controller, Clean, bNameChange);
+}
+
 FString AVeloxGameMode::InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal)
 {
 	FString Error = Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
+	// ADR 0007 section 5.2: the engine clamps ?Name= to 20 UTF-16 units before its ChangeName (which this class
+	// sanitizes); the full option goes through ChangeName once more so MaxPlayerNameLength (code points) is the only clamp.
+	if (NewPlayerController && Error.IsEmpty())
+	{
+		const FString RawName = UGameplayStatics::ParseOption(Options, VeloxGameModeMatchPrivate::NameOption);
+		ChangeName(NewPlayerController, RawName, false);
+	}
 	APlayerState* NewPS = NewPlayerController ? NewPlayerController->PlayerState.Get() : nullptr;
 	if (!bMatchRulesEnabled || !NewPS || NewPS->IsOnlyASpectator())
 	{
@@ -129,6 +222,11 @@ FString AVeloxGameMode::InitNewPlayer(APlayerController* NewPlayerController, co
 void AVeloxGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
+	// ADR 0007 section 5.5: a spectator (requested or the mode is full) gets the item timers now; a player never.
+	if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
+	{
+		Registry->PushTimersTo(NewPlayer ? NewPlayer->GetPlayerState<AVeloxPlayerState>() : nullptr);
+	}
 	if (bMatchRulesEnabled && NewPlayer)
 	{
 		const APlayerState* PS = NewPlayer->PlayerState;
@@ -161,6 +259,22 @@ void AVeloxGameMode::Reset()
 {
 	Super::Reset();
 	ClearAllPendingRespawns();
+	// ResetLevel resets this last: every pickup has its new (initial) schedule, so the entitled sets are rebuilt from it.
+	if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
+	{
+		Registry->RefreshAllItemTimers();
+	}
+}
+
+bool AVeloxGameMode::CanSpectate_Implementation(APlayerController* Viewer, APlayerState* ViewTarget)
+{
+	const APlayerState* ViewerPS = Viewer ? Viewer->PlayerState.Get() : nullptr;
+	if (!ViewerPS || !VeloxSpectate::MayViewOtherPlayers(ViewerPS->IsOnlyASpectator()))
+	{
+		return false;
+	}
+	// Nothing to follow in another spectator (the listen host's spectator-only PlayerState included).
+	return ViewTarget && ViewTarget != ViewerPS && !ViewTarget->IsOnlyASpectator() && Super::CanSpectate_Implementation(Viewer, ViewTarget);
 }
 
 bool AVeloxGameMode::ShouldReset_Implementation(AActor* ActorToReset)
@@ -513,6 +627,11 @@ bool AVeloxGameMode::RequestJoin(APlayerController* Controller)
 	--NumSpectators;
 	++NumPlayers;
 	PS->SetIsOnlyASpectator(false);
+	// ADR 0007 section 5.5: the timers go with the flag.
+	if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
+	{
+		Registry->PushTimersTo(Cast<AVeloxPlayerState>(PS));
+	}
 	Controller->bPlayerIsWaiting = true;
 	if (PlayerCanRestart(Controller))
 	{

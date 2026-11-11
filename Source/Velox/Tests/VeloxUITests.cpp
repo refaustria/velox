@@ -644,6 +644,12 @@ bool FVeloxUIDeadIsNotSpectatorTest::RunTest(const FString& Parameters)
 	ViewModel->UpdateFromGame(*PC);
 	TestFalse(TEXT("dead != spectator: bSpectator false"), ViewModel->bSpectator);
 	TestFalse(TEXT("item timers hidden under the Spectators rule"), ViewModel->bShowItemTimers);
+	// ADR 0007 section 5.5: now enforced on the server too; the dead player's PlayerState holds no timers to hide.
+	if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(World))
+	{
+		Registry->PushTimersTo(PS);
+	}
+	TestEqual(TEXT("dead player: owner-only ItemTimers empty"), PS->GetItemTimers().Num(), 0);
 	TestFalse(TEXT("rule check: Spectators hides timers from a player"), VeloxScoreboardFormat::ItemTimersVisible(EVeloxItemTimerVisibility::Spectators, ViewModel->bSpectator));
 	const FString Label = AVeloxPlayerState::VeloxPlayerLabel(PS);
 	TestFalse(TEXT("scoreboard: not in the spectator names"), ViewModel->SpectatorNames.Contains(Label));
