@@ -80,7 +80,11 @@ ROCKET_JUMP_RUNUP = 450.0         # link start east of the platform's east edge 
 # Nav link conventions (Tools/editor/README.md): drop start 60 cm inside the edge, end on the floor 150 cm out.
 PLATFORM_SIZE = 400.0
 PAD_TO_EDGE = 600.0      # pad centre to the platform's near edge (pad A of the movement map)
-PAD_TARGET_Z = PLATFORM_TOP + 70.0 + 30.0   # capsule-centre apex: capsule bottom 30 cm above the platform top
+# Task m6-16: the pads' trigger is 40 cm tall and 80 x 80 (default 140 cm, 100 x 100), resting on the floor. Bots that bunny-hop
+# into a pad fired it with their feet up to 140 cm high and overshot the platform by 100-250 cm (JumpPad misses on
+# VeloxNavLink_0 / _4); the launch origin is the trigger centre, so the target z drops by the same amount as the pad's.
+PAD_TRIGGER_EXTENT = (40.0, 40.0, 20.0)
+PAD_TARGET_Z = PLATFORM_TOP + 70.0 + 30.0 + (PAD_TRIGGER_EXTENT[2] - PAD_LAUNCH_Z)   # same ballistics: apex 30 cm above the platform (capsule bottom)
 
 RAMP_DEG = 15.0
 RAMP_LEN = 800.0
@@ -196,7 +200,8 @@ def build_platform_item(tag, item, pad_x, y):
     box("platform", f"{tag}_NorthFill", (cx, y + PLATFORM_SIZE / 2 + NORTH_FILL_D / 2, PLATFORM_TOP / 2), (PLATFORM_SIZE, NORTH_FILL_D, PLATFORM_TOP),
         "Platform", folder=tag)
     a = vm.jump_pad(f"{tag}_JumpPad", (pad_x, y), (edge, y, PAD_TARGET_Z), pad_label=f"{tag}_JumpPad",
-                    target_label=f"{tag}_PadTarget", folder=tag)
+                    target_label=f"{tag}_PadTarget", folder=tag,
+                    trigger_extent=PAD_TRIGGER_EXTENT)
     _, da = place_item(item, (cx, y, PLATFORM_TOP), folder=tag)
     text(f"Label_{tag}", (pad_x - 150, y, 140), respawn_text(item, da) + "\n3 m platform, jump pad", 0, folder=tag)
     # Bots: pad trigger centre on the floor -> the item at the platform centre (the authored landing point).
