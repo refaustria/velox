@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev
-**Status:** todo
+**Status:** done (measured; ADR amendment by the lead)
 **Depends on:** ADR 0007 §5.6; task 02 (listen-mode nettest, host sidecar); ideally task 01's packaged server
 
 ## Goal
@@ -35,4 +35,4 @@ Numbers, not opinions, for ADR 0001 §3's deferred "evaluate Replication Graph /
 Standard format plus: the three-row measurement table, the fit, the 16-connection extrapolation, the host-sidecar classes per run (any cost windows = note for q29), and the one-paragraph verdict text for the ADR.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+Done on wip/m6-10-replbudget: infra/ci/replbudget.sh, Tools/ci/replbudget_summary.py, Source/Velox/Net/VeloxNetStatsLog.cpp (about 140 lines, over the 60-line estimate: it also logs client fps and per-frame percentiles), evidence in docs/adr/evidence/0007-repl-budget/, report in notes/10-report.md.
