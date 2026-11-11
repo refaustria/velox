@@ -57,3 +57,6 @@ Standard format plus: the engine line proving the `PostNetReceive` → `CallRepN
   <= 0.017), ItemRun + DeathSpectateRun PASS, BotRun x3 set PASS, fts.sh OK 8/8. Listen first failed on a harness name
   collision (host and client both log in as `Player`); `VeloxItemTimerEntitlement` now logs `local=` and the evaluator
   ignores the host's local rows. Details in the report.
+2026-11-11 (dev, 08b): review follow-ups F1-F6 applied (see 08b-review-followups.md): origin/m6-online merged, ItemIndex is 1-based,
+  `VeloxViewRefused` is Verbose, the HUD uses `GetTimeUntilRespawn()`, evaluator lines carry `pid=` and the listen evaluator
+  matches by pid. ADR 0007 amendment F3 appended.

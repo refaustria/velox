@@ -159,7 +159,7 @@ FString AVeloxPlayerState::DescribeItemTimers() const
 
 void AVeloxPlayerState::OnRep_ItemTimers()
 {
-	UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimers %s reason=rep player=%s"), *DescribeItemTimers(), *VeloxPlayerLabel(this));
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimers %s reason=rep player=%s pid=%d"), *DescribeItemTimers(), *VeloxPlayerLabel(this), GetPlayerId());
 }
 
 #if !UE_BUILD_SHIPPING
@@ -189,8 +189,8 @@ namespace VeloxItemTimerLog
 			{
 				continue;
 			}
-			UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimers %s reason=tick player=%s state=%s only_spectator=%d pawn=%d t=%.3f"), *PS->DescribeItemTimers(),
-				*AVeloxPlayerState::VeloxPlayerLabel(PS), *PC->GetStateName().ToString(), PS->IsOnlyASpectator() ? 1 : 0, PC->GetPawn() ? 1 : 0, World->GetTimeSeconds());
+			UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimers %s reason=tick player=%s pid=%d state=%s only_spectator=%d pawn=%d t=%.3f"), *PS->DescribeItemTimers(),
+				*AVeloxPlayerState::VeloxPlayerLabel(PS), PS->GetPlayerId(), *PC->GetStateName().ToString(), PS->IsOnlyASpectator() ? 1 : 0, PC->GetPawn() ? 1 : 0, World->GetTimeSeconds());
 		}
 	}
 

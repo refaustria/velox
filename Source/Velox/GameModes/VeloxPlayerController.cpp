@@ -166,7 +166,7 @@ void AVeloxPlayerController::ViewAPlayer(int32 Dir)
 	const APlayerState* PS = PlayerState.Get();
 	if (!PS || !VeloxSpectate::MayViewOtherPlayers(PS->IsOnlyASpectator()))
 	{
-		UE_LOG(LogVelox, Log, TEXT("VeloxViewRefused player=%s dir=%d death_spectating=%d (a dead player keeps the player's information rules)"),
+		UE_LOG(LogVelox, Verbose, TEXT("VeloxViewRefused player=%s dir=%d death_spectating=%d (a dead player keeps the player's information rules)"),
 			*AVeloxPlayerState::VeloxPlayerLabel(PS), Dir, bDeathSpectating ? 1 : 0);
 		return;
 	}

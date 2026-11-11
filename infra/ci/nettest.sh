@@ -778,21 +778,25 @@ if script in ("ItemGateSpectator", "ItemGatePlayer"):
                     out.append((mm.group(1), int(mm.group(2)), float(mm.group(3))))
         return out
     spectator = script == "ItemGateSpectator"
-    # Names are not unique: the listen host's own PlayerState and the remote client both log in as "Player" (the login
-    # name is the LocalPlayer nickname; a ?Name= in the host's map URL or the client's connect URL does not reach it).
-    # The host's rows carry local=1 (entitled spectator, nothing on the wire) and are not the client's.
+    # Names are not unique (and may contain spaces, which kv() cannot parse): the listen host's own PlayerState and the
+    # remote client both log in as "Player". Rows are matched by pid=<PlayerId> (server VeloxItemTimerEntitlement /
+    # VeloxItemTimerPush to=[name#pid,...] and the client's VeloxItemTimers lines). The host's rows carry local=1
+    # (entitled spectator, nothing on the wire) and are not the client's.
     ct = [l for l in C if "VeloxItemTimers n=" in l]
-    me = next((kv(l).get("player") for l in ct if kv(l).get("player")), None)
+    me = next((kv(l).get("pid") for l in ct if kv(l).get("pid")), None)
     ents = [(i, kv(l)) for i, l in enumerate(S) if "VeloxItemTimerEntitlement player=" in l and kv(l).get("local") != "1"]
-    mine = [(i, d) for i, d in ents if d.get("player") == me] if me else []
+    mine = [(i, d) for i, d in ents if d.get("pid") == me] if me else []
     pushes = [(i, kv(l)) for i, l in enumerate(S) if "VeloxItemTimerPush item=" in l]
     respawns = [(i, kv(l)) for i, l in enumerate(S) if "VeloxPickupRespawn item=" in l]
     detail_g = []
     if not ct:
         fails.append("no client 'VeloxItemTimers n=' lines (velox.items.LogTimers not running)")
     if not mine:
-        fails.append("no server VeloxItemTimerEntitlement line for the client (player=%s)" % me)
+        fails.append("no server VeloxItemTimerEntitlement line for the client (pid=%s)" % me)
     e_idx = mine[0][0] if mine else len(S)
+    # Pushes after the client's connection closed (it quits itself when velox.bots.Watch ends) go to nobody remote: not judged.
+    close_i = next((i for i in range(e_idx + 1, len(S)) if "UNetConnection::Close" in S[i]), len(S))
+    pushes = [(i, d) for i, d in pushes if i < close_i]
     takes_after = [d for i, d in pushes if i > e_idx and num(d, "respawn_t") > 0.0]
     if spectator:
         if mine and mine[0][1].get("entitled") != "1":

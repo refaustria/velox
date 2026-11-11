@@ -988,7 +988,7 @@ bool FVeloxItemTimerGatingTest::RunTest(const FString& Parameters)
 		W.PC->ViewAPlayer(+1);
 		TestTrue(TEXT("dead: ViewAPlayer refused, view target unchanged"), W.PC->GetViewTarget() == ViewBefore);
 		GLog->FlushThreadedLogs();
-		TestEqual(TEXT("dead: VeloxViewRefused logged"), ViewLog.Lines.Num(), 1);
+		TestEqual(TEXT("dead: VeloxViewRefused is Verbose, not logged at Log level (F3)"), ViewLog.Lines.Num(), 0);
 		TestFalse(TEXT("dead: CanSpectate refuses"), W.GameMode->CanSpectate(W.PC, W.PS));
 		{
 			UVeloxHUDViewModel* ViewModel = NewObject<UVeloxHUDViewModel>(GetTransientPackage());

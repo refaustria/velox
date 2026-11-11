@@ -60,7 +60,13 @@ void UVeloxItemRegistrySubsystem::RegisterPickup(AVeloxPickup* Pickup)
 		{
 			// ADR 0007 section 5.5: the key of the owner-only timer entries; replicated initial-only, so set before the
 			// first replication (BeginPlay).
-			Pickup->SetItemIndex(NextItemIndex++);
+			Pickup->SetItemIndex(NextItemIndex);
+			++NextItemIndex;
+			if (NextItemIndex == 0)
+			{
+				UE_LOG(LogVeloxItems, Warning, TEXT("VeloxItemIndexWrap: more than 255 registered pickups; item indices repeat (0 stays reserved for none)"));
+				NextItemIndex = 1;
+			}
 		}
 		Pickups.AddUnique(Pickup);
 	}
@@ -68,6 +74,10 @@ void UVeloxItemRegistrySubsystem::RegisterPickup(AVeloxPickup* Pickup)
 
 AVeloxPickup* UVeloxItemRegistrySubsystem::FindPickupByIndex(uint8 ItemIndex) const
 {
+	if (ItemIndex == 0)
+	{
+		return nullptr;   // 0 = "no index" (review F2)
+	}
 	for (const TWeakObjectPtr<AVeloxPickup>& Entry : Pickups)
 	{
 		AVeloxPickup* Pickup = Entry.Get();
@@ -116,8 +126,8 @@ void UVeloxItemRegistrySubsystem::PushTimersTo(AVeloxPlayerState* PlayerState) c
 	// local=1: the listen host's own PlayerState (nothing leaves the machine for it). Names are not unique (the host and a
 	// client both default to "Player"), so the nettest ItemGate evaluator tells the rows apart by this flag.
 	const APlayerController* PC = Cast<APlayerController>(PlayerState->GetOwner());
-	UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimerEntitlement player=%s entitled=%d only_spectator=%d local=%d rule=%s n=%d"), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
-		bEntitled ? 1 : 0, PlayerState->IsOnlyASpectator() ? 1 : 0, (PC && PC->IsLocalController()) ? 1 : 0, *UEnum::GetValueAsString(GetItemTimerVisibility()),
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimerEntitlement player=%s pid=%d entitled=%d only_spectator=%d local=%d rule=%s n=%d"), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
+		PlayerState->GetPlayerId(), bEntitled ? 1 : 0, PlayerState->IsOnlyASpectator() ? 1 : 0, (PC && PC->IsLocalController()) ? 1 : 0, *UEnum::GetValueAsString(GetItemTimerVisibility()),
 		PlayerState->GetItemTimers().Num());
 }
 
@@ -164,7 +174,7 @@ void UVeloxItemRegistrySubsystem::HandleItemTimerChanged(const AVeloxPickup& Pic
 		const APlayerController* PC = Cast<APlayerController>(VeloxPS->GetOwner());
 		// The listen host's own spectator-only PlayerState is entitled but local: nothing leaves the machine for it.
 		NumRemote += (PC && !PC->IsLocalController()) ? 1 : 0;
-		Names += (Names.IsEmpty() ? TEXT("") : TEXT(",")) + AVeloxPlayerState::VeloxPlayerLabel(VeloxPS);
+		Names += (Names.IsEmpty() ? TEXT("") : TEXT(",")) + FString::Printf(TEXT("%s#%d"), *AVeloxPlayerState::VeloxPlayerLabel(VeloxPS), VeloxPS->GetPlayerId());
 	}
 	UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimerPush item=%s index=%u respawn_t=%.3f entitled=%d remote=%d to=[%s]"), *GetNameSafe(Pickup.GetDefinition()), Pickup.GetItemIndex(),
 		Pickup.GetRespawnServerTime(), NumEntitled, NumRemote, *Names);

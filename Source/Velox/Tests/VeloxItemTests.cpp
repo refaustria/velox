@@ -987,6 +987,10 @@ bool FVeloxItemsReplicationTest::RunTest(const FString& Parameters)
 	W.Advance(0.1f);
 	TestTrue(TEXT("registry indices differ and resolve"), Late->GetItemIndex() != Fresh->GetItemIndex() && Registry->FindPickupByIndex(Late->GetItemIndex()) == Late
 		&& Registry->FindPickupByIndex(Fresh->GetItemIndex()) == Fresh);
+	// Review F2: index 0 means "no index" (a client pickup before its initial bunch), so the first one handed out is 1.
+	TestEqual(TEXT("first registry index is 1"), static_cast<int32>(Late->GetItemIndex()), 1);
+	TestEqual(TEXT("second registry index is 2"), static_cast<int32>(Fresh->GetItemIndex()), 2);
+	TestNull(TEXT("index 0 resolves to no pickup"), Registry->FindPickupByIndex(0));
 	int32 Takes = 0;
 	int32 Respawns = 0;
 	Registry->OnPickupTaken.AddLambda([&Takes](AVeloxPickup*, APlayerState*) { ++Takes; });

@@ -108,6 +108,7 @@ private:
 
 	TArray<TWeakObjectPtr<AVeloxPickup>> Pickups;
 	FVeloxItemModeRules ModeRules;
-	/** Server: next ItemIndex (wraps at 256; a map has far fewer pickups). */
-	uint8 NextItemIndex = 0;
+	/** Server: next ItemIndex. 0 means "no index" (a client pickup whose initial bunch has not arrived), so the first one handed out is 1;
+	 *  wraps at 256 (skipping 0, with a warning); a map has far fewer pickups. */
+	uint8 NextItemIndex = 1;
 };
