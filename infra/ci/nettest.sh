@@ -298,7 +298,7 @@ run_one() {
     ItemGatePlayer)
       # A playing client (bots peaceful, so the only death is the script's serverKill) holds nothing, alive or dead.
       # FFA's Countdown -> Live ResetLevel (20 s after start) would replace the scripted pawn mid-script: force Live 1 s
-      # after the server starts, before the client connects (UNVERIFIED as of task 08's stop, see notes/08-report.md).
+      # after the server starts, before the client connects (verified x3 dedicated + listen, notes/08-report.md).
       map="L_ItemTest?game=FFA?Bots=3?BotDifficulty=Medium"; sexec="velox.bots.Peaceful 1, velox.combat.ForceRespawnDelay 4, velox.bots.After 1 velox.match.Phase Live"
       cexec="$cexec, velox.items.LogTimers 1"; script_args=(-VeloxScript=ItemGateRun) ;;
   esac
@@ -528,10 +528,12 @@ if script in ("ItemGateSpectator", "ItemGatePlayer"):
                     out.append((mm.group(1), int(mm.group(2)), float(mm.group(3))))
         return out
     spectator = script == "ItemGateSpectator"
-    host_names = ("Server",)   # the listen host's ?Name=Server
+    # Names are not unique: the listen host's own PlayerState and the remote client both log in as "Player" (the login
+    # name is the LocalPlayer nickname; a ?Name= in the host's map URL or the client's connect URL does not reach it).
+    # The host's rows carry local=1 (entitled spectator, nothing on the wire) and are not the client's.
     ct = [l for l in C if "VeloxItemTimers n=" in l]
     me = next((kv(l).get("player") for l in ct if kv(l).get("player")), None)
-    ents = [(i, kv(l)) for i, l in enumerate(S) if "VeloxItemTimerEntitlement player=" in l]
+    ents = [(i, kv(l)) for i, l in enumerate(S) if "VeloxItemTimerEntitlement player=" in l and kv(l).get("local") != "1"]
     mine = [(i, d) for i, d in ents if d.get("player") == me] if me else []
     pushes = [(i, kv(l)) for i, l in enumerate(S) if "VeloxItemTimerPush item=" in l]
     respawns = [(i, kv(l)) for i, l in enumerate(S) if "VeloxPickupRespawn item=" in l]

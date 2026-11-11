@@ -113,8 +113,12 @@ void UVeloxItemRegistrySubsystem::PushTimersTo(AVeloxPlayerState* PlayerState) c
 	{
 		PlayerState->ClearItemTimers();
 	}
-	UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimerEntitlement player=%s entitled=%d only_spectator=%d rule=%s n=%d"), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
-		bEntitled ? 1 : 0, PlayerState->IsOnlyASpectator() ? 1 : 0, *UEnum::GetValueAsString(GetItemTimerVisibility()), PlayerState->GetItemTimers().Num());
+	// local=1: the listen host's own PlayerState (nothing leaves the machine for it). Names are not unique (the host and a
+	// client both default to "Player"), so the nettest ItemGate evaluator tells the rows apart by this flag.
+	const APlayerController* PC = Cast<APlayerController>(PlayerState->GetOwner());
+	UE_LOG(LogVeloxItems, Log, TEXT("VeloxItemTimerEntitlement player=%s entitled=%d only_spectator=%d local=%d rule=%s n=%d"), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
+		bEntitled ? 1 : 0, PlayerState->IsOnlyASpectator() ? 1 : 0, (PC && PC->IsLocalController()) ? 1 : 0, *UEnum::GetValueAsString(GetItemTimerVisibility()),
+		PlayerState->GetItemTimers().Num());
 }
 
 void UVeloxItemRegistrySubsystem::RefreshAllItemTimers() const

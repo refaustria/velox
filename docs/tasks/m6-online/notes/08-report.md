@@ -1,14 +1,52 @@
-# Task m6-online/08: report (dev-hard, 2026-11-06). Partially done, stopped by the lead (disk below 10 GB)
+# Task m6-online/08: report (dev-hard, 2026-11-06, finished 2026-11-11). Done
 
 ## Status
-- Done: code, unit rows, Editor build, the full automation run (132/132 green). ItemGateRun **spectator round PASS ×3 (dedicated)**.
-- Not done: the **player round** of ItemGateRun failed ×3 for a harness reason, not a leak: FFA's Countdown→Live
-  `ResetLevel` at +20 s replaces the scripted pawn, so `ItemGateRun.json` never reaches its `serverKill` row. Every client
-  line of that round still read `n=0` (all_n0=1), and the server pushed 18–19 major-item timer changes with `remote=0`.
-  A fix is committed **but has not been run**: the server forces Live 1 s after start (`velox.bots.After 1 velox.match.Phase Live`).
-- Not run (the lead stopped all new UE steps): ItemGateRun ×3 with the fix, ItemGateRun in `--server-mode listen`,
-  `ItemRun,DeathSpectateRun`, `BotRun --repeat 3`, `fts.sh`. The Game/Server/Client targets were not built here
-  (on the installed engine, Server and Client are skipped by `build.sh`).
+- 2026-11-11 (on the merged head with origin/m6-online, incl. 02b and 05): Editor build + **134/134** tests green.
+  **ItemGateRun PASS 3/3 dedicated and 3/3 listen** (plus 1/1 dedicated on the final binary), `ItemRun`,
+  `DeathSpectateRun` PASS, `BotRun --repeat 3` set PASS, `fts.sh` OK 8/8.
+- The forced-Live harness fix (server `velox.bots.After 1 velox.match.Phase Live`) made the player round reach its
+  `serverKill`: dead_lines=4, all_n0=1 in every round.
+- Listen mode first failed 0/3 for a **harness** reason (no leak): the listen host's own spectator PlayerState and the
+  remote client both log in as `Player` (the login name is the LocalPlayer nickname; `?Name=` in the host's map URL or
+  the client's connect URL does not reach it, verified: `Login request: ?Name=Player` with `127.0.0.1:7832?Name=GatePlayer`),
+  so the evaluator read the host's entitled, local rows as the client's. Fix: `VeloxItemTimerEntitlement` now carries
+  `local=` (owner is a local PlayerController) and the evaluator ignores `local=1` rows. The unused `host_names` is gone.
+- Host load (foreign postgres loop): load1 1.0-2.0 at round starts (gate 2.0, waited <= 30 s); the loop was gone by
+  the listen sets (lead), load1 0.7-2.1 during them, the remaining load is the other agent's UE runs and our own.
+- Game/Server/Client targets: not built here (installed engine; `build.sh` skips Server/Client).
+
+## Evidence 2026-11-11 (logs under the scratchpad `t08/`)
+```
+dedicated (gate-ded, x3):
+  ItemGateSpectator  PASS  entitled=1 takes_pushed=16 respawns_matched=9 max_err_s=0.015 client_lines=95 max_n=7
+  ItemGatePlayer     PASS  entitled=0 takes_pushed=7 client_lines=46 dead_lines=4 all_n0=1 view_refused=0
+  ItemGateSpectator  PASS  entitled=1 takes_pushed=16 respawns_matched=9 max_err_s=0.015 client_lines=97 max_n=7
+  ItemGatePlayer     PASS  entitled=0 takes_pushed=6 client_lines=47 dead_lines=4 all_n0=1 view_refused=0
+  ItemGateSpectator  PASS  entitled=1 takes_pushed=16 respawns_matched=9 max_err_s=0.013 client_lines=96 max_n=7
+  ItemGatePlayer     PASS  entitled=0 takes_pushed=8 client_lines=47 dead_lines=4 all_n0=1 view_refused=0
+  Rounds passed: 3/3
+listen (gate-listen3, x3, after the local= fix):
+  ItemGateSpectator  PASS  entitled=1 takes_pushed=16 respawns_matched=9 max_err_s=0.015 client_lines=97 max_n=7
+  ItemGatePlayer     PASS  entitled=0 takes_pushed=9 client_lines=47 dead_lines=4 all_n0=1 view_refused=0
+  ItemGateSpectator  PASS  entitled=1 takes_pushed=16 respawns_matched=9 max_err_s=0.016 client_lines=97 max_n=7
+  ItemGatePlayer     PASS  entitled=0 takes_pushed=6 client_lines=47 dead_lines=4 all_n0=1 view_refused=0
+  ItemGateSpectator  PASS  entitled=1 takes_pushed=16 respawns_matched=9 max_err_s=0.014 client_lines=95 max_n=7
+  ItemGatePlayer     PASS  entitled=0 takes_pushed=8 client_lines=46 dead_lines=4 all_n0=1 view_refused=0
+  Rounds passed: 3/3
+dedicated, final binary (gate-ded2, x1): Spectator PASS max_err_s=0.017, Player PASS dead_lines=4 all_n0=1
+ItemRun PASS, DeathSpectateRun PASS (spectate=free); BotRun x3: PASS/PASS/PASS, set behaviour PASS, cost PASS
+  (round 1 cost not judged: clean 4 + process-slow 16 of 20 windows; the set's cost band passed)
+```
+Listen player round, server (host rows local=1, the client's row local=0):
+`VeloxItemTimerEntitlement player=Player entitled=1 only_spectator=1 local=1 rule=...Spectators n=7` (host)
+`VeloxItemTimerEntitlement player=Player entitled=0 only_spectator=0 local=0 rule=...Spectators n=0` (client)
+`VeloxItemTimerPush item=DA_Item_Powerup_Regen index=15 respawn_t=44.896 entitled=1 remote=0 to=[Player]` (host only)
+Client in the dead window: `VeloxItemTimers n=0 entries=[] reason=tick player=Player state=Spectating only_spectator=0 pawn=0 t=41.602`.
+Listen spectator round: `VeloxItemTimerPush item=DA_Item_Powerup_Regen index=15 respawn_t=72.121 entitled=2 remote=1 to=[Player,Player]`.
+
+## History (2026-11-06)
+- Code, unit rows, Editor build 132/132, spectator round PASS x3 (dedicated). The player round failed x3 (harness:
+  FFA Countdown->Live `ResetLevel` replaced the scripted pawn before `serverKill`); stopped by the lead (disk).
 
 ## Design
 - `AVeloxPickup` replicates `bAvailable` (OnRep_Available), `TakeCount` (uint8, wraps, OnRep_TakeCount), `LastTakenBy`
@@ -62,7 +100,7 @@ dead → ViewAPlayer refused, CanSpectate false, HUD hides; spectator: full set,
 join clears). Extended: `Velox.UI.DeadIsNotSpectator` (the array is empty). Removed: the `IsStaleTake` rows.
 `build.sh --targets VeloxEditor`: 132/132 Success. (The pre-existing `LIGHTING FAIL` audit line is informational.)
 
-## ItemGateRun evidence (dedicated, ×3, logs under the scratchpad `t08/gate-ded`)
+## ItemGateRun evidence 2026-11-06 (before the forced-Live fix; superseded above)
 ```
 ItemGateSpectator  PASS  entitled=1 takes_pushed=16 respawns_matched=9 max_err_s=0.017 client_lines=95 max_n=7
 ItemGateSpectator  PASS  entitled=1 takes_pushed=16 respawns_matched=9 max_err_s=0.016 client_lines=96 max_n=7
@@ -80,7 +118,7 @@ Player round server: `VeloxItemTimerEntitlement player=Player entitled=0 only_sp
   `GameModes/VeloxSpectateMath.h` (the rule), `Tests/VeloxDeathTests.cpp` (the DeathFlow-family harness row),
   `Content/Data/MoveScripts/ItemGateRun.json` (the player-round script). `docs/content-bootstrap.md` never mentioned the setting, so it is unchanged.
 - `velox.items.LogTimers <s>` (non-shipping) lives in `VeloxPlayerState.cpp`.
-
-## To finish
-1. `nettest.sh --scripts ItemGateRun --repeat 3` (verify the forced-Live fix for the player round), then the same with `--server-mode listen`.
-2. `--scripts ItemRun,DeathSpectateRun --repeat 1`, `--scripts BotRun --repeat 3`, `fts.sh`.
+- 2026-11-11: `VeloxItemTimerEntitlement` gained `local=` (log only) for the listen evaluator; player names are not
+  unique on a listen host (host and client both `Player`). Anything keying server logs by player name in listen mode
+  (other nettest evaluators, ADR 0007 listen tooling) has the same ambiguity; the PlayerState label could carry the
+  PlayerId if the architect prefers that over a per-line flag.
