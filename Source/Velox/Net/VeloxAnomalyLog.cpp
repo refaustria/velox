@@ -48,8 +48,7 @@ void UVeloxAnomalyLog::Deinitialize()
 void UVeloxAnomalyLog::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
-	// Clients and standalone never count (every NoteAnomaly site is server-side); the server-like check happens per line
-	// because a headless host's spectator PlayerState may not exist yet at begin play.
+	// Clients and standalone never count (every NoteAnomaly site is server-side); IsActive() repeats this test per line.
 	const ENetMode NetMode = InWorld.GetNetMode();
 	if ((NetMode == NM_DedicatedServer || NetMode == NM_ListenServer) && VeloxAnomalyLogPrivate::IntervalSeconds > 0.f)
 	{
@@ -59,7 +58,12 @@ void UVeloxAnomalyLog::OnWorldBeginPlay(UWorld& InWorld)
 
 bool UVeloxAnomalyLog::IsActive() const
 {
-	return VeloxServerKind::IsServerLike(GetWorld());
+	// Review 0007-09 F1: the net mode, not VeloxServerKind::IsServerLike (that is for skipping cost). A headless listen
+	// host's spectator PlayerController / PlayerState can be gone by OnWorldBeginTearDown, which skipped every at=shutdown
+	// line; the counters are server-authority and remote-player only anyway, so the wider gate prints nothing extra.
+	const UWorld* World = GetWorld();
+	const ENetMode NetMode = World ? World->GetNetMode() : NM_Standalone;
+	return NetMode == NM_DedicatedServer || NetMode == NM_ListenServer;
 }
 
 void UVeloxAnomalyLog::PrintLine(AVeloxPlayerState& PlayerState, const TCHAR* At)

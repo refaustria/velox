@@ -291,7 +291,12 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 			ResolveServerShot(*Definition, Shot);
 			// B37: no NextFireTime carry on receive time; the switch's refire wait reads this instead.
 			NoteAcceptedRemoteShot(Now);
-			AVeloxPlayerState::NoteAnomalyFor(CurrentActorInfo ? CurrentActorInfo->OwnerActor.Get() : nullptr, EVeloxAnomaly::Shot); // ADR 0007 section 5.4
+			// ADR 0007 section 5.4; review 0007-09 F3 (a): a shot ResolveServerShot rejected (no_lag_compensation) is counted
+			// as that Reject only.
+			if (!LastServerShot.bRejected)
+			{
+				AVeloxPlayerState::NoteAnomalyFor(CurrentActorInfo ? CurrentActorInfo->OwnerActor.Get() : nullptr, EVeloxAnomaly::Shot);
+			}
 		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);

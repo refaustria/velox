@@ -3,7 +3,8 @@
 // Prints one VeloxAnomaly line (VeloxAnomalyStats.h, VeloxAnomaly::FormatLine) per player whose counters changed since
 // its last line, every velox.net.AnomalyLogIntervalSeconds (60 s), and one final line per player with any non-zero
 // counter at logout (at=logout) or when the world tears down with the player still connected (at=shutdown). Active on
-// server-like worlds only (dedicated, or a headless listen host: VeloxServerKind::IsServerLike), checked when it prints.
+// NM_DedicatedServer and NM_ListenServer worlds (review 0007-09 F1: the net mode, not VeloxServerKind::IsServerLike, so a
+// headless host's at=shutdown lines survive teardown), checked when it prints.
 // Log only: thresholds (all 0 by default) add exceeds= to a line, nothing kicks in M6. No tick; the timer and the logout
 // delegate are the only entry points.
 

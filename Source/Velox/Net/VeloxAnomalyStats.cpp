@@ -57,6 +57,11 @@ int32 FVeloxPlayerAnomalyStats::GetRejects(FName Reason) const
 	return 0;
 }
 
+int32 FVeloxPlayerAnomalyStats::GetShotAttempts() const
+{
+	return Shots + GetRejects();
+}
+
 bool FVeloxPlayerAnomalyStats::HasAnyCounter() const
 {
 	return Shots || Switches || GetRejects() || OriginSnaps || TimeClamps || LateRetargets || FreshRetargets || MoveShotOrphans || RpcRefused || Discrepancies;
@@ -84,7 +89,9 @@ VeloxAnomaly::FRates VeloxAnomaly::Rates(const FVeloxPlayerAnomalyStats& Stats)
 {
 	FRates Out;
 	Out.LateShare = static_cast<float>(Stats.LateRetargets) / static_cast<float>(FMath::Max(Stats.Switches, 1));
-	Out.RejectShare = static_cast<float>(Stats.GetRejects()) / static_cast<float>(FMath::Max(Stats.Shots, 1));
+	// Review 0007-09 F2: rejects / attempts (accepted + rejected), so the share lies in [0,1] and an all-rejected client
+	// reaches the threshold check.
+	Out.RejectShare = static_cast<float>(Stats.GetRejects()) / static_cast<float>(FMath::Max(Stats.GetShotAttempts(), 1));
 	return Out;
 }
 
@@ -96,7 +103,7 @@ TArray<FName> VeloxAnomaly::Exceeds(const FVeloxPlayerAnomalyStats& Stats, const
 	{
 		Out.Add(TEXT("late_share"));
 	}
-	if (T.MaxRejectShare > 0.f && Stats.Shots >= T.MinShotsForRejectShare && R.RejectShare > T.MaxRejectShare)
+	if (T.MaxRejectShare > 0.f && Stats.GetShotAttempts() >= T.MinShotsForRejectShare && R.RejectShare > T.MaxRejectShare)
 	{
 		Out.Add(TEXT("reject_share"));
 	}

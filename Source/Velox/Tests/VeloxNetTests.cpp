@@ -19,8 +19,9 @@
 //                                   values with deltas, rejects{reason:n(+d),...} in first-seen order, 2-decimal shares,
 //                                   rtt, exceeds= only when non-empty, player= last (spaces kept); Note/SameCounters/HasAnyCounter.
 //   Velox.Net.AnomalyRates          world-free VeloxAnomaly::Rates (late_share = late / max(switches,1), reject_share =
-//                                   rejects / max(shots,1)) and Exceeds: nothing with the default (0) thresholds even for a
-//                                   blatant cheater, the names for non-zero thresholds, strict ">" and the min-sample gates.
+//                                   rejects / max(shots + rejects,1), review 0007-09 F2) and Exceeds: nothing with the default
+//                                   (0) thresholds even for a blatant cheater, the names for non-zero thresholds, strict ">",
+//                                   the min-sample gates (reject_share's on attempts) and an all-rejected client.
 // The network kick itself (RPC_ValidateFailed -> connection closed) and PreLogin's rejection are proven by nettest RpcGateRun /
 // PasswordRun; a unit row cannot open a connection.
 
@@ -393,7 +394,7 @@ bool FVeloxNetAnomalyFormatTest::RunTest(const FString& Parameters)
 	Exceeded.Add(TEXT("discrepancies"));
 	TestEqual(TEXT("full line"), VeloxAnomaly::FormatLine(Now, TEXT("Big Bad Wolf"), 7, Prev, TEXT("interval"), Exceeded),
 		FString(TEXT("VeloxAnomaly at=interval pid=7 shots=12(+4) switches=3(+1) rejects{type:1(+0),rate:2(+2),unknown:1(+1)} snaps=1(+1) clamps=2(+2) "
-			"late_retargets=1(+1) fresh_retargets=1(+1) orphans=1(+1) rpc_refused=1(+1) discrepancies=5(+5) late_share=0.33 reject_share=0.33 rtt_ms=210 "
+			"late_retargets=1(+1) fresh_retargets=1(+1) orphans=1(+1) rpc_refused=1(+1) discrepancies=5(+5) late_share=0.33 reject_share=0.25 rtt_ms=210 "
 			"exceeds=snaps,discrepancies player=Big Bad Wolf")));
 
 	// The same reason twice: one entry, the sum (reject-reason SameCounters is order-independent).
@@ -418,13 +419,15 @@ bool FVeloxNetAnomalyRatesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("no switches: late_share 0"), R.LateShare, 0.f);
 	TestEqual(TEXT("no shots: reject_share 0"), R.RejectShare, 0.f);
 
-	// Denominators are max(n, 1): a client that only sends rejected shots / late retargets still gets a finite share.
+	// late_share's denominator is max(switches, 1): late retargets without a counted switch still give a finite share.
+	// reject_share's is attempts (review 0007-09 F2): a client whose every shot is rejected has share 1, never above.
 	FVeloxPlayerAnomalyStats NoDenominator;
 	NoDenominator.Note(EVeloxAnomaly::Reject, 3, TEXT("rate"));
 	NoDenominator.Note(EVeloxAnomaly::LateRetarget, 2);
 	R = VeloxAnomaly::Rates(NoDenominator);
 	TestEqual(TEXT("late / max(0,1)"), R.LateShare, 2.f);
-	TestEqual(TEXT("rejects / max(0,1)"), R.RejectShare, 3.f);
+	TestEqual(TEXT("all rejected: rejects / attempts = 1"), R.RejectShare, 1.f);
+	TestEqual(TEXT("attempts = shots + rejects"), NoDenominator.GetShotAttempts(), 3);
 
 	FVeloxPlayerAnomalyStats Cheater;
 	Cheater.Note(EVeloxAnomaly::Switch, 40);
@@ -438,7 +441,7 @@ bool FVeloxNetAnomalyRatesTest::RunTest(const FString& Parameters)
 	Cheater.Note(EVeloxAnomaly::Discrepancy, 9);
 	R = VeloxAnomaly::Rates(Cheater);
 	TestEqual(TEXT("late_share 30/40"), R.LateShare, 0.75f);
-	TestEqual(TEXT("reject_share 50/100"), R.RejectShare, 0.5f);
+	TestEqual(TEXT("reject_share 50/(100+50)"), R.RejectShare, 50.f / 150.f);
 
 	const FVeloxAnomalyThresholds Defaults;
 	TestEqual(TEXT("M6 defaults: nothing exceeded (log only, no kick)"), VeloxAnomaly::Exceeds(Cheater, Defaults).Num(), 0);
@@ -460,15 +463,28 @@ bool FVeloxNetAnomalyRatesTest::RunTest(const FString& Parameters)
 	TestTrue(FString::Printf(TEXT("exceeded names, in order (got %d)"), Names.Num()), Names == Expected);
 
 	// The min-sample gates (ADR 0007 M7 trigger: > 20 % over >= 20 switches).
+	// reject_share's gate counts attempts (accepted + rejected, review 0007-09 F2).
 	FVeloxPlayerAnomalyStats Few;
 	Few.Note(EVeloxAnomaly::Switch, 19);
 	Few.Note(EVeloxAnomaly::LateRetarget, 19);
-	Few.Note(EVeloxAnomaly::Shot, 19);
-	Few.Note(EVeloxAnomaly::Reject, 19, TEXT("rate"));
-	TestEqual(TEXT("below the min samples: not exceeded"), VeloxAnomaly::Exceeds(Few, T).Num(), 0);
+	Few.Note(EVeloxAnomaly::Shot, 9);
+	Few.Note(EVeloxAnomaly::Reject, 10, TEXT("rate"));
+	TestEqual(TEXT("below the min samples (19 switches, 19 attempts): not exceeded"), VeloxAnomaly::Exceeds(Few, T).Num(), 0);
 	Few.Note(EVeloxAnomaly::Switch);
 	Few.Note(EVeloxAnomaly::Shot);
-	TestEqual(TEXT("at the min samples: both shares exceeded"), VeloxAnomaly::Exceeds(Few, T).Num(), 2);
+	TestEqual(TEXT("at the min samples (20 switches, 20 attempts): both shares exceeded"), VeloxAnomaly::Exceeds(Few, T).Num(), 2);
+
+	// Review 0007-09 F2: a client whose every shot is rejected (no accepted shot at all) reaches the reject_share check.
+	FVeloxPlayerAnomalyStats AllRejected;
+	AllRejected.Note(EVeloxAnomaly::Reject, 19, TEXT("rate"));
+	TestEqual(TEXT("all rejected, 19 attempts: below the min samples"), VeloxAnomaly::Exceeds(AllRejected, T).Num(), 0);
+	AllRejected.Note(EVeloxAnomaly::Reject, 1, TEXT("type"));
+	const TArray<FName> AllRejectedNames = VeloxAnomaly::Exceeds(AllRejected, T);
+	TestTrue(TEXT("all rejected, 20 attempts, 0 accepted: reject_share exceeded"), AllRejectedNames.Num() == 1 && AllRejectedNames[0] == FName(TEXT("reject_share")));
+	TestTrue(TEXT("all rejected: the line shows shots=0 and reject_share=1.00"),
+		VeloxAnomaly::FormatLine(AllRejected, TEXT("R"), 2, FVeloxPlayerAnomalyStats(), TEXT("logout"), AllRejectedNames).Contains(TEXT("shots=0(+0)"))
+		&& VeloxAnomaly::FormatLine(AllRejected, TEXT("R"), 2, FVeloxPlayerAnomalyStats(), TEXT("logout"), AllRejectedNames).Contains(TEXT("reject_share=1.00 rtt_ms=0 exceeds=reject_share player=R")));
+	TestEqual(TEXT("all rejected: defaults still exceed nothing"), VeloxAnomaly::Exceeds(AllRejected, Defaults).Num(), 0);
 
 	// An honest player at the ping limit: one late retarget in 30 switches, two rate rejects in 200 shots.
 	FVeloxPlayerAnomalyStats Honest;

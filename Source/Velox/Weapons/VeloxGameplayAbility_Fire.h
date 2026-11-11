@@ -12,6 +12,8 @@
 // for a remote shooter accepts a shot while GE_WeaponSwitching has <= FireRateJitterToleranceSeconds left (the one
 // resend tolerance), also for the pending weapon, whose accepted shot finalises the switch.
 // Velox.State.WeaponSwitching does not block activation.
+// Test cheat (non-shipping, client only): velox.combat.DebugFireRateScale divides the client's refire interval (task
+// m6-online/09b, nettest FireRunRate); the server's bucket is unaffected and rejects the excess as reason=rate.
 
 #pragma once
 

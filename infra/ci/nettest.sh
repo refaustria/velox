@@ -51,7 +51,9 @@ FIRE_LAG_MS=50
 LAG_OVERRIDE=""
 PKT_ARGS=()
 # Scripts on L_CombatTest (task 08); everything else runs on L_MovementTest.
-COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold RocketJumpRun RocketJumpRunHold PlasmaRun "
+COMBAT_SCRIPTS=" FireRun FireRunControl FireRunHold FireRunRate RocketJumpRun RocketJumpRunHold PlasmaRun "
+# FireRunRate (task m6-online/09b): the client's velox.combat.DebugFireRateScale (VELOX_FIRE_RATE_SCALE, default 2.0).
+FIRE_RATE_SCALE="${VELOX_FIRE_RATE_SCALE:-2.0}"
 # Scripts on L_ItemTest (M3 task 04); the client runs velox.items.Watch.
 ITEM_SCRIPTS=" ItemRun "
 # Scripts on L_DM1_Blockout (M5 task 06, ADR 0006 section 7): the scripted map regression, judged like PadRun.
@@ -94,7 +96,9 @@ net-soak pass criteria. Exit code is non-zero if any script fails. FireRun, Fire
 velox.combat.LagComp 0) and RocketJumpRun (velox.combat.RocketJumpTest -90) run on L_CombatTest. ItemRun runs on
 L_ItemTest. HasteRun (M3 task 03) runs on L_MovementTest. DeathSpectateRun (ADR 0004 C11) runs on L_CombatTest with
 velox.combat.ForceRespawnDelay 4 on the server (free-spectate death camera, forced respawn). FireRunHold (task 08g, not in the default list) is FireRun
-with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3). RocketJumpRunHold
+with the first three rail RPCs held 300 ms on the server (velox.combat.DebugHoldShotRpc 300 7 3). FireRunRate (task
+m6-online/09b, not in the default list) holds MG fire 5 s with the client cvar velox.combat.DebugFireRateScale
+(VELOX_FIRE_RATE_SCALE, default 2.0) and asserts rejects{rate} >= 1, reject_share > 0 and no accepted rate above the honest one. RocketJumpRunHold
 (task 08f, not in the default list) is RocketJumpRun with the server holding the rocket's fire RPC 300 ms
 (velox.combat.DebugHoldShotRpc 300 5 1, ADR 0003 B35). PlasmaRun (task 08i, not in the default list) holds plasma fire
 for 5 s at 50 ms one way (ADR 0003 B38: one move-carried schedule per shot sequence).
@@ -262,7 +266,7 @@ trap 'exit 130' INT TERM
 script_lag() {
   if [[ -n "$LAG_OVERRIDE" ]]; then echo "$LAG_OVERRIDE"; return; fi
   case "$1" in
-    FireRun|FireRunControl|FireRunHold|PlasmaRun) echo "$FIRE_LAG_MS" ;;
+    FireRun|FireRunControl|FireRunHold|FireRunRate|PlasmaRun) echo "$FIRE_LAG_MS" ;;
     *) echo "$LAG_MS" ;;
   esac
 }
@@ -341,7 +345,7 @@ run_one() {
     map="L_ItemTest"; cexec="$cexec, velox.items.Watch"
   fi
   case "$script" in
-    FireRun|FireRunControl|FireRunHold)
+    FireRun|FireRunControl|FireRunHold|FireRunRate)
       # Task 08: invulnerable strafing target at FireRun.json's dummyLocation, every weapon, per-pawn rewind lines.
       # FireRunHold (task 08g, ADR 0003 B36): FireRun with the server holding the first three rail target-data RPCs
       # (slot 7) for 300 ms each, a deterministic stand-in for a reliable resend.
@@ -351,7 +355,13 @@ run_one() {
       [[ "$script" == FireRunControl ]] && lagcomp=0
       sexec="velox.combat.GiveAllWeapons, velox.combat.SpawnDummy $dummy invulnerable, velox.lagcomp.Debug 1, velox.combat.LagComp $lagcomp"
       [[ "$script" == FireRunHold ]] && sexec="$sexec, velox.combat.DebugHoldShotRpc 300 7 3"
-      script_args=(-VeloxScript=FireRun) ;;
+      script_args=(-VeloxScript=FireRun)
+      if [[ "$script" == FireRunRate ]]; then
+        # Task m6-online/09b (review 0007-09 open point 3, ADR 0003 B32): the client fires the MG at FIRE_RATE_SCALE x its
+        # refire rate (client-only, non-shipping cvar); the server's bucket must reject the excess (reason=rate).
+        cexec="$cexec, velox.combat.DebugFireRateScale ${FIRE_RATE_SCALE}"
+        script_args=(-VeloxScript=FireRunRate)
+      fi ;;
     RocketJumpRun|RocketJumpRunHold)
       # Task 08 / ADR 0003 B25: wraps the task-05 test command; VeloxCorrection lines come from velox.move.LogCorrections.
       sexec="velox.combat.GiveAllWeapons"
@@ -801,7 +811,7 @@ if script in ("FireRun", "FireRunControl", "RocketJumpRun", "PlasmaRun"):
                 fails.append("honest client pid=%d: VeloxAnomaly %s=%d (want 0, ADR 0007 section 5.4)" % (_pid, _k, _d[_k]))
         if _d.get("shots", 0) <= 0:
             fails.append("honest client pid=%d: VeloxAnomaly shots=0 (the accepted shots were not counted)" % _pid)
-if script in ("FireRun", "FireRunControl", "FireRunHold", "RocketJumpRun", "RocketJumpRunHold", "PlasmaRun"):
+if script in ("FireRun", "FireRunControl", "FireRunHold", "FireRunRate", "RocketJumpRun", "RocketJumpRunHold", "PlasmaRun"):
     _late_lines = sum(1 for l in S if "VeloxWeaponSwitch retarget" in l and " mode=late " in l)
     _late_counted = sum(_d.get("late_retargets", 0) for _d in anomaly.values())
     if _late_counted != _late_lines:
@@ -1634,6 +1644,56 @@ elif script == "PlasmaRun":
                   "late=%d orphan=%d pending_timeout=%d rpc_done=%d rejected=%d" % (
                       nshots, len(fired), len(ms_all), nshots - len(bad_src), one_splash, splash_hit, ts_mismatch, rpc_first, short_moves, moves_per_rpc,
                       counts["late"], counts["orphan"], counts["pending_timeout"], counts["rpc_done"], counts["rejected"]))
+
+elif script == "FireRunRate":
+    # Task m6-online/09b (review 0007-09 open point 3, ADR 0003 B32, ADR 0007 section 5.4): the client runs
+    # velox.combat.DebugFireRateScale <scale> (VELOX_FIRE_RATE_SCALE, 2.0) and holds MG fire for 5 s at the invulnerable
+    # dummy. The server's token bucket rejects the excess: the client's VeloxAnomaly summary must show rejects{rate:n} with
+    # n >= 1 and reject_share > 0 (rejects / attempts, review F2), and the server's accepted MG rate must not exceed the
+    # honest rate (accepted shots per second stand in for damage per second: same weapon, same damage per hit). The honest
+    # rate is the client's measured rate / scale (self-calibrating; the client fires on its own frame grid). VeloxShotRejected
+    # lines are throttled per player (nit 12), so the counter, not the line count, is judged.
+    WALL_RE = re.compile(r"^\[(\d{4})\.(\d\d)\.(\d\d)-(\d\d)\.(\d\d)\.(\d\d):(\d{3})\]")
+    def wall(line):
+        m = WALL_RE.match(line)
+        if not m:
+            return None
+        y, mo, d, h, mi, se, ms = (int(v) for v in m.groups())
+        return ((d * 24 + h) * 60 + mi) * 60 + se + ms / 1000.0
+    scale = float(os.environ.get("VELOX_FIRE_RATE_SCALE", "2.0") or 2.0)
+    fired = sorted(num(kv(l), "t") for l in C if "VeloxShotFired t=" in l and "MachineGun" in kv(l).get("weapon", ""))
+    acc = sorted(w for w in (wall(l) for l in S if "VeloxShot seq=" in l and "rewind_ms=" in l and "MachineGun" in kv(l).get("weapon", "")) if w is not None)
+    rej_lines = sum(1 for l in S if "VeloxShotRejected" in l and "reason=rate" in l)
+    act_failed = sum(1 for l in C if "ClientActivateAbilityFailed" in l)
+    def rate(ts):
+        return (len(ts) - 1) / (ts[-1] - ts[0]) if len(ts) >= 2 and ts[-1] > ts[0] else 0.0
+    client_rate, server_rate = rate(fired), rate(acc)
+    honest_rate = client_rate / scale if scale > 0 else 0.0
+    if len(fired) < 30:
+        fails.append("client fired only %d MG shots (want >= 30 from a 5 s hold at %gx)" % (len(fired), scale))
+    if not anomaly:
+        fails.append("no VeloxAnomaly line on the server (the client fired: its logout line must exist)")
+    rate_rejects = sum(_d["rejects"].get("rate", 0) for _d in anomaly.values())
+    shares = [_d.get("reject_share", 0.0) for _d in anomaly.values()]
+    attempts = sum(_d.get("shots", 0) + sum(_d["rejects"].values()) for _d in anomaly.values())
+    if rate_rejects < 1:
+        fails.append("VeloxAnomaly rejects{rate}=%d (want >= 1: the B32 bucket must reject a %gx client)" % (rate_rejects, scale))
+    if not any(v > 0.0 for v in shares):
+        fails.append("VeloxAnomaly reject_share=0 for every player (want > 0)")
+    for _pid, _d in sorted(anomaly.items()):
+        for _k in ("snaps", "orphans", "rpc_refused"):
+            if _d.get(_k, 0) > 0:
+                fails.append("client pid=%d: VeloxAnomaly %s=%d (want 0: the rate cheat moves no other counter)" % (_pid, _k, _d[_k]))
+    if honest_rate > 0.0 and server_rate > 1.15 * honest_rate:
+        fails.append("server accepted MG rate %.2f/s > 1.15 x honest %.2f/s (client %.2f/s / %g)" % (server_rate, honest_rate, client_rate, scale))
+    if len(acc) < 2:
+        fails.append("only %d accepted server MG VeloxShot lines" % len(acc))
+    detail.append("scale=%g mg_fired=%d client_rate=%.2f/s honest_rate=%.2f/s server_accepted=%d server_rate=%.2f/s rate_rejects=%d reject_share=%s "
+                  "attempts=%d rate_reject_lines=%d (throttled) act_failed=%d" % (
+                      scale, len(fired), client_rate, honest_rate, len(acc), server_rate, rate_rejects, ",".join("%.2f" % v for v in shares),
+                      attempts, rej_lines, act_failed))
+    if attempts and attempts != len(fired):
+        notes.append("attempts %d (shots + rejects) != client MG shots fired %d (activation failures or other weapons)" % (attempts, len(fired)))
 
 elif script == "DeathSpectateRun":
     # ADR 0004 C11 (2), task m4-followups/04: free-spectate death camera. Server: VeloxDeath step=6 spectate=free, the
@@ -2657,7 +2717,7 @@ rest = [c for c in nonecho if c not in excluded]
 xs = [c[1] for c in rest]
 x = max(xs) if xs else 0.0
 y = sum(xs) / len(xs) if xs else 0.0
-if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "FireRunHold", "HasteRun", "DeathSpectateRun"):
+if script in ("StrafeRun", "KnockbackRun", "KnockbackGroundRun", "FireRun", "FireRunControl", "FireRunHold", "FireRunRate", "HasteRun", "DeathSpectateRun"):
     if len(rest) > 3 * Lexp:
         fails.append("corrections C=%d > 3 x L_exp (%.1f)" % (len(rest), 3 * Lexp))
     if x > 30.0:
@@ -3075,6 +3135,7 @@ main() {
   for s in "${scripts[@]}"; do
     case "$s" in
       FireRunControl|FireRunHold) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" ]] || die "$s needs FireRun.json" ;;
+      FireRunRate) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/FireRun.json" && -f "$REPO_ROOT/Content/Data/MoveScripts/FireRunRate.json" ]] || die "$s needs FireRun.json and FireRunRate.json" ;;
       RocketJumpRun|RocketJumpRunHold) ;;   # drive velox.combat.RocketJumpTest, no JSON script
       BotRun) [[ -f "$REPO_ROOT/Content/Data/MoveScripts/BotWatch.json" ]] || die "BotRun needs BotWatch.json" ;;
       BotDuel) ;;   # a spectator client: velox.bots.Watch, no JSON script (BotRun uses BotWatch.json)

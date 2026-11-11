@@ -47,3 +47,7 @@ clients' logout lines) and SpeedHackRun (`discrepancies=14` = 14 VeloxTimeDiscre
 - The hold rows move no counter (B36 and B35/B38 absorb the hold).
 - No 2x fire-rate cheat row exists in the tree; `rejects{rate:n}` is covered by the unit rows only.
 - `pid=` replaces `id=` and `player=` is printed last.
+
+Review `docs/adr/reviews/0007-09-review.md`: approve with follow-ups. Follow-ups F1 (print gate on the net mode), F2
+(reject_share over attempts), F3 (a), T1 (`velox.combat.DebugFireRateScale`, nettest `FireRunRate`) and the ADR 0007
+amendment F4 are done in task 09b on this branch; T2 (orphan drop mode) remains for M7.

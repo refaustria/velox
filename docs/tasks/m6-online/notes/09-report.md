@@ -86,3 +86,15 @@ switches, so late_share is about 0.04. A 10-minute FFA with roughly 60 switches 
 show late_retargets of 0 to 4 (late_share at most about 0.07, well under the 0.20 M7 trigger) and reject_share near 0.
 That reject_share estimate assumes the MG bucket rejects from M2-08 D3 stay rare. Rate rejects are the one surface an honest
 MG player can raise, which is why the rejects are reported by reason.
+
+## Addendum — task 09b (review follow-ups, 2026-11-11)
+
+- Open point 6 is fixed (review F1): the log prints on any `NM_DedicatedServer` / `NM_ListenServer` world. Verified with
+  FireRun stopped by SIGTERM while the client was connected: dedicated `VeloxAnomaly at=shutdown pid=256 shots=51(+51)
+  switches=4(+4) ...`, headless listen host `VeloxAnomaly at=shutdown pid=257 shots=51(+51) switches=4(+4) ...`.
+- `reject_share` is now rejects / attempts (accepted + rejected), its minimum count on attempts (review F2). A hitscan
+  `no_lag_compensation` reject no longer also counts as an accepted shot (review F3 (a)); `nan_origin` stays uncounted.
+- The 2x rate row now exists: `FireRunRate` (client `velox.combat.DebugFireRateScale 2`, MG hold 5 s). Real example:
+  `VeloxAnomaly at=logout pid=256 shots=54(+54) switches=0(+0) rejects{rate:46(+46)} snaps=0(+0) clamps=0(+0)
+  late_retargets=0(+0) fresh_retargets=0(+0) orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00
+  reject_share=0.46 rtt_ms=131 player=Player` (client 100 shots at 20/s, server accepted 10.74/s vs honest 10/s).

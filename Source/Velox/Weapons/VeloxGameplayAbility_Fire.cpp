@@ -17,6 +17,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameplayCueInterface.h"
 #include "GameFramework/Character.h"
+#include "HAL/IConsoleManager.h"
 #include "Movement/VeloxMovementComponent.h"
 #include "TimerManager.h"
 #include "Weapons/VeloxFireTiming.h"
@@ -26,6 +27,21 @@
 #include "Weapons/VeloxWeaponInventoryComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxGameplayAbility_Fire)
+
+#if !UE_BUILD_SHIPPING
+namespace VeloxFireDebug
+{
+	// Task m6-online/09b (review 0007-09 open point 3): a fire-rate cheat stand-in for nettest FireRunRate. Client only
+	// (NM_Client worlds): divides the client's own refire interval, i.e. its NextFireTime prediction, by the scale. The
+	// server never reads it (its remote path runs the B32 bucket, which rejects the excess as reason=rate); a listen host
+	// or a bot server ignores it too. Development clients are not distributed (ADR 0007 section 5.1).
+	static float GDebugFireRateScale = 1.f;
+	static FAutoConsoleVariableRef CVarDebugFireRateScale(TEXT("velox.combat.DebugFireRateScale"), GDebugFireRateScale,
+		TEXT("Client only, non-shipping fire-rate cheat for tests: the client's refire interval is divided by this (default 1.0; values <= 0 are ignored). "
+			 "The server's B32 bucket rejects the excess shots (VeloxShotRejected reason=rate)."),
+		ECVF_Default);
+}
+#endif
 
 namespace VeloxFireDebug
 {
@@ -207,7 +223,13 @@ void UVeloxGameplayAbility_Fire::AdvanceNextFireTime(double Now, float Interval)
 {
 	const UWorld* World = GetWorld();
 	// ADR 0004 section 3: Haste divides the interval (client rule; the server's remote path runs the bucket instead).
-	const float HasteInterval = GetHasteFireInterval(CurrentActorInfo, Interval);
+	float HasteInterval = GetHasteFireInterval(CurrentActorInfo, Interval);
+#if !UE_BUILD_SHIPPING
+	if (World && World->GetNetMode() == NM_Client && VeloxFireDebug::GDebugFireRateScale > 0.f && VeloxFireDebug::GDebugFireRateScale != 1.f)
+	{
+		HasteInterval /= VeloxFireDebug::GDebugFireRateScale; // velox.combat.DebugFireRateScale (client cheat stand-in, task 09b)
+	}
+#endif
 	NextFireTime = VeloxFireTiming::AdvanceNextFireTime(NextFireTime, Now, HasteInterval, World ? World->GetDeltaSeconds() : 0.0);
 }
 

@@ -18,7 +18,13 @@
 /** One counted surface. Shot and Switch are the denominators (accepted remote shots / accepted remote switch presses). */
 enum class EVeloxAnomaly : uint8
 {
-	/** A remote shot accepted by the server's validation (hitscan or projectile target data). */
+	/**
+	 * A remote shot accepted by the server's validation (hitscan or projectile target data). A hitscan shot that
+	 * ResolveServerShot rejects for a server fault (reason=no_lag_compensation) counts as a Reject only (review 0007-09
+	 * F3). Not counted at all: the lag-compensation subsystem's own VeloxShotRejected reason=nan_origin (reached only by a
+	 * shooter without a pawn; the subsystem stays untouched and reports no rejection to the ability), so such a shot
+	 * still counts as accepted.
+	 */
 	Shot,
 	/** A remote weapon-switch press accepted by the server (a new switch, or a retarget of the running one: pending / late). */
 	Switch,
@@ -69,6 +75,8 @@ struct VELOX_API FVeloxPlayerAnomalyStats
 	int32 GetRejects() const;
 	/** Count of one reason (0 if never seen). */
 	int32 GetRejects(FName Reason) const;
+	/** Accepted plus rejected shots: the reject_share denominator (review 0007-09 F2). */
+	int32 GetShotAttempts() const;
 
 	/** Any counter non-zero (RttMs is not a counter). */
 	bool HasAnyCounter() const;
@@ -93,7 +101,7 @@ struct VELOX_API FVeloxAnomalyThresholds
 	UPROPERTY(EditAnywhere, Config, Category = "Velox|Anomaly")
 	int32 MinSwitchesForLateShare = 20;
 
-	/** reject_share above this (rejects per accepted shot) is exceeded, once Shots >= MinShotsForRejectShare. */
+	/** reject_share above this (0..1, rejects per attempt) is exceeded, once attempts (Shots + rejects) >= MinShotsForRejectShare. */
 	UPROPERTY(EditAnywhere, Config, Category = "Velox|Anomaly")
 	float MaxRejectShare = 0.f;
 
@@ -123,7 +131,7 @@ namespace VeloxAnomaly
 	{
 		/** LateRetargets / max(Switches, 1). */
 		float LateShare = 0.f;
-		/** Rejects / max(Shots, 1). */
+		/** Rejects / max(Shots + Rejects, 1): rejects per attempt, in [0,1] (review 0007-09 F2). */
 		float RejectShare = 0.f;
 	};
 
