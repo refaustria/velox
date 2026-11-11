@@ -31,6 +31,7 @@
 #include "Items/VeloxPowerupEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Net/Core/PushModel/PushModel.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Weapons/VeloxWeaponDefinition.h"
@@ -139,10 +140,26 @@ const UVeloxItemDefinition* AVeloxPickup::LoadDefinitionByName(const FString& It
 void AVeloxPickup::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME_CONDITION(AVeloxPickup, Definition, COND_InitialOnly);
-	DOREPLIFETIME(AVeloxPickup, RespawnServerTime);
-	DOREPLIFETIME(AVeloxPickup, LastTakenBy);
-	DOREPLIFETIME(AVeloxPickup, TakeCount);
+	// ADR 0007 section 5.5: availability, a take counter and the taker; the respawn time stays on the server.
+	FDoRepLifetimeParams Initial;
+	Initial.Condition = COND_InitialOnly;
+	Initial.bIsPushBased = true;
+	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxPickup, Definition, Initial);
+	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxPickup, ItemIndex, Initial);
+	FDoRepLifetimeParams Push;
+	Push.bIsPushBased = true;
+	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxPickup, bAvailable, Push);
+	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxPickup, LastTakenBy, Push);
+	DOREPLIFETIME_WITH_PARAMS_FAST(AVeloxPickup, TakeCount, Push);
+}
+
+void AVeloxPickup::SetItemIndex(uint8 InIndex)
+{
+	if (ItemIndex != InIndex)
+	{
+		ItemIndex = InIndex;
+		MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxPickup, ItemIndex, this);
+	}
 }
 
 void AVeloxPickup::SetDefinition(const UVeloxItemDefinition* InDefinition)
@@ -153,6 +170,7 @@ void AVeloxPickup::SetDefinition(const UVeloxItemDefinition* InDefinition)
 		return;
 	}
 	Definition = InDefinition;
+	MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxPickup, Definition, this);
 }
 
 void AVeloxPickup::PostInitializeComponents()
@@ -174,7 +192,24 @@ double AVeloxPickup::GetServerNow() const
 
 double AVeloxPickup::GetTimeUntilRespawn() const
 {
-	return IsAvailable() ? 0.0 : FMath::Max(static_cast<double>(RespawnServerTime) - GetServerNow(), 0.0);
+	if (IsAvailable())
+	{
+		return 0.0;
+	}
+	if (HasAuthority())
+	{
+		return FMath::Max(static_cast<double>(RespawnServerTime) - GetServerNow(), 0.0);
+	}
+	// Client: only what the server sent this connection (ADR 0007 section 5.5).
+	const UWorld* World = GetWorld();
+	const APlayerController* LocalController = World ? World->GetFirstPlayerController() : nullptr;
+	const AVeloxPlayerState* LocalPS = LocalController ? Cast<AVeloxPlayerState>(LocalController->PlayerState) : nullptr;
+	const FVeloxItemTimerEntry* Entry = LocalPS ? LocalPS->GetItemTimer(ItemIndex) : nullptr;
+	if (!Entry)
+	{
+		return -1.0;
+	}
+	return Entry->RespawnServerTime > 0.f ? FMath::Max(static_cast<double>(Entry->RespawnServerTime) - GetServerNow(), 0.0) : 0.0;
 }
 
 bool AVeloxPickup::IsPlaceholderVisible() const
@@ -254,7 +289,7 @@ void AVeloxPickup::BeginPlay()
 	else
 	{
 		SeenTakeCount = TakeCount;
-		SeenRespawnServerTime = RespawnServerTime;
+		bSeenAvailable = bAvailable;
 	}
 	UpdatePlaceholder();
 }
@@ -479,8 +514,24 @@ void AVeloxPickup::ScheduleInitialSpawn()
 void AVeloxPickup::CommitServerState()
 {
 	FlushNetDormancy();
-	RespawnServerTime = static_cast<float>(Timer.RespawnTime);
+	const float NewRespawnServerTime = static_cast<float>(Timer.RespawnTime);
+	const bool bTimeChanged = NewRespawnServerTime != RespawnServerTime;
+	RespawnServerTime = NewRespawnServerTime;
+	const bool bNewAvailable = RespawnServerTime == 0.f;
+	if (bNewAvailable != bAvailable)
+	{
+		bAvailable = bNewAvailable;
+		MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxPickup, bAvailable, this);
+	}
 	UpdatePlaceholder();
+	if (bTimeChanged && Definition && Definition->bMajorItem)
+	{
+		// ADR 0007 section 5.5: the time travels owner-only to entitled PlayerStates (major items only).
+		if (UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld()))
+		{
+			Registry->HandleItemTimerChanged(*this);
+		}
+	}
 }
 
 void AVeloxPickup::StartRespawnTimer(double Seconds)
@@ -543,6 +594,8 @@ bool AVeloxPickup::TryPickup(AVeloxCharacter* Pawn, bool bLogRefusal)
 	FlushNetDormancy();
 	++TakeCount;
 	LastTakenBy = PlayerState;
+	MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxPickup, TakeCount, this);
+	MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxPickup, LastTakenBy, this);
 	CommitServerState();
 
 	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickup item=%s by=%s gain=%d powerup_s=%.1f respawn_in=%.2f t=%.3f take=%u at=%s"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(PlayerState),
@@ -656,6 +709,7 @@ void AVeloxPickup::Reset()
 	Timer.Reset();
 	FlushNetDormancy();
 	LastTakenBy = nullptr;
+	MARK_PROPERTY_DIRTY_FROM_NAME(AVeloxPickup, LastTakenBy, this);
 	SetOverlapRecheck(false);
 	ScheduleInitialSpawn();
 	UE_LOG(LogVeloxItems, Log, TEXT("VeloxPickupReset item=%s available_in=%.2f at=%s"), *GetNameSafe(Definition), GetTimeUntilRespawn(), *GetActorLocation().ToCompactString());
@@ -762,7 +816,63 @@ void AVeloxPickup::OnPredictionTimeout()
 	UpdatePlaceholder();
 }
 
-void AVeloxPickup::OnRep_RespawnServerTime()
+void AVeloxPickup::PreNetReceive()
+{
+	Super::PreNetReceive();
+	bSuppressNetEvents = false;
+}
+
+void AVeloxPickup::PostNetReceive()
+{
+	Super::PostNetReceive();
+	if (!bReceivedInitialState)
+	{
+		// ADR 0007 section 5.5 baseline rule: the first bunch is the state this client joins into, not an event (a late
+		// joiner never hears a take that predates it). The properties are applied; the rep notifies follow and adopt.
+		bReceivedInitialState = true;
+		bSuppressNetEvents = true;
+		SeenTakeCount = TakeCount;
+		bSeenAvailable = bAvailable;
+		UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupBaseline item=%s index=%u take=%u available=%d"), *GetNameSafe(Definition), ItemIndex, TakeCount, bAvailable ? 1 : 0);
+	}
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+void AVeloxPickup::TestResetNetBaseline()
+{
+	bReceivedInitialState = false;
+	bSuppressNetEvents = false;
+	SeenTakeCount = TakeCount;
+	bSeenAvailable = bAvailable;
+}
+
+void AVeloxPickup::TestReceiveBunch(uint8 InTakeCount, bool bInAvailable, APlayerState* InLastTakenBy)
+{
+	// FObjectReplicator: PreNetReceive (first property), properties written, PostNetReceive, CallRepNotifies (changed ones).
+	PreNetReceive();
+	const bool bTakeChanged = InTakeCount != TakeCount;
+	const bool bAvailableChanged = bInAvailable != bAvailable;
+	const bool bTakerChanged = InLastTakenBy != LastTakenBy;
+	TakeCount = InTakeCount;
+	bAvailable = bInAvailable;
+	LastTakenBy = InLastTakenBy;
+	PostNetReceive();
+	if (bAvailableChanged)
+	{
+		OnRep_Available();
+	}
+	if (bTakerChanged)
+	{
+		OnRep_LastTakenBy();
+	}
+	if (bTakeChanged)
+	{
+		OnRep_TakeCount();
+	}
+}
+#endif
+
+void AVeloxPickup::OnRep_Available()
 {
 	HandleReplicatedState();
 }
@@ -784,6 +894,15 @@ void AVeloxPickup::HandleReplicatedState()
 	if (!HasActorBegunPlay())
 	{
 		// Initial state of a pickup spawned while this client was connected or joined: BeginPlay takes it as the baseline.
+		return;
+	}
+	if (bSuppressNetEvents)
+	{
+		// ADR 0007 section 5.5 baseline rule (replaces ADR 0004 C10's age rule): the first bunch is adopted without cues,
+		// messages or registry events.
+		SeenTakeCount = TakeCount;
+		bSeenAvailable = bAvailable;
+		UpdatePlaceholder();
 		return;
 	}
 	UVeloxItemRegistrySubsystem* Registry = UVeloxItemRegistrySubsystem::Get(GetWorld());
@@ -809,15 +928,8 @@ void AVeloxPickup::HandleReplicatedState()
 				DropPredictedWeapon();
 			}
 		}
-		// ADR 0004 C10 / F2: a take older than PickupTakeEventMaxAgeSeconds (a placed pickup's first update for a late joiner)
-		// updates the state and the placeholder but is not an event. Respawn 0 (weapon stay) never carries an age.
-		const AVeloxPlayerState* LocalPS = LocalController ? Cast<AVeloxPlayerState>(LocalController->PlayerState) : nullptr;
-		const UVeloxCombatSettings& Settings = UVeloxCombatSettings::GetOrDefault(LocalPS ? LocalPS->GetCombatSettings() : nullptr);
-		const FVeloxItemModeRules Rules = Registry ? Registry->GetModeRules() : FVeloxItemModeRules();
-		const double RespawnSeconds = Definition ? VeloxPickupRules::RespawnSecondsFor(Definition->Type, Definition->RespawnSeconds, Rules) : 0.0;
-		const bool bStale = VeloxPickupRules::IsStaleTake(GetServerNow(), RespawnServerTime, RespawnSeconds, Settings.GetPickupTakeEventMaxAgeSeconds());
-		UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupTaken item=%s by=%s take=%u stale=%d"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(LastTakenBy), TakeCount, bStale ? 1 : 0);
-		if (Definition && !bStale && !(bTakenByMe && bWasPredicted))
+		UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupTaken item=%s by=%s take=%u"), *GetNameSafe(Definition), *AVeloxPlayerState::VeloxPlayerLabel(LastTakenBy), TakeCount);
+		if (Definition && !(bTakenByMe && bWasPredicted))
 		{
 			// ADR 0006 section 9: own takes and global ones (powerups) are 2D, the rest 3D at the item with SA_Pickup.
 			if (bTakenByMe || Definition->bGlobalPickupSound)
@@ -829,15 +941,15 @@ void AVeloxPickup::HandleReplicatedState()
 				UVeloxAudioSettings::PlayAt(GetWorld(), Definition->PickupSound, GetActorLocation(), EVeloxAudioAttenuation::Pickup, EVeloxAudioConcurrency::None, TEXT("pickup_other"));
 			}
 		}
-		if (Registry && !bStale)
+		if (Registry)
 		{
 			Registry->OnPickupTaken.Broadcast(this, LastTakenBy);
 		}
 	}
-	if (RespawnServerTime != SeenRespawnServerTime)
+	if (bAvailable != bSeenAvailable)
 	{
-		const bool bRespawned = SeenRespawnServerTime != 0.f && RespawnServerTime == 0.f;
-		SeenRespawnServerTime = RespawnServerTime;
+		const bool bRespawned = bAvailable;
+		bSeenAvailable = bAvailable;
 		if (bRespawned)
 		{
 			UE_LOG(LogVeloxItems, Verbose, TEXT("VeloxPickupRespawned item=%s"), *GetNameSafe(Definition));

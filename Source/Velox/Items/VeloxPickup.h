@@ -1,7 +1,9 @@
 // Velox - one placed item (ADR 0004 sections 1, 2, 4). Server-authoritative grant through the taker's PlayerState ASC,
-// Q3 rules from VeloxPickupRules.h, respawn timer on the server, state replicated to everyone (always relevant, dormant
-// between state changes). The owning client predicts only the take event (hide, sound, a predicted weapon slot), never
-// attributes; the replicated TakeCount / LastTakenBy confirm or revoke it.
+// Q3 rules from VeloxPickupRules.h, respawn timer on the server, availability and a take counter replicated to everyone
+// (always relevant, dormant between state changes). The respawn time never leaves the server through this actor (ADR 0007
+// section 5.5): entitled spectators get it owner-only on their own PlayerState (UVeloxItemRegistrySubsystem). The owning
+// client predicts only the take event (hide, sound, a predicted weapon slot), never attributes; the replicated TakeCount /
+// LastTakenBy confirm or revoke it.
 //
 // Placement: the actor origin is the floor point; the trigger (Q3 ITEM_RADIUS 15 u box, z -15..+21 u around the Q3 item
 // origin, which Q3 drops to 15 u above the floor) spans 0..90 cm above it.
@@ -43,12 +45,19 @@ public:
 	/** Before BeginPlay only (deferred spawn: cheat, tests); placed pickups set it in the level. */
 	void SetDefinition(const UVeloxItemDefinition* InDefinition);
 
-	/** Replicated availability: RespawnServerTime == 0 (ignores a local prediction; see IsPredictedTaken). */
-	bool IsAvailable() const { return RespawnServerTime == 0.f; }
-	/** Server world time at which the item respawns; 0 = available. */
+	/** Replicated availability (ignores a local prediction; see IsPredictedTaken). */
+	bool IsAvailable() const { return bAvailable; }
+	/** Server only (not replicated, ADR 0007 section 5.5): world time at which the item respawns; 0 = available. 0 on clients. */
 	float GetRespawnServerTime() const { return RespawnServerTime; }
-	/** Seconds until the respawn on this machine's estimate of server time; 0 when available (item timers, bots). */
+	/**
+	 * Seconds until the respawn; 0 when available. Server: from the timer (bots, tests, cheats). Client: from the local
+	 * player's owner-only AVeloxPlayerState::ItemTimers entry when it is entitled to one, else -1 (unknown on this machine).
+	 */
 	double GetTimeUntilRespawn() const;
+	/** Server-assigned index (UVeloxItemRegistrySubsystem), replicated initial-only: the key of FVeloxItemTimerEntry. */
+	uint8 GetItemIndex() const { return ItemIndex; }
+	/** Server: set by the registry at registration, before the first replication. */
+	void SetItemIndex(uint8 InIndex);
 	APlayerState* GetLastTakenBy() const { return LastTakenBy; }
 	uint8 GetTakeCount() const { return TakeCount; }
 	/** Owning client: this machine predicted a take that the server has not confirmed or refused yet. */
@@ -82,13 +91,31 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	//~End of AActor interface
 
+	//~UObject interface
+	/** ADR 0007 section 5.5 baseline rule: a new bunch may announce events again. */
+	virtual void PreNetReceive() override;
+	/** First bunch this actor ever received: adopt the state silently (engine: before CallRepNotifies, DataReplication.cpp:1604/1609). */
+	virtual void PostNetReceive() override;
+	//~End of UObject interface
+
+#if WITH_DEV_AUTOMATION_TESTS
+	/** Tests: forget the client baseline (as if no bunch had been received yet). */
+	void TestResetNetBaseline();
+	/**
+	 * Tests: one received bunch in the engine's order (PreNetReceive, properties, PostNetReceive, the rep notifies of the
+	 * changed properties). Run on a pickup switched to ROLE_SimulatedProxy.
+	 */
+	void TestReceiveBunch(uint8 InTakeCount, bool bInAvailable, APlayerState* InLastTakenBy);
+	bool TestIsSuppressingNetEvents() const { return bSuppressNetEvents; }
+#endif
+
 protected:
 	UFUNCTION()
 	void OnTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
 		const FHitResult& SweepResult);
 
 	UFUNCTION()
-	void OnRep_RespawnServerTime();
+	void OnRep_Available();
 	UFUNCTION()
 	void OnRep_LastTakenBy();
 	UFUNCTION()
@@ -159,15 +186,22 @@ private:
 	void DropPredictedWeapon();
 	void UpdatePlaceholder();
 
-	/** Server world time of the respawn; 0 = available. */
-	UPROPERTY(ReplicatedUsing = OnRep_RespawnServerTime)
+	/** Server only: world time of the respawn; 0 = available. Not replicated (ADR 0007 section 5.5). */
 	float RespawnServerTime = 0.f;
+
+	/** Replicated availability (server: RespawnServerTime == 0). Clients hide / show and play the respawn cue on it. */
+	UPROPERTY(ReplicatedUsing = OnRep_Available)
+	bool bAvailable = true;
+
+	/** Registry index (FVeloxItemTimerEntry::ItemIndex); initial-only. */
+	UPROPERTY(Replicated)
+	uint8 ItemIndex = 0;
 
 	/** The last taker (spectator feed, prediction confirmation). */
 	UPROPERTY(ReplicatedUsing = OnRep_LastTakenBy)
 	TObjectPtr<APlayerState> LastTakenBy;
 
-	/** +1 per take, so two takes between two replications are both seen. */
+	/** +1 per take (wraps), so two takes between two replications are both seen. */
 	UPROPERTY(ReplicatedUsing = OnRep_TakeCount)
 	uint8 TakeCount = 0;
 
@@ -183,7 +217,11 @@ private:
 
 	// Clients: the last replicated state handled, and the pending prediction.
 	uint8 SeenTakeCount = 0;
-	float SeenRespawnServerTime = 0.f;
+	bool bSeenAvailable = true;
+	/** ADR 0007 section 5.5: set by the first PostNetReceive, never cleared (survives dormancy channel re-opens). */
+	bool bReceivedInitialState = false;
+	/** Set for the first bunch (between PostNetReceive and the next PreNetReceive): rep notifies adopt silently. */
+	bool bSuppressNetEvents = false;
 	bool bPredictionPending = false;
 	uint8 PredictedTakeCount = 0;
 	double PredictedAt = 0.0;

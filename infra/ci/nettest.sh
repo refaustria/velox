@@ -26,7 +26,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 GREP=/usr/bin/grep   # the interactive shell's grep is a ugrep wrapper; use the real one
 PORT=7777
-SCRIPTS_ARG="StrafeRun,PadRun,DM1Run,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun,BotRun,BotDuel,DeathSpectateRun,RpcGateRun,PasswordRun"
+SCRIPTS_ARG="StrafeRun,PadRun,DM1Run,KnockbackRun,KnockbackGroundRun,LatchRun,CrouchRun,FireRun,FireRunControl,RocketJumpRun,ItemRun,HasteRun,BotRun,BotDuel,DeathSpectateRun,RpcGateRun,PasswordRun,ItemGateRun"
 # ADR 0007 section 5.1 (M6 task 07): every soak server accepts the project's test RPCs (teleport, knockback, haste, kill);
 # RpcGateRun runs without it. VELOX_NETTEST_SERVER_ARGS adds raw server arguments (e.g. the -ini: override of the
 # time-discrepancy baseline, task 07 verification step 2).
@@ -59,6 +59,9 @@ DM1_SCRIPTS=" DM1Run "
 # Bot soaks (M4 task 07, ADR 0005 section 14 / D36), both on L_ItemTest with the server options in the map URL.
 BOT_SCRIPTS=" BotRun BotDuel "
 BOT_RUN_SECONDS=90      # BotWatch.json
+# ADR 0007 section 5.5 (task m6-online/08): ItemGateRun = a spectator round (velox.bots.Watch quits it) and a player round
+# (ItemGateRun.json: 40 s idle, serverKill, forced respawn 4 s), both FFA with 3 Medium bots on L_ItemTest.
+ITEM_GATE_SPECTATOR_SECONDS=75
 BOT_DUEL_SECONDS=120    # velox.bots.Watch 120 (wall time after the spectator connected)
 # ADR 0005 D46: host sidecar every HOST_SAMPLE_S seconds, and a load gate before every round (1-min load average below
 # VELOX_LOAD_GATE, at most VELOX_LOAD_GATE_WAIT seconds, then the round starts anyway and says so).
@@ -107,6 +110,10 @@ FFA, 3 Medium bots (velox.bots.Debug 1), the client plays BotWatch.json (90 s, n
 BotDuel: Duel, 2 Hard bots, the client joins with ?SpectatorOnly=1 and velox.bots.Watch 120 quits it. Both are judged
 from the server log (per-round rules); after the last round the runner evaluates the repeat set (D36: sums over
 --repeat 3) from <script>.stats.json and prints "set evaluation" lines. Set bands are only judged for --repeat 3.
+ItemGateRun (ADR 0007 section 5.5, task m6-online/08) runs two rounds on L_ItemTest (FFA, 3 Medium bots, velox.items.LogTimers 1
+on the client): ItemGateSpectator (?SpectatorOnly=1, velox.bots.Watch ${ITEM_GATE_SPECTATOR_SECONDS}: owner-only item timers arrive,
+every respawn known to 0.1 s) and ItemGatePlayer (ItemGateRun.json, velox.bots.Peaceful 1, serverKill + forced respawn 4 s:
+n=0 throughout, the dead window included). ItemGateRun.result holds both.
 
 Options:
   --scripts a,b    Scripts to run (default: ${SCRIPTS_ARG})
@@ -265,6 +272,17 @@ port_busy() { ss -H -ulnp 2>/dev/null | "$GREP" -q ":${PORT}[[:space:]]"; }
 # run_one <script> : leaves results in $OUT_DIR/<script>.result; returns 0 pass / 1 fail
 run_one() {
   local script="$1" slog clog extra=() crc=0 waited=0
+  if [[ "$script" == ItemGateRun ]]; then
+    # ADR 0007 section 5.5: two rounds (spectator, then player); ItemGateRun.result carries both verdicts.
+    local sub gate_rc=0
+    for sub in ItemGateSpectator ItemGatePlayer; do
+      run_one "$sub" || gate_rc=1
+      [[ -f "$OUT_DIR/$sub.result" ]] || { echo "$sub: no result (run aborted)" > "$OUT_DIR/$sub.result"; gate_rc=1; }
+    done
+    { printf '%-18s %s (spectator round + player round)\n' ItemGateRun "$( ((gate_rc)) && echo FAIL || echo PASS )"
+      sed 's/^/  /' "$OUT_DIR/ItemGateSpectator.result" "$OUT_DIR/ItemGatePlayer.result"; } > "$OUT_DIR/ItemGateRun.result"
+    return "$gate_rc"
+  fi
   case "$script" in
     RpcGateRun) run_rpc_gate; return $? ;;
     PasswordRun) run_password; return $? ;;
@@ -294,6 +312,17 @@ run_one() {
       map="L_ItemTest?game=Duel?Bots=2?BotsFill=1?BotDifficulty=Hard"; sexec="velox.bots.Debug 1"
       cexec="$cexec, velox.bots.Watch $BOT_DUEL_SECONDS"; connect_url="127.0.0.1:$PORT?SpectatorOnly=1"; script_args=()
       client_timeout=$(( CLIENT_TIMEOUT > BOT_DUEL_SECONDS + 90 ? CLIENT_TIMEOUT : BOT_DUEL_SECONDS + 90 )) ;;
+    ItemGateSpectator)
+      # ADR 0007 section 5.5: a ?SpectatorOnly=1 client is entitled; it logs its owner-only timers once a second.
+      map="L_ItemTest?game=FFA?Bots=3?BotDifficulty=Medium"
+      cexec="$cexec, velox.items.LogTimers 1, velox.bots.Watch $ITEM_GATE_SPECTATOR_SECONDS"; connect_url="127.0.0.1:$PORT?SpectatorOnly=1"; script_args=()
+      client_timeout=$(( CLIENT_TIMEOUT > ITEM_GATE_SPECTATOR_SECONDS + 90 ? CLIENT_TIMEOUT : ITEM_GATE_SPECTATOR_SECONDS + 90 )) ;;
+    ItemGatePlayer)
+      # A playing client (bots peaceful, so the only death is the script's serverKill) holds nothing, alive or dead.
+      # FFA's Countdown -> Live ResetLevel (20 s after start) would replace the scripted pawn mid-script: force Live 1 s
+      # after the server starts, before the client connects (verified x3 dedicated + listen, notes/08-report.md).
+      map="L_ItemTest?game=FFA?Bots=3?BotDifficulty=Medium"; sexec="velox.bots.Peaceful 1, velox.combat.ForceRespawnDelay 4, velox.bots.After 1 velox.match.Phase Live"
+      cexec="$cexec, velox.items.LogTimers 1"; script_args=(-VeloxScript=ItemGateRun) ;;
   esac
   if [[ -n "$BOT_DIFFICULTY" && "$BOT_SCRIPTS" == *" $script "* ]]; then
     map="$(sed -E "s/BotDifficulty=[A-Za-z]+/BotDifficulty=$BOT_DIFFICULTY/" <<< "$map")"
@@ -730,6 +759,122 @@ if not server_alive:
     fails.append("server process died during the run")
 if crc != 0:
     fails.append("client exit code %d" % crc)
+
+if script in ("ItemGateSpectator", "ItemGatePlayer"):
+    # ADR 0007 section 5.5 (task m6-online/08): item respawn times leave the server only toward entitled connections.
+    # Server lines: VeloxItemTimerEntitlement player= entitled= only_spectator= (PostLogin, join), VeloxItemTimerPush item=
+    # index= respawn_t= entitled= remote= (every timer change of a major item; remote = entitled PlayerStates of remote
+    # connections, the listen host's own spectator PlayerState is local), VeloxPickupRespawn item= t=. Client lines
+    # (velox.items.LogTimers 1): VeloxItemTimers n= entries=[<item>#<index>@<server time>,...] reason=rep|tick ... state=
+    # only_spectator= pawn=. Judged from these alone; the movement rules of the scripted rounds do not apply here.
+    ENT_RE = re.compile(r"entries=\[([^\]]*)\]")
+    def entries_of(line):
+        m = ENT_RE.search(line)
+        out = []
+        if m and m.group(1):
+            for part in m.group(1).split(","):
+                mm = re.match(r"(.+)#(\d+)@(-?[\d.]+)$", part)
+                if mm:
+                    out.append((mm.group(1), int(mm.group(2)), float(mm.group(3))))
+        return out
+    spectator = script == "ItemGateSpectator"
+    # Names are not unique (and may contain spaces, which kv() cannot parse): the listen host's own PlayerState and the
+    # remote client both log in as "Player". Rows are matched by pid=<PlayerId> (server VeloxItemTimerEntitlement /
+    # VeloxItemTimerPush to=[name#pid,...] and the client's VeloxItemTimers lines). The host's rows carry local=1
+    # (entitled spectator, nothing on the wire) and are not the client's.
+    ct = [l for l in C if "VeloxItemTimers n=" in l]
+    me = next((kv(l).get("pid") for l in ct if kv(l).get("pid")), None)
+    ents = [(i, kv(l)) for i, l in enumerate(S) if "VeloxItemTimerEntitlement player=" in l and kv(l).get("local") != "1"]
+    mine = [(i, d) for i, d in ents if d.get("pid") == me] if me else []
+    pushes = [(i, kv(l)) for i, l in enumerate(S) if "VeloxItemTimerPush item=" in l]
+    respawns = [(i, kv(l)) for i, l in enumerate(S) if "VeloxPickupRespawn item=" in l]
+    detail_g = []
+    if not ct:
+        fails.append("no client 'VeloxItemTimers n=' lines (velox.items.LogTimers not running)")
+    if not mine:
+        fails.append("no server VeloxItemTimerEntitlement line for the client (pid=%s)" % me)
+    e_idx = mine[0][0] if mine else len(S)
+    # Pushes after the client's connection closed (it quits itself when velox.bots.Watch ends) go to nobody remote: not judged.
+    close_i = next((i for i in range(e_idx + 1, len(S)) if "UNetConnection::Close" in S[i]), len(S))
+    pushes = [(i, d) for i, d in pushes if i < close_i]
+    takes_after = [d for i, d in pushes if i > e_idx and num(d, "respawn_t") > 0.0]
+    if spectator:
+        if mine and mine[0][1].get("entitled") != "1":
+            fails.append("spectator not entitled at login: %s" % S[mine[0][0]].strip()[-120:])
+        if not takes_after:
+            fails.append("no major take while the spectator was connected (no VeloxItemTimerPush respawn_t>0 after its login): round proves nothing")
+        bad = [d for d in takes_after if int(num(d, "remote")) < 1]
+        if bad:
+            fails.append("%d major take(s) after the spectator's login not pushed to a remote connection: %s" % (len(bad), bad[0]))
+        rep_n = [int(num(kv(l), "n")) for l in ct if "reason=rep" in l]
+        if not any(n >= 1 for n in rep_n):
+            fails.append("the spectator never received a non-empty ItemTimers (reason=rep n>=1)")
+        seen = collections.defaultdict(set)
+        for l in ct:
+            for name, _idx, t in entries_of(l):
+                if t > 0.0:
+                    seen[name].add(t)
+        # Every respawn while the spectator was connected and entitled (the respawn's own push has remote >= 1) must have
+        # been known in advance to 0.1 s: the entry's RespawnServerTime against the server's VeloxPickupRespawn t=.
+        matched, missed = [], []
+        for i, d in pushes:
+            if i <= e_idx or num(d, "respawn_t", -1.0) != 0.0 or int(num(d, "remote")) < 1:
+                continue
+            r = next((rd for j, rd in respawns if i < j <= i + 6 and rd.get("item") == d.get("item")), None)
+            if r is None:
+                continue   # a reset / initial schedule, not a respawn
+            t = num(r, "t")
+            best = min((abs(v - t) for v in seen.get(d.get("item"), ())), default=None)
+            (matched if best is not None and best <= 0.1 else missed).append((d.get("item"), t, best))
+        if not matched:
+            fails.append("no major respawn observed while the spectator watched (nothing to compare the entries with)")
+        if missed:
+            fails.append("%d respawn(s) not matched by a client entry within 0.1 s: %s" % (len(missed), missed[:3]))
+        detail_g.append("entitled=%s takes_pushed=%d respawns_matched=%d max_err_s=%.3f client_lines=%d max_n=%d" % (
+            mine[0][1].get("entitled") if mine else "-", len(takes_after), len(matched), max((m[2] for m in matched), default=0.0), len(ct),
+            max((int(num(kv(l), "n")) for l in ct), default=0)))
+        for m in matched[:3]:
+            notes.append("%s respawn t=%.3f entry_err=%.3f s" % (m[0].replace("DA_Item_", ""), m[1], m[2]))
+    else:
+        if mine and mine[0][1].get("entitled") != "0":
+            fails.append("player entitled at login: %s" % S[mine[0][0]].strip()[-120:])
+        if any(d.get("entitled") != "0" for _i, d in mine):
+            fails.append("player entitled at some point: %s" % [d for _i, d in mine if d.get("entitled") != "0"][:1])
+        if not takes_after:
+            fails.append("no major take while the player was connected (no VeloxItemTimerPush respawn_t>0 after its login): round proves nothing")
+        leaked = [d for i, d in pushes if int(num(d, "remote")) > 0]
+        if leaked:
+            fails.append("%d push(es) to a remote connection while only a player was connected: %s" % (len(leaked), leaked[0]))
+        nonzero = [l for l in ct if int(num(kv(l), "n")) != 0]
+        if nonzero:
+            fails.append("%d client line(s) with n>0 (player must hold no timers): %s" % (len(nonzero), nonzero[0].strip()[-140:]))
+        dead = [l for l in ct if "reason=tick" in l and kv(l).get("state") == "Spectating" and kv(l).get("only_spectator") == "0" and kv(l).get("pawn") == "0"]
+        if len(dead) < 2:
+            fails.append("only %d client tick line(s) in the dead window (state=Spectating only_spectator=0 pawn=0), want >= 2" % len(dead))
+        kill_i = next((i for i, l in enumerate(C) if "VeloxNetSoak event=kill " in l), None)
+        seen_i = next((i for i, l in enumerate(C) if "VeloxNetSoak event=respawn_seen" in l), None)
+        if kill_i is None:
+            fails.append("no client 'VeloxNetSoak event=kill' line (serverKill row)")
+        if seen_i is None:
+            fails.append("client never saw the respawned pawn")
+        final = next((l for l in reversed(C) if "VeloxNetSoak: script=" in l), None)
+        if final is None or kv(final).get("result") != "PASS":
+            fails.append("script result: %s" % (final.strip()[-80:] if final else "no VeloxNetSoak line"))
+        refused = sum(1 for l in S if "VeloxViewRefused" in l)
+        detail_g.append("entitled=%s takes_pushed=%d client_lines=%d dead_lines=%d all_n0=%d view_refused=%d" % (
+            mine[0][1].get("entitled") if mine else "-", len(takes_after), len(ct), len(dead), 0 if nonzero else 1, refused))
+    ERR_RE = re.compile(r"\bError: ")
+    for name, lines in (("server", S), ("client", C)):
+        errs = [l for l in lines if ERR_RE.search(l) and not ENGINE_NOISE_RE.search(l)]
+        if errs:
+            fails.append("%d Error: line(s) in the %s log: %s" % (len(errs), name, errs[0].strip()[:140]))
+    row = "%-18s %s  %s  %s" % (script, "FAIL" if fails else "PASS", " ".join(detail_g), "; ".join(notes))
+    with open(result_path, "w") as out:
+        out.write(row + "\n")
+        for fl in fails:
+            out.write("    - " + fl + "\n")
+    sys.exit(1 if fails else 0)
+
 
 if script in ("RocketJumpRun", "RocketJumpRunHold"):
     # velox.combat.RocketJumpTest's result line instead of a script's VeloxNetSoak line.

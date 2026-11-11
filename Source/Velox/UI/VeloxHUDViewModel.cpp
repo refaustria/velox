@@ -435,6 +435,8 @@ void UVeloxHUDViewModel::UpdateItemTimers()
 	{
 		return;
 	}
+	// ADR 0007 section 5.5: AVeloxPickup::GetTimeUntilRespawn reads the owner-only entry the server sent this connection;
+	// ItemTimersVisible stays the display rule.
 	for (const AVeloxPickup* Pickup : Registry->GetMajorPickups())
 	{
 		const UVeloxItemDefinition* Definition = Pickup ? Pickup->GetDefinition() : nullptr;
@@ -445,7 +447,9 @@ void UVeloxHUDViewModel::UpdateItemTimers()
 		VeloxScoreboardFormat::FItemTimer& Timer = ItemTimers.AddDefaulted_GetRef();
 		Timer.ItemName = Definition->DisplayName.ToString();
 		Timer.bAvailable = Pickup->IsAvailable();
-		Timer.SecondsLeft = Pickup->GetTimeUntilRespawn();
+		// GetTimeUntilRespawn: 0 when up, < 0 = unknown to this machine (no owner-only entry), else seconds left.
+		const double Left = Pickup->GetTimeUntilRespawn();
+		Timer.SecondsLeft = (!Timer.bAvailable && Left > 0.0) ? Left : 0.0;
 		if (const APlayerState* Taker = Pickup->GetLastTakenBy())
 		{
 			Timer.TakenBy = AVeloxPlayerState::VeloxPlayerLabel(Taker);

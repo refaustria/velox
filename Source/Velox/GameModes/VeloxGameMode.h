@@ -97,6 +97,8 @@ public:
 	virtual void Reset() override;
 	/** Local spectator pawns survive ResetLevel (APawn::Reset would destroy them: they have no controller). */
 	virtual bool ShouldReset_Implementation(AActor* ActorToReset) override;
+	/** ADR 0007 section 5.5 / F1.2: only a spectator-only viewer may follow another player (VeloxSpectate::MayViewOtherPlayers). */
+	virtual bool CanSpectate_Implementation(APlayerController* Viewer, APlayerState* ViewTarget) override;
 	//~End of AGameModeBase interface
 
 	//~AGameMode interface

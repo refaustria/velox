@@ -1,6 +1,10 @@
 // Velox - every pickup of a world (ADR 0004 sections 1, 4, 9), on the server and on clients. The HUD's item timers and the
 // M4 bots read item state only through this API. Pickups register in BeginPlay and unregister in EndPlay; the take /
 // respawn delegates fire on the server from AVeloxPickup and on clients from its replication.
+//
+// ADR 0007 section 5.5: respawn times leave the server only toward entitled connections. The server registry writes the
+// major items' times into AVeloxPlayerState::ItemTimers (owner-only) of every PlayerState the mode rule entitles; a dead
+// player (NAME_Spectating, !bOnlySpectator) is a player and gets nothing.
 
 #pragma once
 
@@ -13,8 +17,25 @@
 
 class APlayerState;
 class AVeloxPickup;
+class AVeloxPlayerState;
 class UVeloxGameModeDefinition;
 class UWorld;
+
+namespace VeloxItemTimerRules
+{
+	/**
+	 * ADR 0007 section 5.5 entitlement, world-free: Spectators -> bOnlySpectator only (a dead player in the engine's
+	 * spectating state is not one); Everyone -> every human; Nobody -> none. Bots have no connection and never get a copy.
+	 */
+	inline bool IsEntitled(EVeloxItemTimerVisibility Rule, bool bOnlySpectator, bool bIsBot)
+	{
+		if (bIsBot)
+		{
+			return false;
+		}
+		return Rule == EVeloxItemTimerVisibility::Everyone || (Rule == EVeloxItemTimerVisibility::Spectators && bOnlySpectator);
+	}
+}
 
 UCLASS()
 class VELOX_API UVeloxItemRegistrySubsystem : public UWorldSubsystem
@@ -54,6 +75,21 @@ public:
 	 */
 	EVeloxItemTimerVisibility GetItemTimerVisibility() const;
 
+	/** The registered pickup with this server-assigned index (both sides; the index replicates initial-only). */
+	AVeloxPickup* FindPickupByIndex(uint8 ItemIndex) const;
+
+	/** Server: whether PlayerState may receive item timers under the running mode's rule (VeloxItemTimerRules::IsEntitled). */
+	bool IsEntitledToItemTimers(const APlayerState* PlayerState) const;
+	/**
+	 * Server: re-evaluates PlayerState's entitlement and writes the full set of major-item timers into its ItemTimers when
+	 * entitled, or clears them (PostLogin, ServerRequestJoin, the spectating-only switch).
+	 */
+	void PushTimersTo(AVeloxPlayerState* PlayerState) const;
+	/** Server: PushTimersTo for every PlayerState (level reset, mode rule change). */
+	void RefreshAllItemTimers() const;
+	/** Server: a major pickup's respawn time changed (take, respawn, initial schedule, reset); updates entitled PlayerStates. */
+	void HandleItemTimerChanged(const AVeloxPickup& Pickup) const;
+
 	/** (Pickup, Taker). Server: on the take. Clients: when the take replicates (TakeCount changed). */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnVeloxPickupTaken, AVeloxPickup* /*Pickup*/, APlayerState* /*TakenBy*/);
 	FOnVeloxPickupTaken OnPickupTaken;
@@ -68,6 +104,11 @@ protected:
 	//~End of UWorldSubsystem interface
 
 private:
+	void BuildTimerSet(TArray<struct FVeloxItemTimerEntry>& OutTimers) const;
+
 	TArray<TWeakObjectPtr<AVeloxPickup>> Pickups;
 	FVeloxItemModeRules ModeRules;
+	/** Server: next ItemIndex. 0 means "no index" (a client pickup whose initial bunch has not arrived), so the first one handed out is 1;
+	 *  wraps at 256 (skipping 0, with a warning); a map has far fewer pickups. */
+	uint8 NextItemIndex = 1;
 };

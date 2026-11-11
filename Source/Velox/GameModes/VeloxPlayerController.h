@@ -106,6 +106,12 @@ public:
 	virtual void BeginSpectatingState() override;
 	/** The engine's sync with the point VeloxSpectate::ClampViewPoint accepts (nav-bounds box, KillZ, speed step). */
 	virtual void ServerSetSpectatorLocation_Implementation(FVector NewLoc, FRotator NewRot) override;
+	/**
+	 * ADR 0007 section 5.5 / F1.2: ServerViewNextPlayer / ServerViewPrevPlayer (and the engine's StartFire while spectating)
+	 * reach this in any NAME_Spectating controller. A dead player may not follow anybody (refused, logged
+	 * VeloxViewRefused); the engine's fallback would otherwise retarget the view to its own PlayerState.
+	 */
+	virtual void ViewAPlayer(int32 Dir) override;
 	//~End of APlayerController interface
 
 	// ---- In-game menu (ADR 0004 section 7; task M3-10) ----

@@ -1,0 +1,10 @@
+{
+ "name": "ItemGateRun",
+ "note": "L_ItemTest, ADR 0007 section 5.5 (task m6-online/08), the player round of infra/ci/nettest.sh ItemGateRun (ItemGatePlayer). FFA with 3 Medium bots under velox.bots.Peaceful 1 (they collect items, nobody shoots the human), velox.combat.ForceRespawnDelay 4. The human stands at the ItemRun start for 40 s while the bots take the major items, then the server kills it (serverKill, DeathSpectateRun's row); the client free-spectates 4 s, respawns and quits 1.5 s after the new pawn (VeloxNetSoak event=respawn_seen). velox.items.LogTimers 1 logs the owner-only item timers every second: n=0 throughout, the dead window included.",
+ "startYaw": 0,
+ "startLocation": [-2700, -1700, 100],
+ "rows": [
+  {"duration": 40.0, "yaw": 0, "label": "stand while the bots take items"},
+  {"duration": 0.5, "serverKill": true, "label": "kill"}
+ ]
+}

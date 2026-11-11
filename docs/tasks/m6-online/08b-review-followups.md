@@ -2,7 +2,7 @@
 
 **Milestone:** M6 Online
 **Agent:** dev
-**Status:** todo
+**Status:** done (2026-11-11)
 **Depends on:** 08 (`wip/m6-08-spectator`), review `docs/adr/reviews/0007-08-review.md` (approve with follow-ups F1–F6)
 
 ## Goal
@@ -19,12 +19,22 @@ The files task 08 touched (Items registry, pickup, `VeloxPlayerState`, `VeloxPla
 5. **F6 / 08c:** add `pid=<PlayerId>` to `VeloxItemTimerEntitlement`, `VeloxItemTimerPush` and the client `VeloxItemTimers` lines; the evaluator matches by pid (names with spaces break `kv()`); keep `local=`.
 
 ## Acceptance criteria
-- [ ] Editor build + all automation tests green on the merged head.
-- [ ] ItemGateRun ×1 dedicated + ×1 listen PASS, ItemRun PASS.
-- [ ] No Log-level `VeloxViewRefused` from a dead client's fire press.
-- [ ] ADR 0007 F3 appended.
+- [x] Editor build + all automation tests green on the merged head.
+- [x] ItemGateRun ×1 dedicated + ×1 listen PASS, ItemRun PASS.
+- [x] No Log-level `VeloxViewRefused` from a dead client's fire press.
+- [x] ADR 0007 F3 appended.
 
 ## Constraints
 Production is live on this host (ports 7777/8790, units `velox-server@ffa`, `veloxmaster`) — never touch them. Disk ≥ 12 GB free or pause.
 
 ## Notes / outcome
+2026-11-11 (dev): F1 merge of origin/m6-online: one conflict, `nettest.sh` (SCRIPTS_ARG: took m6-online's list and appended
+ItemGateRun; the `run_one` head: kept the ItemGateRun two-round block and then m6-online's RpcGateRun/PasswordRun case). Auto-merged
+cleanly: VeloxGameModeMatch.cpp, VeloxPlayerController.h/.cpp, VeloxGameMode.*. F2: `NextItemIndex = 1`, wrap warns `VeloxItemIndexWrap`,
+`FindPickupByIndex(0)` is null, assertions in `Velox.Items.Replication`. F3: `VeloxViewRefused` Verbose (ItemTimerGating row asserts
+0 Log-level lines). F4: HUD uses `GetTimeUntilRespawn()` (local state/ServerNow duplication removed). F6: `pid=` on
+VeloxItemTimerEntitlement, VeloxItemTimers (rep and tick) and `to=[name#pid]` in VeloxItemTimerPush; the evaluator matches by pid.
+Evaluator fix found on the way: a push after the client's connection closed (client quits when Watch ends) has remote=0 and failed
+the listen spectator round once; pushes after the first `UNetConnection::Close` following the client's entitlement are no longer judged.
+Verification: build.sh --targets VeloxEditor green, 138/138 tests; ItemGateRun dedicated PASS, listen PASS (after the evaluator fix;
+first listen attempt failed on that race), ItemRun PASS. ADR 0007 F3 appended.

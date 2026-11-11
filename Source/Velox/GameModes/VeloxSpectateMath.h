@@ -104,4 +104,11 @@ namespace VeloxSpectate
 		Result.DistCm = Requested.ContainsNaN() ? 0.0 : FVector::Dist(Requested, P);
 		return Result;
 	}
+
+	/**
+	 * ADR 0007 section 5.5 (amendment F1.2): following another player's view (the engine's ServerViewNextPlayer /
+	 * ServerViewPrevPlayer -> ViewAPlayer, which work in any NAME_Spectating controller) is a spectator's information. A dead
+	 * player in the death camera (bOnlySpectator false) keeps the player's rules and may not.
+	 */
+	inline bool MayViewOtherPlayers(bool bViewerOnlySpectator) { return bViewerOnlySpectator; }
 }
