@@ -6,7 +6,7 @@ Read first: the **menus, HUD layout, keyboard keys (Tab/F3/Escape), mouse-click 
 
 ## 1. Mac setup
 
-1. Intel Mac, macOS Sonoma 14.5 or newer, Xcode **26.0 or 26.1.1** (not 26.4), UE 5.8 from the Epic Launcher, `brew install git-lfs coreutils`, `git lfs install`. Details: `docs/playtests/m1-movement-checklist.md` section 1.
+1. Apple Silicon Mac (Mac Studio), macOS Sonoma 14.5 or newer, Xcode **26.0 or 26.1.1** (not 26.4), UE 5.8 from the Epic Launcher, `brew install git-lfs coreutils`, `git lfs install`. Details: `docs/playtests/m1-movement-checklist.md` section 1.
 2. Check out branch `m3-gameloop` (or the branch the lead names), then **`git lfs pull`** (maps and data assets are LFS files; without it the editor reports corrupt assets).
 3. From the repo root: `infra/ci/build-mac.sh` (`UE_ROOT="/path/to/UE_5.8" infra/ci/build-mac.sh` if UE is elsewhere). Success ends with `[ci] CI OK. Logs: Saved/CI/<timestamp>`; `VeloxServer`/`VeloxClient` print `SKIPPED` on Mac, expected. On failure attach `Saved/CI/<timestamp>/*.log` and stop.
 4. Open `Velox.uproject` (first start: shader compile, 5-10 min). Answer **Yes** to "Missing modules / rebuild?". The game now starts in **`L_MainMenu`** (project default map); the editor startup map is `L_ItemTest`.
@@ -99,7 +99,7 @@ Number of Players = **3**, Additional Server Game Options = `?game=Duel`. Duel h
 
 ```
 M3 game loop playtest (<date>, <name>)
-Build: infra/ci/build-mac.sh -> CI OK (Intel Mac, macOS <ver>, Xcode <ver>, UE 5.8.x)
+Build: infra/ci/build-mac.sh -> CI OK (Apple Silicon Mac (Mac Studio), macOS <ver>, Xcode <ver>, UE 5.8.x)
 Setup: PIE, dedicated server + <2|3> clients, Run Under One Process on, 100 ms / 2 %, FFA <y/n>, Duel <y/n>, two machines <y/n>
 Checklist: pass <n> / fail <n> / skipped <n>; failed rows: <numbers + one line each>
 

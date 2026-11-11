@@ -41,6 +41,8 @@ Everything needed to run `velox-server@ffa` and `veloxmaster` on this host as un
 - [ ] `systemctl stop velox-server@ffa` exits cleanly within 30 s (journal: exit status 143 or 0, no SIGKILL); `start` again recovers; a `kill -SEGV` of the process is restarted by systemd within 10 s.
 - [ ] `docs/machine.md` gains a "Services" section (units, users, ports, paths, the firewall file).
 
+**Amendment (ADR 0007 F2, 2026-11-06):** phase B deploys the **packaged Development Game build** (`Velox-<ver>-LinuxServer.tar.zst`) as headless listen server (`VELOX_SERVER_MODE=listen`), only after task 02b's P1–P3 pass on an idle host. The editor binary is never the production server; an `editor`-mode fallback is allowed only under F2 (ii) (equal tag hash). Decision 52: apply approved once 02b and 07 are green; the lead announces each root step. Decision 51: the instance serves `L_DM1`.
+
 ## Verification steps
 1. Phase A: `shellcheck infra/deploy/*.sh infra/systemd/*.sh 2>/dev/null; systemd-analyze verify infra/systemd/velox-server@.service` (verify runs without root) → clean; `nft -c -f infra/firewall/nftables.conf` (check-only, may need sudo — state it).
 2. Phase B: the commands in the criteria, in order, each stated in one line before it runs; outputs pasted.
@@ -51,3 +53,8 @@ Standard format plus: which trace-server switch worked, the measured start-up ti
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+2026-11-06, dev, phase A (files) done on `wip/m6-06-files`, nothing applied (no root, no UE). Files: `infra/systemd/{velox-server@.service,velox-server.env.example,velox-tmpfiles.conf,README.md,veloxmaster.service.d/10-hardening.conf}`, `infra/deploy/{run-server.sh,install-server.sh,release.sh,publish-download.sh,publish-index.py,README.md,nginx/velox-locations.conf}`, `infra/firewall/{nftables.conf,apply.sh,README.md}`.
+Deviations from the text above: (1) password only as `VELOX_SERVER_PASSWORD` (architect ruling ADR 0007 F1.3), never `-ServerPassword=`; (2) `MaxSpectators` default 5 (the headless host takes a spectator slot in `AGameSession::AtCapacity`); (3) trace server switch is `-notraceserver` (engine source `TraceAuxiliary.cpp`; live confirmation owed); (4) firewall table is `inet velox_fw` without `flush ruleset` (docker-safe), rollback by a `systemd-run` timer because `at` is not installed; 8765/3000 closed (q44); docker bridges and DHCP replies allowed; (5) logs land in `saved/<inst>/Saved/Logs` (`-UserDir` -> `ProjectSavedDir = <UserDir>/Saved`), the tmpfiles rule follows that; (6) the veloxmaster unit gets a drop-in instead of an edit.
+Offline checks: shellcheck clean, `systemd-analyze verify` (only the not-yet-installed binary paths), `unshare -Urn nft -c -f` and a real load twice (idempotent) inside a user+net namespace, scratch runs of release/publish/run-server with a stub binary.
+Phase B open. Owed in B: live confirmation of `-notraceserver`, start-up time/RSS, final `nft list ruleset`.

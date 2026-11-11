@@ -7,6 +7,10 @@
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "GameplayTagsManager.h"
+#include "GameplayTagsModule.h"
+#include "Misc/NetworkVersion.h"
+#include "Misc/CString.h"
 #include "UI/VeloxGameUserSettings.h"
 #include "UI/VeloxMenuMath.h"
 
@@ -15,6 +19,38 @@
 UVeloxGameInstance::UVeloxGameInstance(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+}
+
+namespace VeloxGameInstancePrivate
+{
+	/** Task m6-online/02b, ADR 0007 F2 (ii)-b: the network version is the engine's, combined with the gameplay tag net index hash. */
+	uint32 GetNetworkVersionWithTagHash()
+	{
+		return HashCombine(FNetworkVersion::GetLocalNetworkVersion(false), UGameplayTagsManager::Get().GetNetworkGameplayTagNodeIndexHash());
+	}
+
+	void OnTagTreeChanged()
+	{
+		FNetworkVersion::InvalidateNetworkChecksum();
+	}
+}
+
+void UVeloxGameInstance::BindTagHashIntoNetworkVersion()
+{
+	// With GameplayTags FastReplication every tag after the first difference shifts its net index, so a server and a client whose
+	// tag tables differ misread tags silently (B1). Folding the hash into the network version makes the engine refuse the client at
+	// NMT_Hello with its standard version failure.
+	static bool bBound = false;
+	if (!bBound)
+	{
+		bBound = true;
+		FNetworkVersion::GetLocalNetworkVersionOverride.BindStatic(&VeloxGameInstancePrivate::GetNetworkVersionWithTagHash);
+		IGameplayTagsModule::OnGameplayTagTreeChanged.AddStatic(&VeloxGameInstancePrivate::OnTagTreeChanged);
+	}
+	FNetworkVersion::InvalidateNetworkChecksum();
+	const UGameplayTagsManager& TagManager = UGameplayTagsManager::Get();
+	UE_LOG(LogVeloxNet, Log, TEXT("VeloxNet netversion=%u taghash=%08x tags=%d"), FNetworkVersion::GetLocalNetworkVersion(),
+		TagManager.GetNetworkGameplayTagNodeIndexHash(), TagManager.GetNetworkGameplayTagNodeIndex().Num());
 }
 
 void UVeloxGameInstance::Init()
@@ -28,6 +64,8 @@ void UVeloxGameInstance::Init()
 		NetworkFailureHandle = GEngine->OnNetworkFailure().AddUObject(this, &ThisClass::OnEngineNetworkFailure);
 		TravelFailureHandle = GEngine->OnTravelFailure().AddUObject(this, &ThisClass::OnEngineTravelFailure);
 	}
+
+	BindTagHashIntoNetworkVersion();
 
 	UE_LOG(LogVelox, Log, TEXT("UVeloxGameInstance initialised."));
 }
@@ -97,6 +135,11 @@ bool UVeloxGameInstance::TravelFromFirstController(const FString& URL, FString& 
 
 bool UVeloxGameInstance::ConnectToServer(const FString& Address, FString& OutError)
 {
+	return ConnectToServerWithPassword(Address, FString(), OutError);
+}
+
+bool UVeloxGameInstance::ConnectToServerWithPassword(const FString& Address, const FString& Password, FString& OutError)
+{
 	FString Normalized;
 	if (!VeloxMenuMath::NormalizeConnectAddress(Address, DefaultServerPort, Normalized, OutError))
 	{
@@ -105,8 +148,14 @@ bool UVeloxGameInstance::ConnectToServer(const FString& Address, FString& OutErr
 	}
 	PendingMenuMessage.Reset();
 	LastConnectTarget = Normalized;
-	const FString URL = BuildConnectURL(Normalized);
-	UE_LOG(LogVelox, Log, TEXT("VeloxMenu connect address=%s url=%s"), *Normalized, *URL);
+	const FString NameURL = BuildConnectURL(Normalized);
+	FString URL;
+	if (!VeloxMenuMath::AppendPasswordOption(NameURL, Password, URL, OutError))
+	{
+		UE_LOG(LogVelox, Log, TEXT("VeloxMenu connect refused address='%s': %s"), *Address, *OutError);
+		return false;
+	}
+	UE_LOG(LogVelox, Log, TEXT("VeloxMenu connect address=%s url=%s password=%d"), *Normalized, *NameURL, Password.IsEmpty() ? 0 : 1);
 	if (!TravelFromFirstController(URL, OutError))
 	{
 		return false;

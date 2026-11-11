@@ -1,0 +1,1 @@
+DM1Run             moves=5055  C=0   echoes=0   gaps=4   repaired=53  repaired_extra=12  resent=2577  resent_extra=2577 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=101.1 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_2'] replays=4 acks_ignored=0 rpcs=2590  

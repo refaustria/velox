@@ -1,0 +1,84 @@
+== P1-packaged-default start 2026-11-11T07:17:09Z loadavg: 1.99 2.75 2.86 6/1340 2299847
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   2299843 bojan          00:00 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   2299844 bojan          00:00 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P1-packaged-default --server-binary /tmp/claude-1001/-home
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+   rc=1
+== P1-packaged-default end 2026-11-11T07:35:51Z loadavg: 2.43 2.43 2.51 3/1313 2709449
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   2299843 bojan          18:42 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   2299844 bojan          18:42 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P1-packaged-default --server-binary /tmp/claude-1001/-home
+   2699863 bojan          00:29 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=2699652
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+== D1-rocketjump-diag start 2026-11-11T07:36:23Z loadavg: 2.07 2.34 2.48 5/1324 2721341
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   2721338 bojan          00:00 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh D1-rocketjump-diag --serve
+   2721339 bojan          00:00 /bin/bash docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh D1-rocketjump-diag --server-binary /tmp/t02b-link/srv/Velox/Binaries/Linux/Velox --server-userdir /tmp/t02b-link/userd
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+   rc=0
+== D1-rocketjump-diag end 2026-11-11T07:40:48Z loadavg: 2.95 2.48 2.49 3/1310 2820276
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   2721338 bojan          04:25 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh D1-rocketjump-diag --serve
+   2721339 bojan          04:25 /bin/bash docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh D1-rocketjump-diag --server-binary /tmp/t02b-link/srv/Velox/Binaries/Linux/Velox --server-userdir /tmp/t02b-link/userd
+   2813297 bojan          00:19 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=2813136
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+== P1-packaged-default start 2026-11-11T07:40:59Z loadavg: 2.95 2.50 2.49 4/1344 2824749
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   2824745 bojan          00:00 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   2824746 bojan          00:00 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P1-packaged-default --server-binary /tmp/claude-1001/-home
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+   rc=0
+== P1-packaged-default end 2026-11-11T08:06:04Z loadavg: 2.97 2.51 2.42 7/1357 3387755
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   2824745 bojan          25:04 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   2824746 bojan          25:04 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P1-packaged-default --server-binary /tmp/claude-1001/-home
+   3378143 bojan          00:28 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=3377987
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+== P2-packaged-botrun3 start 2026-11-11T08:06:04Z loadavg: 2.97 2.51 2.42 5/1356 3387794
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   3378143 bojan          00:28 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=3377987
+   3387789 bojan          00:00 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   3387790 bojan          00:00 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P2-packaged-botrun3 --server-binary /tmp/claude-1001/-home
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+   rc=1
+== P2-packaged-botrun3 end 2026-11-11T08:15:48Z loadavg: 3.36 2.79 2.54 5/1319 3598064
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   3387789 bojan          09:43 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   3387790 bojan          09:43 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P2-packaged-botrun3 --server-binary /tmp/claude-1001/-home
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+== P3-packaged-botduel3 start 2026-11-11T08:15:48Z loadavg: 3.36 2.79 2.54 3/1319 3598108
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   3598103 bojan          00:00 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   3598105 bojan          00:00 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P3-packaged-botduel3 --server-binary /tmp/claude-1001/-hom
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+   rc=0
+== P3-packaged-botduel3 end 2026-11-11T08:25:40Z loadavg: 2.80 2.62 2.54 7/1352 3817132
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   3598103 bojan          09:51 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   3598105 bojan          09:51 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P3-packaged-botduel3 --server-binary /tmp/claude-1001/-hom
+   3768957 bojan          02:13 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=3768705
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+== P2-packaged-botrun3 start 2026-11-11T08:26:23Z loadavg: 2.57 2.57 2.52 2/1323 3834099
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   3834094 bojan          00:00 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   3834096 bojan          00:00 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P2-packaged-botrun3 --server-binary /tmp/claude-1001/-home
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /
+   rc=0
+== P2-packaged-botrun3 end 2026-11-11T08:34:05Z loadavg: 2.71 2.47 2.46 4/1338 4006501
+   UE processes (pid user etime cmd; ours are under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd or the packaged dir):
+   3834094 bojan          07:42 flock -o /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/soak.lock /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen
+   3834096 bojan          07:42 /bin/bash /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd/docs/adr/evidence/0007-listen-gate/packaged-20261111/runset.sh P2-packaged-botrun3 --server-binary /tmp/claude-1001/-home
+   3968950 bojan          01:43 ../../../Engine/Binaries/Linux/UnrealTraceServer fork --sponsor=3968782
+   foreign UE (not under /home/bojan/velox/.claude/worktrees/agent-a7a746c921cbb02bd / /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/t02b): 0
+   df /: /dev/vdb        125G  104G   15G  88% /

@@ -5,8 +5,11 @@
 #pragma once
 
 #include "Engine/DeveloperSettings.h"
+#include "Templates/SubclassOf.h"
 
 #include "VeloxUISettings.generated.h"
+
+class UVeloxServerBrowserWidget;
 
 UCLASS(Config = Game, DefaultConfig, Meta = (DisplayName = "Velox UI"))
 class VELOX_API UVeloxUISettings : public UDeveloperSettings
@@ -249,4 +252,76 @@ public:
 	/** Frame limits offered by the video section (0 = unlimited). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|Video")
 	TArray<int32> FrameRateLimitChoices = {0, 60, 125, 144, 165, 240, 333};
+
+	// ---- Server browser (task M6-05) ----
+
+	/** The browser screen class (a WBP_ServerBrowser subclass once authored); empty = the C++ default. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser")
+	TSubclassOf<UVeloxServerBrowserWidget> ServerBrowserWidgetClass;
+
+	/** An entry whose veloxmaster age exceeds this is shown as not responding. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser", Meta = (ClampMin = "1", Units = "s"))
+	float ServerStaleAfterSeconds = 120.f;
+
+	/** HTTP timeout of one server list fetch. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser", Meta = (ClampMin = "1", Units = "s"))
+	float ServerListTimeoutSeconds = 5.f;
+
+	/** Fill weights of the columns: name, map, mode, players, phase, version. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser")
+	TArray<float> ServerBrowserColumnFill = {3.f, 2.f, 1.f, 1.5f, 1.5f, 1.f};
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser")
+	TArray<FString> ServerBrowserColumnHeaders = {TEXT("Server"), TEXT("Map"), TEXT("Mode"), TEXT("Players"), TEXT("Phase"), TEXT("Version")};
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser", Meta = (ClampMin = "200"))
+	float ServerBrowserPanelWidth = 960.f;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser", Meta = (ClampMin = "100"))
+	float ServerBrowserListMaxHeight = 420.f;
+
+	/** Colour multiplier of the selected row's button. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser")
+	FLinearColor ServerBrowserSelectedTint = FLinearColor(1.8f, 1.8f, 2.4f, 1.f);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerBrowserTitleText = TEXT("SERVERS");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerBrowserFetchingText = TEXT("Fetching the server list ...");
+
+	/** Status line with the row count; %d = count. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerBrowserCountText = TEXT("%d server(s)");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerBrowserEmptyText = TEXT("No servers are listed right now.");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerBrowserSelectText = TEXT("Select a server first.");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerBrowserPasswordHint = TEXT("password (if the server needs one)");
+
+	/** Marker appended to a password-protected row's name. */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerBrowserLockedSuffix = TEXT(" [password]");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerListUnreachableText = TEXT("Could not reach the server list.");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerListHttpErrorText = TEXT("The server list is unavailable");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerCompatVersionText = TEXT("other game version");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerCompatNetVersionText = TEXT("incompatible network version");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerCompatStaleText = TEXT("not responding");
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Menu|ServerBrowser|Text")
+	FString ServerCompatFullText = TEXT("full - join as spectator");
 };

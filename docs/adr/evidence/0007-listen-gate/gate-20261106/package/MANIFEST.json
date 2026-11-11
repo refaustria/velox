@@ -1,0 +1,10 @@
+{
+  "version": "0.6.0+90c6624",
+  "net_version": "4065349793",
+  "built_at": "2026-11-06T07:25:36Z",
+  "commit": "90c66249924d90f0581862f73838ddafef3cc183",
+  "files": [
+    {"name": "Velox-0.6.0+90c6624-Linux.tar.zst", "sha256": "d25b49953013d5b90f400e23dc9a8bc111e262c3d1c2871b939032e387c78cd0", "size": 113514341},
+    {"name": "Velox-0.6.0+90c6624-LinuxServer.tar.zst", "sha256": "5bc617a5500a0de69fc6f94a274649220b2a779047540f53ed0a6073cba3509f", "size": 251491697}
+  ]
+}

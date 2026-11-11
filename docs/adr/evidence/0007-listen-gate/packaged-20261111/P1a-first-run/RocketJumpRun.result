@@ -1,0 +1,6 @@
+RocketJumpRun      moves=0     C=1   echoes=3   gaps=1   repaired=0   repaired_extra=0   resent=158   resent_extra=158  strays_le_2_5=0  max=9.01   mean=9.01  FAIL  Lexp=0.0 apex=345.6 ratio=3.03 self_damage=2 window_corr=[(2.38, 9.0)] splash seq=1 ts=1.658448/1.708451 points=0/87 dist=0.00/36.08 source=move late_ms=8.3 replays=4 acks_ignored=0 rpcs=172  
+    - rocket jump: non-echo corrections in window [2.11,2.71]: [(2.38, 9.0)] (allowed: one <= 5 cm)
+    - VeloxSelfSplash ts server 1.658448 != client 1.708451 (the splash ran in different moves)
+    - VeloxSelfSplash hit server 0 client 1 (want 1)
+    - VeloxSelfSplash points server 0 != client 87
+    - VeloxSelfSplash dist server 0.00 client 36.08 differ by > 1 cm

@@ -1,0 +1,187 @@
+[ci] Server mode: listen (packaged /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox, -UserDir=/tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv-userdir/p1)
+[ci] Net soak: scripts=StrafeRun PadRun DM1Run KnockbackRun KnockbackGroundRun LatchRun CrouchRun FireRun FireRunControl RocketJumpRun ItemRun HasteRun BotRun BotDuel DeathSpectateRun rounds=1 port=7783 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest
+[ci] bands=L_ItemTest
+[ci] [StrafeRun] load gate: load1=1.21 at round start (gate 2.0, waited 0s)
+[ci] [StrafeRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/StrafeRun-server.log
+[ci] [StrafeRun] host ready after 1.0 s: [2026.11.06-07.47.07:643][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [StrafeRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/StrafeRun-client.log
+[ci] [StrafeRun] server (listen) rss_max_kb=374908 rss_mean_kb=374481 rss_last_kb=374908 rss_samples=5
+[ci] [PadRun] load gate: load1=1.14 at round start (gate 2.0, waited 0s)
+[ci] [PadRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/PadRun-server.log
+[ci] [PadRun] host ready after 1.0 s: [2026.11.06-07.47.29:377][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [PadRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/PadRun-client.log
+[ci] [PadRun] server (listen) rss_max_kb=373132 rss_mean_kb=372872 rss_last_kb=373132 rss_samples=9
+[ci] [DM1Run] load gate: load1=0.86 at round start (gate 2.0, waited 0s)
+[ci] [DM1Run] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/DM1Run-server.log
+[ci] [DM1Run] host ready after 1.0 s: [2026.11.06-07.48.10:183][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [DM1Run] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/DM1Run-client.log
+Terminated
+[ci] [DM1Run] server (listen) rss_max_kb=365036 rss_mean_kb=364842 rss_last_kb=365036 rss_samples=13
+[ci] [KnockbackRun] load gate: load1=1.63 at round start (gate 2.0, waited 0s)
+[ci] [KnockbackRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/KnockbackRun-server.log
+[ci] [KnockbackRun] host ready after 1.0 s: [2026.11.06-07.49.10:205][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [KnockbackRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/KnockbackRun-client.log
+[ci] [KnockbackRun] server (listen) rss_max_kb=377880 rss_mean_kb=377334 rss_last_kb=377880 rss_samples=5
+[ci] [KnockbackGroundRun] load gate: load1=1.38 at round start (gate 2.0, waited 0s)
+[ci] [KnockbackGroundRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/KnockbackGroundRun-server.log
+[ci] [KnockbackGroundRun] host ready after 1.0 s: [2026.11.06-07.49.30:009][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [KnockbackGroundRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/KnockbackGroundRun-client.log
+Terminated
+[ci] [KnockbackGroundRun] server (listen) rss_max_kb=373332 rss_mean_kb=372692 rss_last_kb=373332 rss_samples=5
+[ci] [LatchRun] load gate: load1=1.29 at round start (gate 2.0, waited 0s)
+[ci] [LatchRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/LatchRun-server.log
+[ci] [LatchRun] host ready after 1.0 s: [2026.11.06-07.49.49:655][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [LatchRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/LatchRun-client.log
+Terminated
+[ci] [LatchRun] server (listen) rss_max_kb=377420 rss_mean_kb=376945 rss_last_kb=377420 rss_samples=5
+[ci] [CrouchRun] load gate: load1=1.20 at round start (gate 2.0, waited 0s)
+[ci] [CrouchRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/CrouchRun-server.log
+[ci] [CrouchRun] host ready after 1.0 s: [2026.11.06-07.50.10:465][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [CrouchRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/CrouchRun-client.log
+Terminated
+[ci] [CrouchRun] server (listen) rss_max_kb=375468 rss_mean_kb=375003 rss_last_kb=375468 rss_samples=5
+[ci] [FireRun] load gate: load1=1.35 at round start (gate 2.0, waited 0s)
+[ci] [FireRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/FireRun-server.log
+[ci] [FireRun] host ready after 1.0 s: [2026.11.06-07.50.31:285][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [FireRun] starting client (120 Hz, packet simulation 50 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/FireRun-client.log
+Terminated
+[ci] [FireRun] server (listen) rss_max_kb=367992 rss_mean_kb=365912 rss_last_kb=367992 rss_samples=12
+[ci] [FireRunControl] load gate: load1=1.52 at round start (gate 2.0, waited 0s)
+[ci] [FireRunControl] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/FireRunControl-server.log
+[ci] [FireRunControl] host ready after 1.0 s: [2026.11.06-07.51.28:222][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [FireRunControl] starting client (120 Hz, packet simulation 50 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/FireRunControl-client.log
+Terminated
+[ci] [FireRunControl] server (listen) rss_max_kb=369024 rss_mean_kb=367451 rss_last_kb=369024 rss_samples=13
+[ci] [RocketJumpRun] load gate: load1=1.01 at round start (gate 2.0, waited 0s)
+[ci] [RocketJumpRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/RocketJumpRun-server.log
+[ci] [RocketJumpRun] host ready after 1.0 s: [2026.11.06-07.52.26:067][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [RocketJumpRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/RocketJumpRun-client.log
+Terminated
+[ci] [RocketJumpRun] server (listen) rss_max_kb=370136 rss_mean_kb=366916 rss_last_kb=370136 rss_samples=5
+[ci] [ItemRun] load gate: load1=1.40 at round start (gate 2.0, waited 0s)
+[ci] [ItemRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/ItemRun-server.log
+[ci] [ItemRun] host ready after 1.0 s: [2026.11.06-07.52.46:839][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [ItemRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/ItemRun-client.log
+[ci] [ItemRun] server (listen) rss_max_kb=367072 rss_mean_kb=366406 rss_last_kb=367072 rss_samples=5
+[ci] [HasteRun] load gate: load1=1.78 at round start (gate 2.0, waited 0s)
+[ci] [HasteRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/HasteRun-server.log
+[ci] [HasteRun] host ready after 1.0 s: [2026.11.06-07.53.08:631][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [HasteRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/HasteRun-client.log
+Terminated
+[ci] [HasteRun] server (listen) rss_max_kb=372376 rss_mean_kb=372006 rss_last_kb=372376 rss_samples=6
+[ci] [BotRun] load gate: load1=1.54 at round start (gate 2.0, waited 0s)
+[ci] [BotRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/BotRun-server.log
+[ci] [BotRun] host ready after 1.0 s: [2026.11.06-07.53.32:482][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [BotRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/BotRun-client.log
+Terminated
+[ci] [BotRun] server (listen) rss_max_kb=369708 rss_mean_kb=369012 rss_last_kb=368656 rss_samples=22
+[ci] [BotDuel] load gate: load1=1.03 at round start (gate 2.0, waited 0s)
+[ci] [BotDuel] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/BotDuel-server.log
+[ci] [BotDuel] host ready after 1.0 s: [2026.11.06-07.55.19:596][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [BotDuel] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/BotDuel-client.log
+Terminated
+[ci] [BotDuel] server (listen) rss_max_kb=364644 rss_mean_kb=363516 rss_last_kb=362724 rss_samples=28
+[ci] [DeathSpectateRun] load gate: load1=1.31 at round start (gate 2.0, waited 0s)
+[ci] [DeathSpectateRun] starting packaged headless listen host /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/srv/Velox/Binaries/Linux/Velox (60 fps), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/DeathSpectateRun-server.log
+[ci] [DeathSpectateRun] host ready after 1.0 s: [2026.11.06-07.57.36:917][  0]LogNet: Name:GameNetDriver Def:GameNetDriver IpNetDriver_2147482417 IpNetDriver listening on port 7783
+[ci] [DeathSpectateRun] starting client (120 Hz, packet simulation 100 ms one way), log /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest/DeathSpectateRun-client.log
+[ci] [DeathSpectateRun] server (listen) rss_max_kb=362564 rss_mean_kb=361972 rss_last_kb=362564 rss_samples=7
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+StrafeRun          moves=437   C=0   echoes=0   gaps=4   repaired=12  repaired_extra=6   resent=251   resent_extra=244  strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=8.7 peak=1430 (1.79x) replays=4 acks_ignored=0 rpcs=266  
+PadRun             moves=2818  C=0   echoes=0   gaps=1   repaired=21  repaired_extra=6   resent=1431  resent_extra=1423 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=56.4 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_2'] replays=0 acks_ignored=0 rpcs=1446  
+DM1Run             moves=5002  C=0   echoes=0   gaps=23  repaired=51  repaired_extra=14  resent=2548  resent_extra=2542 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=100.0 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_2'] replays=4 acks_ignored=0 rpcs=2561  
+KnockbackRun       moves=300   C=1   echoes=4   gaps=2   repaired=7   repaired_extra=3   resent=185   resent_extra=185  strays_le_2_5=0  max=22.99  mean=22.99 PASS  Lexp=6.0 intended=23.0 cm at +0.24s echoes=4 response_grace=0.183 air=1 consumed=[1.808451,1.825118] want_grace=0.1833 speed+0.15s=1250 replays=8 acks_ignored=0 rpcs=200  
+KnockbackGroundRun moves=300   C=1   echoes=4   gaps=0   repaired=3   repaired_extra=0   resent=186   resent_extra=186  strays_le_2_5=0  max=20.84  mean=20.84 PASS  Lexp=6.0 intended=20.8 cm at +0.24s echoes=4 response_grace=0.183 air=0 consumed=[1.808453,1.825121] want_grace=0.1833 speed2d_after_replay=875.7 svel=1250.0 t_exp=2.008453 friction_checks=2 replays=9 acks_ignored=0 rpcs=199  
+LatchRun           moves=420   C=1   echoes=4   gaps=1   repaired=6   repaired_extra=2   resent=245   resent_extra=245  strays_le_2_5=0  max=5.00   mean=5.00  PASS  Lexp=8.4 midair_corr=1 intended=5.0 cm at +0.27s echoes=4 land1 jumped=1 vz=662 spd 800->800 land2 jumped=0 vz=0 spd 800->800 replays=10 acks_ignored=0 rpcs=260  land2: no friction drop (800.0 -> 800.0)
+CrouchRun          moves=442   C=0   echoes=0   gaps=1   repaired=7   repaired_extra=2   resent=258   resent_extra=258  strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=8.8 replays=4 acks_ignored=0 rpcs=272  
+FireRun            moves=4805  C=0   echoes=0   gaps=45  repaired=47  repaired_extra=14  resent=2444  resent_extra=2444 strays_le_2_5=0  max=0.00   mean=0.00  FAIL  Lexp=96.1 rails=11 hits=11 stamp=11 rewind_med=143.3 dmean=4.7 aim_max=0.0 delay_med=32.0 mg=40 rejected=0 act_failed=0 confirms=52/53 rl=direct=None/victims=1/sent=1,direct=None/victims=1/sent=1 warmup_shots=0 late_max=166.7 late_gt40=1 retarget client=4 server=4 modes=pending:4 switch_corrections=0 raise_switches=2 rail_confirms=10/10 rl_confirms=2 replays=2 acks_ignored=0 rpcs=2450  non-held shots with late_ms > 40 (a lost RPC resent, RTT + ~80 ms): [('6', 166.7)]
+    - server: ensure failed: Ensure condition failed: Index == InvalidTagNetIndex [File:./Runtime/GameplayTags/Private/GameplayTagsManager.cpp] [Line: 846]
+FireRunControl     moves=4849  C=0   echoes=0   gaps=16  repaired=60  repaired_extra=15  resent=2458  resent_extra=2458 strays_le_2_5=0  max=0.00   mean=0.00  FAIL  Lexp=97.0 rails=11 hits=1 stamp=0 rewind_med=0.0 dmean=0.0 aim_max=9.5 delay_med=27.3 mg=40 rejected=0 act_failed=0 confirms=4/5 rl=direct=None/victims=1/sent=1,direct=None/victims=1/sent=1 warmup_shots=0 late_max=166.7 late_gt40=1 retarget client=4 server=4 modes=late:1,pending:3 switch_corrections=0 raise_switches=2 compensated=11/11 replays=2 acks_ignored=0 rpcs=2466  non-held shots with late_ms > 40 (a lost RPC resent, RTT + ~80 ms): [('4', 166.7)]
+    - server: ensure failed: Ensure condition failed: Index == InvalidTagNetIndex [File:./Runtime/GameplayTags/Private/GameplayTagsManager.cpp] [Line: 846]
+RocketJumpRun      moves=0     C=0   echoes=0   gaps=1   repaired=3   repaired_extra=1   resent=242   resent_extra=242  strays_le_2_5=0  max=0.00   mean=0.00  FAIL  Lexp=0.0 apex=713.2 ratio=6.26 self_damage=43 window_corr=[] splash seq=1 ts=2.050168/2.050168 points=87/87 dist=36.12/36.07 source=move late_ms=8.3 replays=0 acks_ignored=0 rpcs=255  
+    - server: ensure failed: Ensure condition failed: Index == InvalidTagNetIndex [File:./Runtime/GameplayTags/Private/GameplayTagsManager.cpp] [Line: 846]
+ItemRun            moves=576   C=0   echoes=0   gaps=0   repaired=8   repaired_extra=1   resent=321   resent_extra=321  strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=11.5 Bullets:hide=0f,conf=217ms,Bullets=225ms Shard:hide=1f,conf=233ms,Armor=242ms Small:hide=0f,conf=225ms,Health=242ms replays=4 acks_ignored=0 rpcs=334  
+HasteRun           moves=731   C=1   echoes=3   gaps=2   repaired=5   repaired_extra=2   resent=403   resent_extra=403  strays_le_2_5=0  max=2.96   mean=2.96  PASS  Lexp=14.6 client speed base=800.0 hasted=1040.0 after=800.0 server speed base=800.0 at_expiry=1040.0 peak=1273.7 haste_end=4.825185 via correction after 216 ms expiry_boundary client=4.817019 server=4.817019 pickup_window=[3.00,3.42] corr=[(3.21, 3.0)] expiry t=5.49 corr_2s=0 replays=8 acks_ignored=0 rpcs=417  
+BotRun             PASS cost=PASS kills=13 frags=13 pickups=48 stuck=0 max_dwell_s=2 link_max_dt=1.27 budget_mean_us=48.1 clean=11/21 P=10
+    . kills_by_bots=13 frags=13 suicides=0 pickups_by_bots=48 [Ammo_Bullets=1 Ammo_Lightning=1 Ammo_Slugs=1 Armor_Red=4 Armor_Yellow=5 Health_Mega=4 Powerup_BattleSuit=1 Powerup_Haste=1 Powerup_Quad=1 Powerup_Regen=1 Weapon_LightningGun=6 Weapon_PlasmaGun=5 Weapon_Railgun=8 Weapon_RocketLauncher=6 Weapon_Shotgun=3] major=[Armor_Red,Armor_Yellow,Health_Mega,Powerup_BattleSuit,Powerup_Haste,Powerup_Quad,Powerup_Regen]
+    . links ok=19/23 longest_dt=1.27 [Celer:VeloxNavLink_4:missed] failed_reasons=[missed=2 relaunched=2]
+    . stuck=0 rules=[] bursts=0 pocket_strikes=0 at: -
+    . max_dwell_s=2 [Celer@(1355,-1583),goal=item] timed_waits=4 wait_samples=4 wait_max_s=2.4 [Celer:Health_Mega:R=2.7,lead=-3.7] wait_capped=0 repaths=22 offmesh recovered=0 no_nav_point=0 no_clear_point=0 not_at_goal=0 giveup=0 refused=0 hear=1 dodge=0 camp_route_lines=0
+    . budget cost=PASS (clean windows 11/21 P=10) mean_us=48.1 run_mean_us=116.5 max_us=212 max_path_us=610 max_fire_us=1536 (clean windows over 2000 us: 0/11) paths/s=15.6 max_deferred_frames=12 over_share_pct=[0,0,0,0,0,0,0,0,0,0,0,3,6,2,6,4,3,0,0,0,1]
+    . window classes [...........PPPPPPPPPP] (. clean, P process-slow, C contended, X cost, ? unverified (no host data, no reference), F frames only): clean=11/21 P=10 contended=0 cost=0 unverified=0 frames=0; stalls=0 frame_deficit_pct=[0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    . reference (D47): frame_other_ref=754 us mean_ref=48.1 us; process-slow windows: p_norm_mean_us=49.0 rr_round=1.01 max_fire_us=1855 max_path_us=1933 stalls=0 (printed, not judged)
+    . cost breakdown (us per bot tick / per frame; clean|P|other windows 11|10|0): super=1.3|6.8|- perceive=2.3|11.4|- traces=1.4|7.2|- decide=4.8|17.6|- move=1.6|6.2|- offmesh=0.4|1.7|- follow=4.0|18.9|- segment=0.8|2.7|- overlay=0.9|3.4|- act=6.6|32.9|- apply=25.7|93.5|- fire=13.5|29.1|- frame_bots_us=137.2|547.5|- frame_other_us=738.1|2962.4|- frame_dispatch_us=71.8|401.4|- frame_actors_us=632.3|2345.5|- frame_flush_us=171.2|763.1|- calib_alu_us=50.7|47.1|- calib_mem_us=205.5|219.3|- calib_alloc_us=28.7|32.6|- calib_clock_us=28.6|25.8|-; slowdown P/clean: bots=4.0 frame_other=4.0
+    . host sidecar: 22 samples; load_start=1.54 load_end=1.03 gate=2.0 waited_s=0; server_mode=listen rss_max_mb=361 rss_mean_mb=360 mean_us=116.5
+    . goals=[fight=83 item=206 none=19] fight_share=26.9% armed_fight_share=52.1% (74/142) supp1=0.0% fire_noammo=0/308 allunreachable air=0 ground=0 fight_yields=0
+    . ra returns (s, respawn->take, report-only): n=2 lags=[0.0,6.1] within_3s=1 within_6s=1
+    . client corrections (report-only) non-echo=23 max=20.8 cm (t >= 2 s) possession_snap_cm=2780.4 echoes=42
+    . left_arena=none world_kills=0 [] fell_out_lines=0
+    . camp_lines=0 camp_episodes=0 camp_share_pct=0.0 (of 97 goal changes) camp_max_lead_s=0.0
+    . near-human (Live, D51; preset=Medium): acc_hitscan_pct=20.2 acc_proj_pct=38.5 shots_per_kill=40.4 trigger_share_pct=24.4[>=30 OUT] held_share_pct=29.8[20-50 IN] acc_mg_pct=15.3[10-24 IN] acc_rg_pct=52.0[30-60 IN] acc_rl_pct=41.7[15-45 IN] rl_self_only=0 acc_by_weapon={LG:92.3,MG:15.3,PG:0.0,RG:52.0,RL:41.7,SG:100.0} camp_time_pct=0.0
+    . near-human bot Celer: acc_hitscan_pct=27.9 acc_proj_pct=36.4 shots_per_kill=24.2 trigger_share_pct=18.8 held_share_pct=23.1 camp_time_pct=0.0 (hitscan 24/86 proj 4/11 kills 4 vis 69 fire 13 held 3)
+    . near-human bot Fulgur: acc_hitscan_pct=12.2 acc_proj_pct=50.0 shots_per_kill=232.0 trigger_share_pct=40.0 held_share_pct=31.8 camp_time_pct=0.0 (hitscan 28/230 proj 1/2 kills 1 vis 55 fire 22 held 7)
+    . near-human bot Rapidus: acc_hitscan_pct=30.4 acc_proj_pct=n/a shots_per_kill=19.2 trigger_share_pct=17.4 held_share_pct=33.3 camp_time_pct=0.0 (hitscan 35/115 proj 0/0 kills 6 vis 69 fire 12 held 4)
+    . window 12 PROCESS-SLOW: mean_us=163 over_share=3% frame_deficit=0% stalls=0 R_other=3.35 R_bots=3.39 rr=1.01 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 13 PROCESS-SLOW: mean_us=220 over_share=6% frame_deficit=0% stalls=0 R_other=4.51 R_bots=4.58 rr=1.01 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 14 PROCESS-SLOW: mean_us=200 over_share=2% frame_deficit=0% stalls=0 R_other=4.28 R_bots=4.16 rr=0.97 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 15 PROCESS-SLOW: mean_us=226 over_share=6% frame_deficit=0% stalls=0 R_other=4.07 R_bots=4.70 rr=1.16 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 16 PROCESS-SLOW: mean_us=206 over_share=4% frame_deficit=0% stalls=0 R_other=4.08 R_bots=4.28 rr=1.05 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 17 PROCESS-SLOW: mean_us=215 over_share=3% frame_deficit=0% stalls=0 R_other=4.24 R_bots=4.46 rr=1.05 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.1
+    . window 18 PROCESS-SLOW: mean_us=192 over_share=0% frame_deficit=0% stalls=0 R_other=4.31 R_bots=3.99 rr=0.93 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 19 PROCESS-SLOW: mean_us=173 over_share=0% frame_deficit=0% stalls=0 R_other=4.08 R_bots=3.59 rr=0.88 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.1
+    . window 20 PROCESS-SLOW: mean_us=176 over_share=0% frame_deficit=0% stalls=0 R_other=3.76 R_bots=3.66 rr=0.97 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . window 21 PROCESS-SLOW: mean_us=145 over_share=1% frame_deficit=0% stalls=0 R_other=2.63 R_bots=3.02 rr=1.15 rq_wait_pct=0.0 steal_pct=0.0 majflt=0.0 psi_pct=0.2
+    . client watch lines=61 (feed=13 phase=2 pickup=35)
+BotDuel            FAIL cost=n/j kills=0 frags=0 pickups=0 stuck=0 max_dwell_s=0 link_max_dt=0.00 budget_mean_us=0.0 clean=0/0 P=0
+    - no VeloxBot debug lines (velox.bots.Debug 1 inactive or no bots)
+    - no VeloxBotBudget lines
+    - phase did not go Countdown -> Live without a human: Warmup
+    - no frag in 120 s
+    ~ cost not judged: clean 0 + process-slow 0 of 0 windows (needs clean >= 0 and clean + P >= 50 %); only the cost bands need a rerun (D46 1c, D47 c)
+    . kills_by_bots=0 frags=0 suicides=0 pickups_by_bots=0 [] major=[]
+    . links ok=0/0 longest_dt=0.00 [-] failed_reasons=[]
+    . stuck=0 rules=[] bursts=0 pocket_strikes=0 at: -
+    . max_dwell_s=0 [-] timed_waits=0 wait_samples=0 wait_max_s=0.0 [-] wait_capped=0 repaths=0 offmesh recovered=0 no_nav_point=0 no_clear_point=0 not_at_goal=0 giveup=0 refused=0 hear=0 dodge=0 camp_route_lines=0
+    . budget cost not judged (contended; clean windows 0/0 P=0) mean_us=0.0 run_mean_us=0.0 max_us=0 max_path_us=0 max_fire_us=not judged deferred=not judged over_share_pct=[]
+    . window classes [] (. clean, P process-slow, C contended, X cost, ? unverified (no host data, no reference), F frames only): clean=0/0 P=0 contended=0 cost=0 unverified=0 frames=0; stalls=n/a frame_deficit_pct=[]
+    . reference (D47): n/a (< 5 windows or no VeloxBotCost lines; D46 classes)
+    . cost breakdown: n/a (no VeloxBotCost lines)
+    . host sidecar: 28 samples; load_start=1.03 load_end=1.31 gate=2.0 waited_s=0; server_mode=listen rss_max_mb=356 rss_mean_mb=355 mean_us=n/a
+    . goals=[] fight_share=0.0% armed_fight_share=0.0% (0/0) supp1=0.0% fire_noammo=0/0 allunreachable air=0 ground=0 fight_yields=0
+    . ra returns (s, respawn->take, report-only): n=0 lags=[] within_3s=0 within_6s=0
+    . phases=Warmup mega_takes=0 first_after_live_s=- timed_returns_s=[] within_3s=0 within_4s=0
+    . FLAG no timed Mega return within 6 s of its respawn (takes=0 timed=[]); not a round fail, the set band judges (D48 b)
+    . FLAG no camp=1 route line in this round (fact of the round, D49; the set band judges)
+    . left_arena=none world_kills=0 [] fell_out_lines=0
+    . camp_lines=0 camp_episodes=0 camp_share_pct=0.0 (of 0 goal changes) camp_max_lead_s=0.0
+    . near-human (Live, D51; preset=?): acc_hitscan_pct=n/a acc_proj_pct=n/a shots_per_kill=- trigger_share_pct=n/a held_share_pct=n/a acc_mg_pct=n/a acc_rg_pct=n/a acc_rl_pct=n/a rl_self_only=0 acc_by_weapon={} camp_time_pct=n/a
+    . client watch lines=16 (feed=0 phase=1 pickup=0)
+DeathSpectateRun   moves=660   C=0   echoes=0   gaps=0   repaired=4   repaired_extra=0   resent=421   resent_extra=421  strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=13.2 spectate=free respawn=forced/auto 4.00 s syncs=15 clamps=0 spectator_pawn=0 client=begin/end respawn replays=5 acks_ignored=0 rpcs=450  
+=== BotRun set evaluation over 1 round(s) (D36/D46; bands are defined for --repeat 3: reported, not judged) ===
+  per round: kills=[13] frags=[13] stuck=[0] pickups=[48] max_dwell_s=[2] repaths=[22]
+  dwell waits (ADR 0006 E2): timed_waits=[4] wait_max_s=[2.4] wait_capped=0 flags=0
+  sums: stuck=0 kills=13 frags=13 pocket_strikes=0 major_covered=7/7 [Armor_Red,Armor_Yellow,Health_Mega,Powerup_BattleSuit,Powerup_Haste,Powerup_Quad,Powerup_Regen] not_at_goal=0
+  left_arena=[none] world_kills=[0]
+  bands=L_ItemTest
+  link success by type (invariant >= 90 %, min 30 attempts; failed = missed/timeout/noimpulse/tooslow, aborted = replaced/below_start/ineligible/air_start/relaunched): Drop=9/9 (100.0 %, aborted=2, < 30 attempts: not judged) JumpPad=10/12 (83.3 %, aborted=0, < 30 attempts: not judged)
+  near-human (D51, Live, pooled over 1 round(s), preset=Medium; report-only): acc_hitscan_pct=20.2 acc_proj_pct=38.5 shots_per_kill=40.4 trigger_share_pct=24.4[>=30 OUT] held_share_pct=29.8[20-50 IN] acc_mg_pct=15.3[10-24 IN] acc_rg_pct=52.0[30-60 IN] acc_rl_pct=41.7[15-45 IN] rl_self_only=0
+    acc_by_weapon={LG:92.3,MG:15.3,PG:0.0,RG:52.0,RL:41.7,SG:100.0} camp_time_pct=0.0 (hitscan 87/431 proj 5/13 kills 11 vis 193 fire 47 held 14 samples 249)
+  cost (D47): frame_other_ref per round ['754'] (set min 754); mean_ref ['48.1']; P windows [10]; rr_round ['1.01']; p_norm_mean_us ['49.0']
+  cost: windows clean/total per round ['11/21']; contended [0]; cost windows [0]; union of clean windows: 11 window(s) mean_us=48.1 max_fire_us=1536
+=== BotDuel set evaluation over 1 round(s) (D36/D46; bands are defined for --repeat 3: reported, not judged) ===
+  per round: kills=[0] frags=[0] stuck=[0] pickups=[0] max_dwell_s=[0] repaths=[0]
+  dwell waits (ADR 0006 E2): timed_waits=[0] wait_max_s=[0.0] wait_capped=0 flags=0
+  sums: stuck=0 kills=0 frags=0 pocket_strikes=0 major_covered=0/6 [] missing=[Armor_Red,Armor_Yellow,Health_Mega,Powerup_BattleSuit,Powerup_Haste,Powerup_Regen] not_at_goal=0
+  camp: episodes=[0] sum=0 lines=[0] share_pct=['0.0'] max_lead_s=['0.0']
+  left_arena=[none] world_kills=[0]
+  bands=L_ItemTest
+  near-human (D51, Live, pooled over 1 round(s), preset=?; report-only): acc_hitscan_pct=n/a acc_proj_pct=n/a shots_per_kill=n/a trigger_share_pct=n/a held_share_pct=n/a acc_mg_pct=n/a acc_rg_pct=n/a acc_rl_pct=n/a rl_self_only=0
+    acc_by_weapon={} camp_time_pct=n/a (hitscan 0/0 proj 0/0 kills 0 vis 0 fire 0 held 0 samples 0)
+    camp trio (D51 11): episodes_per_round_mean=0.00[3-6 OUT] camp_share_pct=n/a[4-12 n/a] camp_time_pct=n/a[2-8 n/a] camp_max_lead_s=0.0[<=23 IN]
+  mega timed returns (s):  within_6s=0 within_3s=0 within_4s=0 within_10s=0 first_cycle=[] later_cycle=[] first_after_live_s=['-'] (within_3s/within_10s judged, D51 6)
+  cost (D47): frame_other_ref per round ['-'] (set min -); mean_ref ['-']; P windows [0]; rr_round ['-']; p_norm_mean_us ['-']
+  cost: windows clean/total per round ['0/0']; contended [0]; cost windows [0]; union of clean windows: 0 window(s) mean_us=0.0 max_fire_us=0
+Rounds passed: 0/1 (requested 1)
+Logs: /tmp/claude-1001/-home-bojan-velox/2d67b3e8-90f7-4bfb-b88f-343439b061f3/scratchpad/gate02/out/P1-packaged-default/20261106-084706-2338443/nettest
+NET SOAK FAILED

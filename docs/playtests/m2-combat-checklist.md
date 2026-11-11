@@ -104,7 +104,7 @@ Anything else / bugs (with item number):
 
 ```
 M2-09 human playtest (<date>, <name>)
-Build: infra/ci/build-mac.sh -> CI OK (Mac, UE 5.8.x, <Apple Silicon|Intel>)
+Build: infra/ci/build-mac.sh -> CI OK (Mac, UE 5.8.x, Apple Silicon Mac (Mac Studio))
 Setup: PIE, dedicated server + 2 clients, Run Under One Process on, 100 ms / 2 % (<both ways|outgoing only>), map <L_CombatTest|L_MovementTest>
 Weapons MG/SG/RL/LG/RG/PG work vs dummy: <y/n x6>    vs player: <y/n>    LagComp hits 1/0: <n>/<n> of 10
 Armor/damage table: <y/n>    Rocket jump apex: <n> cm, HUD corrections: <n>, snap at launch/landing: <none|describe>
