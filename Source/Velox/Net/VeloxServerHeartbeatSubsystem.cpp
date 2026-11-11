@@ -10,6 +10,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
+#include "GameModes/VeloxGameMode.h"
 #include "GameModes/VeloxGameModeDefinition.h"
 #include "GameModes/VeloxGameState.h"
 #include "HAL/PlatformTime.h"
@@ -239,7 +240,8 @@ bool UVeloxServerHeartbeatSubsystem::BuildSnapshot(const UWorld* World, FVeloxSe
 	}
 	Out.Version = FNetworkVersion::GetProjectVersion();
 	Out.NetVersion = FNetworkVersion::GetLocalNetworkVersion();
-	Out.bPassword = false; // Task 07 sets it.
+	const AVeloxGameMode* GameMode = World->GetAuthGameMode<AVeloxGameMode>();
+	Out.bPassword = GameMode && GameMode->HasServerPassword(); // ADR 0007 section 5.2 / F1.4
 	return true;
 }
 

@@ -495,7 +495,7 @@ for probe, log, rc, rpc in (("exec", exec_log, exec_rc, "ServerExecRPC"), ("kill
     if rc != "0":
         fails.append("%s: client exit code %s" % (probe, rc))
     sent = any(("VeloxRpcGate probe=%s sent" % probe) in l for l in C)
-    res = next((l for l in reversed(C) if ("VeloxRpcGate probe=%s result=" % probe) in l) < 600.0), None)
+    res = next((l for l in reversed(C) if ("VeloxRpcGate probe=%s result=" % probe) in l), None)
     if not sent:
         fails.append("%s: the probe never sent the RPC" % probe)
     if res is None:

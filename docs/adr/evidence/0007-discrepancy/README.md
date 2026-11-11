@@ -103,3 +103,40 @@ Two server-side losses, both outside F1.1's model:
    15 resolutions.
 
 Neither loss reaches honest players: they never enter resolution (0 lines over every honest set).
+
+## 2026-11-11 F1.4
+
+Re-run with the committed analyzer (`nettest.sh` `analyze_round`, window rule as committed in `76e448a`), one round each, editor
+binary as dedicated server, 100 ms one way / 2 % loss, soak lock, `DriftAllowance` 0.005. Build: `wip/m6-07-hardening` after the
+merge of `origin/m6-online` (02b tag hash in the net version, 05). Load average at set start 1.82 / 1.78 / 2.20 (rounds started at
+load1 1.82, 1.31, 1.04; `VELOX_LOAD_GATE=3.2` was set for this set because of a foreign load that ended while it ran). Logs under
+`Saved/CI/` of the task-07 worktree.
+
+| client scale | detection | dx_server | / honest (server) | dx_client | VeloxTimeDiscrepancy | non-echo corrections | logs |
+|---|---|---|---|---|---|---|---|
+| 1.0 (honest) | on | 1997.1 cm | - | 2000.0 cm | 0 | 0 | `20261111-095318-4185655` |
+| 1.3 | on | 1549.2 cm | **0.776** | 1562.4 cm | 14 | 18 (C=63, echoes 45) | `20261111-095405-4187772` |
+| 1.3 | off | 2604.4 cm | **1.304** | 2600.0 cm | 0 | 0 | `20261111-095445-4189598` |
+
+**Against F1.4 ("no gain"):** detection on: `dx_server(1.3x)` = 0.776 x honest, inside [0.5, 1.05] (met; expected ~0.8x);
+`dx_client(1.3x)` 1562.4 <= 2000.0 (met); 14 `VeloxTimeDiscrepancy` lines >= 5 (met). Detection off: 1.304 x honest >= 1.2 (met;
+the `-ini:` override works and the hack is real). **PASS.** Same shape as the 2026-11-06 rows (0.795 / 0.766 / 1.297, 15 lines).
+
+### Full default list, detection on, `DriftAllowance` 0.005 (`--repeat 1 --keep-going`, idle host)
+
+Set start 2026-11-11 10:04, loadavg 1.62 / 1.77 / 1.95 (foreign load gone; default load gate 2.0, every round started below it).
+Logs `20261111-100423-21705`.
+
+| result | scripts |
+|---|---|
+| PASS (15) | StrafeRun, PadRun, DM1Run, KnockbackRun (22.99 cm, intended 23.0), KnockbackGroundRun, LatchRun, CrouchRun, FireRun (11/11/11), FireRunControl, RocketJumpRun (0 non-echo corrections), ItemRun, HasteRun, BotDuel, DeathSpectateRun, PasswordRun |
+| no result | RpcGateRun: analyzer `SyntaxError` (a stray `< 600.0)` pasted into the result lookup in `76e448a`); fixed; rerun PASS (`20261111-102923-89421`, exec_dt 0.050, kill_dt 0.033) |
+| cost FAIL | BotRun: behaviour in band (kills 14, pickups 53, stuck 0); 8 X windows on a round with `frame_other_ref` 2565 us (BotDuel same set: 714) |
+
+BotRun/BotDuel x3 (`20261111-103001-91360`, set start loadavg 1.65 / 1.60 / 1.81): **BotRun set PASS** (round 1 again
+slow throughout, `frame_other_ref` 2501 vs 900/854, labelled D47 d by the set evaluation; cost PASS on rounds 2-3).
+**BotDuel**: cost PASS; behaviour FAIL only on JumpPad 30/34 = 88.2 %, every failure `reason=missed` on `VeloxNavLink_0`/`_4`
+(2 each) - recorded per ADR 0007 F2 (i) as "behaviour PASS (JumpPad near-threshold, F2 item)".
+
+`VeloxTimeDiscrepancy` lines for honest clients: **0** over all 17 default-list server logs, the RpcGateRun rerun and the 6
+bot-set server logs.

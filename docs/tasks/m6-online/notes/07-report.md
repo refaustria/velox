@@ -122,3 +122,47 @@ with `origin/m6-online` (01b, 02 part A, 04b; one trivial conflict in `nettest.s
    It needs one line, `bPassword` from `AVeloxGameMode::HasServerPassword()`. Not done, because it could not be compiled
    (no new builds).
 5. Carried over: menu password field (Core/, task 05).
+
+# Update 2026-11-11 (dev-hard): ADR 0007 F1.4 checklist - task done
+
+## Merge
+`origin/m6-online` (02b: tag hash folded into the net version, StateTree disabled, nettest taghash compare; 05 server browser)
+merged into `wip/m6-07-hardening`. Two text conflicts:
+- `docs/adr/0007-online.md` Amendments: both sides added an "F1". Kept both, m6-online's list (F1 proxy stamps, F2 gate/B1/server
+  path) first, then this task's "F1 - task 07 rulings" (F1.1-F1.4). **Numbering collision left for the architect:** two different
+  "F1"s now stand in the ADR; task 07's is referenced as F1.1-F1.4 in code comments, nettest and this task, so it was not renamed.
+- `docs/tasks/m6-online/06-deploy-systemd-firewall.md` `run-server.sh` criterion: took this branch's text (m6-online's plus the F1.3
+  note that `VELOX_SERVER_PASSWORD` is never turned into `-ServerPassword=`).
+
+## Done
+- Heartbeat: `UVeloxServerHeartbeatSubsystem::BuildSnapshot` sets `Out.bPassword` from
+  `World->GetAuthGameMode<AVeloxGameMode>()->HasServerPassword()` (false when the auth game mode is not a Velox one).
+- Bug fixed in `infra/ci/nettest.sh` `run_rpc_gate`: commit `76e448a` had pasted `< 600.0)` (the SpeedHackRun window cap) into
+  the RpcGateRun result lookup, a Python `SyntaxError`, so RpcGateRun produced no result. The 2026-11-06 RpcGateRun x3 rows were run
+  before that edit. All three embedded analyzers now compile.
+
+## Verification
+- Builds: VeloxEditor + Velox (Game) Development via `infra/ci/build.sh --targets VeloxEditor,Velox`: Succeeded; automation
+  **136/136** pass (`Saved/CI/20261111-094022-4151732`). Server/Client targets: SKIPPED (installed engine, as before). Map audit
+  `RESULT PASS` (L_DM1 lighting NOT BAKED, pre-existing M5 human item).
+- Speed hack, judged against **ADR 0007 F1.4**: "with detection on, `dx_server(1.3x) <= 1.05 x dx_server(honest)` and
+  `>= 0.5 x dx_server(honest)` (expected ~0.8x), `dx_client(1.3x) <= dx_client(honest)`, >= 5 `VeloxTimeDiscrepancy` lines; with
+  detection off `dx_server(1.3x) >= 1.2 x dx_server(honest)`".
+
+  | client scale | detection | dx_server | / honest | dx_client | VeloxTimeDiscrepancy |
+  |---|---|---|---|---|---|
+  | 1.0 | on | 1997.1 cm | - | 2000.0 cm | 0 |
+  | 1.3 | on | 1549.2 cm | 0.776 | 1562.4 cm | 14 |
+  | 1.3 | off | 2604.4 cm | 1.304 | 2600.0 cm | 0 |
+
+  **Met** (evidence README "2026-11-11 F1.4").
+- Full default list `--repeat 1` (idle host, loadavg 1.62 at set start): 15/17 PASS; RpcGateRun no result (analyzer bug above,
+  rerun PASS); BotRun cost FAIL on a slow-throughout round (frame_other_ref 2565 us). BotRun/BotDuel x3: BotRun set PASS (round 1
+  D47 d); BotDuel cost PASS, behaviour PASS (JumpPad near-threshold, F2 item: 30/34, all 4 failures `reason=missed` on
+  `VeloxNavLink_0`/`_4`). `VeloxTimeDiscrepancy` = 0 over every honest server log.
+
+## Open
+- ADR 0007 has two "F1" amendments after the merge (architect to renumber or annotate).
+- BotRun's first round after a fresh server is slow throughout in both sets today (frame_other_ref ~2.5 ms vs ~0.9 ms); the set
+  evaluation handles it (D47 d), nothing in this task touches bots. Same L_ItemTest JumpPad 0/4 item as F2 (i).
+- Carried over: menu password field (Core/, task 05).
