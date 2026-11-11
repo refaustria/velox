@@ -545,6 +545,14 @@ for probe, log, rc, rpc in (("exec", exec_log, exec_rc, "ServerExecRPC"), ("kill
     if not validate:
         fails.append("%s: no engine 'RPC_GetLastFailedReason: %s_Validate' line" % (probe, rpc))
     detail.append("%s_refused=%d %s_validate_failed=%d" % (probe, len(refused), probe, len(validate)))
+# ADR 0007 section 5.4 (task m6-online/09): every refused client's anomaly summary (at=logout) shows rpc_refused >= 1.
+an = [l.split("VeloxAnomaly ", 1)[1].strip() for l in S if "VeloxAnomaly at=" in l]
+an_refused = [a for a in an if int((re.search(r"\brpc_refused=(\d+)", a) or [0, 0])[1]) >= 1]
+detail.append("anomaly_lines=%d anomaly_rpc_refused=%d" % (len(an), len(an_refused)))
+for a in an:
+    print("[RpcGateRun] VeloxAnomaly " + a)
+if len(an_refused) < 2:
+    fails.append("expected 2 VeloxAnomaly lines with rpc_refused>=1 (one per refused client), got %d" % len(an_refused))
 if any("VeloxNetSoak event=kill_server" in l for l in S):
     fails.append("kill: the server executed ServerKillSelfTest")
 joins = sum(1 for l in S if "Join succeeded" in l)
@@ -755,6 +763,53 @@ if _tag_s and _tag_c:
         fails.append("gameplay tag table differs: server taghash=%s tags=%s, client taghash=%s tags=%s (B1)" % (_ts.group(1), _ts.group(2), _tc.group(1), _tc.group(2)))
 else:
     fails.append("no 'VeloxNet netversion=' line in the %s log (binary older than task m6-online/02b?)" % ("server" if not _tag_s else "client"))
+# ADR 0007 section 5.4 (task m6-online/09): per-player anomaly counters. The server prints "VeloxAnomaly at=interval|logout|shutdown
+# pid=<id> shots=n(+d) ... player=<name>" (player last: names may contain spaces, rows are matched by pid=). The last line per pid
+# is that player's summary. Honest combat rounds: snaps, orphans and rpc_refused are 0 for every client. late_retargets is
+# reported, not failed: B42 accepts mode=late within the resend tolerance and an honest 50 ms / 2 % client produces one now
+# and then (task 09 report); its count must equal the server's mode=late lines. SpeedHackRun: the counted discrepancies equal
+# the VeloxTimeDiscrepancy lines. The hold rows (FireRunHold, RocketJumpRunHold) report their counters.
+def anomaly_rows(lines):
+    rows = {}
+    for l in lines:
+        if "VeloxAnomaly at=" not in l:
+            continue
+        body = "VeloxAnomaly " + l.split("VeloxAnomaly ", 1)[1].rstrip()
+        head, _, player = body.partition(" player=")
+        m = re.search(r"\bat=(\w+) pid=(-?\d+)", head)
+        if not m:
+            continue
+        d = {k: int(v) for k, v in re.findall(r"(\w+)=(-?\d+)\(\+-?\d+\)", head)}
+        rj = re.search(r"rejects\{([^}]*)\}", head)
+        d["rejects"] = {k: int(v) for k, v in re.findall(r"(\w+):(\d+)\(\+\d+\)", rj.group(1))} if rj else {}
+        d["at"], d["pid"], d["player"] = m.group(1), int(m.group(2)), player
+        for k in ("late_share", "reject_share"):
+            mm = re.search(r"\b%s=([\d.]+)" % k, head)
+            d[k] = float(mm.group(1)) if mm else 0.0
+        d["line"] = body
+        rows[d["pid"]] = d
+    return rows
+anomaly = anomaly_rows(S)
+for _pid, _d in sorted(anomaly.items()):
+    notes.append(_d["line"])
+if script in ("FireRun", "FireRunControl", "RocketJumpRun", "PlasmaRun"):
+    if not anomaly:
+        fails.append("no VeloxAnomaly line on the server (the client fired: its logout line must exist, task m6-online/09)")
+    for _pid, _d in sorted(anomaly.items()):
+        for _k in ("snaps", "orphans", "rpc_refused"):
+            if _d.get(_k, 0) > 0:
+                fails.append("honest client pid=%d: VeloxAnomaly %s=%d (want 0, ADR 0007 section 5.4)" % (_pid, _k, _d[_k]))
+        if _d.get("shots", 0) <= 0:
+            fails.append("honest client pid=%d: VeloxAnomaly shots=0 (the accepted shots were not counted)" % _pid)
+if script in ("FireRun", "FireRunControl", "FireRunHold", "RocketJumpRun", "RocketJumpRunHold", "PlasmaRun"):
+    _late_lines = sum(1 for l in S if "VeloxWeaponSwitch retarget" in l and " mode=late " in l)
+    _late_counted = sum(_d.get("late_retargets", 0) for _d in anomaly.values())
+    if _late_counted != _late_lines:
+        fails.append("VeloxAnomaly late_retargets=%d != %d server 'retarget ... mode=late' lines" % (_late_counted, _late_lines))
+if script == "SpeedHackRun":
+    _counted = sum(_d.get("discrepancies", 0) for _d in anomaly.values())
+    if disc and _counted != len(disc):
+        fails.append("VeloxAnomaly discrepancies=%d != %d VeloxTimeDiscrepancy lines" % (_counted, len(disc)))
 if not server_alive:
     fails.append("server process died during the run")
 if crc != 0:

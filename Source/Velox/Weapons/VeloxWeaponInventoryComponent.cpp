@@ -931,6 +931,7 @@ double UVeloxWeaponInventoryComponent::GetMoveShotOrphanSeconds() const
 void UVeloxWeaponInventoryComponent::NoteMoveShotOrphan(const FVeloxMoveShotRecord& Record, const TCHAR* Why)
 {
 	++NumMoveShotOrphans;
+	AVeloxPlayerState::NoteAnomalyFor(GetOwner(), EVeloxAnomaly::MoveShotOrphan); // ADR 0007 section 5.4
 	const UWorld* World = GetWorld();
 	const double Now = World ? World->GetTimeSeconds() : 0.0;
 	// B35 asks for Verbose; the first lines per second go to Log through the rejection throttle so the soaks can count them.
@@ -1038,6 +1039,7 @@ void UVeloxWeaponInventoryComponent::HandleServerMoveShot(const FVeloxMoveShot& 
 	if (StampResult == EVeloxFireStampClamp::Clamped)
 	{
 		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotTimeClamp seq=%u client_ts=%.6f last_ts=%.6f clamped_ts=%.6f source=move"), Shot.ShotSeq, Shot.FireMoveTimeStamp, MoveStart, FireStamp);
+		AVeloxPlayerState::NoteAnomalyFor(GetOwner(), EVeloxAnomaly::TimeClamp); // ADR 0007 section 5.4
 	}
 	else if (StampResult == EVeloxFireStampClamp::Reset)
 	{
@@ -1052,6 +1054,7 @@ void UVeloxWeaponInventoryComponent::HandleServerMoveShot(const FVeloxMoveShot& 
 	{
 		UE_LOG(LogVeloxCombat, Log, TEXT("VeloxShotOriginSnap seq=%u shooter=%s err_cm=%.1f reason=%s source=move late_ms=0.0"), Shot.ShotSeq, *GetNameSafe(Pawn),
 			FVector::Dist(ClientOrigin, Origin), SnapReason);
+		AVeloxPlayerState::NoteAnomalyFor(GetOwner(), EVeloxAnomaly::OriginSnap); // ADR 0007 section 5.4
 	}
 	// (6) Exactly what the predicting client schedules: world-only flight from the quantized shot, Quad from the move
 	// timeline at the fire stamp (ADR 0004 section 3).

@@ -224,6 +224,7 @@ void UVeloxGameplayAbility_FireHitscan::Reject(uint8 ShotSeq, const TCHAR* Reaso
 	const UWorld* World = GetWorld();
 	const bool bLog = !Inventory || !World || Inventory->ShouldLogRejectionAtLog(World->GetTimeSeconds());
 	const FString Line = FString::Printf(TEXT("VeloxShotRejected seq=%u shooter=%s weapon=%s reason=%s"), ShotSeq, *GetNameSafe(GetShooterPawn()), *GetNameSafe(GetCurrentDefinition()), Reason);
+	AVeloxPlayerState::NoteAnomalyFor(CurrentActorInfo ? CurrentActorInfo->OwnerActor.Get() : nullptr, EVeloxAnomaly::Reject, 1, FName(Reason)); // ADR 0007 section 5.4
 	if (bLog)
 	{
 		UE_LOG(LogVeloxCombat, Log, TEXT("%s"), *Line);
@@ -290,6 +291,7 @@ void UVeloxGameplayAbility_FireHitscan::OnServerTargetData(const FGameplayAbilit
 			ResolveServerShot(*Definition, Shot);
 			// B37: no NextFireTime carry on receive time; the switch's refire wait reads this instead.
 			NoteAcceptedRemoteShot(Now);
+			AVeloxPlayerState::NoteAnomalyFor(CurrentActorInfo ? CurrentActorInfo->OwnerActor.Get() : nullptr, EVeloxAnomaly::Shot); // ADR 0007 section 5.4
 		}
 	}
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, false);
@@ -307,6 +309,7 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 	if (!ASC || !World || !LagComp)
 	{
 		UE_LOG(LogVeloxCombat, Warning, TEXT("VeloxShotRejected seq=%u shooter=%s reason=no_lag_compensation"), Shot.ShotSeq, *GetNameSafe(Shooter));
+		AVeloxPlayerState::NoteAnomalyFor(Shooter, EVeloxAnomaly::Reject, 1, TEXT("no_lag_compensation")); // ADR 0007 section 5.4
 		LastServerShot.bRejected = true;
 		return;
 	}
@@ -339,6 +342,10 @@ void UVeloxGameplayAbility_FireHitscan::ResolveServerShot(const UVeloxWeaponDefi
 	// Step 3.
 	FVeloxShotResult Result;
 	LagComp->TraceShot(Request, Result);
+	if (Result.bOriginSnapped) // the subsystem logged VeloxShotOriginSnap (ADR 0007 section 5.4: counted here, the subsystem is not touched)
+	{
+		AVeloxPlayerState::NoteAnomalyFor(Shooter, EVeloxAnomaly::OriginSnap);
+	}
 
 	// Step 4: one damage spec per victim, nearest first; a victim killed earlier in the list still gets its hit applied.
 	// ADR 0004 section 3: Quad at fire, from the shooter ASC's tag on the server (Q3 s_quadFactor).

@@ -15,6 +15,12 @@
 //                                   velox.net.AllowTestRpcs 0 refuses a test RPC, 1 accepts it.
 //   Velox.Net.NameApply             game world: AVeloxGameMode::ChangeName sanitizes a human's name and dedupes it against the
 //                                   other PlayerStates; an AI controller's name is untouched.
+//   Velox.Net.AnomalyFormat         world-free VeloxAnomaly::FormatLine (ADR 0007 section 5.4, task 09): key order, cumulative
+//                                   values with deltas, rejects{reason:n(+d),...} in first-seen order, 2-decimal shares,
+//                                   rtt, exceeds= only when non-empty, player= last (spaces kept); Note/SameCounters/HasAnyCounter.
+//   Velox.Net.AnomalyRates          world-free VeloxAnomaly::Rates (late_share = late / max(switches,1), reject_share =
+//                                   rejects / max(shots,1)) and Exceeds: nothing with the default (0) thresholds even for a
+//                                   blatant cheater, the names for non-zero thresholds, strict ">" and the min-sample gates.
 // The network kick itself (RPC_ValidateFailed -> connection closed) and PreLogin's rejection are proven by nettest RpcGateRun /
 // PasswordRun; a unit row cannot open a connection.
 
@@ -35,6 +41,7 @@
 #include "GameModes/VeloxPlayerState.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ScopeExit.h"
+#include "Net/VeloxAnomalyStats.h"
 #include "Net/VeloxNames.h"
 #include "Net/VeloxNetCheats.h"
 
@@ -336,6 +343,141 @@ bool FVeloxNetNameApplyTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("AI controller name untouched (bots are project data)"), AI->PlayerState->GetPlayerName(), BotName);
 		}
 	}
+	return true;
+}
+
+// ---- ADR 0007 section 5.4 (task 09): anomaly counters -------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxNetAnomalyFormatTest, "Velox.Net.AnomalyFormat", VeloxNetTest::Flags)
+
+bool FVeloxNetAnomalyFormatTest::RunTest(const FString& Parameters)
+{
+	FVeloxPlayerAnomalyStats Empty;
+	TestFalse(TEXT("fresh stats have no counter"), Empty.HasAnyCounter());
+	FVeloxPlayerAnomalyStats RttOnly;
+	RttOnly.RttMs = 250.f;
+	TestFalse(TEXT("rtt is not a counter"), RttOnly.HasAnyCounter());
+	TestTrue(TEXT("rtt is ignored by SameCounters"), RttOnly.SameCounters(Empty));
+
+	TestEqual(TEXT("all-zero line"), VeloxAnomaly::FormatLine(Empty, TEXT("Player"), 0, Empty, TEXT("logout")),
+		FString(TEXT("VeloxAnomaly at=logout pid=0 shots=0(+0) switches=0(+0) rejects{} snaps=0(+0) clamps=0(+0) late_retargets=0(+0) fresh_retargets=0(+0) "
+			"orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00 reject_share=0.00 rtt_ms=0 player=Player")));
+
+	FVeloxPlayerAnomalyStats Prev;
+	Prev.Note(EVeloxAnomaly::Shot, 8);
+	Prev.Note(EVeloxAnomaly::Switch, 2);
+	Prev.Note(EVeloxAnomaly::Reject, 1, TEXT("type"));
+	FVeloxPlayerAnomalyStats Now = Prev;
+	TestTrue(TEXT("a copy has the same counters"), Now.SameCounters(Prev));
+	Now.Note(EVeloxAnomaly::Shot, 4);
+	Now.Note(EVeloxAnomaly::Switch);
+	Now.Note(EVeloxAnomaly::Reject, 2, TEXT("rate"));
+	Now.Note(EVeloxAnomaly::Reject, 1, NAME_None);
+	Now.Note(EVeloxAnomaly::OriginSnap);
+	Now.Note(EVeloxAnomaly::TimeClamp, 2);
+	Now.Note(EVeloxAnomaly::LateRetarget);
+	Now.Note(EVeloxAnomaly::FreshRetarget);
+	Now.Note(EVeloxAnomaly::MoveShotOrphan);
+	Now.Note(EVeloxAnomaly::RpcRefused);
+	Now.Note(EVeloxAnomaly::Discrepancy, 5);
+	Now.RttMs = 209.6f;
+	TestFalse(TEXT("changed counters differ"), Now.SameCounters(Prev));
+	TestTrue(TEXT("changed stats have counters"), Now.HasAnyCounter());
+	TestEqual(TEXT("rejects total"), Now.GetRejects(), 4);
+	TestEqual(TEXT("rejects rate"), Now.GetRejects(TEXT("rate")), 2);
+	TestEqual(TEXT("NAME_None counts as unknown"), Now.GetRejects(TEXT("unknown")), 1);
+	TestEqual(TEXT("no inline overflow for the known reasons"), Now.Rejects.Num(), 3);
+
+	TArray<FName> Exceeded;
+	Exceeded.Add(TEXT("snaps"));
+	Exceeded.Add(TEXT("discrepancies"));
+	TestEqual(TEXT("full line"), VeloxAnomaly::FormatLine(Now, TEXT("Big Bad Wolf"), 7, Prev, TEXT("interval"), Exceeded),
+		FString(TEXT("VeloxAnomaly at=interval pid=7 shots=12(+4) switches=3(+1) rejects{type:1(+0),rate:2(+2),unknown:1(+1)} snaps=1(+1) clamps=2(+2) "
+			"late_retargets=1(+1) fresh_retargets=1(+1) orphans=1(+1) rpc_refused=1(+1) discrepancies=5(+5) late_share=0.33 reject_share=0.33 rtt_ms=210 "
+			"exceeds=snaps,discrepancies player=Big Bad Wolf")));
+
+	// The same reason twice: one entry, the sum (reject-reason SameCounters is order-independent).
+	FVeloxPlayerAnomalyStats A, B;
+	A.Note(EVeloxAnomaly::Reject, 1, TEXT("rate"));
+	A.Note(EVeloxAnomaly::Reject, 1, TEXT("dir"));
+	B.Note(EVeloxAnomaly::Reject, 1, TEXT("dir"));
+	B.Note(EVeloxAnomaly::Reject, 1, TEXT("rate"));
+	TestTrue(TEXT("reject order does not matter for SameCounters"), A.SameCounters(B));
+	A.Note(EVeloxAnomaly::Reject, 1, TEXT("rate"));
+	TestEqual(TEXT("one entry per reason"), A.Rejects.Num(), 2);
+	TestFalse(TEXT("different reject counts differ"), A.SameCounters(B));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxNetAnomalyRatesTest, "Velox.Net.AnomalyRates", VeloxNetTest::Flags)
+
+bool FVeloxNetAnomalyRatesTest::RunTest(const FString& Parameters)
+{
+	FVeloxPlayerAnomalyStats Zero;
+	VeloxAnomaly::FRates R = VeloxAnomaly::Rates(Zero);
+	TestEqual(TEXT("no switches: late_share 0"), R.LateShare, 0.f);
+	TestEqual(TEXT("no shots: reject_share 0"), R.RejectShare, 0.f);
+
+	// Denominators are max(n, 1): a client that only sends rejected shots / late retargets still gets a finite share.
+	FVeloxPlayerAnomalyStats NoDenominator;
+	NoDenominator.Note(EVeloxAnomaly::Reject, 3, TEXT("rate"));
+	NoDenominator.Note(EVeloxAnomaly::LateRetarget, 2);
+	R = VeloxAnomaly::Rates(NoDenominator);
+	TestEqual(TEXT("late / max(0,1)"), R.LateShare, 2.f);
+	TestEqual(TEXT("rejects / max(0,1)"), R.RejectShare, 3.f);
+
+	FVeloxPlayerAnomalyStats Cheater;
+	Cheater.Note(EVeloxAnomaly::Switch, 40);
+	Cheater.Note(EVeloxAnomaly::LateRetarget, 30);
+	Cheater.Note(EVeloxAnomaly::Shot, 100);
+	Cheater.Note(EVeloxAnomaly::Reject, 50, TEXT("rate"));
+	Cheater.Note(EVeloxAnomaly::OriginSnap, 9);
+	Cheater.Note(EVeloxAnomaly::TimeClamp, 9);
+	Cheater.Note(EVeloxAnomaly::MoveShotOrphan, 9);
+	Cheater.Note(EVeloxAnomaly::RpcRefused, 9);
+	Cheater.Note(EVeloxAnomaly::Discrepancy, 9);
+	R = VeloxAnomaly::Rates(Cheater);
+	TestEqual(TEXT("late_share 30/40"), R.LateShare, 0.75f);
+	TestEqual(TEXT("reject_share 50/100"), R.RejectShare, 0.5f);
+
+	const FVeloxAnomalyThresholds Defaults;
+	TestEqual(TEXT("M6 defaults: nothing exceeded (log only, no kick)"), VeloxAnomaly::Exceeds(Cheater, Defaults).Num(), 0);
+
+	FVeloxAnomalyThresholds T;
+	T.MaxLateShare = 0.2f;
+	T.MaxRejectShare = 0.1f;
+	T.MaxOriginSnaps = 8;
+	T.MaxTimeClamps = 9;      // equal is not exceeded
+	T.MaxMoveShotOrphans = 1;
+	T.MaxRpcRefused = 0;      // disabled
+	T.MaxDiscrepancies = 5;
+	const TArray<FName> Names = VeloxAnomaly::Exceeds(Cheater, T);
+	TArray<FName> Expected;
+	for (const TCHAR* N : { TEXT("late_share"), TEXT("reject_share"), TEXT("snaps"), TEXT("orphans"), TEXT("discrepancies") })
+	{
+		Expected.Add(N);
+	}
+	TestTrue(FString::Printf(TEXT("exceeded names, in order (got %d)"), Names.Num()), Names == Expected);
+
+	// The min-sample gates (ADR 0007 M7 trigger: > 20 % over >= 20 switches).
+	FVeloxPlayerAnomalyStats Few;
+	Few.Note(EVeloxAnomaly::Switch, 19);
+	Few.Note(EVeloxAnomaly::LateRetarget, 19);
+	Few.Note(EVeloxAnomaly::Shot, 19);
+	Few.Note(EVeloxAnomaly::Reject, 19, TEXT("rate"));
+	TestEqual(TEXT("below the min samples: not exceeded"), VeloxAnomaly::Exceeds(Few, T).Num(), 0);
+	Few.Note(EVeloxAnomaly::Switch);
+	Few.Note(EVeloxAnomaly::Shot);
+	TestEqual(TEXT("at the min samples: both shares exceeded"), VeloxAnomaly::Exceeds(Few, T).Num(), 2);
+
+	// An honest player at the ping limit: one late retarget in 30 switches, two rate rejects in 200 shots.
+	FVeloxPlayerAnomalyStats Honest;
+	Honest.Note(EVeloxAnomaly::Switch, 30);
+	Honest.Note(EVeloxAnomaly::LateRetarget, 1);
+	Honest.Note(EVeloxAnomaly::Shot, 200);
+	Honest.Note(EVeloxAnomaly::Reject, 2, TEXT("rate"));
+	TestEqual(TEXT("honest at the ping limit: nothing exceeded with the M7 trigger values"), VeloxAnomaly::Exceeds(Honest, T).Num(), 0);
+	TestTrue(TEXT("honest line shows 0.03 / 0.01"), VeloxAnomaly::FormatLine(Honest, TEXT("H"), 1, FVeloxPlayerAnomalyStats(), TEXT("logout")).Contains(TEXT("late_share=0.03 reject_share=0.01")));
 	return true;
 }
 

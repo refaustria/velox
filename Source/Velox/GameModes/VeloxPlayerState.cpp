@@ -14,6 +14,8 @@
 #include "Core/VeloxPawnData.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/Controller.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameModes/VeloxGameMode.h"
 #include "HAL/IConsoleManager.h"
@@ -412,4 +414,37 @@ FString AVeloxPlayerState::VeloxPlayerLabel(const APlayerState* PlayerState)
 	}
 	const FString Name = PlayerState->GetPlayerName();
 	return Name.IsEmpty() ? PlayerState->GetName() : Name;
+}
+
+void AVeloxPlayerState::NoteAnomaly(EVeloxAnomaly Kind, int32 Count, FName Reason)
+{
+	if (HasAuthority())
+	{
+		AnomalyStats.Note(Kind, Count, Reason);
+	}
+}
+
+void AVeloxPlayerState::NoteAnomalyFor(const AActor* Actor, EVeloxAnomaly Kind, int32 Count, FName Reason)
+{
+	// The PlayerState itself (abilities' OwnerActor, the inventory's owner), a pawn or a controller.
+	for (int32 Hop = 0; Actor && Hop < 3; ++Hop)
+	{
+		if (const AVeloxPlayerState* PS = Cast<AVeloxPlayerState>(Actor))
+		{
+			const_cast<AVeloxPlayerState*>(PS)->NoteAnomaly(Kind, Count, Reason);
+			return;
+		}
+		if (const APawn* Pawn = Cast<APawn>(Actor))
+		{
+			Actor = Pawn->GetPlayerState();
+		}
+		else if (const AController* Controller = Cast<AController>(Actor))
+		{
+			Actor = Controller->PlayerState;
+		}
+		else
+		{
+			Actor = Actor->GetOwner();
+		}
+	}
 }
