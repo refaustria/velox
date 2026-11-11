@@ -1,0 +1,3 @@
+load_start=1.89 gate=2.0 gate_waited_s=114 gate_timeout=0
+load_end=3.39
+server_mode=listen rss_max_kb=364632 rss_mean_kb=363893 rss_last_kb=364632 rss_samples=13
