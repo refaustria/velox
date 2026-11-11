@@ -1,0 +1,1 @@
+clients=2 bots=12 seconds=180 map=L_DM1 fps=60 port=7890 wall_s=207 server_mode=listen

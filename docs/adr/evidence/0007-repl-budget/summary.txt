@@ -1,0 +1,22 @@
+N=1 windows=14 (clean 14, basis clean) classes=.............. pawns=13.2 frame_deficit=0.1% | cpu_ms mean=9.01 p50=9.02 p99=13.97 (max-window p99 15.31, max 61.3) wall_ms mean=16.68 p99=22.93 | out/conn mean=16.4 KB/s max=17.5 KB/s (engine 1s max 22.2) in_total=2.2 KB/s | bot_tick=137 us bots_ms/frame=1.56 world_tick=5763 us | rss_max=1888 MB | host rq_wait<=0.1% steal<=0.0% psi<=0.7% load1<=3.14 | prod_cpu=48% of a core | client fps mean=60.0 max=60.0
+N=2 windows=15 (clean 15, basis clean) classes=............... pawns=13.6 frame_deficit=1.3% | cpu_ms mean=8.37 p50=8.04 p99=15.10 (max-window p99 46.26, max 93.2) wall_ms mean=16.90 p99=24.47 | out/conn mean=16.4 KB/s max=17.9 KB/s (engine 1s max 21.8) in_total=5.2 KB/s | bot_tick=128 us bots_ms/frame=1.47 world_tick=5485 us | rss_max=1904 MB | host rq_wait<=0.5% steal<=0.0% psi<=1.1% load1<=4.15 | prod_cpu=49% of a core | client fps mean=59.3 max=60.0
+N=4 windows=14 (clean 14, basis clean) classes=.............. pawns=15.4 frame_deficit=0.9% | cpu_ms mean=8.94 p50=8.41 p99=15.20 (max-window p99 40.11, max 81.6) wall_ms mean=16.82 p99=23.29 | out/conn mean=21.2 KB/s max=22.9 KB/s (engine 1s max 25.4) in_total=10.6 KB/s | bot_tick=119 us bots_ms/frame=1.36 world_tick=6036 us | rss_max=1904 MB | host rq_wait<=0.2% steal<=0.0% psi<=1.4% load1<=5.95 | prod_cpu=47% of a core | client fps mean=59.6 max=60.0
+
+== table (frame = game-thread CPU ms per frame; down = server out bytes/s per connection)
+  N  pawns  mean ms   p50 ms   p99 ms down mean  down max   in total   deficit   rss MB
+  1   13.2     9.01     9.02    13.97    16.4 KB    17.5 KB      2.2 KB      0.1%     1888
+  2   13.6     8.37     8.04    15.10    16.4 KB    17.9 KB      5.2 KB      1.3%     1904
+  4   15.4     8.94     8.41    15.20    21.2 KB    22.9 KB     10.6 KB      0.9%     1904
+
+== fit  frame_ms_mean(N) = a + b*N   (run means, N=1,2,4)
+a (fixed: bots, physics, game) = 8.72 ms   b (per connection) = 0.020 ms   [pooled-window fit b = 0.023 +- 0.074 ms (1 se) -> per-connection part NOT measurable (slope < 2 se: the fixed part dominates)]
+p99:  a = 13.92 ms   b = 0.360 ms per connection
+downstream per connection (KB/s) D(P) = alpha + beta*P, P = pawns in the world (N + bots): mean alpha=-14.36 beta=2.296 | max alpha=-16.36 beta=2.543
+
+== extrapolation to 16 connections (linear in connections; the per-connection part also scales with pawns: b * P/14.1; bots removed at 0.122 ms/frame each)
+formula: mean(C, B) = (a - (12 - B) * bot_ms) + C * b * (C + B) / 14.1 ; down(C, B) = alpha + beta * (C + B)
+C=16 B=8 pawns=24: frame mean 8.79 ms (unscaled 8.56; replication part 0.55 ms of it, fixed 8.24 ms)  p99 14.27 ms  down mean 40.7 KB/s (max-based 44.7 KB/s)
+C=16 B=12 pawns=28: frame mean 9.37 ms (unscaled 9.05; replication part 0.65 ms of it, fixed 8.72 ms)  p99 14.76 ms  down mean 49.9 KB/s (max-based 54.8 KB/s)
+
+== verdict vs ADR 0007 section 5.6 (16 players + 8 bots)
+VERDICT thresholds crossed: frame mean 8.79 ms > 8 ms. Replication part of the frame at 16 connections: 0.55 ms; fixed part 8.24 ms (the fixed part alone exceeds the threshold - bots/physics, not replication, so Replication Graph/Iris would not recover it). Per-connection frame cost not measurable against run-to-run noise (fixed part dominates).
