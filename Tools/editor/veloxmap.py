@@ -329,9 +329,9 @@ def pickup(definition_path, location, tags=(), name=None, folder="Items", layout
 
 
 def jump_pad(name, location_xy, target_location, pad_label=None, target_label=None, folder=None, tags=(), layout=None,
-             trigger_extent=None):
+             trigger_extent=None, floor_z=0.0):
     """AVeloxJumpPad (AimAtTarget) with its trigger centre PAD_LAUNCH_Z above the floor, a TargetPoint at target_location
-    and the visible green disc. Returns the pad.
+    and the visible green disc. `floor_z` (M7 P6): height of the floor the pad stands on (trigger at floor_z + launch_z). Returns the pad.
     trigger_extent (task m6-16): half extents (x, y, z) of a lower/narrower trigger. The box then rests on the floor
     (actor z = extent z), so a pawn only fires the pad while its feet are within 2 x extent z of the floor (a pawn
     hopping through the old 140 cm box launched from up to 140 cm high and overshot). The caller shifts target_location
@@ -339,7 +339,7 @@ def jump_pad(name, location_xy, target_location, pad_label=None, target_label=No
     ext = tuple(trigger_extent) if trigger_extent else PAD_TRIGGER_EXTENT
     launch_z = ext[2] if trigger_extent else PAD_LAUNCH_Z
     tp = spawn(unreal.TargetPoint, target_label or f"{name}_TargetPoint", target_location, None, folder, "targetpoint", tags, layout)
-    a = spawn(unreal.VeloxJumpPad, pad_label or name, (location_xy[0], location_xy[1], launch_z), None, folder, "jumppad",
+    a = spawn(unreal.VeloxJumpPad, pad_label or name, (location_xy[0], location_xy[1], floor_z + launch_z), None, folder, "jumppad",
               tags, layout)
     a.set_editor_property("mode", unreal.VeloxJumpPadMode.AIM_AT_TARGET)
     a.set_editor_property("target", tp)

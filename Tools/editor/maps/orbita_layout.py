@@ -14,11 +14,8 @@ Top-down, north up (concept section 3 drawing; the area table of section 3.1 is 
         |  Pons Australis (x +-200, y -2400..-1600)                                  ^ Clivus Orientis (ramp, y -2794..-1600)
   Horreum (Z 0) x -1400..2000, y -3400..-2400 ---- Semita (x 2000..3900, y -3200..-2800, Z 0) ----+
 
-Pad datum. `mapgen` launches every pad from FLOOR_Z and `veloxmap.jump_pad` / `player_start` put a pad / spawn at FLOOR_Z + constant: a
-pad or a spawn on another deck cannot be expressed yet. P3 (Scopulus 160), P4 (Hortus -320), P6 (Trabs 320) and S7 (Trabs 320) are
-therefore declared in PADS_ELEVATED / SPAWNS_ELEVATED with their true deck height and join PADS / SPAWNS (and the links of the pads)
-automatically as soon as `records.Pad` / `records.Spawn` get a trailing `z` field. Until then the tables below hold P1, P2, P5 and
-S1..S6 and validate green; the six arcs are checked with their true origin by the task notes' script (docs/tasks/m7-maps/16-s5-orbita-spec.md).
+Pad datum. `Pad.z` / `Spawn.z` (M7 P6) are the deck height under the pad / spawn: P3 (Scopulus 160), P4 (Hortus -320), P6 (Trabs 320) and
+S7 (Trabs 320) stand on raised decks; PADS / SPAWNS hold all six pads and seven spawns.
 """
 import math
 
@@ -116,9 +113,8 @@ WALLS = []
 STAIRS = []
 ROOMS = []
 
-# One cheap lid above the hub so the two ROCKET_JUMP links satisfy the generic "clearance above the take-off" rule (RJ_CLEARANCE_MIN
-# reads a ceiling clip; with CLIP_MODE none there is none). 1700 is far above every arc (highest pad apex +840) and every rocket jump (~880).
-CLIPS = [Clip("Ceil_Hub", -1000, 1000, -1000, 1000, 1700, 1800)]
+# Open sky: no lid. The RJ clearance rule accepts a take-off with nothing above it (rules rj_open_sky, M7 P6).
+CLIPS = []
 RJ_CLEARANCE_MIN = 900.0
 
 # ---------------------------------------------------------------- void (ADR 0008 3.4): top -1400, bottom -2000, footprint + 6000 per side
@@ -137,10 +133,8 @@ PADS_ELEVATED = [
     ("P4", -320.0, -500, 3200, (-130, 830, 840), (0, 0, 640)),           # Hortus -> Specula ("Ascensus")
     ("P6", 320.0, 3700, 1800, (2615, 2310, 620), (500, 3300, -320)),     # Trabs north tip -> Hortus
 ]
-PAD_Z_SUPPORTED = "z" in getattr(Pad, "_fields", ())
-if PAD_Z_SUPPORTED:                                                          # records.Pad grew a z field: the three elevated pads join
-    PADS += [Pad(i, x, y, t, l, z=z) for (i, z, x, y, t, l) in PADS_ELEVATED]
-    PADS.sort(key=lambda p: p.id)
+PADS += [Pad(i, x, y, t, l, z=z) for (i, z, x, y, t, l) in PADS_ELEVATED]
+PADS.sort(key=lambda p: p.id)
 
 # ---------------------------------------------------------------- items (concept section 6; 37 pickups, 33 FFA / 35 Duel)
 Q = "/Game/Items/DA_Item_"
@@ -211,9 +205,7 @@ SPAWNS = [
     Spawn("S6", 1700, -3100, 180),
 ]
 SPAWNS_ELEVATED = [("S7", 320.0, 3700, -700, 90)]
-SPAWN_Z_SUPPORTED = "z" in getattr(Spawn, "_fields", ())
-if SPAWN_Z_SUPPORTED:
-    SPAWNS += [Spawn(i, x, y, yaw, z=z) for (i, z, x, y, yaw) in SPAWNS_ELEVATED]
+SPAWNS += [Spawn(i, x, y, yaw, z=z) for (i, z, x, y, yaw) in SPAWNS_ELEVATED]
 SPAWN_MIN_APART = 1000.0
 SPAWN_MAX_WEAPON = 2500.0                 # concept 7: within 25 m of travel (DM1's 8 m rule does not fit decks this far apart)
 EYE_Z = 160.0
@@ -227,7 +219,7 @@ def _gap(i, kind, sx, sy, ex, ey, z):
     return Link(i, kind, (sx, sy, z), (ex, ey, z), None)
 
 
-LINKS = [Link("PadLink_" + p.id, "JUMP_PAD", (p.x, p.y, getattr(p, "z", 0.0)), p.land, p.id) for p in PADS]
+LINKS = [Link("PadLink_" + p.id, "JUMP_PAD", (p.x, p.y, p.z or 0.0), p.land, p.id) for p in PADS]
 LINKS += [
     # G1 Pons Fractus, both ways: start 60 cm before the take-off edge, end 100 cm onto the far deck
     _gap("G1_East", "JUMP", -2660, 0, -2100, 0, 0.0),
@@ -243,7 +235,6 @@ LINKS += [
     Link("RJ1_N", "ROCKET_JUMP", (0, 650, 320.0), (0, 150, 640.0), None),
     Link("RJ1_W", "ROCKET_JUMP", (-650, 0, 320.0), (-150, 0, 640.0), None),
 ]
-# the JUMP_PAD links of P3 / P4 / P6 come from PADS above once Pad.z exists
 
 # ---------------------------------------------------------------- line of sight (concept 9)
 POINTS = {

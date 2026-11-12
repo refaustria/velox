@@ -49,6 +49,16 @@ Regeneration (all with `-nullrhi -unattended -nopause -nosplash -stdout -FullStd
 
 `mapgen.py` holds the generator (formerly the body of `create_dm1_map.py`); every function takes the layout table as its first parameter `L`, `mapgen.bind(L)` returns a facade without it. Record types live in `maps/records.py`, tables in `maps/<slug>_layout.py` (`dm1_layout.py` imports the records). `create_map.py --map <slug> [--mode blockout|art] [--validate-only] [--golden check|write] [--selftest]` is the CLI (in the editor: `-script="<abs>/Tools/editor/create_map.py --map dm1 --mode blockout"`); `create_dm1_map.py` is a shim for `--map dm1` and `VELOX_DM1_MODE` is still honoured. `--golden check` (pure Python) compares `maps/golden_dump.py`'s output with `maps/golden/<slug>.json` byte for byte; `infra/ci/build.sh` runs it for every golden file before the engine is resolved, so it also runs without Unreal. The sections below describe DM1 as built before the split; `create_dm1_map.py` there now means `create_map.py --map dm1`.
 
+### Generator gaps closed (M7 P6)
+
+- `Pad(..., z)` and `Spawn(..., z)`: optional trailing floor height (default `None` = the map's `FLOOR_Z`; read through `mapgen.pad_z(L, p)` / `mapgen.spawn_z(L, s)`). The pad trigger sits at `z + PAD_TRIGGER_Z`, the arc starts at `z`, the PlayerStart at `z + PLAYERSTART_Z`; `veloxmap.jump_pad(..., floor_z=0.0)` places the actor. The pad's own deck is no obstacle before the apex.
+- `Link(..., required_speed=0.0, both_ways=False)`: both go to `VeloxNavLink`.
+- Quad rule: if a Quad exists it must be disabled in Duel; a map without one is fine.
+- Rocket-jump clearance: the ceiling is a non-`Clip_` clip lid or a solid above the take-off; none = open sky, accepted (figure `"open"`; rule `rj_open_sky`, default True, False restores the pre-P6 demand). No lid clips needed.
+- `pad_arc(..., interpolate=True)` returns the point where the arc crosses the landing top; the clearance check uses it and skips the landing deck. The default (raw sample) stays because the DM1 golden freezes it.
+- Longest-sightline figures that reach the 300 m ray cap print `"open"`.
+- Per-instance item mode gates: `spawn_items` adds an actor tag `DisabledInMode:<tag>` for a layout `disabled_in_modes` entry the item definition does not list (instead of failing); C++ reading it is B-task work. `DA_Item_Powerup_Haste` is Duel-disabled in `create_item_content.py` (asset regeneration is B3).
+
 ## DM1 "Praesidium": `maps/dm1_layout.py` and `create_dm1_map.py` (ADR 0006 sections 2 and 3, task M5-05)
 
 `maps/dm1_layout.py` is the declarative layout table (namedtuples and lists, no `unreal` import): rooms, solid boxes, wall strips with openings, stairs, the 15 degree ramp, the three pads, 35 items (with `disabled_in_modes`), 8 spawns, 16 nav links (task 06: 22 in the first blockout; the drops that face a blank wall or land on PadD were removed, DROP_OUT_TALL 350 for the tall ones), light placeholders (task 15), clip volumes, nav bounds, `MAP_ID`, `DISPLAY_NAME = "Praesidium"` (E0.5), `FLOOR_Z = 0`, `KILL_Z = -1000`. Its docstring has the top-down sketch.

@@ -2,7 +2,7 @@
 
 **Milestone:** M7 Maps (ADR 0008)
 **Agent:** dev
-**Status:** open
+**Status:** done
 **Depends on:** P4, S1–S5 (all merged)
 **Wave:** 1b (pure Python, no engine)
 
@@ -46,10 +46,20 @@ From S3 Culmen:
 - Nemus Z restore and Fornax spawn restore are follow-up tasks (S2b, S4b), not P6.
 
 ## Acceptance criteria
-- [ ] `create_map.py --map <m> --validate-only` green for dm1, sacrarium, nemus, culmen, fornax, orbita
-- [ ] Orbita has all 6 pads and S7 in its main lists; Culmen all 11 pads, 10 spawns per concept
-- [ ] `--map dm1 --golden check` byte-identical; `--selftest` green with a pass + fail fixture per new rule
-- [ ] Notes list every API change S2b/S4b and the B-tasks must know
+- [x] `create_map.py --map <m> --validate-only` green for dm1, sacrarium, nemus, culmen, fornax, orbita
+- [x] Orbita has all 6 pads and S7 in its main lists; Culmen all 11 pads, 10 spawns per concept
+- [x] `--map dm1 --golden check` byte-identical; `--selftest` green with a pass + fail fixture per new rule
+- [x] Notes list every API change S2b/S4b and the B-tasks must know
 
 ## Notes / outcome
-(Filled by the agent.)
+Branch `wip/m7-23-p6-generator-gaps`. `--validate-only` green: dm1 (137 solids), sacrarium, nemus, culmen (62 solids, 46 items, 10 spawns, 42 links, 11 pads), fornax (5 spawns, no Quad), orbita (54 solids, 7 spawns, 20 links, 6 pads). DM1 golden byte-identical, `--selftest` green (new `selftest_p6`: pass + fail fixture per rule).
+
+API changes (S2b / S4b / B-tasks):
+- `Pad(id x y target land z=None)`, `Spawn(id x y yaw z=None)`: z = deck height under it (absolute). Link starts of raised pads must carry that z (`Link.start`); `mapgen.pad_z` / `spawn_z`. `veloxmap.jump_pad(..., floor_z=0.0)` (only veloxmap change).
+- `Link(id type start end pad required_speed=0.0 both_ways=False)`. Link-start ring (45 cm) unchanged: Fornax passes with 50 cm treads, no relaxation needed.
+- Rules: Quad optional; new rule key `rj_open_sky` (default True); RJ clearance also counts a solid overhead; sightline / RJ clearance figures can be the string `"open"`.
+- `mapgen.pad_arc(..., interpolate=False)`; `pad_arc_clearance_problem` skips the landing deck (top 0..8 cm above the landing, landing inside the footprint).
+- `spawn_items`: per-instance gate tag `DisabledInMode:<tag>` (actor tag) where the definition does not list the mode; the C++ side must read it (B-tasks). Haste DA now Duel-disabled in `create_item_content.py` (assets not regenerated).
+- Orbita: Ceil_Hub removed, pads/spawns folded. Culmen: Sky_Lid removed, PADS_RAISED folded (PADS_RAISED / PAD_FLOOR_Z kept as data), LINKS_PENDING removed, counts 11 pads / 42 links / 10 spawns.
+- Culmen S9 / S10 deviate from the concept: at the concept positions both see RA over open sky (spawns -> majors rule). S9 (-2500, -2150) -> (-2500, -2000); S10 (2300, -1000) -> (2000, -1250); both still L1, >= 10 m apart, 7.2 m from a weapon.
+- Not done (follow-ups): Nemus Z restore (S2b), Fornax spawn restore S1/S5 to L1 (S4b); the Culmen target-Z +0.1 tuning workarounds were left in place (arcs still pass).

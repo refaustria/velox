@@ -28,6 +28,7 @@ STAIR_FOOT_EXTRA = 100.0
 RAMP_THICKNESS = 20.0
 RAMP_FILL_STEP = 200.0
 PLAYERSTART_Z = 100.0
+SIGHTLINE_REACH = 30000.0        # cm; a longest sight line that reaches it is reported as "open"
 GRAVITY = 2000.0
 PAD_TRIGGER_Z = 70.0
 TRAJECTORY_DT = 1.0 / 240.0
@@ -229,24 +230,37 @@ def point_in_box(p, box):
     return box[0] <= p[0] <= box[1] and box[2] <= p[1] <= box[3] and box[4] <= p[2] <= box[5]
 
 
+def pad_z(L, pad):
+    """Floor height under a pad (Pad.z; None = the map's FLOOR_Z)."""
+    return L.FLOOR_Z if getattr(pad, "z", None) is None else pad.z
+
+
+def spawn_z(L, spawn):
+    """Floor height under a spawn (Spawn.z; None = the map's FLOOR_Z). The PlayerStart actor sits PLAYERSTART_Z above it."""
+    return L.FLOOR_Z if getattr(spawn, "z", None) is None else spawn.z
+
+
 def pad_launch(L, pad):
     """AimAtTarget launch velocity (VeloxMoveSim::JumpPadLaunchVelocity, Height > 0 branch) from the trigger centre."""
-    ox, oy, oz = pad.x, pad.y, L.FLOOR_Z + PAD_TRIGGER_Z
+    ox, oy, oz = pad.x, pad.y, pad_z(L, pad) + PAD_TRIGGER_Z
     dx, dy, h = pad.target[0] - ox, pad.target[1] - oy, pad.target[2] - oz
     dist = math.hypot(dx, dy)
     t = math.sqrt(2.0 * h / GRAVITY)
     return (dx / dist * dist / t, dy / dist * dist / t, GRAVITY * t), t
 
 
-def pad_arc(L, pad, solids):
+def pad_arc(L, pad, solids, interpolate=False):
     """Walk the feet arc (origin = pad floor point, VeloxJumpPad::TryComputeLandingPoint) from the apex on; returns
-    (landing, error text or None). A hit before the apex is an error (the arc must be free up to the apex)."""
+    (landing, error text or None). A hit before the apex is an error (the arc must be free up to the apex).
+    The landing is the first sample inside the solid (up to ~8 cm below its top at 240 Hz; the DM1 golden freezes that); interpolate=True
+    returns the point where the arc crosses the top instead (M7 P6: pad_arc_clearance_problem and genuine landings)."""
     v, t_apex = pad_launch(L, pad)
     cyls = [(o.cx, o.cy, oct_r_clear(o), o.z0, o.z1) for o in octs(L)]       # an Oct must be cleared: circumscribed radius
     clips = [(c.x0, c.x1, c.y0, c.y1, c.z0, c.z1) for c in L.CLIPS]
-    pre = [s[2:] for s in solids if s[1] != "floor"] + clips        # the pad stands on the ground slab
+    zp = pad_z(L, pad)
+    pre = [s[2:] for s in solids if s[1] != "floor" and s[7] > zp + 1.0] + clips        # the pad stands on the ground slab / its deck
     post = [s[2:] for s in solids] + clips
-    o = (pad.x, pad.y, L.FLOOR_Z)
+    o = (pad.x, pad.y, pad_z(L, pad))
 
     def at(t):
         return (o[0] + v[0] * t, o[1] + v[1] * t, o[2] + v[2] * t - 0.5 * GRAVITY * t * t)
@@ -263,8 +277,11 @@ def pad_arc(L, pad, solids):
             # first contact: the landing is where the segment enters the top of the box
             if t < t_apex - 1e-6:
                 return None, f"{pad.id}: the arc hits solid {hit} before its apex (t={t:.2f} s < {t_apex:.2f} s) at {cur}"
-            lx, ly = cur[0], cur[1]
-            return (lx, ly, cur[2]), None
+            top = hit[5] if len(hit) == 6 else hit[4]            # box (x0 x1 y0 y1 z0 z1) or Oct cylinder (cx cy r z0 z1)
+            if interpolate and prev[2] > top >= cur[2]:                          # entered through the top: interpolate it (the sample lies up to ~8 cm below)
+                f = (prev[2] - top) / (prev[2] - cur[2])
+                return (prev[0] + f * (cur[0] - prev[0]), prev[1] + f * (cur[1] - prev[1]), top), None
+            return (cur[0], cur[1], cur[2]), None
         prev = cur
     return None, f"{pad.id}: the arc never lands"
 
@@ -425,7 +442,7 @@ def _los_points(L, name):
     """name -> [(label, (x, y, floor_z))]: a spawn id, an item id, a name in POINTS (x, y[, floor z]), or the groups `spawns` / `majors`."""
     items = {i.id: i for i in L.ITEMS}
     if name == "spawns":
-        return [(s.id, (s.x, s.y, L.FLOOR_Z)) for s in L.SPAWNS]
+        return [(s.id, (s.x, s.y, spawn_z(L, s))) for s in L.SPAWNS]
     if name == "majors":
         ids = getattr(L, "MAJOR_IDS", None) or (L.MEGA_ID, L.RA_ID)
         return [(i, (items[i].x, items[i].y, items[i].z)) for i in ids]
@@ -439,7 +456,7 @@ def _los_points(L, name):
         return out
     for s in L.SPAWNS:
         if s.id == name:
-            return [(name, (s.x, s.y, L.FLOOR_Z))]
+            return [(name, (s.x, s.y, spawn_z(L, s)))]
     if name in items:
         return [(name, (items[name].x, items[name].y, items[name].z))]
     raise KeyError(f"line of sight: unknown name {name!r} (spawn id, item id, POINTS entry, spawns, majors)")
@@ -465,7 +482,7 @@ def los(L, a, b):
     return all(c for (_a, _b, c) in los_pairs(L, a, b))
 
 
-def longest_sightline(L, floor_pt, rays=72, reach=30000.0):
+def longest_sightline(L, floor_pt, rays=72, reach=SIGHTLINE_REACH):
     """Longest horizontal sight distance from the eye above `floor_pt` over `rays` directions (solids and Octs; the clip is not counted)."""
     boxes, cyls = sight_blockers(L)
     eye = getattr(L, "EYE_Z", LOS_EYE_Z)
@@ -478,6 +495,11 @@ def longest_sightline(L, floor_pt, rays=72, reach=30000.0):
                 + [x for x in (seg_cyl_t(p, q, *c) for c in cyls) if x is not None] + [1.0])
         best = max(best, t * reach)
     return best
+
+
+def _sightline_fig(d, reach=SIGHTLINE_REACH):
+    """Figure for a sight distance: metres, or "open" when a ray left the map unobstructed (the cap says nothing about the map)."""
+    return "open" if d >= reach - 1e-6 else round(d / 100.0, 1)
 
 
 def check_los(L):
@@ -512,10 +534,10 @@ def check_los(L):
     if explicit:
         longest = 0.0
         for s in L.SPAWNS:
-            d = longest_sightline(L, (s.x, s.y, L.FLOOR_Z))
-            fig[f"{s.id}_sightline_m"] = round(d / 100.0, 1)
+            d = longest_sightline(L, (s.x, s.y, spawn_z(L, s)))
+            fig[f"{s.id}_sightline_m"] = _sightline_fig(d)
             longest = max(longest, d)
-        fig["longest_sightline_m"] = round(longest / 100.0, 1)
+        fig["longest_sightline_m"] = _sightline_fig(longest)
     return bad, fig
 
 
@@ -571,7 +593,7 @@ def pad_arc_clearance_problem(L, pad, solids, landing, clr):
     """None, or the first solid / Oct the feet arc passes closer than `clr` cm to between the launch and the landing. Ground at the pad
     (tops <= the pad floor) is ignored; a solid whose top is at or below the landing is only grown sideways (the arc has to come down onto it)."""
     v, _t_apex = pad_launch(L, pad)
-    o = (pad.x, pad.y, L.FLOOR_Z)
+    o = (pad.x, pad.y, pad_z(L, pad))
 
     def at(t):
         return (o[0] + v[0] * t, o[1] + v[1] * t, o[2] + v[2] * t - 0.5 * GRAVITY * t * t)
@@ -585,6 +607,8 @@ def pad_arc_clearance_problem(L, pad, solids, landing, clr):
         for s in solids:
             if s[7] <= o[2] + 1.0:
                 continue
+            if s[2] <= landing[0] <= s[3] and s[4] <= landing[1] <= s[5] and 0.0 <= s[7] - lz <= 8.0:
+                continue                                         # the landing deck itself (its top is the landing, +- the sample step)
             b = s[2:]
             grow_z = 0.0 if s[7] <= lz + 1.0 else clr
             box = (b[0] - clr, b[1] + clr, b[2] - clr, b[3] + clr, b[4] - grow_z, b[5] + grow_z)
@@ -652,8 +676,8 @@ def check_hazards(L, solids, rl):
             bad.append(f"{h.id}: empty hazard box")
             continue
         pts = [(f"item {i.id}", (i.x, i.y, i.z)) for i in L.ITEMS]
-        pts += [(f"spawn {s.id}", (s.x, s.y, L.FLOOR_Z + PLAYERSTART_Z)) for s in L.SPAWNS]
-        pts += [(f"pad {p.id}", (p.x, p.y, L.FLOOR_Z)) for p in L.PADS] + [(f"pad {p.id} landing", tuple(p.land)) for p in L.PADS]
+        pts += [(f"spawn {s.id}", (s.x, s.y, spawn_z(L, s) + PLAYERSTART_Z)) for s in L.SPAWNS]
+        pts += [(f"pad {p.id}", (p.x, p.y, pad_z(L, p))) for p in L.PADS] + [(f"pad {p.id} landing", tuple(p.land)) for p in L.PADS]
         for k in L.LINKS:
             pts += [(f"link {k.id} start", tuple(k.start)), (f"link {k.id} end", tuple(k.end))]
         for what, p in pts:
@@ -693,7 +717,7 @@ def check_octs(L, solids, rl):
             if math.hypot(it.x - o.cx, it.y - o.cy) < rc and o.z0 < it.z + 20.0 < o.z1:
                 bad.append(f"item {it.id} is inside Oct {o.id}")
         for s in L.SPAWNS:
-            if math.hypot(s.x - o.cx, s.y - o.cy) < rc + 34.0 and o.z0 < L.FLOOR_Z + PLAYERSTART_Z < o.z1:
+            if math.hypot(s.x - o.cx, s.y - o.cy) < rc + 34.0 and o.z0 < spawn_z(L, s) + PLAYERSTART_Z < o.z1:
                 bad.append(f"spawn {s.id} is inside Oct {o.id}")
         for p in os_[i + 1:]:
             if o.z0 < p.z1 and p.z0 < o.z1:
@@ -821,7 +845,7 @@ def validate_layout(L):
             z = zone[0]
             if z.x1 - z.x0 < rl["pad_zone"] or z.y1 - z.y0 < rl["pad_zone"]:
                 bad.append(f"{p.id}: landing zone {z.id} is {z.x1 - z.x0:.0f} x {z.y1 - z.y0:.0f} < 300 x 300")
-        if p.target[2] - (L.FLOOR_Z + PAD_TRIGGER_Z) <= 0.0:
+        if p.target[2] - (pad_z(L, p) + PAD_TRIGGER_Z) <= 0.0:
             bad.append(f"{p.id}: target {tuple(p.target)} is not above the trigger centre")
             continue
         speed = math.sqrt(sum(c * c for c in pad_launch(L, p)[0]))
@@ -836,7 +860,7 @@ def validate_layout(L):
             if d > rl["pad_land_tol"] or abs(landing[2] - p.land[2]) > rl["pad_land_tol_z"]:
                 bad.append(f"{p.id}: simulated landing {tuple(round(c) for c in landing)} is {d:.0f} cm from the authored {p.land}")
             if rl["pad_arc_clearance"] > 0.0:
-                why = pad_arc_clearance_problem(L, p, solids, landing, rl["pad_arc_clearance"])
+                why = pad_arc_clearance_problem(L, p, solids, pad_arc(L, p, solids, interpolate=True)[0], rl["pad_arc_clearance"])
                 if why:
                     bad.append(why)
     # rocket-jump clearance
@@ -844,7 +868,11 @@ def validate_layout(L):
         if k.type != "ROCKET_JUMP":
             continue
         ceil = [c.z0 for c in L.CLIPS if c.x0 <= k.start[0] <= c.x1 and c.y0 <= k.start[1] <= c.y1 and c.z0 > k.start[2] and not c.id.startswith("Clip_")]
+        ceil += [s[6] for s in solids if s[1] != "hazard" and s[2] <= k.start[0] <= s[3] and s[4] <= k.start[1] <= s[5] and s[6] > k.start[2]]
         clear = min(ceil) - k.start[2] if ceil else None
+        if clear is None and rl["rj_open_sky"]:
+            fig[f"{k.id}_clearance"] = "open"                 # nothing above the take-off: open sky is the best clearance there is
+            continue
         fig[f"{k.id}_clearance"] = clear
         if clear is None or clear < L.RJ_CLEARANCE_MIN:
             bad.append(f"{k.id}: clearance above the take-off {clear} < {L.RJ_CLEARANCE_MIN:.0f}")
@@ -897,7 +925,7 @@ def validate_layout(L):
         if dict(kinds) != dict(rl["item_mix"]):
             bad.append(f"item mix differs from the map's item_mix rule: {dict(kinds)}")
     quad = [i for i in L.ITEMS if i.definition.endswith("Powerup_Quad")]
-    if not quad or quad[0].disabled_in_modes != (L.DUEL,):
+    if quad and any(q.disabled_in_modes != (L.DUEL,) for q in quad):         # a map without a Quad has nothing to disable
         bad.append("the Quad must be disabled in Duel (FFA only)")
     # items stand on something: the floor point is within 1 cm of a solid top whose footprint contains it (or the ramp)
     tops = [s for s in solids]
@@ -1179,7 +1207,7 @@ def plan_art(L):
         if lt.ceiling is not None:         # fixture top flush with the ceiling underside
             plan.append(Inst("Light_Fixture", lt.x - 100.0, lt.y - 15.0, lt.ceiling - 20.0, 0.0, 1.0, 1.0, 1.0, lt.id, None))
     for p in L.PADS:                       # ring sunk 1 cm so it stays within the 5 cm protrusion limit
-        plan.append(Inst("Pad_Ring", p.x - 150.0, p.y - 150.0, L.FLOOR_Z - 1.0, 0.0, 1.0, 1.0, 1.0, p.id, None))
+        plan.append(Inst("Pad_Ring", p.x - 150.0, p.y - 150.0, pad_z(L, p) - 1.0, 0.0, 1.0, 1.0, 1.0, p.id, None))
     return plan
 
 
@@ -1303,20 +1331,27 @@ def spawn_perimeter_clip(L):
     vm.clip_walls(hx, hy, mode=mode, wall_t=getattr(L, "CLIP_WALL_T", 100.0))
 
 
+INSTANCE_GATE_TAG = "DisabledInMode:"      # actor tag prefix: a per-instance mode gate (the definition is per type; C++ reads the tag, task B-level)
+
+
+def item_instance_gates(it, definition_text):
+    """The modes of `it.disabled_in_modes` that its definition asset does not already list: those become per-instance actor tags
+    (YA_N FFA-only next to a Yellow Armor that is on in every mode). `definition_text` is the DA's DisabledInModes export text ("" if no DA)."""
+    return tuple(INSTANCE_GATE_TAG + tag for tag in it.disabled_in_modes if tag not in definition_text)
+
+
 def spawn_items(L):
     by_label = {}
     for it in L.ITEMS:
-        a, da = vm.pickup(it.definition, (it.x, it.y, it.z), name="Pickup_" + it.id, folder="Items", layout=it.id)
+        da = vm.EAL.load_asset(it.definition) if vm.EAL.does_asset_exist(it.definition) else None
+        text = ""
+        if da is not None:
+            exp = da.get_editor_property("disabled_in_modes")
+            text = str(exp.export_text()) if hasattr(exp, "export_text") else str(exp)
+        a, da = vm.pickup(it.definition, (it.x, it.y, it.z), tags=item_instance_gates(it, text), name="Pickup_" + it.id, folder="Items",
+                          layout=it.id)
         by_label[it.id] = a
-        if da is not None and it.disabled_in_modes:
-            exp = da.get_editor_property("disabled_in_modes")
-            text = str(exp.export_text()) if hasattr(exp, "export_text") else str(exp)
-            for tag in it.disabled_in_modes:
-                if tag not in text:
-                    vm.fail(f"{it.id}: definition {it.definition} does not list {tag} in DisabledInModes (run create_item_content.py)")
         if da is not None and not it.disabled_in_modes:
-            exp = da.get_editor_property("disabled_in_modes")
-            text = str(exp.export_text()) if hasattr(exp, "export_text") else str(exp)
             if "TagName" in text and "Velox.Mode" in text:
                 vm.fail(f"{it.id}: definition lists modes in DisabledInModes but the layout does not")
 
@@ -1324,16 +1359,18 @@ def spawn_items(L):
 def spawn_pads_and_links(L, markers=True):
     pads = {}
     for p in L.PADS:
-        pads[p.id] = vm.jump_pad(p.id, (p.x, p.y), p.target, pad_label=p.id, target_label=p.id + "_Target", folder="Pads", layout=p.id)
+        pads[p.id] = vm.jump_pad(p.id, (p.x, p.y), p.target, pad_label=p.id, target_label=p.id + "_Target", folder="Pads", layout=p.id,
+                                floor_z=pad_z(L, p))
         if markers:
             vm.cylinder_marker(p.id + "_LandingMarker", (p.land[0], p.land[1], p.land[2] + 2.0), (120, 120, 4), "Target", folder="Pads")
     for k in L.LINKS:
-        vm.nav_link(k.id, getattr(unreal.VeloxNavLinkType, k.type), k.start, k.end, pad=pads.get(k.pad), folder="NavLinks", layout=k.id)
+        vm.nav_link(k.id, getattr(unreal.VeloxNavLinkType, k.type), k.start, k.end, pad=pads.get(k.pad),
+                    both_ways=k.both_ways, required_speed=k.required_speed, folder="NavLinks", layout=k.id)
 
 
 def spawn_starts_and_camera(L):
     for s in L.SPAWNS:
-        vm.player_start(s.id, (s.x, s.y, L.FLOOR_Z + PLAYERSTART_Z), s.yaw, folder="Starts", layout=s.id)
+        vm.player_start(s.id, (s.x, s.y, spawn_z(L, s) + PLAYERSTART_Z), s.yaw, folder="Starts", layout=s.id)
     loc, rot = L.INTERMISSION_CAMERA
     vm.spawn(unreal.CameraActor, "IntermissionCamera", loc, unreal.Rotator(*rot), "Starts", "camera", tags=("Intermission",))
     label = vm.text_label("Label_MapName", L.INTERMISSION_LABEL, L.DISPLAY_NAME, yaw=90.0, size=300.0, folder="Markers")
