@@ -10,7 +10,7 @@
 - Agents must never touch these (preamble rule 9).
 
 ## Next
-0. **Map concepts (requested 2026-11-12):** dispatch five `architect` agents (Fable 5.2 — `.claude/agents/architect.md` now says `model: claude-fable-5-2`; first verify with a one-line probe agent that it really runs as 5.2) per `docs/maps/BRIEF.md`, one theme each, in parallel, docs only, branches `wip/map-<slug>`. Then summarise for the human, who picks two for M7 blockouts. (A first attempt on 2026-11-12 ran on 5.1 because this session could not reach 5.2; it was stopped before writing anything.)
+0. ~~Map concepts~~ — done 2026-11-12 (Fable 5.2 verified): `docs/maps/{sacrarium,culmen,orbita,nemus,fornax}.md` on main. **Waiting for the human to pick two** (STATUS q53); then M7 blockout planning.
 1. **Mac Studio (~2026-11-20):** `docs/mac-studio-handover.md` — setup, M5 bake + checklist + decision 40, playtests M1–M4, M6 public-server checklist `docs/playtests/m6-online-checklist.md`, task 11 macOS client (write the task's `build-mac.sh --package` first), test whether Linux x86_64 packages can be built there (decides whether the VM engine stays).
 2. **M7 planning** (ROADMAP M7: CTF, replays, two maps, perf pass) — architect ADR first. Carry-overs in STATUS.md's M6 entry (bot hop-at-link-start, RocketJumpRun intermittent, orphan drop row, release-smoke.sh, tagged release builds, navlint L_ItemTest, 8–9 ms server frame).
 3. Open human questions: q29, q30; whether anything was lost in the caches deleted on 2026-11-01.
