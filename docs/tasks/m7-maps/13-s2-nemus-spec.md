@@ -33,6 +33,8 @@ Write the Nemus layout as a spec module from its concept. Pure Python, no editor
 Standard format (result, what changed, verification, open issues). Note explicitly if Unreal was not available to compile.
 
 ## Notes / outcome
+**Superseded by S2b (task 24): D1 (datum -320) and D2 (P1 on the rim) are undone; Nemus is back on the concept heights (pit 0 ... Corona 960, ceiling 2000), spawns / pads carry `z`. Z values and the pad table below are the S2 state.**
+
 `maps/nemus_layout.py` written: 120 solids (boxes only, no `Wall` records), 8 Octs (6 minor trunks Trunk_300, Mother Tree lower Trunk_600 + upper Trunk_300), 3 stairs, 8 ramps (Radix Magna, Radix Australis, 6 hump faces), 5 pads, 41 items, 11 spawns, 34 links (5 JUMP_PAD, 3 ROCKET_JUMP, 2 JUMP, 1 JUMP_FAST, 23 DROP). `CLIP_MODE "walls"` + `Ceil_Sky` clip (needed by the rocket-jump clearance rule), `CLIP_H` 1680. `create_map.py --map nemus --validate-only` and `--selftest` green, `--mode art --validate-only` plans 600 kit instances with 0 protrusions, DM1 golden OK. No Nemus golden written. Nothing run in the engine.
 
 **Pad landings (simulated by `pad_arc` vs concept, concept Z minus 320).**
