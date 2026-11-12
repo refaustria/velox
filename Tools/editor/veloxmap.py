@@ -410,6 +410,30 @@ def drop_links(tag, cx, cy, size, top, edges):
         nav_link(f"{tag}_Drop{e}", unreal.VeloxNavLinkType.DROP, start, end)
 
 
+HAZARD_TYPE_ENUM = {"lava": "LAVA", "void": "VOID"}
+
+
+def hazard(name, htype, center, size, folder="Hazards", tags=(), layout=None):
+    """AVeloxHazardVolume (ADR 0008 section 3.3): an axis-aligned box of full extents `size` (cm) centred at `center`; `htype` is
+    "lava" (the box top is the lava surface; put a Box of kind "hazard" under it as the bed) or "void" (one kill on entry).
+    Invisible, no collision for anything but pawn overlaps, no navigation influence (all set by the C++ class). Counted as
+    "hazardvolume"."""
+    if htype not in HAZARD_TYPE_ENUM:
+        fail(f"{name}: hazard type {htype!r} (lava | void)")
+        return None
+    if min(size) <= 0:
+        fail(f"{name}: empty hazard box {size}")
+        return None
+    a = spawn(unreal.VeloxHazardVolume, name, center, None, folder, "hazardvolume", tags, layout)
+    a.set_editor_property("type", getattr(unreal.VeloxHazardType, HAZARD_TYPE_ENUM[htype]))
+    b = a.get_editor_property("box")
+    b.set_box_extent(unreal.Vector(size[0] / 2.0, size[1] / 2.0, size[2] / 2.0), False)
+    got = b.get_unscaled_box_extent()
+    if abs(got.x - size[0] / 2.0) > 0.5 or abs(got.y - size[1] / 2.0) > 0.5 or abs(got.z - size[2] / 2.0) > 0.5:
+        fail(f"{name}: hazard box extent {got} differs from {size} / 2")
+    return a
+
+
 # ---------------------------------------------------------------- map-wide settings
 def clip_box(name, center, size):
     """Invisible BlockAll volume, no navigation influence (M4-07f): seals an open-top arena against knockback."""
