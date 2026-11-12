@@ -60,6 +60,21 @@ RJ_CLEARANCE_MIN = 900.0
 DUEL = "Velox.Mode.Duel"
 EYE_Z = 160.0
 
+# P4 spec fields
+RULES = {
+    "pad_count": 4,
+    "link_counts": {"JUMP_PAD": 4, "ROCKET_JUMP": 2, "DROP": 16},
+    # concept section 14 (22 links) / section 6 (38 pickups)
+    "item_mix": {"Powerup_Quad": 1, "Armor_Red": 1, "Health_Mega": 1, "Armor_Yellow": 2, "Weapon_Railgun": 1, "Weapon_RocketLauncher": 1,
+                 "Weapon_LightningGun": 1, "Weapon_PlasmaGun": 1, "Weapon_Shotgun": 2, "Ammo_Slugs": 1, "Ammo_Rockets": 1,
+                 "Ammo_Lightning": 1, "Ammo_Cells": 1, "Ammo_Shells": 1, "Ammo_Bullets": 1, "Health_Large": 1, "Health_Medium": 6,
+                 "Health_Small": 8, "Armor_Shard": 6},
+    # concept section 5 (E): the ground lane beside the east ramp is exactly 300 wide, so a 300 x 300 clear top (walls count as blocked on
+    # the boundary) is impossible for the NE-landing drop; 280 keeps the drop landing on the lane.
+    "drop_clear": 280.0,
+}
+MAJOR_IDS = ("Mega", "RA")
+
 
 # ---------------------------------------------------------------- helpers (pure arithmetic over records)
 def _holed_wall(wid, run, s0, s1, b0, b1, top, holes, mat="Wall"):
@@ -168,6 +183,7 @@ BOXES += [
     Box("Land_NW", "bridge", "Platform", -1300, -900, 1300, 1900, 300, 320),
     Box("Land_NE", "bridge", "Platform", 1300, 1900, 900, 1300, 300, 320),
     Box("Land_SE", "bridge", "Platform", 1300, 1900, -1300, -900, 300, 320),
+    Box("Land_NE_Sill", "bridge", "Platform", 1400, 1800, 1300, 1500, 300, 320),      # walkable sill of the Armoury window (100 cm into the Armoury, D7)
     Box("RA_Ledge", "bridge", "Platform", -1800, -1400, 1400, 2700, 300, 320),
     Box("Mega_Ledge", "bridge", "Platform", 1400, 2700, -1800, -1400, 300, 320),
 ]
@@ -291,8 +307,8 @@ LINKS = [Link(f"PadLink_{p.id[3:]}", "JUMP_PAD", (p.x, p.y, 0), p.land, p.id) fo
     # corner landings -> aisle floors, NE landing -> Armoury through the window
     _drop("Drop_LandNW", -900 - DROP_IN, 1600, 320, -900 + DROP_OUT_TALL, 1600, 0),
     _drop("Drop_LandNE", 1450, 900 + DROP_IN, 320, 1450, 900 - DROP_OUT_TALL, 0),
-    _drop("Drop_LandSE", 1750, -900 - DROP_IN, 320, 1750, -900 + DROP_OUT_TALL, 0),
-    _drop("Drop_LandNE_Arm", 1600, 1400 - DROP_IN, 320, 1600, 1400 + DROP_OUT_TALL, 0),
+    _drop("Drop_LandSE", 1650, -900 - DROP_IN, 320, 1650, -900 + DROP_OUT_TALL, 0),
+    _drop("Drop_LandNE_Arm", 1600, 1500 - DROP_IN, 320, 1600, 1500 + DROP_OUT_TALL, 0),
 ]
 
 # ---------------------------------------------------------------- art-mode tables (task A1; empty until the art pass)
@@ -327,5 +343,14 @@ EXPECTED = {
     "camera": 1, "text": 1, "light": 2,
 }
 
-# TODO(P4, not added here): LOS_BLOCKED = [(loft eye, every ground-arch floor sample), ("spawns", "Mega"), ("spawns", "RA")] with POINTS for the
+# Concept section 10: the loft (eye on z 640) must not see the aisle floors through the ground arches; arcade slivers are tolerated (D8): measured 9.33 % of 75 pairs (the N-aisle axis and the E/W arch strips), tolerance 10 %.
+POINTS = {
+    "LoftEyes": [(x, -1000) + (640.0,) for x in (-1000, -500, 0, 500, 1000)],
+    "AisleFloors": [(x, 1500) for x in (-1000, -500, 0, 500, 1000)] + [(-1600, y) for y in (-1000, -500, 0, 500, 1000)]
+                   + [(1600, y) for y in (-1000, -500, 0, 500, 1000)],
+}
+LOS_BLOCKED = [("spawns", "majors"), ("LoftEyes", "AisleFloors", 0.10)]
+FREE_EDGE_EXEMPT = ()
+
+# (was a TODO for P4): LOS_BLOCKED = [(loft eye, every ground-arch floor sample), ("spawns", "Mega"), ("spawns", "RA")] with POINTS for the
 # loft samples (concept section 10 / ADR 0008 1.2); measured by hand in the task notes until mapgen.los exists.
