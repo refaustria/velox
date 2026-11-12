@@ -15,10 +15,14 @@ Stairs = namedtuple("Stairs", "id x_from x_dir y0 y1 steps axis z0 tread riser",
 # height gained, `deg` defaults to RAMP_DEG, `z0` (foot height) to FLOOR_Z; fill "solid" = stepped fill boxes down to z0, "none" = free slab.
 # Read through mapgen.ramp_frame(). For a DM1 ramp (dir +x, z0 = FLOOR_Z = 0) `rise` is also the top height.
 Ramp = namedtuple("Ramp", "id x0 y0 y1 rise dir deg z0 fill", defaults=("+x", None, None, "solid"))
-Pad = namedtuple("Pad", "id x y target land")                                  # target = AimAtTarget apex point; land = authored landing (link end)
+# Pad: target = AimAtTarget apex point; land = authored landing (link end); z = floor height the pad stands on (None: the map's FLOOR_Z).
+# Read through mapgen.pad_z(L, pad). The trigger centre is z + PAD_TRIGGER_Z, the arc starts at z.
+Pad = namedtuple("Pad", "id x y target land z", defaults=(None,))
 Item = namedtuple("Item", "id definition x y z disabled_in_modes")
-Spawn = namedtuple("Spawn", "id x y yaw")
-Link = namedtuple("Link", "id type start end pad")                              # type: JUMP_PAD | ROCKET_JUMP | DROP | JUMP | JUMP_FAST
+# Spawn: z = floor height the PlayerStart stands on (None: FLOOR_Z); the actor sits PLAYERSTART_Z above it. Read through mapgen.spawn_z(L, s).
+Spawn = namedtuple("Spawn", "id x y yaw z", defaults=(None,))
+# Link: type JUMP_PAD | ROCKET_JUMP | DROP | JUMP | JUMP_FAST; required_speed (cm/s, 0 = none) and both_ways go to VeloxNavLink as is.
+Link = namedtuple("Link", "id type start end pad required_speed both_ways", defaults=(0.0, False))
 Light = namedtuple("Light", "id kind x y z lumens rgb radius ceiling")        # art mode only (task 15): Static point light; `ceiling` = z of the ceiling underside the Light_Fixture hangs from (None: no fixture)
 Clip = namedtuple("Clip", "id x0 x1 y0 y1 z0 z1")                               # invisible BlockAll, no nav influence
 
@@ -48,6 +52,7 @@ DEFAULT_RULES = {
     # M7 P4
     "pad_arc_clearance": 0.0,       # cm between the feet arc and every solid (before M7 the arc only had to hit nothing; Culmen 60)
     "pad_max_launch_speed": PAD_MAX_LAUNCH_SPEED,
+    "rj_open_sky": True,            # a ROCKET_JUMP take-off with no ceiling above it is fine (open-sky maps); False: a ceiling is required (pre-P6)
     "link_end_ground": True,        # hard rule: every Link start and end stands on ground (see LEGACY_RULES)
     "drop_rule": True,              # ADR 0006 E3 (d) for DROP ends (see LEGACY_RULES)
     "link_end_inset": 45.0,         # agent radius: a link end lies this far inside the edge of the top it stands on

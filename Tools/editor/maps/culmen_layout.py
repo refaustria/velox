@@ -17,9 +17,8 @@ Top-down sketch (north up):
   y-1900 +--Viaduct L1 (x +-3000, y -2400..-1900, LG / Haste / YA)--------------------------------------+
   y-2400
 
-Pads: the validator and the spawner know only pads that stand on the ground (Z = FLOOR_Z): `PADS` holds the six ground pads (P1 P2 P7 P9
-P10 P11). The five pads on raised floors (P3 P4 P5 P6 P8) are in `PADS_RAISED` with their floor in `PAD_FLOOR_Z`; they need a `Pad.z` field in the
-generator (reported in the task notes), see the bottom of this file. Spawns are all on L0 for the same reason (`Spawn` has no z).
+Pads: eleven. The five on raised floors (P3 P4 P5 P6 P8) carry their floor in `Pad.z` (M7 P6; `PAD_FLOOR_Z` below). Spawns: ten as in the
+concept, S8 S9 S10 on L1 (`Spawn.z`).
 """
 import math
 
@@ -49,8 +48,8 @@ FLOATING_KINDS = ("ramp", "bridge", "bridgewall", "lintel")
 # Rules this map overrides or declares (docs/maps/culmen.md section references)
 RULES = {
     "pad_arc_clearance": 60.0,                                        # section 17.1: every pad arc clears every solid by >= 60 cm
-    "pad_count": 6,                                                   # ground pads only; the five raised pads are PADS_RAISED (see bottom)
-    "link_counts": {"JUMP_PAD": 6, "ROCKET_JUMP": 4, "JUMP_FAST": 6, "DROP": 21},  # sections 8, 15 (JUMP_FAST: G1 both ways, three spots)
+    "pad_count": 11,                                                  # six ground pads + five raised (PADS_RAISED)
+    "link_counts": {"JUMP_PAD": 11, "ROCKET_JUMP": 4, "JUMP_FAST": 6, "DROP": 21},  # sections 8, 15 (JUMP_FAST: G1 both ways, three spots)
     "item_mix": {"Health_Mega": 1, "Armor_Red": 1, "Armor_Yellow": 2, "Armor_Shard": 8, "Health_Large": 2, "Health_Medium": 7,
                  "Health_Small": 8, "Weapon_RocketLauncher": 1, "Weapon_Railgun": 1, "Weapon_LightningGun": 1, "Weapon_Shotgun": 2,
                  "Weapon_PlasmaGun": 2, "Ammo_Rockets": 1, "Ammo_Slugs": 1, "Ammo_Lightning": 1, "Ammo_Shells": 2, "Ammo_Cells": 2,
@@ -136,8 +135,7 @@ PADS = [
     Pad("P11", 3400, 1650, (3266, 1247, 534.6), (3200, 1050, 320)),        # Trench east -> End Terrace NE (SG-E)
 ]
 
-# Raised pads: floor Z in PAD_FLOOR_Z. Not in PADS (the generator cannot place or simulate them yet); verified by the proxy check in the
-# task notes. When Pad gets a z field: PADS = PADS + PADS_RAISED and LINKS += LINKS_PENDING (counts in RULES / EXPECTED follow).
+# Raised pads: floor Z in PAD_FLOOR_Z (= Pad.z); they join PADS below.
 PAD_FLOOR_Z = {"P3": 320.0, "P4": 320.0, "P5": 640.0, "P6": 640.0, "P8": 320.0}
 PADS_RAISED = [
     Pad("P3", -350, -350, (-1924, -412, 911.1), (-2900, -450, 640)),       # Spire -> West Roof
@@ -146,6 +144,7 @@ PADS_RAISED = [
     Pad("P6", 2750, -550, (1708.0, -463.2, 1170.8), (350, -350, 320)),           # East Roof -> Spire SE
     Pad("P8", -350, 2000, (-1325, 1550, 930.5), (-2300, 1100, 320)),       # car roof -> Terrace W
 ]
+PADS = sorted(PADS + [p._replace(z=PAD_FLOOR_Z[p.id]) for p in PADS_RAISED], key=lambda p: int(p.id[1:]))
 
 # ---------------------------------------------------------------- items
 Q = "/Game/Items/DA_Item_"
@@ -206,7 +205,7 @@ AMMO_FOR = {"PG_W": "CellsAmmo_W", "PG_E": "CellsAmmo_E", "SG_E": "ShellsAmmo_E"
             "RG": "SlugsAmmo", "LG": "LightningAmmo"}
 AMMO_MIN_CM, AMMO_MAX_CM = 600.0, 1200.0
 
-# ---------------------------------------------------------------- spawns: all on L0 (Spawn has no z), >= 10 m apart, <= 8 m from a weapon
+# ---------------------------------------------------------------- spawns: S1-S7 on L0, S8-S10 on L1 (z 320), >= 10 m apart, <= 8 m from a weapon
 SPAWNS = [
     Spawn("S1", -2000, 1600, 0),      # east, down the lane (SG-W)
     Spawn("S2", -600, 1600, 0),       # RG
@@ -215,8 +214,9 @@ SPAWNS = [
     Spawn("S5", 700, -1050, 135),     # RL
     Spawn("S6", -1400, -1650, 0),     # LG
     Spawn("S7", 3000, -1750, 180),    # PG-E
-    Spawn("S8", -3000, -1700, 0),     # PG-W (replaces the concept's End Terrace spawn)
-    Spawn("S9", -3200, 1750, 0),      # SG-W (replaces the concept's Viaduct spawn)
+    Spawn("S8", -3300, -1250, 0, 320.0),    # End Terrace SW, east (PG-W 1.8 m)
+    Spawn("S9", -2500, -2000, 0, 320.0),    # Viaduct, east (concept y -2150 sees RA over the open sky; moved 150 north; LG 7.2 m)
+    Spawn("S10", 2000, -1250, 90, 320.0),   # terrace, north (concept (2300, -1000) sees RA; moved 390 cm; PG-E 7.2 m)
 ]
 SPAWN_MIN_APART = 1000.0
 SPAWN_MAX_WEAPON = 800.0
@@ -244,7 +244,7 @@ def _jf(i, s, e):
     return Link(i, "JUMP_FAST", s, e, None)
 
 
-LINKS = [Link(f"PadLink_{p.id}", "JUMP_PAD", (p.x, p.y, 0), p.land, p.id) for p in PADS] + [
+LINKS = [Link(f"PadLink_{p.id}", "JUMP_PAD", (p.x, p.y, p.z or 0.0), p.land, p.id) for p in PADS] + [
     # rocket jumps: run-up 450 cm from the wall, end 100 cm onto the target (RJ1..RJ4; RJ5 / RJ6 have no link)
     Link("RJ1", "ROCKET_JUMP", (-3200, -1250, 320), (-3200, -700, 640), None),
     Link("RJ2", "ROCKET_JUMP", (3200, 1250, 320), (3200, 700, 640), None),
@@ -282,20 +282,18 @@ LINKS = [Link(f"PadLink_{p.id}", "JUMP_PAD", (p.x, p.y, 0), p.land, p.id) for p 
     _drop("Drop_Via_W", -3000 + DROP_IN, -2150, 320, -3000 - DROP_OUT_TALL, -2150, 0),
     _drop("Drop_Via_E", 3000 - DROP_IN, -2150, 320, 3000 + DROP_OUT_TALL, -2150, 0),
 ]
-LINKS_PENDING = [Link(f"PadLink_{p.id}", "JUMP_PAD", (p.x, p.y, PAD_FLOOR_Z[p.id]), p.land, p.id) for p in PADS_RAISED]   # joins LINKS with PADS_RAISED
 
 # ---------------------------------------------------------------- lights (art mode; filled by the art task A3)
 LIGHTS = []
 CAPTURES = ()
 LIGHTMASS_VOLUME = ((0.0, 0.0, 600.0), (8000.0, 5200.0, 1800.0))
 
-# ---------------------------------------------------------------- clip: perimeter flush outside the footprint, one lid (RJ clearance, safety net)
+# ---------------------------------------------------------------- clip: perimeter flush outside the footprint (open sky: no lid)
 CLIPS = [
     Clip("Clip_W", -3900, -3800, -2500, 2500, 0, 1800),
     Clip("Clip_E", 3800, 3900, -2500, 2500, 0, 1800),
     Clip("Clip_S", -3900, 3900, -2500, -2400, 0, 1800),
     Clip("Clip_N", -3900, 3900, 2400, 2500, 0, 1800),
-    Clip("Sky_Lid", -3900, 3900, -2500, 2500, 1800, 1900),
 ]
 
 NAV_CENTER = (0.0, 0.0, 500.0)
@@ -305,6 +303,6 @@ INTERMISSION_CAMERA = ((0.0, 0.0, 3000.0), (0.0, -60.0, 90.0))
 INTERMISSION_LABEL = (0.0, 300.0, 2500.0)
 
 EXPECTED = {
-    "pickup": 46, "playerstart": 9, "jumppad": 6, "targetpoint": 6, "navbounds": 1, "navlink": 37,
+    "pickup": 46, "playerstart": 10, "jumppad": 11, "targetpoint": 11, "navbounds": 1, "navlink": 42,
     "camera": 1, "text": 1, "light": 2,
 }

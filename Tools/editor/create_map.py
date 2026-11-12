@@ -288,7 +288,7 @@ def selftest_p4():
     ocyl = Oct("C", "platform", "Platform", 500.0, 0.0, 200.0, 0.0, 800.0)
     assert not mapgen.los(mk(OCTS=[ocyl]), "S", "RA") and mapgen.los(mk(OCTS=[ocyl._replace(cy=300.0)]), "S", "RA")      # Oct blocks only where it stands
     fig = mapgen.check_los(mk([wall], LOS_BLOCKED=[("S", "RA")]))[1]
-    assert fig["S_sightline_m"] == 300.0 and fig["longest_sightline_m"] >= fig["S_sightline_m"] and "S_sightline_m" not in mapgen.check_los(mk())[1]
+    assert fig["S_sightline_m"] == "open" and fig["longest_sightline_m"] == "open" and "S_sightline_m" not in mapgen.check_los(mk())[1]
     sl = mapgen.longest_sightline(mk([wall]), (0.0, 0.0, 0.0))
     assert sl == 30000.0 
     assert 1380.0 < mapgen.longest_sightline(_fx([Box("N", "wall", "Wall", -1100.0, 1100.0, 1000.0, 1100.0, 0.0, 800.0), Box("S", "wall", "Wall", -1100.0, 1100.0, -1100.0, -1000.0, 0.0, 800.0), Box("E", "wall", "Wall", 1000.0, 1100.0, -1100.0, 1100.0, 0.0, 800.0), Box("W", "wall", "Wall", -1100.0, -1000.0, -1100.0, 1100.0, 0.0, 800.0)]), (0.0, 0.0, 0.0)) < 1420.0         # corner of a 20 m room
@@ -473,6 +473,67 @@ def selftest_p4():
     print("[selftest] Oct / Hazard / LOS / link-end / drop / pad clearance / free-ramp / free-edge fixtures OK")
 
 
+def selftest_p6():
+    """Pad.z / Spawn.z, optional Quad, open-sky RJ clearance, interpolated landing, Link fields, per-instance item gates (M7 P6)."""
+    import math
+    from maps.records import Box, Item, Spawn, Link, Pad, Hazard, Clip
+    has = lambda problems, text: any(text in p for p in problems)
+    # defaults: z None = FLOOR_Z, so every pre-P6 record means what it did
+    L0 = _fx()
+    assert Pad("P", 0, 0, (1, 1, 1), (2, 2, 2)).z is None and Spawn("S", 0, 0, 0).z is None
+    assert mapgen.pad_z(L0, Pad("P", 0, 0, (1, 1, 1), (2, 2, 2))) == 0.0 and mapgen.spawn_z(L0, Spawn("S", 0, 0, 0)) == 0.0
+    assert mapgen.pad_z(L0, Pad("P", 0, 0, (1, 1, 1), (2, 2, 2), 320.0)) == 320.0 and mapgen.spawn_z(L0, Spawn("S", 0, 0, 0, 320.0)) == 320.0
+    k = Link("K", "JUMP", (0, 0, 0), (1, 1, 0), None)
+    assert k.required_speed == 0.0 and k.both_ways is False and Link("K", "JUMP", (0, 0, 0), (1, 1, 0), None, 800.0, True).both_ways
+    # a raised pad: launch origin and arc start at its deck; a ground pad at the same x, y with the same apex height launches differently
+    deck = Box("D", "platform", "Platform", -300.0, 300.0, -300.0, 300.0, 0.0, 320.0)
+    land = Box("T", "platform", "Platform", 900.0, 1500.0, -300.0, 300.0, 0.0, 320.0)
+    up = Pad("P", 0.0, 0.0, (500.0, 0.0, 700.0), (1000.0, 0.0, 320.0), 320.0)
+    L = _fx([deck, land], PADS=[up])
+    v, t = mapgen.pad_launch(L, up)
+    assert abs(t - math.sqrt(2.0 * (700.0 - 390.0) / mapgen.GRAVITY)) < 1e-9
+    solids = mapgen.all_solids(L)
+    got, err = mapgen.pad_arc(L, up, solids)
+    assert err is None and abs(got[0] - 1000.0) < 60.0 and abs(got[2] - 320.0) < 10.0          # the deck under the pad is not hit at t = 0
+    top, err = mapgen.pad_arc(L, up, solids, interpolate=True)
+    assert err is None and top[2] == 320.0 and got[2] <= top[2]                                  # interpolated: exactly on the top
+    assert not mapgen.validate_layout(_fx([deck, land], PADS=[up], RULES={"pad_arc_clearance": 60.0}))[0]    # the landing deck itself is no obstacle
+    assert has(mapgen.validate_layout(_fx([deck, land], PADS=[up._replace(z=None)]))[0], "P: ")             # z ignored: arc starts in the deck (fail fixture)
+    assert has(mapgen.validate_layout(_fx([deck, land], PADS=[up._replace(target=(500.0, 0.0, 380.0))]))[0], "not above the trigger")   # 380 < 320 + 70
+    # a raised spawn: line of sight from its deck, the PlayerStart one PLAYERSTART_Z above it
+    wall = Box("W", "wall", "Wall", 400.0, 500.0, -300.0, 300.0, 0.0, 800.0)
+    ra = Item("RA", "/Game/Items/DA_Item_Armor_Red", 1000.0, 0.0, 0.0, ())
+    mk = lambda sp, boxes: _fx(boxes, SPAWNS=[sp], ITEMS=[ra])
+    assert not mapgen.los(mk(Spawn("S", 0.0, 0.0, 0.0), [wall]), "S", "RA")
+    assert mapgen.los(mk(Spawn("S", 0.0, 0.0, 0.0, 1500.0), [wall]), "S", "RA")                   # eye at 1660 looks over the 800 wall: the spawn z is used
+    hz = Hazard("Z", "void", -50.0, 50.0, -50.0, 50.0, 0.0, 200.0)
+    chz = lambda z: (lambda Lh: mapgen.check_hazards(Lh, mapgen.all_solids(Lh), mapgen.rules(Lh)))(_fx([], SPAWNS=[Spawn("S", 0.0, 0.0, 0.0, z)], HAZARDS=[hz]))
+    assert has(chz(0.0), "spawn S") and not has(chz(400.0), "spawn S")                              # raised above the box: the point is outside
+    # Quad: only checked when a Quad exists
+    quad = lambda dis: Item("Q", "/Game/Items/DA_Item_Powerup_Quad", 0.0, 0.0, 0.0, dis)
+    assert not has(mapgen.validate_layout(_fx([], ITEMS=[ra]))[0], "Quad")                          # no Quad at all: fine
+    assert not has(mapgen.validate_layout(_fx([], ITEMS=[quad(("Velox.Mode.Duel",))], DUEL="Velox.Mode.Duel"))[0], "Quad")
+    assert has(mapgen.validate_layout(_fx([], ITEMS=[quad(())], DUEL="Velox.Mode.Duel"))[0], "Quad must be disabled")
+    # rocket-jump clearance without a ceiling (open sky) / with one
+    rj = Link("RJ", "ROCKET_JUMP", (0.0, 0.0, 0.0), (300.0, 0.0, 300.0), None)
+    lid = lambda z: Clip("Ceil_X", -500.0, 500.0, -500.0, 500.0, z, z + 100.0)
+    ok = mapgen.validate_layout(_fx([], LINKS=[rj], RJ_CLEARANCE_MIN=900.0))
+    assert not has(ok[0], "clearance") and ok[1]["RJ_clearance"] == "open"
+    assert has(mapgen.validate_layout(_fx([], LINKS=[rj], RJ_CLEARANCE_MIN=900.0, RULES={"rj_open_sky": False}))[0], "clearance above the take-off")
+    assert not has(mapgen.validate_layout(_fx([], LINKS=[rj], RJ_CLEARANCE_MIN=900.0, CLIPS=[lid(1000.0)]))[0], "clearance")
+    assert has(mapgen.validate_layout(_fx([], LINKS=[rj], RJ_CLEARANCE_MIN=900.0, CLIPS=[lid(600.0)]))[0], "clearance above the take-off")
+    roof = Box("R", "platform", "Platform", -500.0, 500.0, -500.0, 500.0, 600.0, 700.0)                 # a solid overhead counts as a ceiling
+    assert has(mapgen.validate_layout(_fx([roof], LINKS=[rj], RJ_CLEARANCE_MIN=900.0))[0], "clearance above the take-off")
+    # sight line figure: "open" on an unobstructed map, metres otherwise
+    assert mapgen._sightline_fig(30000.0) == "open" and mapgen._sightline_fig(3700.0) == 37.0
+    # per-instance item mode gates: only modes the definition does not list become actor tags
+    it = Item("YA_N", "/Game/Items/DA_Item_Armor_Yellow", 0.0, 0.0, 0.0, ("Velox.Mode.Duel",))
+    assert mapgen.item_instance_gates(it, "") == ("DisabledInMode:Velox.Mode.Duel",)
+    assert mapgen.item_instance_gates(it, "(TagName=Velox.Mode.Duel)") == ()
+    assert mapgen.item_instance_gates(it._replace(disabled_in_modes=()), "") == ()
+    print("[selftest] Pad.z / Spawn.z / optional Quad / open-sky RJ / interpolated landing / instance gates fixtures OK")
+
+
 def selftest_spawn_smoke(slug):
     """Runs build_map / build_art_map against a mocked editor: catches undefined names and missing L arguments in the spawn code."""
     from unittest import mock
@@ -532,6 +593,7 @@ def main(argv=None):
             raise RuntimeError("golden dump is not deterministic")
         selftest_p3()
         selftest_p4()
+        selftest_p6()
         if mapgen.vm is None:
             selftest_spawn_smoke(slug)
         print(f"{prefix} selftest OK")

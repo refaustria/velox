@@ -86,7 +86,8 @@ ITEMS = [
     dict(type=WEAPON, name="PlasmaGun", display="Plasma Gun", respawn=5, bot=50, weapon="PlasmaGun", color=color(160, 80, 255), scale=(0.6, 0.2, 0.2)),
     dict(type=POWERUP, name="Quad", display="Quad Damage", respawn=120, bot=110, major=True, powerup_s=30, color=color(60, 120, 255), scale=(0.5, 0.5, 0.5),
          disabled_in_modes=("Velox.Mode.Duel",)),   # ADR 0006 section 3 / E0.5: the Quad is FFA only
-    dict(type=POWERUP, name="Haste", display="Haste", respawn=120, bot=110, major=True, powerup_s=30, color=color(255, 220, 40), scale=(0.5, 0.5, 0.5)),
+    dict(type=POWERUP, name="Haste", display="Haste", respawn=120, bot=110, major=True, powerup_s=30, color=color(255, 220, 40), scale=(0.5, 0.5, 0.5),
+         disabled_in_modes=("Velox.Mode.Duel",)),   # M7 P6 (Culmen): Haste is FFA only; asset regeneration is B3
     dict(type=POWERUP, name="Regen", display="Regeneration", respawn=120, bot=110, major=True, powerup_s=30, color=color(240, 30, 30), scale=(0.5, 0.5, 0.5)),
     dict(type=POWERUP, name="BattleSuit", display="Battle Suit", respawn=120, bot=110, major=True, powerup_s=30, color=color(40, 220, 40), scale=(0.5, 0.5, 0.5)),
 ]
