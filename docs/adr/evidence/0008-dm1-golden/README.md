@@ -32,3 +32,4 @@ Provenance: dumped 2026-11-12 20:27 CET under the soak lock (UE 5.8.4, the edito
 `Source/` unchanged by this task), with the `dump_actors` code as committed here. `collision=` is printed as the engine's
 enum repr (`<CollisionEnabled.QUERY_AND_PHYSICS: 3>`). The engine was no longer under /opt at the end of the task, so the dumps were
 not taken a second time; P2 dumps the regenerated maps with the same code.
+re-dumped 2026-11-12 with post-reinstall binaries (lead decision; generator unchanged, collision diff 0)
