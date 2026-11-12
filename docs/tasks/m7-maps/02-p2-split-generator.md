@@ -2,7 +2,7 @@
 
 **Milestone:** M7 Maps (ADR 0008)
 **Agent:** dev
-**Status:** open
+**Status:** done (engine gate deferred)
 **Depends on:** P1
 **Wave:** 0 pipeline
 
@@ -24,11 +24,11 @@ One generator for all maps: record types move to `maps/records.py`, `L` becomes 
 - ADR 0006 (map pipeline; its hard invariants and budgets stay in force) and `docs/tasks/m7-maps/README.md` (rules)
 
 ## Acceptance criteria
-- [ ] `create_map.py --map dm1 --golden check` byte-identical to P1's golden
-- [ ] Regenerated DM1 maps: `audit_map.py --dump-actors` diff against P1 evidence empty and `--diff-collision` empty; committed `.umap` files unchanged
-- [ ] `infra/ci/build.sh` runs the golden check for every map that has a golden file
-- [ ] Engine run (regeneration) under the soak lock
-- [ ] `create_map.py --map dm1 --golden check` green at the end
+- [x] `create_map.py --map dm1 --golden check` byte-identical to P1's golden
+- [ ] (deferred: engine reinstall (lead)) Regenerated DM1 maps: `audit_map.py --dump-actors` diff against P1 evidence empty and `--diff-collision` empty; committed `.umap` files unchanged
+- [x] `infra/ci/build.sh` runs the golden check for every map that has a golden file
+- [ ] (deferred: engine reinstall (lead)) Engine run (regeneration) under the soak lock
+- [x] `create_map.py --map dm1 --golden check` green at the end
 
 ## Verification steps
 1. `create_map.py --map dm1 --golden check` green (pure Python).
@@ -39,4 +39,5 @@ One generator for all maps: record types move to `maps/records.py`, `L` becomes 
 Standard format (result, what changed, verification, open issues). Note explicitly if Unreal was not available to compile.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+Pure-Python part done without the engine (/opt/UnrealEngine-5.8 absent). `mapgen.py` = old generator body with `L` as first parameter everywhere (mechanical AST transform; `_Cover` keeps `self.L`), `bind(L)` facade for `golden_dump._api()`; `maps/records.py` holds the record types; `create_map.py` CLI; `create_dm1_map.py` shim; `build.sh` runs `ci_golden_check` before `ci_main`. Checked: `--golden check` OK, `create_dm1_map.py --validate-only` output identical to before, `--mode art --validate-only` plan unchanged (518 instances, 0 protrusions), `--selftest` OK. `unreal`/`veloxmap` imports are guarded. No .umap touched.
+Deferred engine gate (lead): regenerate L_DM1_Blockout (`create_map.py --map dm1 --mode blockout`) and L_DM1 (`--mode art`) under the soak lock, dump with `audit_map.py --dump-actors` and diff against docs/adr/evidence/0008-dm1-golden/*.actors.txt (empty), `--diff-collision` empty, committed .umap unchanged. The spawn/build functions of mapgen (build_map, build_art_map, spawn_*) were only transformed, never run.

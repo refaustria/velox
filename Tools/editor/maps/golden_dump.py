@@ -4,10 +4,10 @@ Freezes what the DM1 generator `Tools/editor/create_dm1_map.py` produces from `m
 lines, `all_solids()`, the art plan tuples, `expected_counts()`, `art_counts()`, and every pad's simulated landing. Floats are
 written with `repr` (json.dumps does the same), keys sorted, 1-space indent, one trailing newline: the bytes are deterministic.
 
-    python3 -I Tools/editor/maps/golden_dump.py [--out Tools/editor/maps/golden/dm1.json]     (default: stdout)
+    python3 -I Tools/editor/maps/golden_dump.py [--map dm1] [--out Tools/editor/maps/golden/dm1.json]     (default: stdout)
 
 P2 re-runs this same function (`golden(module)`) against the split generator and compares the bytes with the committed file.
-The functions are read through the module `create_dm1_map` (the generator as it exists at P1); after P2 adapt only `_api()`.
+The functions are read through `mapgen.bind(<layout>)` (P2: only `_api()` changed).
 """
 import json
 import os
@@ -18,9 +18,10 @@ EDITOR = os.path.dirname(HERE)
 sys.path.insert(0, EDITOR)
 
 
-def _api():
-    import create_dm1_map as g   # noqa: E402  (safe outside the editor: main() only runs in the editor or as a script)
-    return g
+def _api(slug="dm1"):
+    import importlib
+    import mapgen   # noqa: E402  (safe outside the editor)
+    return mapgen.bind(importlib.import_module("maps.%s_layout" % slug))
 
 
 def golden(g=None):
@@ -48,7 +49,8 @@ def dumps(g=None):
 
 
 def main(argv):
-    text = dumps()
+    slug = argv[argv.index("--map") + 1] if "--map" in argv else "dm1"
+    text = dumps(_api(slug))
     if "--out" in argv:
         path = argv[argv.index("--out") + 1]
         with open(path, "w", newline="\n") as f:
