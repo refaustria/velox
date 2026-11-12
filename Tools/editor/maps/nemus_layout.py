@@ -4,24 +4,22 @@
 Centimetres, X east, Y north, 100 cm grid, 400 cm module. Footprint 68 x 56 m (X -3400..3400, Y -2800..2800), perimeter tree wall 100 cm
 inside it (X +-3300..3400, Y +-2700..2800). FOUR height layers, level step 320 as on DM1:
 
-  PIT  -320  Orchestra, the Cavea's 8 x 8 m floor            (concept Z 0)
-  T1..T3 -240 / -160 / -80   the three seat tiers, 200 cm deep each (concept 80 / 160 / 240)
-  F      0   L1 forest floor: lanes, groves, forecourt, rim  (concept 320)   <- FLOOR_Z
-  U    320   L2 ruin ring: Templum, aqueduct, log, Pons, Tabulatum (concept 640)
-  C    640   L3 Corona (concept 960)
+  PIT    0   Orchestra, the Cavea's 8 x 8 m floor            <- FLOOR_Z (lowest floor, ADR 0006 E0.3 e)
+  T1..T3 80 / 160 / 240   the three seat tiers, 200 cm deep each
+  F    320   L1 forest floor: lanes, groves, forecourt, rim
+  U    640   L2 ruin ring: Templum, aqueduct, log, Pons, Tabulatum
+  C    960   L3 Corona
 
-DEVIATION D1 (datum): the concept puts the pit at Z 0 and the forest floor at 320. The generator takes ONE ground height for all spawns
-(PlayerStart at FLOOR_Z + 100), all pads (veloxmap.jump_pad spawns at absolute Z 70, mapgen.pad_arc starts at FLOOR_Z) and the spawn line of
-sight. Nemus has 11 spawns and four pads on the forest floor, so FLOOR_Z is the forest floor and every concept Z is lowered by 320 (the
-pit goes to -320, like Orbita's lowest deck). Nothing else changes: all heights relative to each other are the concept's.
+These are the concept heights (docs/maps/nemus.md). Spawns and pads on the forest floor carry z=F (Spawn.z / Pad.z, M7 P6); pad P1 stands on
+the pit floor (z=PIT). S2 had lowered every Z by 320 (deviation D1) because the generator had no per-record floor height; S2b (task 24) undid it.
 
 Top-down sketch (north up; see docs/maps/nemus.md section 4 for the full drawing):
 
   y 2700 +--------------------------- Via Sacra (L1, y 2000..2700) -------------------------------+
          |                       Aquaeductus deck (U, y 1600..2000, arches, 700 gap at x 700..1400) |
   y 1600 | Templum  | forecourt |          C A V E A  (+-1000)            | NE grove | Tabulatum    |
-         | (U)      |  RL       |  tiers -240/-160/-80, Orchestra -320    | Pons N   | + Corona (C) |
-         | x -3300..|           |  pit stairs N/S, pad P1 on the west rim | Radix    | trunk Oct    |
+         | (U)      |  RL       |  tiers 80/160/240, Orchestra 0    | Pons N   | + Corona (C) |
+         | x -3300..|           |  pit stairs N/S, pad P1 on the pit floor | Radix    | trunk Oct    |
   y-1600 |  -2500   |           |  Radix Magna (20 deg) east to Tabulatum | Pons S   |              |
          |                      Trabs, the log (U, y -2000..-1600, breaks at x -2500..-2100 and -200..200)
   y-2700 +--------------------------- Rivus (L1, y -2700..-2000, three root humps) ----------------+
@@ -34,8 +32,8 @@ DISPLAY_NAME = "Nemus"
 MAP_PATH = "/Game/Maps/Nemus/L_Nemus_Blockout"
 ART_MAP_PATH = "/Game/Maps/Nemus/L_Nemus"
 LOG_PREFIX = "[VeloxNemus]"
-FLOOR_Z = 0.0                    # the forest floor (D1): spawns, pads and the spawn line of sight are measured from it
-KILL_Z = -1000.0                 # safety net only; the lowest floor is the pit at -320
+FLOOR_Z = 0.0                    # lowest floor (the pit, ADR 0006 E0.3 e); spawns and pads on the forest floor carry z=F (Spawn.z / Pad.z, P6)
+KILL_Z = -1000.0                 # safety net only; the lowest floor is the pit at 0
 LEVEL_STEP = 320.0
 GRID = 100.0
 MODULE = 400.0
@@ -46,7 +44,7 @@ WALL_T = 100.0
 
 CLIP_MODE = "walls"              # four clip walls flush outside the tree wall; the roof is the `Ceil_Sky` record in CLIPS (open sky, ADR 0008 1.2)
 CLIP_HALF = (3400.0, 2800.0)
-CLIP_H = 1680.0                  # concept: ceiling at Z 2000 = Corona 960 + 880 knockback cap + margin; lowered by the datum shift D1
+CLIP_H = 2000.0                  # concept: ceiling at Z 2000 = Corona 960 + 880 knockback cap + margin
 THEME = "nemus"
 
 from maps.records import Room, Box, Opening, Wall, Stairs, Ramp, Pad, Item, Spawn, Link, Light, Clip, Oct  # noqa: E402,F401
@@ -59,8 +57,8 @@ DUEL = "Velox.Mode.Duel"
 EYE_Z = 160.0
 
 # Levels (see the module docstring)
-PIT, T1, T2, T3, F, U, C = -320.0, -240.0, -160.0, -80.0, 0.0, 320.0, 640.0
-SKY = 1680.0                      # clip ceiling (underside)
+PIT, T1, T2, T3, F, U, C = 0.0, 80.0, 160.0, 240.0, 320.0, 640.0, 960.0
+SKY = 2000.0                      # clip ceiling (underside)
 TAN15 = math.tan(math.radians(15.0))
 TAN20 = math.tan(math.radians(20.0))
 HUMP = 400.0 * TAN15              # crest height of a root hump: 107.18 (concept 107)
@@ -111,10 +109,10 @@ BOXES = (
      _b("Forest_E_S", "floor", 1000, 1300, -2700, -200, PIT - 100, F),
      _b("Forest_E", "floor", 1300, 3300, -2700, 2700, PIT - 100, F),
      # ---- perimeter tree wall (SM_Nemus_TreeWall_800: 1200 high)
-     _b("Wall_W", "wall", -3400, -3300, -2800, 2800, F, 1200),
-     _b("Wall_E", "wall", 3300, 3400, -2800, 2800, F, 1200),
-     _b("Wall_S", "wall", -3300, 3300, -2800, -2700, F, 1200),
-     _b("Wall_N", "wall", -3300, 3300, 2700, 2800, F, 1200),
+     _b("Wall_W", "wall", -3400, -3300, -2800, 2800, F, F + 1200),
+     _b("Wall_E", "wall", 3300, 3400, -2800, 2800, F, F + 1200),
+     _b("Wall_S", "wall", -3300, 3300, -2800, -2700, F, F + 1200),
+     _b("Wall_N", "wall", -3300, 3300, 2700, 2800, F, F + 1200),
      ]
     + _tier(1, 600, 400, T1) + _tier(2, 800, 600, T2) + _tier(3, 1000, 800, T3)
     + [
@@ -168,7 +166,7 @@ WALLS = []
 
 # ---------------------------------------------------------------- stairs
 STAIRS = [
-    # Cavea: 16 risers of 20 cm, 40 cm treads, |y| 360..1000, from the Orchestra (-320) to the rim (0)
+    # Cavea: 16 risers of 20 cm, 40 cm treads, |y| 360..1000, from the Orchestra (0) to the rim (320)
     Stairs("Pit_StairsN", 360, +1, -150, 150, 16, "y", PIT, 40, 20),
     Stairs("Pit_StairsS", -360, -1, -150, 150, 16, "y", PIT, 40, 20),
     # Templum: from the forecourt (F) up to the podium (U) at x -2500
@@ -189,15 +187,15 @@ RAMPS = [
 
 # ---------------------------------------------------------------- jump pads (AimAtTarget: the target is the capsule-centre apex, ADR 0002)
 PADS = [
-    # P1 (D2): on the Cavea's west rim instead of the Orchestra floor; lands in the Templum gate (concept: (-2922, 0, 640))
-    Pad("P1", -1200, 0, (-2227, 0, 630), (-2900, 0, U)),
-    Pad("P2", -3050, 2350, (-2950, 2000, 500), (-2899, 1823, U)),       # Via Sacra west -> Templum north wing
-    Pad("P3", -3050, -2350, (-2950, -2000, 500), (-2899, -1823, U)),    # Rivus west -> Templum south wing
-    Pad("P4", 3110, 1300, (3110, 640, 840), (3110, 369, C)),            # NE grove -> Corona north strip
-    Pad("P5", 1800, -2450, (1800, -2000, 480), (1800, -1789, U)),       # Rivus -> east log
+    # P1 on the Orchestra floor (z=PIT) as in the concept; lands in the Templum gate
+    Pad("P1", -300, 0, (-1950, 0, 1050), (-2922, 0, U), PIT),
+    Pad("P2", -3050, 2350, (-2950, 2000, 820), (-2899, 1823, U), F),       # Via Sacra west -> Templum north wing
+    Pad("P3", -3050, -2350, (-2950, -2000, 820), (-2899, -1823, U), F),    # Rivus west -> Templum south wing
+    Pad("P4", 3110, 1300, (3110, 640, 1160), (3110, 369, C), F),            # NE grove -> Corona north strip
+    Pad("P5", 1800, -2450, (1800, -2000, 800), (1800, -1789, U), F),       # Rivus -> east log
 ]
 
-# ---------------------------------------------------------------- items (concept section 6; Z = concept Z - 320, D1)
+# ---------------------------------------------------------------- items (concept section 6; concept Z)
 Q = "/Game/Items/DA_Item_"
 
 
@@ -230,9 +228,9 @@ ITEMS = [
     _it("H5_Aq2", "Health.Small", 1900, 1800, U),
     _it("H5_Aq3", "Health.Small", 2200, 1800, U),
     _it("H5_Aq4", "Health.Small", 2500, 1800, U),
-    _it("H5_Hump1", "Health.Small", -1800, -2500, HUMP),
-    _it("H5_Hump2", "Health.Small", -600, -2500, HUMP),
-    _it("H5_Hump3", "Health.Small", 600, -2500, HUMP),
+    _it("H5_Hump1", "Health.Small", -1800, -2500, F + HUMP),
+    _it("H5_Hump2", "Health.Small", -600, -2500, F + HUMP),
+    _it("H5_Hump3", "Health.Small", 600, -2500, F + HUMP),
     _it("Shard_Log1", "Armor.Shard", -1700, -1800, U),
     _it("Shard_Log2", "Armor.Shard", -1300, -1800, U),
     _it("Shard_Log3", "Armor.Shard", -900, -1800, U),
@@ -255,27 +253,31 @@ AMMO_MIN_CM, AMMO_MAX_CM = 600.0, 1200.0
 
 # ---------------------------------------------------------------- spawns (11, concept section 7): all on the forest floor
 SPAWNS = [
-    Spawn("S1", -700, 2400, 0),
-    Spawn("S2", 700, 2400, 180),
-    Spawn("S3", -1800, 2300, 0),
-    Spawn("S4", -2000, -600, 45),
-    Spawn("S5", -2650, -2500, 0),
-    Spawn("S6", -300, -2150, 180),
-    Spawn("S7", 1800, -1450, 0),
-    Spawn("S8", 2850, -1100, 180),
-    Spawn("S9", 1800, 1450, 0),
-    Spawn("S10", 2850, 1100, 180),
-    Spawn("S11", -2800, 2500, 0),
+    Spawn("S1", -700, 2400, 0, F),
+    Spawn("S2", 700, 2400, 180, F),
+    Spawn("S3", -1800, 2300, 0, F),
+    Spawn("S4", -2000, -600, 45, F),
+    Spawn("S5", -2650, -2500, 0, F),
+    Spawn("S6", -300, -2150, 180, F),
+    Spawn("S7", 1800, -1450, 0, F),
+    Spawn("S8", 2850, -1100, 180, F),
+    Spawn("S9", 1800, 1450, 0, F),
+    Spawn("S10", 2850, 1100, 180, F),
+    Spawn("S11", -2800, 2500, 0, F),
 ]
 SPAWN_MIN_APART = 1000.0
 SPAWN_MAX_WEAPON = 800.0
 
 # ---------------------------------------------------------------- nav links (ADR 0005 section 4; concept section 15)
+def mapgen_pad_z(p):
+    return F if p.z is None else p.z
+
+
 def _drop(i, sx, sy, sz, ex, ey, ez):
     return Link(i, "DROP", (sx, sy, sz), (ex, ey, ez), None)
 
 
-LINKS = [Link(f"PadLink_{p.id}", "JUMP_PAD", (p.x, p.y, F), p.land, p.id) for p in PADS] + [
+LINKS = [Link(f"PadLink_{p.id}", "JUMP_PAD", (p.x, p.y, mapgen_pad_z(p)), p.land, p.id) for p in PADS] + [
     Link("RJ1", "ROCKET_JUMP", (2600, 1000, U), (2600, 375, C), None),       # Pons N -> Corona north strip, run-up 450 cm
     Link("RJ2", "ROCKET_JUMP", (2600, -1000, U), (2600, -375, C), None),
     Link("RJ3", "ROCKET_JUMP", (-900, 2450, F), (-900, 1800, U), None),      # Via Sacra -> aqueduct deck
@@ -314,18 +316,18 @@ LINKS = [Link(f"PadLink_{p.id}", "JUMP_PAD", (p.x, p.y, F), p.land, p.id) for p 
 # ---------------------------------------------------------------- art-mode tables (task A1; empty until the art pass)
 LIGHTS = []
 CAPTURES = ()
-LIGHTMASS_VOLUME = ((0.0, 0.0, 500.0), (7200.0, 6000.0, 2400.0))
+LIGHTMASS_VOLUME = ((0.0, 0.0, 820.0), (7200.0, 6000.0, 2400.0))
 
 # ---------------------------------------------------------------- clip: perimeter walls come from CLIP_MODE ("walls"), the roof is this record
 CLIPS = [
     Clip("Ceil_Sky", -3500, 3500, -2900, 2900, SKY, SKY + 100),
 ]
 
-NAV_CENTER = (0.0, 0.0, 600.0)
-NAV_SIZE = (7000.0, 5800.0, 2400.0)      # X -3500..3500, Y -2900..2900, Z -600..1800
+NAV_CENTER = (0.0, 0.0, 920.0)
+NAV_SIZE = (7000.0, 5800.0, 2400.0)      # X -3500..3500, Y -2900..2900, Z -280..2120
 
-INTERMISSION_CAMERA = ((0.0, -3300.0, 2600.0), (0.0, -45.0, 90.0))   # location, (roll, pitch, yaw)
-INTERMISSION_LABEL = (0.0, 0.0, 2200.0)
+INTERMISSION_CAMERA = ((0.0, -3300.0, 2920.0), (0.0, -45.0, 90.0))   # location, (roll, pitch, yaw)
+INTERMISSION_LABEL = (0.0, 0.0, 2520.0)
 
 UPPER_RING_MIN_M, UPPER_RING_MAX_M = 38.0, 45.0       # RA -> Mega on the upper ring (concept section 17.1; measured in the task notes)
 
