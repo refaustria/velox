@@ -4,7 +4,11 @@
 
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxCombatLog.h"
+#include "Combat/VeloxHazardRules.h"
 #include "Combat/VeloxHealthSet.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "GameModes/VeloxPlayerState.h"
 #include "GameplayEffectExtension.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxHealthComponent)
@@ -14,6 +18,31 @@ namespace VeloxHealthComponentPrivate
 	AActor* InstigatorOf(const FOnAttributeChangeData& Data)
 	{
 		return Data.GEModData ? Data.GEModData->EffectSpec.GetEffectContext().GetOriginalInstigator() : nullptr;
+	}
+
+	/** The instigator as a player state: the ASC owner (player state), or a pawn's player state (same rule as the death path). */
+	AVeloxPlayerState* PlayerStateOf(AActor* Instigator)
+	{
+		if (AVeloxPlayerState* PS = Cast<AVeloxPlayerState>(Instigator))
+		{
+			return PS;
+		}
+		const APawn* Pawn = Cast<APawn>(Instigator);
+		return Pawn ? Pawn->GetPlayerState<AVeloxPlayerState>() : nullptr;
+	}
+
+	/** First Velox.Damage.<Type> tag of the event other than Velox.Damage.Self. */
+	FGameplayTag DamageTypeOf(const FGameplayTagContainer& Tags)
+	{
+		static const FGameplayTag DamageRoot = FGameplayTag::RequestGameplayTag(TEXT("Velox.Damage"), false);
+		for (const FGameplayTag& Tag : Tags)
+		{
+			if (Tag != VeloxGameplayTags::Damage_Self && DamageRoot.IsValid() && Tag.MatchesTag(DamageRoot))
+			{
+				return Tag;
+			}
+		}
+		return FGameplayTag();
 	}
 }
 
@@ -51,6 +80,7 @@ void UVeloxHealthComponent::InitializeWithAbilitySystem(UVeloxAbilitySystemCompo
 
 	AbilitySystemComponent = InASC;
 	HealthSet = Set;
+	LastAttacker.Reset();
 	bDeathStarted = false;
 	bDeathFinished = false;
 	HealthChangedHandle = InASC->GetGameplayAttributeValueChangeDelegate(UVeloxHealthSet::GetHealthAttribute()).AddUObject(this, &ThisClass::HandleHealthChanged);
@@ -81,6 +111,7 @@ void UVeloxHealthComponent::UninitializeFromAbilitySystem()
 	OutOfHealthHandle.Reset();
 	AbilitySystemComponent = nullptr;
 	HealthSet = nullptr;
+	LastAttacker.Reset();
 }
 
 void UVeloxHealthComponent::OnUnregister()
@@ -141,7 +172,48 @@ void UVeloxHealthComponent::HandleArmorChanged(const FOnAttributeChangeData& Dat
 
 void UVeloxHealthComponent::HandleDamaged(const FVeloxDamageEvent& Event)
 {
+	// Before the broadcast, so a listener that resolves a death or a hazard credit already sees this hit.
+	if (const UWorld* World = GetWorld())
+	{
+		NoteDamageForAttackerCredit(Event, World->GetTimeSeconds());
+	}
 	OnDamaged.Broadcast(Event);
+}
+
+bool UVeloxHealthComponent::NoteDamageForAttackerCredit(const FVeloxDamageEvent& Event, double Now)
+{
+	const AActor* Owner = GetOwner();
+	if (Owner && !Owner->HasAuthority())
+	{
+		return false;
+	}
+
+	const AVeloxPlayerState* VictimPS = AbilitySystemComponent ? Cast<AVeloxPlayerState>(AbilitySystemComponent->GetOwnerActor()) : nullptr;
+	if (!VictimPS)
+	{
+		const APawn* OwnerPawn = Cast<APawn>(Owner);
+		VictimPS = OwnerPawn ? OwnerPawn->GetPlayerState<AVeloxPlayerState>() : nullptr;
+	}
+	AVeloxPlayerState* AttackerPS = VeloxHealthComponentPrivate::PlayerStateOf(Event.Instigator.Get());
+	const bool bOtherPlayer = AttackerPS && AttackerPS != VictimPS;
+
+	if (!VeloxHazardRules::ShouldRecordAttacker(bOtherPlayer, Event.DamageTags, Event.HealthLoss, Event.ArmorLoss, !Event.Knockback.IsNearlyZero()))
+	{
+		return false;
+	}
+
+	LastAttacker.Attacker = AttackerPS;
+	LastAttacker.ServerTime = Now;
+	LastAttacker.DamageTag = VeloxHealthComponentPrivate::DamageTypeOf(Event.DamageTags);
+	UE_LOG(LogVeloxCombat, Verbose, TEXT("%s: last attacker %s (%s) at %.2f"), *GetNameSafe(Owner), *GetNameSafe(AttackerPS),
+		*LastAttacker.DamageTag.ToString(), Now);
+	return true;
+}
+
+AVeloxPlayerState* UVeloxHealthComponent::GetCreditedAttacker(double Now, float WindowSeconds) const
+{
+	AVeloxPlayerState* Attacker = LastAttacker.Attacker.Get();
+	return VeloxHazardRules::IsCredited(LastAttacker.HasRecord(), Attacker != nullptr, LastAttacker.ServerTime, Now, WindowSeconds) ? Attacker : nullptr;
 }
 
 void UVeloxHealthComponent::HandleOutOfHealth(const FVeloxDamageEvent& Event)

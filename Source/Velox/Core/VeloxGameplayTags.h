@@ -63,6 +63,10 @@ namespace VeloxGameplayTags
 	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Environment);
 	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Telefrag);
 	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Self);
+	/** ADR 0008 3.3: hazard volumes. Not under Damage.Environment (the soak runners count that substring as world_kill). */
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Hazard);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Hazard_Lava);
+	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Damage_Hazard_Void);
 
 	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Damage);
 	VELOX_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_PelletHits);

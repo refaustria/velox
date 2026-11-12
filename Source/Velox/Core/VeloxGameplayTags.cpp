@@ -57,6 +57,9 @@ namespace VeloxGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_Environment, "Velox.Damage.Environment", "Damage type: world (pits, test commands).");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_Telefrag, "Velox.Damage.Telefrag", "Damage type: telefrag.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_Self, "Velox.Damage.Self", "Added alongside the weapon damage tag when the victim is the instigator.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_Hazard, "Velox.Damage.Hazard", "Damage type: hazard volume (ADR 0008 3.3); never an attacker source for the last-attacker record.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_Hazard_Lava, "Velox.Damage.Hazard.Lava", "Hazard damage: lava (per tick while overlapping).");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Damage_Hazard_Void, "Velox.Damage.Hazard.Void", "Hazard damage: void (kills once on entry).");
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Damage, "SetByCaller.Damage", "GE_Damage: raw damage per hit/pellet.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_PelletHits, "SetByCaller.PelletHits", "GE_Damage: number of pellets that hit (default 1).");
