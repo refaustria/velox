@@ -206,14 +206,16 @@ AMMO_FOR = {"PG": "CellsAmmo", "SG": "ShellsAmmo", "LG": "LightningAmmo", "RL": 
 AMMO_MIN_CM, AMMO_MAX_CM = 600.0, 1200.0
 
 # ---------------------------------------------------------------- spawns (5): none sees RA or Mega, >= 10 m apart, <= 8 m (horizontal) from a weapon
-# Spawn has no z (the generator places every PlayerStart at FLOOR_Z + 100), so the concept's S1 (Flue, L1) and S5 (gallery, L1) are moved
-# to L0 positions with the same weapon / no-sight properties (task notes). With a `Spawn.z` field they could go back.
+# Concept section 6 positions as far as the rules allow (M7 S4b, Spawn.z): S2 / S3 / S4 / S5 as in the concept, S5 back on L1. S1 cannot return
+# to the concept's Flue spawn (-1700, 1200, 320): every Flue point sees the Mega down the open 26 m Flue (checked on a 50 cm grid), and no West
+# Landing point passes the weapon / spacing rules. S1 therefore stays on L0 at a new place, the Tap Room north strip (the old Slag Run spawn is
+# 4.3 m from the concept S2).
 SPAWNS = [
-    Spawn("S1_Slag", -800, -1100, 0),        # Slag Run north bank, RL (7.4 m)
-    Spawn("S2_Hearth", 150, -750, 180),      # Hearth, RL (4.9 m)
-    Spawn("S3_Under", 500, 500, 0),          # Casting Hall south strip under the bridge line, LG (4 m)
-    Spawn("S4_Tap", 1000, -1300, 0),         # Tap Room, PG (5 m)
-    Spawn("S5_TapE", 1750, -600, 180),       # Tap Room east, RG (7 m)
+    Spawn("S1_TapN", 1000, -500, 0),             # Tap Room north strip (L0), PG (6.4 m); 10.0 m from S4, 10+ m from the rest
+    Spawn("S2_Hearth", -650, -700, 0),           # Hearth, RL (3.8 m)
+    Spawn("S3_Under", 500, 500, 0),              # Casting Hall south strip under the bridge line, LG (4 m)
+    Spawn("S4_Tap", 450, -1350, 0),              # Tap Room, PG (3.8 m)
+    Spawn("S5_Gallery", 2100, -450, 90, 320),    # East Gallery C side (L1), RG (4.5 m)
 ]
 SPAWN_MIN_APART = 1000.0
 SPAWN_MAX_WEAPON = 800.0
