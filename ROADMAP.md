@@ -95,5 +95,5 @@ Acceptance criteria:
 
 - [ ] CTF mode with flag logic, team spawns, team colours.
 - [ ] Replays/demos (record network stream, playback).
-- [ ] Two more maps.
+- [ ] Five more maps as blockouts, then art/bake pass (ADR 0008). Tasks: `docs/tasks/m7-maps/`.
 - [ ] Performance pass, playtest fixes, tuning pass on movement and weapons.

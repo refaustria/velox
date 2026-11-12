@@ -1,6 +1,7 @@
 # ADR 0006 — First real map and characters (M5)
 
 **Status:** Accepted (task files merged to `m5-map-characters`, 2026-10-31). Amended by **E0** (wave-0 rulings, 2026-10-31), **E1** (review of tasks 08–10, 2026-10-31, `docs/adr/reviews/0006-cosmetics-review.md`), **E2** (dwell rule, 2026-10-31) and **E3** (DM1 bands, link demand, §3 deviations, art-pass gate, 2026-11-01, `docs/adr/reviews/0006-06b-review.md`), see Amendments.
+**See also:** ADR 0008 (M7 maps: §2 one generator for all maps, §7/E0.3 (e) soak metrics on hazard maps and one floor-Z exception, §8 kit cap wording amended).
 **Scope:** everything `dev`/`dev-hard` need to turn the greybox-only project (M0–M4 on `main` at 3fcd1bc: six weapons, items, FFA/Duel, bots on `L_ItemTest`) into ROADMAP M5: one polished Duel/FFA map with baked lighting, one rigged character with 4+ bright skins, weapon world and view models, and the audio pass — without a GPU on the build host and without a playtest machine until the Apple Silicon Mac arrives. Amendments to this ADR are numbered **E1, E2, …** (ADR 0002 uses A, 0003 B, 0004 C, 0005 D).
 
 ## Context
