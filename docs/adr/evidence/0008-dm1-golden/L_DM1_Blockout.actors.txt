@@ -1,0 +1,640 @@
+# map /Game/Maps/DM1/L_DM1_Blockout: 224 actors
+actor CameraActor layout=Layout:IntermissionCamera tags=Intermission
+  loc=(0.000, -400.000, 2600.000) rot=(-60.000, 90.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor DirectionalLight layout=Layout:Sun tags=-
+  loc=(0.000, 0.000, 800.000) rot=(-45.000, 30.000, 0.000) scale=(2.500, 2.500, 2.500) root_profile=?
+actor NavMeshBoundsVolume layout=Layout:NavMeshBounds tags=-
+  loc=(0.000, -400.000, 600.000) rot=(0.000, 0.000, 0.000) scale=(37.000, 21.000, 9.000) root_profile=NoCollision
+actor PlayerStart layout=Layout:S1_CW tags=-
+  loc=(-2800.000, 1100.000, 100.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=NoCollision
+actor PlayerStart layout=Layout:S2_LGW tags=-
+  loc=(-750.000, 1350.000, 100.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=NoCollision
+actor PlayerStart layout=Layout:S3_LGE tags=-
+  loc=(750.000, 1350.000, 100.000) rot=(0.000, 180.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=NoCollision
+actor PlayerStart layout=Layout:S4_CE tags=-
+  loc=(3000.000, 1100.000, 100.000) rot=(0.000, 180.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=NoCollision
+actor PlayerStart layout=Layout:S5_RLW tags=-
+  loc=(-330.000, -1500.000, 100.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=NoCollision
+actor PlayerStart layout=Layout:S6_RLE tags=-
+  loc=(700.000, -1500.000, 100.000) rot=(0.000, 180.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=NoCollision
+actor PlayerStart layout=Layout:S7_E1 tags=-
+  loc=(-400.000, -400.000, 100.000) rot=(0.000, 45.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=NoCollision
+actor PlayerStart layout=Layout:S8_E2 tags=-
+  loc=(400.000, 400.000, 100.000) rot=(0.000, -135.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=NoCollision
+actor RecastNavMesh layout=- tags=-
+  loc=(0.000, 0.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor SkyLight layout=Layout:SkyLight tags=-
+  loc=(0.000, 0.000, 900.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor StaticMeshActor layout=Layout:A_Ledge tags=-
+  loc=(-1850.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(5.000, 14.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1850.000, 0.000, 160.000) scale=(5.000, 14.000, 3.200)
+actor StaticMeshActor layout=Layout:A_Ramp tags=-
+  loc=(-2196.872, 0.000, 123.622) rot=(0.000, 0.000, 0.000) scale=(1.943, 4.000, 2.472) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2196.872, 0.000, 123.622) scale=(1.943, 4.000, 2.472)
+actor StaticMeshActor layout=Layout:A_Ramp tags=-
+  loc=(-2394.000, 0.000, 96.827) rot=(0.000, 0.000, 0.000) scale=(2.000, 4.000, 1.937) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2394.000, 0.000, 96.827) scale=(2.000, 4.000, 1.937)
+actor StaticMeshActor layout=Layout:A_Ramp tags=-
+  loc=(-2594.000, 0.000, 70.032) rot=(0.000, 0.000, 0.000) scale=(2.000, 4.000, 1.401) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2594.000, 0.000, 70.032) scale=(2.000, 4.000, 1.401)
+actor StaticMeshActor layout=Layout:A_Ramp tags=-
+  loc=(-2694.284, 0.000, 150.341) rot=(15.000, 0.000, 0.000) scale=(12.364, 4.000, 0.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_RampWalkable.M_Greybox_RampWalkable] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2694.284, 0.000, 150.341) scale=(12.364, 4.000, 0.200)
+actor StaticMeshActor layout=Layout:A_Ramp tags=-
+  loc=(-2794.000, 0.000, 43.237) rot=(0.000, 0.000, 0.000) scale=(2.000, 4.000, 0.865) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2794.000, 0.000, 43.237) scale=(2.000, 4.000, 0.865)
+actor StaticMeshActor layout=Layout:A_Ramp tags=-
+  loc=(-2994.000, 0.000, 16.442) rot=(0.000, 0.000, 0.000) scale=(2.000, 4.000, 0.329) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2994.000, 0.000, 16.442) scale=(2.000, 4.000, 0.329)
+actor StaticMeshActor layout=Layout:B_Balcony tags=-
+  loc=(1850.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(5.000, 14.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1850.000, 0.000, 160.000) scale=(5.000, 14.000, 3.200)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2125.000, 500.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2125.000, 500.000, 160.000) scale=(0.500, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2175.000, 500.000, 150.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 3.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2175.000, 500.000, 150.000) scale=(0.500, 4.000, 3.000)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2225.000, 500.000, 140.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2225.000, 500.000, 140.000) scale=(0.500, 4.000, 2.800)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2275.000, 500.000, 130.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2275.000, 500.000, 130.000) scale=(0.500, 4.000, 2.600)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2325.000, 500.000, 120.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2325.000, 500.000, 120.000) scale=(0.500, 4.000, 2.400)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2375.000, 500.000, 110.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2375.000, 500.000, 110.000) scale=(0.500, 4.000, 2.200)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2425.000, 500.000, 100.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2425.000, 500.000, 100.000) scale=(0.500, 4.000, 2.000)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2475.000, 500.000, 90.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2475.000, 500.000, 90.000) scale=(0.500, 4.000, 1.800)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2525.000, 500.000, 80.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2525.000, 500.000, 80.000) scale=(0.500, 4.000, 1.600)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2575.000, 500.000, 70.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2575.000, 500.000, 70.000) scale=(0.500, 4.000, 1.400)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2625.000, 500.000, 60.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2625.000, 500.000, 60.000) scale=(0.500, 4.000, 1.200)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2675.000, 500.000, 50.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2675.000, 500.000, 50.000) scale=(0.500, 4.000, 1.000)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2725.000, 500.000, 40.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 0.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2725.000, 500.000, 40.000) scale=(0.500, 4.000, 0.800)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2775.000, 500.000, 30.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 0.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2775.000, 500.000, 30.000) scale=(0.500, 4.000, 0.600)
+actor StaticMeshActor layout=Layout:B_StairsN tags=-
+  loc=(2875.000, 500.000, 20.000) rot=(0.000, 0.000, 0.000) scale=(1.500, 4.000, 0.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2875.000, 500.000, 20.000) scale=(1.500, 4.000, 0.400)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2125.000, -500.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2125.000, -500.000, 160.000) scale=(0.500, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2175.000, -500.000, 150.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 3.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2175.000, -500.000, 150.000) scale=(0.500, 4.000, 3.000)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2225.000, -500.000, 140.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2225.000, -500.000, 140.000) scale=(0.500, 4.000, 2.800)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2275.000, -500.000, 130.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2275.000, -500.000, 130.000) scale=(0.500, 4.000, 2.600)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2325.000, -500.000, 120.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2325.000, -500.000, 120.000) scale=(0.500, 4.000, 2.400)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2375.000, -500.000, 110.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2375.000, -500.000, 110.000) scale=(0.500, 4.000, 2.200)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2425.000, -500.000, 100.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2425.000, -500.000, 100.000) scale=(0.500, 4.000, 2.000)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2475.000, -500.000, 90.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2475.000, -500.000, 90.000) scale=(0.500, 4.000, 1.800)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2525.000, -500.000, 80.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2525.000, -500.000, 80.000) scale=(0.500, 4.000, 1.600)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2575.000, -500.000, 70.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2575.000, -500.000, 70.000) scale=(0.500, 4.000, 1.400)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2625.000, -500.000, 60.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2625.000, -500.000, 60.000) scale=(0.500, 4.000, 1.200)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2675.000, -500.000, 50.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2675.000, -500.000, 50.000) scale=(0.500, 4.000, 1.000)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2725.000, -500.000, 40.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 0.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2725.000, -500.000, 40.000) scale=(0.500, 4.000, 0.800)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2775.000, -500.000, 30.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 0.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2775.000, -500.000, 30.000) scale=(0.500, 4.000, 0.600)
+actor StaticMeshActor layout=Layout:B_StairsS tags=-
+  loc=(2875.000, -500.000, 20.000) rot=(0.000, 0.000, 0.000) scale=(1.500, 4.000, 0.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2875.000, -500.000, 20.000) scale=(1.500, 4.000, 0.400)
+actor StaticMeshActor layout=Layout:BridgeE_Deck tags=-
+  loc=(1800.000, -1300.000, 310.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 10.000, 0.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1800.000, -1300.000, 310.000) scale=(4.000, 10.000, 0.200)
+actor StaticMeshActor layout=Layout:BridgeE_WallE tags=-
+  loc=(2050.000, -1300.000, 600.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 10.000, 6.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2050.000, -1300.000, 600.000) scale=(1.000, 10.000, 6.000)
+actor StaticMeshActor layout=Layout:BridgeE_WallW tags=-
+  loc=(1550.000, -1300.000, 600.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 10.000, 6.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1550.000, -1300.000, 600.000) scale=(1.000, 10.000, 6.000)
+actor StaticMeshActor layout=Layout:BridgeW_Deck tags=-
+  loc=(-1800.000, -1300.000, 310.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 10.000, 0.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1800.000, -1300.000, 310.000) scale=(4.000, 10.000, 0.200)
+actor StaticMeshActor layout=Layout:BridgeW_WallE tags=-
+  loc=(-1550.000, -1300.000, 600.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 10.000, 6.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1550.000, -1300.000, 600.000) scale=(1.000, 10.000, 6.000)
+actor StaticMeshActor layout=Layout:BridgeW_WallW tags=-
+  loc=(-2050.000, -1300.000, 600.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 10.000, 6.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2050.000, -1300.000, 600.000) scale=(1.000, 10.000, 6.000)
+actor StaticMeshActor layout=Layout:C_LGLedge tags=-
+  loc=(0.000, 1300.000, 40.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 2.000, 0.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(0.000, 1300.000, 40.000) scale=(4.000, 2.000, 0.800)
+actor StaticMeshActor layout=Layout:C_LGSteps tags=-
+  loc=(-225.000, 1300.000, 40.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 2.000, 0.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-225.000, 1300.000, 40.000) scale=(0.500, 2.000, 0.800)
+actor StaticMeshActor layout=Layout:C_LGSteps tags=-
+  loc=(-275.000, 1300.000, 30.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 2.000, 0.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-275.000, 1300.000, 30.000) scale=(0.500, 2.000, 0.600)
+actor StaticMeshActor layout=Layout:C_LGSteps tags=-
+  loc=(-375.000, 1300.000, 20.000) rot=(0.000, 0.000, 0.000) scale=(1.500, 2.000, 0.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-375.000, 1300.000, 20.000) scale=(1.500, 2.000, 0.400)
+actor StaticMeshActor layout=Layout:Ceil_A tags=-
+  loc=(-2500.000, 0.000, 850.000) rot=(0.000, 0.000, 0.000) scale=(20.000, 16.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(-2500.000, 0.000, 850.000) scale=(20.000, 16.000, 1.000)
+actor StaticMeshActor layout=Layout:Ceil_B tags=-
+  loc=(2500.000, 0.000, 850.000) rot=(0.000, 0.000, 0.000) scale=(20.000, 16.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(2500.000, 0.000, 850.000) scale=(20.000, 16.000, 1.000)
+actor StaticMeshActor layout=Layout:Ceil_C tags=-
+  loc=(0.000, 1100.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(70.000, 8.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(0.000, 1100.000, 450.000) scale=(70.000, 8.000, 1.000)
+actor StaticMeshActor layout=Layout:Ceil_D tags=-
+  loc=(0.000, -1500.000, 950.000) rot=(0.000, 0.000, 0.000) scale=(70.000, 16.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(0.000, -1500.000, 950.000) scale=(70.000, 16.000, 1.000)
+actor StaticMeshActor layout=Layout:Ceil_E tags=-
+  loc=(0.000, 0.000, 1290.000) rot=(0.000, 0.000, 0.000) scale=(14.000, 16.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(0.000, 0.000, 1290.000) scale=(14.000, 16.000, 1.000)
+actor StaticMeshActor layout=Layout:Ceil_WalkE tags=-
+  loc=(1100.000, 0.000, 1290.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 6.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(1100.000, 0.000, 1290.000) scale=(8.000, 6.000, 1.000)
+actor StaticMeshActor layout=Layout:Ceil_WalkW tags=-
+  loc=(-1100.000, 0.000, 1290.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 6.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(-1100.000, 0.000, 1290.000) scale=(8.000, 6.000, 1.000)
+actor StaticMeshActor layout=Layout:Clip_E tags=-
+  loc=(3550.000, -400.000, 900.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 40.000, 18.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(3550.000, -400.000, 900.000) scale=(1.000, 40.000, 18.000)
+actor StaticMeshActor layout=Layout:Clip_N tags=-
+  loc=(0.000, 1550.000, 900.000) rot=(0.000, 0.000, 0.000) scale=(72.000, 1.000, 18.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(0.000, 1550.000, 900.000) scale=(72.000, 1.000, 18.000)
+actor StaticMeshActor layout=Layout:Clip_Roof tags=-
+  loc=(0.000, -400.000, 1850.000) rot=(0.000, 0.000, 0.000) scale=(72.000, 40.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(0.000, -400.000, 1850.000) scale=(72.000, 40.000, 1.000)
+actor StaticMeshActor layout=Layout:Clip_S tags=-
+  loc=(0.000, -2350.000, 900.000) rot=(0.000, 0.000, 0.000) scale=(72.000, 1.000, 18.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(0.000, -2350.000, 900.000) scale=(72.000, 1.000, 18.000)
+actor StaticMeshActor layout=Layout:Clip_W tags=-
+  loc=(-3550.000, -400.000, 900.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 40.000, 18.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=False loc=(-3550.000, -400.000, 900.000) scale=(1.000, 40.000, 18.000)
+actor StaticMeshActor layout=Layout:D_Balcony tags=-
+  loc=(0.000, -2000.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(40.000, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(0.000, -2000.000, 160.000) scale=(40.000, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2025.000, -2000.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2025.000, -2000.000, 160.000) scale=(0.500, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2075.000, -2000.000, 150.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 3.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2075.000, -2000.000, 150.000) scale=(0.500, 4.000, 3.000)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2125.000, -2000.000, 140.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2125.000, -2000.000, 140.000) scale=(0.500, 4.000, 2.800)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2175.000, -2000.000, 130.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2175.000, -2000.000, 130.000) scale=(0.500, 4.000, 2.600)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2225.000, -2000.000, 120.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2225.000, -2000.000, 120.000) scale=(0.500, 4.000, 2.400)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2275.000, -2000.000, 110.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2275.000, -2000.000, 110.000) scale=(0.500, 4.000, 2.200)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2325.000, -2000.000, 100.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2325.000, -2000.000, 100.000) scale=(0.500, 4.000, 2.000)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2375.000, -2000.000, 90.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2375.000, -2000.000, 90.000) scale=(0.500, 4.000, 1.800)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2425.000, -2000.000, 80.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2425.000, -2000.000, 80.000) scale=(0.500, 4.000, 1.600)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2475.000, -2000.000, 70.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2475.000, -2000.000, 70.000) scale=(0.500, 4.000, 1.400)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2525.000, -2000.000, 60.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2525.000, -2000.000, 60.000) scale=(0.500, 4.000, 1.200)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2575.000, -2000.000, 50.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2575.000, -2000.000, 50.000) scale=(0.500, 4.000, 1.000)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2625.000, -2000.000, 40.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 0.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2625.000, -2000.000, 40.000) scale=(0.500, 4.000, 0.800)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2675.000, -2000.000, 30.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 0.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2675.000, -2000.000, 30.000) scale=(0.500, 4.000, 0.600)
+actor StaticMeshActor layout=Layout:D_StairsE tags=-
+  loc=(2775.000, -2000.000, 20.000) rot=(0.000, 0.000, 0.000) scale=(1.500, 4.000, 0.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2775.000, -2000.000, 20.000) scale=(1.500, 4.000, 0.400)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2025.000, -2000.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2025.000, -2000.000, 160.000) scale=(0.500, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2075.000, -2000.000, 150.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 3.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2075.000, -2000.000, 150.000) scale=(0.500, 4.000, 3.000)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2125.000, -2000.000, 140.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2125.000, -2000.000, 140.000) scale=(0.500, 4.000, 2.800)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2175.000, -2000.000, 130.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2175.000, -2000.000, 130.000) scale=(0.500, 4.000, 2.600)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2225.000, -2000.000, 120.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2225.000, -2000.000, 120.000) scale=(0.500, 4.000, 2.400)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2275.000, -2000.000, 110.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2275.000, -2000.000, 110.000) scale=(0.500, 4.000, 2.200)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2325.000, -2000.000, 100.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 2.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2325.000, -2000.000, 100.000) scale=(0.500, 4.000, 2.000)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2375.000, -2000.000, 90.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2375.000, -2000.000, 90.000) scale=(0.500, 4.000, 1.800)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2425.000, -2000.000, 80.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2425.000, -2000.000, 80.000) scale=(0.500, 4.000, 1.600)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2475.000, -2000.000, 70.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2475.000, -2000.000, 70.000) scale=(0.500, 4.000, 1.400)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2525.000, -2000.000, 60.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2525.000, -2000.000, 60.000) scale=(0.500, 4.000, 1.200)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2575.000, -2000.000, 50.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2575.000, -2000.000, 50.000) scale=(0.500, 4.000, 1.000)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2625.000, -2000.000, 40.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 0.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2625.000, -2000.000, 40.000) scale=(0.500, 4.000, 0.800)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2675.000, -2000.000, 30.000) rot=(0.000, 0.000, 0.000) scale=(0.500, 4.000, 0.600) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2675.000, -2000.000, 30.000) scale=(0.500, 4.000, 0.600)
+actor StaticMeshActor layout=Layout:D_StairsW tags=-
+  loc=(-2775.000, -2000.000, 20.000) rot=(0.000, 0.000, 0.000) scale=(1.500, 4.000, 0.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Stairs.M_Greybox_Stairs] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2775.000, -2000.000, 20.000) scale=(1.500, 4.000, 0.400)
+actor StaticMeshActor layout=Layout:E_DockE tags=-
+  loc=(450.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(3.000, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(450.000, 0.000, 160.000) scale=(3.000, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:E_DockW tags=-
+  loc=(-450.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(3.000, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-450.000, 0.000, 160.000) scale=(3.000, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:E_MidBridge tags=-
+  loc=(0.000, 0.000, 310.000) rot=(0.000, 0.000, 0.000) scale=(6.000, 4.000, 0.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(0.000, 0.000, 310.000) scale=(6.000, 4.000, 0.200)
+actor StaticMeshActor layout=Layout:E_TopSlab tags=-
+  loc=(0.000, 0.000, 630.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 5.000, 0.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(0.000, 0.000, 630.000) scale=(4.000, 5.000, 0.200)
+actor StaticMeshActor layout=Layout:Ground tags=-
+  loc=(0.000, -400.000, -50.000) rot=(0.000, 0.000, 0.000) scale=(70.000, 38.000, 1.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Floor.M_Greybox_Floor] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(0.000, -400.000, -50.000) scale=(70.000, 38.000, 1.000)
+actor StaticMeshActor layout=Layout:PadA_LandingMarker tags=-
+  loc=(-1954.000, -450.000, 322.000) rot=(0.000, 0.000, 0.000) scale=(1.200, 1.200, 0.040) root_profile=NoCollision
+  mesh=/Engine/BasicShapes/Cylinder.Cylinder mats=[/Game/Materials/M_Greybox_Target.M_Greybox_Target] profile=NoCollision collision=<CollisionEnabled.NO_COLLISION: 0> nav=True loc=(-1954.000, -450.000, 322.000) scale=(1.200, 1.200, 0.040)
+actor StaticMeshActor layout=Layout:PadB_LandingMarker tags=-
+  loc=(1954.000, 0.000, 322.000) rot=(0.000, 0.000, 0.000) scale=(1.200, 1.200, 0.040) root_profile=NoCollision
+  mesh=/Engine/BasicShapes/Cylinder.Cylinder mats=[/Game/Materials/M_Greybox_Target.M_Greybox_Target] profile=NoCollision collision=<CollisionEnabled.NO_COLLISION: 0> nav=True loc=(1954.000, 0.000, 322.000) scale=(1.200, 1.200, 0.040)
+actor StaticMeshActor layout=Layout:PadD_LandingMarker tags=-
+  loc=(0.000, -98.000, 642.000) rot=(0.000, 0.000, 0.000) scale=(1.200, 1.200, 0.040) root_profile=NoCollision
+  mesh=/Engine/BasicShapes/Cylinder.Cylinder mats=[/Game/Materials/M_Greybox_Target.M_Greybox_Target] profile=NoCollision collision=<CollisionEnabled.NO_COLLISION: 0> nav=True loc=(0.000, -98.000, 642.000) scale=(1.200, 1.200, 0.040)
+actor StaticMeshActor layout=Layout:WalkE_Floor tags=-
+  loc=(1100.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1100.000, 0.000, 160.000) scale=(8.000, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:WalkE_WallN tags=-
+  loc=(1100.000, 250.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 1.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1100.000, 250.000, 620.000) scale=(8.000, 1.000, 12.400)
+actor StaticMeshActor layout=Layout:WalkE_WallS tags=-
+  loc=(1100.000, -250.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 1.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1100.000, -250.000, 620.000) scale=(8.000, 1.000, 12.400)
+actor StaticMeshActor layout=Layout:WalkW_Floor tags=-
+  loc=(-1100.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Platform.M_Greybox_Platform] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1100.000, 0.000, 160.000) scale=(8.000, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:WalkW_WallN tags=-
+  loc=(-1100.000, 250.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 1.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1100.000, 250.000, 620.000) scale=(8.000, 1.000, 12.400)
+actor StaticMeshActor layout=Layout:WalkW_WallS tags=-
+  loc=(-1100.000, -250.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 1.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1100.000, -250.000, 620.000) scale=(8.000, 1.000, 12.400)
+actor StaticMeshActor layout=Layout:WallA_E tags=-
+  loc=(-1550.000, -450.000, 400.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 5.000, 8.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1550.000, -450.000, 400.000) scale=(1.000, 5.000, 8.000)
+actor StaticMeshActor layout=Layout:WallA_E tags=-
+  loc=(-1550.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1550.000, 0.000, 160.000) scale=(1.000, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:WallA_E tags=-
+  loc=(-1550.000, 450.000, 400.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 5.000, 8.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1550.000, 450.000, 400.000) scale=(1.000, 5.000, 8.000)
+actor StaticMeshActor layout=Layout:WallB_W tags=-
+  loc=(1550.000, -450.000, 400.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 5.000, 8.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1550.000, -450.000, 400.000) scale=(1.000, 5.000, 8.000)
+actor StaticMeshActor layout=Layout:WallB_W tags=-
+  loc=(1550.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1550.000, 0.000, 160.000) scale=(1.000, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:WallB_W tags=-
+  loc=(1550.000, 450.000, 400.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 5.000, 8.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1550.000, 450.000, 400.000) scale=(1.000, 5.000, 8.000)
+actor StaticMeshActor layout=Layout:WallE_E tags=-
+  loc=(650.000, -450.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 5.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(650.000, -450.000, 620.000) scale=(1.000, 5.000, 12.400)
+actor StaticMeshActor layout=Layout:WallE_E tags=-
+  loc=(650.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(650.000, 0.000, 160.000) scale=(1.000, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:WallE_E tags=-
+  loc=(650.000, 450.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 5.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(650.000, 450.000, 620.000) scale=(1.000, 5.000, 12.400)
+actor StaticMeshActor layout=Layout:WallE_W tags=-
+  loc=(-650.000, -450.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 5.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-650.000, -450.000, 620.000) scale=(1.000, 5.000, 12.400)
+actor StaticMeshActor layout=Layout:WallE_W tags=-
+  loc=(-650.000, 0.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 4.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-650.000, 0.000, 160.000) scale=(1.000, 4.000, 3.200)
+actor StaticMeshActor layout=Layout:WallE_W tags=-
+  loc=(-650.000, 450.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 5.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-650.000, 450.000, 620.000) scale=(1.000, 5.000, 12.400)
+actor StaticMeshActor layout=Layout:WallNL_A tags=-
+  loc=(-2050.000, 750.000, 400.000) rot=(0.000, 0.000, 0.000) scale=(11.000, 1.000, 8.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2050.000, 750.000, 400.000) scale=(11.000, 1.000, 8.000)
+actor StaticMeshActor layout=Layout:WallNL_A tags=-
+  loc=(-2800.000, 750.000, 560.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 4.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2800.000, 750.000, 560.000) scale=(4.000, 1.000, 4.800)
+actor StaticMeshActor layout=Layout:WallNL_A tags=-
+  loc=(-3200.000, 750.000, 400.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 8.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-3200.000, 750.000, 400.000) scale=(4.000, 1.000, 8.000)
+actor StaticMeshActor layout=Layout:WallNL_B tags=-
+  loc=(2250.000, 750.000, 400.000) rot=(0.000, 0.000, 0.000) scale=(15.000, 1.000, 8.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2250.000, 750.000, 400.000) scale=(15.000, 1.000, 8.000)
+actor StaticMeshActor layout=Layout:WallNL_B tags=-
+  loc=(3200.000, 750.000, 560.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 4.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(3200.000, 750.000, 560.000) scale=(4.000, 1.000, 4.800)
+actor StaticMeshActor layout=Layout:WallNL_E tags=-
+  loc=(-350.000, 750.000, 780.000) rot=(0.000, 0.000, 0.000) scale=(3.000, 1.000, 9.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-350.000, 750.000, 780.000) scale=(3.000, 1.000, 9.200)
+actor StaticMeshActor layout=Layout:WallNL_E tags=-
+  loc=(-600.000, 750.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(2.000, 1.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-600.000, 750.000, 620.000) scale=(2.000, 1.000, 12.400)
+actor StaticMeshActor layout=Layout:WallNL_E tags=-
+  loc=(0.000, 750.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(0.000, 750.000, 620.000) scale=(4.000, 1.000, 12.400)
+actor StaticMeshActor layout=Layout:WallNL_E tags=-
+  loc=(350.000, 750.000, 780.000) rot=(0.000, 0.000, 0.000) scale=(3.000, 1.000, 9.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(350.000, 750.000, 780.000) scale=(3.000, 1.000, 9.200)
+actor StaticMeshActor layout=Layout:WallNL_E tags=-
+  loc=(600.000, 750.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(2.000, 1.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(600.000, 750.000, 620.000) scale=(2.000, 1.000, 12.400)
+actor StaticMeshActor layout=Layout:WallNL_Pocket1 tags=-
+  loc=(-1100.000, 750.000, 200.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 1.000, 4.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1100.000, 750.000, 200.000) scale=(8.000, 1.000, 4.000)
+actor StaticMeshActor layout=Layout:WallNL_Pocket2 tags=-
+  loc=(1100.000, 750.000, 200.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 1.000, 4.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1100.000, 750.000, 200.000) scale=(8.000, 1.000, 4.000)
+actor StaticMeshActor layout=Layout:WallSL_A tags=-
+  loc=(-1550.000, -750.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1550.000, -750.000, 450.000) scale=(1.000, 1.000, 9.000)
+actor StaticMeshActor layout=Layout:WallSL_A tags=-
+  loc=(-1800.000, -750.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1800.000, -750.000, 160.000) scale=(4.000, 1.000, 3.200)
+actor StaticMeshActor layout=Layout:WallSL_A tags=-
+  loc=(-1800.000, -750.000, 800.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 2.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1800.000, -750.000, 800.000) scale=(4.000, 1.000, 2.000)
+actor StaticMeshActor layout=Layout:WallSL_A tags=-
+  loc=(-2300.000, -750.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(6.000, 1.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2300.000, -750.000, 450.000) scale=(6.000, 1.000, 9.000)
+actor StaticMeshActor layout=Layout:WallSL_A tags=-
+  loc=(-2800.000, -750.000, 610.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 5.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-2800.000, -750.000, 610.000) scale=(4.000, 1.000, 5.800)
+actor StaticMeshActor layout=Layout:WallSL_A tags=-
+  loc=(-3200.000, -750.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-3200.000, -750.000, 450.000) scale=(4.000, 1.000, 9.000)
+actor StaticMeshActor layout=Layout:WallSL_B tags=-
+  loc=(1550.000, -750.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1550.000, -750.000, 450.000) scale=(1.000, 1.000, 9.000)
+actor StaticMeshActor layout=Layout:WallSL_B tags=-
+  loc=(1800.000, -750.000, 160.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 3.200) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1800.000, -750.000, 160.000) scale=(4.000, 1.000, 3.200)
+actor StaticMeshActor layout=Layout:WallSL_B tags=-
+  loc=(1800.000, -750.000, 800.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 2.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1800.000, -750.000, 800.000) scale=(4.000, 1.000, 2.000)
+actor StaticMeshActor layout=Layout:WallSL_B tags=-
+  loc=(2500.000, -750.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(10.000, 1.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(2500.000, -750.000, 450.000) scale=(10.000, 1.000, 9.000)
+actor StaticMeshActor layout=Layout:WallSL_B tags=-
+  loc=(3200.000, -750.000, 610.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 5.800) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(3200.000, -750.000, 610.000) scale=(4.000, 1.000, 5.800)
+actor StaticMeshActor layout=Layout:WallSL_E tags=-
+  loc=(-450.000, -750.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(5.000, 1.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-450.000, -750.000, 620.000) scale=(5.000, 1.000, 12.400)
+actor StaticMeshActor layout=Layout:WallSL_E tags=-
+  loc=(0.000, -750.000, 1120.000) rot=(0.000, 0.000, 0.000) scale=(4.000, 1.000, 2.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(0.000, -750.000, 1120.000) scale=(4.000, 1.000, 2.400)
+actor StaticMeshActor layout=Layout:WallSL_E tags=-
+  loc=(450.000, -750.000, 620.000) rot=(0.000, 0.000, 0.000) scale=(5.000, 1.000, 12.400) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(450.000, -750.000, 620.000) scale=(5.000, 1.000, 12.400)
+actor StaticMeshActor layout=Layout:WallSL_Pocket1 tags=-
+  loc=(-1100.000, -750.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 1.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-1100.000, -750.000, 450.000) scale=(8.000, 1.000, 9.000)
+actor StaticMeshActor layout=Layout:WallSL_Pocket2 tags=-
+  loc=(1100.000, -750.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(8.000, 1.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(1100.000, -750.000, 450.000) scale=(8.000, 1.000, 9.000)
+actor StaticMeshActor layout=Layout:Wall_E_B tags=-
+  loc=(3450.000, 50.000, 400.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 15.000, 8.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(3450.000, 50.000, 400.000) scale=(1.000, 15.000, 8.000)
+actor StaticMeshActor layout=Layout:Wall_E_C tags=-
+  loc=(3450.000, 1150.000, 200.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 7.000, 4.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(3450.000, 1150.000, 200.000) scale=(1.000, 7.000, 4.000)
+actor StaticMeshActor layout=Layout:Wall_E_D tags=-
+  loc=(3450.000, -1500.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 16.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(3450.000, -1500.000, 450.000) scale=(1.000, 16.000, 9.000)
+actor StaticMeshActor layout=Layout:Wall_N tags=-
+  loc=(0.000, 1450.000, 200.000) rot=(0.000, 0.000, 0.000) scale=(68.000, 1.000, 4.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(0.000, 1450.000, 200.000) scale=(68.000, 1.000, 4.000)
+actor StaticMeshActor layout=Layout:Wall_S tags=-
+  loc=(0.000, -2250.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(68.000, 1.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(0.000, -2250.000, 450.000) scale=(68.000, 1.000, 9.000)
+actor StaticMeshActor layout=Layout:Wall_W_A tags=-
+  loc=(-3450.000, 50.000, 400.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 15.000, 8.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-3450.000, 50.000, 400.000) scale=(1.000, 15.000, 8.000)
+actor StaticMeshActor layout=Layout:Wall_W_C tags=-
+  loc=(-3450.000, 1150.000, 200.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 7.000, 4.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-3450.000, 1150.000, 200.000) scale=(1.000, 7.000, 4.000)
+actor StaticMeshActor layout=Layout:Wall_W_D tags=-
+  loc=(-3450.000, -1500.000, 450.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 16.000, 9.000) root_profile=BlockAll
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Game/Materials/M_Greybox_Wall.M_Greybox_Wall] profile=BlockAll collision=<CollisionEnabled.QUERY_AND_PHYSICS: 3> nav=True loc=(-3450.000, -1500.000, 450.000) scale=(1.000, 16.000, 9.000)
+actor TargetPoint layout=Layout:PadA tags=-
+  loc=(-2100.000, -450.000, 420.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor TargetPoint layout=Layout:PadB tags=-
+  loc=(2100.000, 0.000, 420.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor TargetPoint layout=Layout:PadD tags=-
+  loc=(0.000, -250.000, 740.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor TextRenderActor layout=Layout:Label_MapName tags=-
+  loc=(0.000, -150.000, 2250.000) rot=(90.000, 90.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=NoCollision
+actor VeloxJumpPad layout=Layout:PadA tags=-
+  loc=(-2600.000, -450.000, 70.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=Custom
+  mesh=/Engine/BasicShapes/Cylinder.Cylinder mats=[/Game/Materials/M_Greybox_Pad.M_Greybox_Pad] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2600.000, -450.000, 5.000) scale=(1.000, 1.000, 0.100)
+actor VeloxJumpPad layout=Layout:PadB tags=-
+  loc=(2600.000, 0.000, 70.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=Custom
+  mesh=/Engine/BasicShapes/Cylinder.Cylinder mats=[/Game/Materials/M_Greybox_Pad.M_Greybox_Pad] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2600.000, 0.000, 5.000) scale=(1.000, 1.000, 0.100)
+actor VeloxJumpPad layout=Layout:PadD tags=-
+  loc=(0.000, -950.000, 70.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=Custom
+  mesh=/Engine/BasicShapes/Cylinder.Cylinder mats=[/Game/Materials/M_Greybox_Pad.M_Greybox_Pad] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, -950.000, 5.000) scale=(1.000, 1.000, 0.100)
+actor VeloxNavLink layout=Layout:Drop_ALedge_N tags=-
+  loc=(-2040.000, 450.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_ALedge_S tags=-
+  loc=(-2040.000, -450.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_BBalcony tags=-
+  loc=(2040.000, 0.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_DBalcony_1 tags=-
+  loc=(-1200.000, -1860.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_DBalcony_2 tags=-
+  loc=(-400.000, -1860.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_DBalcony_3 tags=-
+  loc=(400.000, -1860.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_DBalcony_4 tags=-
+  loc=(1200.000, -1860.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_DockE_N tags=-
+  loc=(450.000, 140.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_DockW_N tags=-
+  loc=(-450.000, 140.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_Top_E tags=-
+  loc=(140.000, 0.000, 640.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:Drop_Top_W tags=-
+  loc=(-140.000, 0.000, 640.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:PadLink_A tags=-
+  loc=(-2600.000, -450.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:PadLink_B tags=-
+  loc=(2600.000, 0.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:PadLink_D tags=-
+  loc=(0.000, -950.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:RJ_East tags=-
+  loc=(650.000, 0.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxNavLink layout=Layout:RJ_West tags=-
+  loc=(-650.000, 0.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+actor VeloxPickup layout=Layout:A_H25_1 tags=-
+  loc=(-3000.000, 350.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-3000.000, 350.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:A_H25_2 tags=-
+  loc=(-2500.000, 450.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 450.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:A_Shard_1 tags=-
+  loc=(-2800.000, 0.000, 132.367) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2800.000, 0.000, 177.367) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:A_Shard_2 tags=-
+  loc=(-2500.000, 0.000, 212.752) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 0.000, 257.752) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:A_Shard_3 tags=-
+  loc=(-2200.000, 0.000, 293.136) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2200.000, 0.000, 338.136) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:B_H25_1 tags=-
+  loc=(2900.000, -150.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2900.000, -150.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:B_H25_2 tags=-
+  loc=(3250.000, -150.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(3250.000, -150.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:B_Shard_1 tags=-
+  loc=(2775.000, -500.000, 60.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2775.000, -500.000, 105.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:B_Shard_2 tags=-
+  loc=(2575.000, -500.000, 140.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2575.000, -500.000, 185.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:B_Shard_3 tags=-
+  loc=(2375.000, -500.000, 220.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2375.000, -500.000, 265.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:C_H5_1 tags=-
+  loc=(-2500.000, 900.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 900.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:C_H5_2 tags=-
+  loc=(-2500.000, 1300.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 1300.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:C_H5_3 tags=-
+  loc=(-2200.000, 900.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2200.000, 900.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:C_H5_4 tags=-
+  loc=(-2200.000, 1300.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2200.000, 1300.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:CellsAmmo tags=-
+  loc=(-2900.000, -550.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2900.000, -550.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:D_H50 tags=-
+  loc=(-900.000, -1500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-900.000, -1500.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:D_H5_1 tags=-
+  loc=(-900.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-900.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:D_H5_2 tags=-
+  loc=(-450.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-450.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:D_H5_3 tags=-
+  loc=(450.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(450.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:D_H5_4 tags=-
+  loc=(900.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(900.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:E_H25 tags=-
+  loc=(0.000, 100.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, 100.000, 365.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:LG tags=-
+  loc=(0.000, 1300.000, 80.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, 1300.000, 125.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:LightningAmmo tags=-
+  loc=(1100.000, 1300.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(1100.000, 1300.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:Mega tags=-
+  loc=(-2050.000, 660.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2050.000, 660.000, 365.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:PG tags=-
+  loc=(-2800.000, 500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2800.000, 500.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:Quad tags=-
+  loc=(0.000, -450.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, -450.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:RA tags=-
+  loc=(2050.000, -660.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2050.000, -660.000, 365.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:RG tags=-
+  loc=(0.000, 0.000, 640.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, 0.000, 685.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:RL tags=-
+  loc=(450.000, -1500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(450.000, -1500.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:RocketsAmmo tags=-
+  loc=(1250.000, -1500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(1250.000, -1500.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:SG tags=-
+  loc=(3100.000, 500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(3100.000, 500.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:ShellsAmmo tags=-
+  loc=(3250.000, -500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(3250.000, -500.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:SlugsAmmo tags=-
+  loc=(450.000, -450.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(450.000, -450.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:YA_N tags=-
+  loc=(800.000, 1000.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(800.000, 1000.000, 45.000) scale=(1.000, 1.000, 1.000)
+actor VeloxPickup layout=Layout:YA_S tags=-
+  loc=(0.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
+  mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
