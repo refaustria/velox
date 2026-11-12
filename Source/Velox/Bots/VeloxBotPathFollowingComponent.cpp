@@ -224,6 +224,28 @@ bool UVeloxBotPathFollowingComponent::HasHopHeadroom(double Now)
 	return bClear;
 }
 
+bool UVeloxBotPathFollowingComponent::HasHopLanding()
+{
+	const AVeloxBotController* Bot = GetBotController();
+	const UVeloxMovementComponent* Movement = GetBotMovement();
+	if (!Bot || !Movement || !Movement->IsOnGround() || !VeloxBotCombatGlue::IsEdgeAware(GetWorld()))
+	{
+		return true;
+	}
+	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+	const float AirSeconds = VeloxBotRules::HopAirSeconds(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), Settings.HopLandingSlackSeconds);
+	const FVector Landing = VeloxBotCombat::HopLandingPoint(Movement->GetActorFeetLocation(), FVector2D(Movement->Velocity), AirSeconds);
+	const FVector Extent(Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectRadiusCm, Settings.OnMeshHalfHeightCm);
+	if (VeloxBotCombatGlue::ProjectsOntoNav(*Bot, Landing, Extent))
+	{
+		return true;
+	}
+	++HopLandingBlockedTicks;
+	UE_LOG(LogVeloxBots, Verbose, TEXT("VeloxBotHopLanding bot=%s refused at=%s landing=%s"), *Bot->GetBotName(), *Movement->GetActorFeetLocation().ToCompactString(),
+		*Landing.ToCompactString());
+	return false;
+}
+
 bool UVeloxBotPathFollowingComponent::UpdateSegmentBlocked(const FVector& Feet, const FVector& Target, double Now)
 {
 	if (Now < NextSegmentBlockCheckTime)
@@ -721,11 +743,15 @@ void UVeloxBotPathFollowingComponent::FollowPathSegment(float DeltaTime)
 		return;
 	}
 	NavOutput = SteerToward(Target, Remaining, Corner, bFinal, true, true);
-	if (NavOutput.bJumpHeld && !HasHopHeadroom(Now))
+	// D18 headroom, then (ADR 0008 3.6.2, hazard maps only) the hop landing guard.
+	if (NavOutput.bJumpHeld && (!HasHopHeadroom(Now) || !HasHopLanding()))
 	{
-		// D18: a low ceiling (the L_ItemTest ramp underside) is inside the jump arc: walk this tick, steering as on the
-		// ground (no hop, so the wish is the ground wish, not an air-strafe angle).
+		// D18: a low ceiling (the L_ItemTest ramp underside) is inside the jump arc, or (3.6.2) the hop would land off the
+		// mesh: walk this tick, steering as on the ground (no hop, so the wish is the ground wish, not an air-strafe angle).
 		NavOutput = SteerToward(Target, Remaining, Corner, bFinal, false, true);
-		++HopHeadroomBlockedTicks;
+		if (!bHopHeadroomClear)
+		{
+			++HopHeadroomBlockedTicks;
+		}
 	}
 }
