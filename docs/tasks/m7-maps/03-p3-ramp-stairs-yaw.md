@@ -22,7 +22,7 @@ Add `Ramp(dir, deg, z0, fill)`, `Stairs(axis, z0, tread, riser)`, `mapgen.ramp_f
 
 ## Acceptance criteria
 - [x] `--selftest` covers four ramp directions, `z0`, `fill`, Y stairs, 20 and 30 degree ramps
-- [ ] Test maps regenerate with unchanged actor counts (deferred: engine reinstall (lead); the three scripts call `vm.ramp/stairs/clip_walls` with unchanged signatures and defaults)
+- [x] Test maps regenerate with unchanged actor counts (engine gate 2026-11-12, UE 5.8.4: --dump-actors of committed vs regenerated maps, diff empty: L_MovementTest 187, L_ItemTest 161, L_CombatTest 32 actors; the three scripts call `vm.ramp/stairs/clip_walls` with unchanged signatures and defaults)
 - [x] DM1 golden check green
 - [x] `create_map.py --map dm1 --golden check` green at the end
 
@@ -40,3 +40,6 @@ Standard format (result, what changed, verification, open issues). Note explicit
 - `veloxmap.ramp(..., yaw=)`, `ramp_center`, `stairs(..., axis, direction, z0)`, `stairs_boxes`, `clip_walls(..., mode="box"|"walls"|"none")`, `CLIP_H` fed by `configure(clip_h=)` from the spec module's `CLIP_H` (`create_map.py` passes it). Spec `CLIP_MODE` (+ `CLIP_HALF`, optional `CLIP_WALL_T`) spawns perimeter clip via `mapgen.spawn_perimeter_clip`; absent (DM1) = CLIPS records only; `expected_counts` adds 5/4/0.
 - `create_map.py --selftest` now runs `selftest_p3()` (four directions, z0, fill, Y stairs, 20/30 deg, plates, veloxmap arithmetic under a stubbed `unreal`) and `selftest_spawn_smoke()` (build_map / build_art_map against a mocked editor).
 - Deferred: regenerate the three test maps in UE and compare actor counts: `UnrealEditor-Cmd <Velox.uproject> -run=pythonscript -script=Tools/editor/create_movement_test_map.py ...` (likewise item / combat test map) under the soak lock.
+
+## Engine gate (lead, 2026-11-12, UE 5.8.4)
+`create_movement_test_map.py`, `create_item_test_map.py`, `create_combat_test_map.py` run via `UnrealEditor-Cmd -run=pythonscript` (each ended with `done`; combat StaticMeshActors=21, PlayerStarts=4 as expected). `audit_map.py --dump-actors` before (committed) and after (regenerated): L_MovementTest 187 actors, L_ItemTest 161, L_CombatTest 32; full dump `diff` empty for all three. Regenerated `.umap`/materials discarded, Content clean.
