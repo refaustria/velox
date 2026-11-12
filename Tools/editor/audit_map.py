@@ -8,6 +8,7 @@ Run headless with the pythonscript commandlet (arguments follow the script path 
 or through the wrapper `infra/ci/audit.sh <Map> [options]`, which also turns the result into an exit code.
 
     audit_map.py <Map> [--diff-collision A B] [--protrusion] [--lighting] [--json out]
+    audit_map.py <Map> --dump-actors [out.txt]     (text dump of every actor, sorted; ADR 0008 1.5 gate 3; no budgets, no JSON)
 
 Output: a table on stdout (every line prefixed `[VeloxAudit]`), `Saved/Audit/<MapShortName>.json` (or --json), and a final
 `[VeloxAudit] RESULT PASS|FAIL`. The process exit code of the commandlet is not reliable across engine versions, so the wrapper
@@ -639,6 +640,67 @@ def lfs_total_mb():
     return round(total / 1048576.0, 1)
 
 
+def dump_actors(map_path, out_path):
+    """Text dump for the golden/regression diff (ADR 0008 section 1.5 gate 3): one block per actor, sorted by (class, Layout tag,
+    rounded transform, mesh), floats with 3 decimals so two dumps of the same layout diff empty and a real move shows up.
+    Per actor: class, Layout: tags, location, rotation, scale, root-component collision profile; per static mesh component: mesh,
+    materials, collision profile, collision enabled, can-affect-navigation (nav flag)."""
+    world = unreal.EditorLoadingAndSavingUtils.load_map(map_path)
+    if world is None:
+        raise RuntimeError("cannot load map %s" % map_path)
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
+
+    def f3(v):
+        return "%.3f" % (0.0 if abs(v) < 5e-4 else v)
+
+    def vec(v):
+        return "(%s, %s, %s)" % (f3(v.x), f3(v.y), f3(v.z))
+
+    def profile(comp):
+        try:
+            return str(comp.get_collision_profile_name())
+        except Exception:
+            return "?"
+
+    blocks = []
+    for a in actors:
+        cname = a.get_class().get_name()
+        tags = sorted(str(t) for t in prop(a, "tags", []))
+        layout = ",".join(t for t in tags if t.startswith("Layout:")) or "-"
+        other = ",".join(t for t in tags if not t.startswith("Layout:")) or "-"
+        loc = a.get_actor_location()
+        rot = a.get_actor_rotation()
+        scl = a.get_actor_scale3d()
+        root = prop(a, "root_component")
+        lines = ["actor %s layout=%s tags=%s" % (cname, layout, other),
+                 "  loc=%s rot=(%s, %s, %s) scale=%s root_profile=%s" % (
+                     vec(loc), f3(rot.pitch), f3(rot.yaw), f3(rot.roll), vec(scl), profile(root) if root else "-")]
+        comps = []
+        for comp in a.get_components_by_class(unreal.StaticMeshComponent):
+            mesh = prop(comp, "static_mesh")
+            mats = [m.get_path_name() if m is not None else "None" for m in comp.get_materials()]
+            nav = prop(comp, "can_ever_affect_navigation")
+            try:
+                ce = str(comp.get_collision_enabled())
+            except Exception:
+                ce = "?"
+            ct = comp.get_world_transform()
+            comps.append("  mesh=%s mats=[%s] profile=%s collision=%s nav=%s loc=%s scale=%s" % (
+                mesh.get_path_name() if mesh else "None", ",".join(mats), profile(comp), ce, nav,
+                vec(ct.translation), vec(ct.scale3d)))
+        lines += sorted(comps)
+        key = (cname, layout, f3(loc.x), f3(loc.y), f3(loc.z), "\n".join(lines))
+        blocks.append((key, "\n".join(lines)))
+    blocks.sort(key=lambda b: b[0])
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with open(out_path, "w", newline="\n") as fh:
+        fh.write("# map %s: %d actors\n" % (map_path, len(blocks)))
+        for _, text in blocks:
+            fh.write(text + "\n")
+    log("dump-actors      %s: %d actors -> %s" % (map_path, len(blocks), out_path))
+    return len(blocks)
+
+
 def project_dir():
     return str(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()))
 
@@ -657,7 +719,14 @@ def main(argv):
     ap.add_argument("--protrusion", action="store_true")
     ap.add_argument("--lighting", action="store_true")
     ap.add_argument("--json")
+    ap.add_argument("--dump-actors", nargs="?", const="", default=None, metavar="OUT")
     args = ap.parse_args(argv)
+
+    if args.dump_actors is not None:
+        out = args.dump_actors or os.path.join(project_dir(), "Saved", "Audit", "%s.actors.txt" % short_name(args.map))
+        dump_actors(args.map, out)
+        log("RESULT PASS")
+        return 0
 
     name = short_name(args.map)
     data = collect(args.map)
