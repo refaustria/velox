@@ -2157,105 +2157,140 @@ actor VeloxNavLink layout=Layout:RJ_West tags=-
 actor VeloxPickup layout=Layout:A_H25_1 tags=-
   loc=(-3000.000, 350.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-3000.000, 350.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-3000.000, 350.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:A_H25_2 tags=-
   loc=(-2500.000, 450.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 450.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 450.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:A_Shard_1 tags=-
   loc=(-2800.000, 0.000, 132.367) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2800.000, 0.000, 177.367) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2800.000, 0.000, 177.367) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:A_Shard_2 tags=-
   loc=(-2500.000, 0.000, 212.752) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 0.000, 257.752) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 0.000, 257.752) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:A_Shard_3 tags=-
   loc=(-2200.000, 0.000, 293.136) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2200.000, 0.000, 338.136) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2200.000, 0.000, 338.136) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:B_H25_1 tags=-
   loc=(2900.000, -150.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2900.000, -150.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2900.000, -150.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:B_H25_2 tags=-
   loc=(3250.000, -150.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(3250.000, -150.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(3250.000, -150.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:B_Shard_1 tags=-
   loc=(2775.000, -500.000, 60.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2775.000, -500.000, 105.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2775.000, -500.000, 105.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:B_Shard_2 tags=-
   loc=(2575.000, -500.000, 140.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2575.000, -500.000, 185.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2575.000, -500.000, 185.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:B_Shard_3 tags=-
   loc=(2375.000, -500.000, 220.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2375.000, -500.000, 265.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2375.000, -500.000, 265.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:C_H5_1 tags=-
   loc=(-2500.000, 900.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 900.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 900.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:C_H5_2 tags=-
   loc=(-2500.000, 1300.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 1300.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2500.000, 1300.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:C_H5_3 tags=-
   loc=(-2200.000, 900.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2200.000, 900.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2200.000, 900.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:C_H5_4 tags=-
   loc=(-2200.000, 1300.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2200.000, 1300.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2200.000, 1300.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:CellsAmmo tags=-
   loc=(-2900.000, -550.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2900.000, -550.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2900.000, -550.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:D_H50 tags=-
   loc=(-900.000, -1500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-900.000, -1500.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-900.000, -1500.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:D_H5_1 tags=-
   loc=(-900.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-900.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-900.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:D_H5_2 tags=-
   loc=(-450.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-450.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-450.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:D_H5_3 tags=-
   loc=(450.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(450.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(450.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:D_H5_4 tags=-
   loc=(900.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(900.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(900.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:E_H25 tags=-
   loc=(0.000, 100.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, 100.000, 365.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, 100.000, 365.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:LG tags=-
   loc=(0.000, 1300.000, 80.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, 1300.000, 125.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, 1300.000, 125.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:LightningAmmo tags=-
   loc=(1100.000, 1300.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(1100.000, 1300.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(1100.000, 1300.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:Mega tags=-
   loc=(-2050.000, 660.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2050.000, 660.000, 365.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2050.000, 660.000, 365.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:PG tags=-
   loc=(-2800.000, 500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2800.000, 500.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(-2800.000, 500.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:Quad tags=-
   loc=(0.000, -450.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, -450.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, -450.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:RA tags=-
   loc=(2050.000, -660.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2050.000, -660.000, 365.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(2050.000, -660.000, 365.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:RG tags=-
   loc=(0.000, 0.000, 640.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, 0.000, 685.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, 0.000, 685.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:RL tags=-
   loc=(450.000, -1500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(450.000, -1500.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(450.000, -1500.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:RocketsAmmo tags=-
   loc=(1250.000, -1500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(1250.000, -1500.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(1250.000, -1500.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:SG tags=-
   loc=(3100.000, 500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(3100.000, 500.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(3100.000, 500.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:ShellsAmmo tags=-
   loc=(3250.000, -500.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(3250.000, -500.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(3250.000, -500.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:SlugsAmmo tags=-
   loc=(450.000, -450.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(450.000, -450.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(450.000, -450.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:YA_N tags=-
   loc=(800.000, 1000.000, 0.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(800.000, 1000.000, 45.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(800.000, 1000.000, 45.000) scale=(1.000, 1.000, 1.000)
 actor VeloxPickup layout=Layout:YA_S tags=-
   loc=(0.000, -2000.000, 320.000) rot=(0.000, 0.000, 0.000) scale=(1.000, 1.000, 1.000) root_profile=?
   mesh=/Engine/BasicShapes/Cube.Cube mats=[/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)
+  mesh=None mats=[] profile=Custom collision=<CollisionEnabled.NO_COLLISION: 0> nav=False loc=(0.000, -2000.000, 365.000) scale=(1.000, 1.000, 1.000)

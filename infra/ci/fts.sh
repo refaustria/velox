@@ -26,15 +26,18 @@ FTS=(
   "FtOffMesh|L_ItemTest|velox.bots.FtOffMesh"
   "FtSegmentBlocked|L_ItemTest|velox.bots.FtSegmentBlocked"
   "FtCombatEvents|L_CombatTest|velox.bots.FtCombatEvents"
-  "FtDm1Reachability|@DM1|velox.bots.FtDm1Reachability"
+  "FtDm1Reachability|@DM1|velox.bots.FtDm1Reachability"   # the alias of FtMapReachability (ADR 0008 1.6); the row stays so 8/8 is as before
 )
+# One row per M7 map (ADR 0008 1.6): the blockout maps are not in the default list (not cooked, no band yet) and are added with
+# --map-ft <Map>[:WalkExempt ids] (repeatable), e.g. --map-ft L_Sacrarium_Blockout:Quad,Railgun. Row name: FtMapReachability-<Map>.
+MAP_FTS=()
 
 fts_usage() {
   cat <<USAGE
-Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b] [--dm1-map NAME]
+Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b] [--dm1-map NAME] [--map-ft Map[:ids]]...
 
 Runs, in order: FtItemPickup (L_ItemTest), FtNavigation (L_ItemTest), FtStrafeCorridor (L_MovementTest),
-FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (${DM1_MAP}, FT_DM1_Reachability),
+FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (${DM1_MAP}, FT_Map_Reachability via the old command name),
 each as
   UnrealEditor-Cmd Velox.uproject <map> -game -nullrhi -unattended -nosound -UseFixedTimeStep -FPS=60 -log
       -port=N -ExecCmds="velox.bots.Seed ${SEED}, <command> quit"
@@ -46,6 +49,8 @@ Options:
                 port only keeps a stray process from taking the default one.
   --timeout S   Seconds per test before it is killed and counted as FAIL (default ${FT_TIMEOUT}, VELOX_FTS_TIMEOUT)
   --only a,b    Run only these test names
+  --map-ft M[:I] Add a row "FtMapReachability-M" (velox.bots.FtMapReachability on map M; I = comma separated WalkExempt item ids, which
+                switches the Walk-filter check on). Repeatable; runs after the default rows.
   --dm1-map N   Map of FtDm1Reachability (default ${DM1_MAP}; env VELOX_DM1_MAP), e.g. L_DM1 for the art map
   -h, --help    Show this help
 
@@ -82,6 +87,7 @@ main() {
       --port)    [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || die "--port needs a number"; PORT="$2"; shift 2 ;;
       --timeout) [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--timeout needs a positive integer"; FT_TIMEOUT="$2"; shift 2 ;;
       --only)    [[ $# -ge 2 ]] || die "--only needs a value"; only=",$2,"; shift 2 ;;
+      --map-ft)  [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9_]+(:[A-Za-z0-9_.,]+)?$ ]] || die "--map-ft needs Map[:id,id]"; MAP_FTS+=("$2"); shift 2 ;;
       --dm1-map) [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9_]+$ ]] || die "--dm1-map needs a map name"; DM1_MAP="$2"; shift 2 ;;
       -h|--help) fts_usage; exit 0 ;;
       *) fts_usage >&2; die "unknown option: $1" ;;
@@ -105,6 +111,14 @@ main() {
     if [[ -n "$only" && "$only" != *",$name,"* ]]; then continue; fi
     total=$((total + 1))
     if run_ft "$name" "$map" "$cmd" "$out_dir/fts-$name.log"; then passed=$((passed + 1)); fi
+  done
+  local mf mname mids
+  for mf in "${MAP_FTS[@]+"${MAP_FTS[@]}"}"; do
+    mname="${mf%%:*}"; mids=""; [[ "$mf" == *:* ]] && mids="${mf#*:}"
+    name="FtMapReachability-$mname"
+    if [[ -n "$only" && "$only" != *",$name,"* ]]; then continue; fi
+    total=$((total + 1))
+    if run_ft "$name" "$mname" "velox.bots.FtMapReachability${mids:+ WalkExempt=$mids}" "$out_dir/fts-$name.log"; then passed=$((passed + 1)); fi
   done
   (( total > 0 )) || die "no test selected"
   echo "Logs: $out_dir"

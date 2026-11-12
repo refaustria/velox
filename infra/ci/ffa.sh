@@ -2,10 +2,11 @@
 # D36/D51 ten-run FFA soak (3 Medium bots, seeds 1..RUNS). W = the worktree, derived from this script's path (infra/ci -> ../..).
 # UE_ROOT/VELOX_PROJECT come from the environment or infra/.env (defaults /opt/UnrealEngine-5.8, <W>/Velox.uproject).
 #
-# Usage: ffa.sh [--map NAME] [--port N] [--seconds S] [--repeat RUNS] [--out DIR]      (defaults: L_ItemTest, 7777, 120, 10, Saved/CI/ffa-<time>)
+# Usage: ffa.sh [--map NAME] [--port N] [--seconds S] [--repeat RUNS] [--out DIR] [--bots N]      (defaults: L_ItemTest, 7777, 120, 10, Saved/CI/ffa-<time>)
 #        ffa.sh <port> <seconds> <runs> <outdir>                                            (the original positional form)
 #        ffa.sh --reeval DIR [--map NAME]                                                   (summary + set evaluation on saved ffa-*.log; no engine)
 #
+# --bots N sets the bot count of the server URL (default 3, so stored sets re-evaluate unchanged; ADR 0008 1.6).
 # --map NAME replaces the map of the server URL (ADR 0006 section 7); the ?game=FFA?Bots=3?... options stay.
 # Link success and item coverage (ADR 0006 E0.3 b/c, ffa_set.py): link success = ok / (ok + failed) per type, failed = reason missed,
 # timeout, noimpulse, tooslow, not an attempt = replaced, below_start, ineligible, air_start, relaunched (task m5-06b; printed as
@@ -28,7 +29,7 @@ PROJECT=${_PR:-${VELOX_PROJECT:-$W/Velox.uproject}}
 # shellcheck source=infra/ci/lib.sh
 source "$HERE/lib.sh"
 
-PORT=7777; SECS=120; RUNS=10; OUT=""; MAP=""; REEVAL=""
+PORT=7777; SECS=120; RUNS=10; BOTS=3; OUT=""; MAP=""; REEVAL=""
 POS=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -36,9 +37,10 @@ while [ $# -gt 0 ]; do
     --port)    [ $# -ge 2 ] || die "--port needs a value"; PORT=$2; shift 2 ;;
     --seconds) [ $# -ge 2 ] || die "--seconds needs a value"; SECS=$2; shift 2 ;;
     --repeat)  [ $# -ge 2 ] && [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "--repeat needs a positive integer"; RUNS=$2; shift 2 ;;
+    --bots)    [ $# -ge 2 ] && [[ "$2" =~ ^[1-9][0-9]*$ ]] && [ "$2" -le 15 ] || die "--bots needs an integer 1..15"; BOTS=$2; shift 2 ;;
     --out)     [ $# -ge 2 ] || die "--out needs a directory"; OUT=$2; shift 2 ;;
     --reeval)  [ $# -ge 2 ] || die "--reeval needs a directory"; REEVAL=$2; shift 2 ;;
-    -h|--help) sed -n '2,14p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,15p' "${BASH_SOURCE[0]}"; exit 0 ;;
     --*)       die "unknown option: $1" ;;
     *)         POS+=("$1"); shift ;;
   esac
@@ -59,7 +61,7 @@ if [ -n "$REEVAL" ]; then
 else
   [ -n "$OUT" ] || OUT="${VELOX_OUT:-$W/Saved/CI}/ffa-$(date +%Y%m%d-%H%M%S)-$$"
   mkdir -p "$OUT"
-  URL="${MAP:-L_ItemTest}?game=FFA?Bots=3?BotsFill=1?BotDifficulty=Medium"
+  URL="${MAP:-L_ItemTest}?game=FFA?Bots=${BOTS}?BotsFill=1?BotDifficulty=Medium"
   for r in $(seq 1 "$RUNS"); do
     LOG="$OUT/ffa-$r.log"
     timeout -k 10 $((SECS + 120)) "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$PROJECT" \

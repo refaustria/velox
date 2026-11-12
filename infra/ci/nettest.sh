@@ -81,6 +81,7 @@ SERVER_USERDIR=""
 # ADR 0006 section 7: --map <Map> replaces the map part of the BotRun / BotDuel URLs (the ?game=...?Bots=... options stay). The
 # soak bands are per map (infra/ci/bands/<Map>.sh, ci_load_bands in lib.sh); without a band file a map runs report-only.
 MAP_OVERRIDE=""
+BOTS_COUNT=3     # --bots N: bots of the BotRun FFA round (ADR 0008 1.6; default 3 = the stored sets)
 MAP_OVERRIDE_NOTED=0
 BAND_MAP_DEFAULT="L_ItemTest"
 # ADR 0005 D50 (4): --bot-difficulty <preset> substitutes BotDifficulty= in the BotRun/BotDuel URLs; such rounds are
@@ -130,6 +131,8 @@ Options:
   --reeval DIR     Re-run the per-round summary and the set evaluation of the bot soaks on saved logs (a nettest
                    directory, with or without round-<k>/ subdirectories; needs no engine). Host columns are n/a where
                    no <script>-host.log sidecar exists; budget lines without frames=/stalls= degrade the same way.
+  --bots N         Bots of the BotRun FFA round (default 3, so stored sets re-evaluate unchanged; ADR 0008 1.6). BotDuel stays at
+                   2 Hard bots. The set bands are written for 3 bots (stuck sums pro rata for other counts)
   --map NAME       Run BotRun, BotDuel and DM1Run (task 07d; DM1Run default L_DM1_Blockout) on map NAME (ADR 0006 section 7; the ?game=...?Bots=... options stay). Other
                    scripts ignore the flag (logged once). The bands are per map: infra/ci/bands/NAME.sh when it exists
                    (the default map L_ItemTest has one: bands=L_ItemTest), else the run is report-only (band=none) and
@@ -308,7 +311,7 @@ run_one() {
     BotRun)
       # FFA with 3 Medium bots; the playing client idles through BotWatch.json and velox.bots.Watch 90 ends it. Client
       # corrections are report-only (LogCorrections), rocket hits on the human are legitimate corrections.
-      map="L_ItemTest?game=FFA?Bots=3?BotDifficulty=Medium"; sexec="velox.bots.Debug 1"
+      map="L_ItemTest?game=FFA?Bots=${BOTS_COUNT}?BotDifficulty=Medium"; sexec="velox.bots.Debug 1"
       cexec="$cexec, velox.move.LogCorrections 1, velox.bots.Watch $BOT_RUN_SECONDS"; script_args=(-VeloxScript=BotWatch)
       client_timeout=$(( CLIENT_TIMEOUT > BOT_RUN_SECONDS + 90 ? CLIENT_TIMEOUT : BOT_RUN_SECONDS + 90 )) ;;
     BotDuel)
@@ -3097,6 +3100,7 @@ main() {
       --lag)     [[ $# -ge 2 && "$2" =~ ^[0-9]+$ && "$2" -ge 20 ]] || die "--lag needs an integer >= 20 (ms)"; LAG_OVERRIDE="$2"; shift 2 ;;
       --repeat)  [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--repeat needs a positive integer"; REPEAT="$2"; shift 2 ;;
       --keep-going) KEEP_GOING=1; shift ;;
+      --bots)    [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ && "$2" -le 15 ]] || die "--bots needs an integer 1..15"; BOTS_COUNT="$2"; shift 2 ;;
       --reeval)  [[ $# -ge 2 ]] || die "--reeval needs a directory"; REEVAL_DIR="$2"; shift 2 ;;
       --map)     [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9_]+$ ]] || die "--map needs a map name (letters, digits, underscore)"; MAP_OVERRIDE="$2"; shift 2 ;;
       --server-mode) [[ $# -ge 2 && "$2" =~ ^(dedicated|listen)$ ]] || die "--server-mode needs dedicated|listen"; SERVER_MODE="$2"; shift 2 ;;
