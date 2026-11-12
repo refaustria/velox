@@ -27,6 +27,7 @@ FTS=(
   "FtSegmentBlocked|L_ItemTest|velox.bots.FtSegmentBlocked"
   "FtCombatEvents|L_CombatTest|velox.bots.FtCombatEvents"
   "FtDm1Reachability|@DM1|velox.bots.FtDm1Reachability"
+  "FtHazard|L_HazardTest|velox.combat.FtHazard"
 )
 
 fts_usage() {
@@ -35,6 +36,7 @@ Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b] [--dm1-map NAME]
 
 Runs, in order: FtItemPickup (L_ItemTest), FtNavigation (L_ItemTest), FtStrafeCorridor (L_MovementTest),
 FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (${DM1_MAP}, FT_DM1_Reachability),
+FtHazard (L_HazardTest, FT_Hazard: ADR 0008 3.7),
 each as
   UnrealEditor-Cmd Velox.uproject <map> -game -nullrhi -unattended -nosound -UseFixedTimeStep -FPS=60 -log
       -port=N -ExecCmds="velox.bots.Seed ${SEED}, <command> quit"
