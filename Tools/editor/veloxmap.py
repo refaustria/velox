@@ -227,6 +227,10 @@ def box(name, center, size, material, kind, rot=None, collide=True, tags=(), fol
     if fill_nav:
         # Solid box standing on the ground: without this Recast leaves a walkable island at floor level inside it (M4-04e).
         c.set_editor_property("fill_collision_underneath_for_navmesh", True)
+    if kind == "hazard":
+        # lava bed (ADR 0008 1.3): BlockAll like any solid but invisible to navigation, so no walkable island forms over it
+        c.set_editor_property("can_ever_affect_navigation", False)
+        c.set_editor_property("fill_collision_underneath_for_navmesh", False)
     if not collide:
         c.set_collision_profile_name("NoCollision")
         c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
@@ -252,6 +256,25 @@ def ramp(name, origin, length, width, thickness, deg, material, kind="ramp", tag
     direction `yaw` (rotator (roll 0, pitch deg, yaw); the slab centre is offset half a thickness along -normal)."""
     return box(name, ramp_center(origin, length, thickness, deg, yaw), (length, width, thickness), material, kind,
                rot=unreal.Rotator(0, deg, yaw), tags=tags, folder=folder, layout=layout, clip=clip)
+
+
+OCT_YAWS = (0.0, 45.0, 90.0, 135.0)
+
+
+def octagon_boxes(cx, cy, d, z0, z1):
+    """[(centre, size, yaw)] of the FOUR boxes d x d*tan(22.5 deg) x (z1 - z0) at yaw 0/45/90/135 that make a regular octagon of
+    across-flats d (ADR 0008 1.3; two squares at 0/45 would leave concave pockets). Pure arithmetic."""
+    w = d * math.tan(math.radians(22.5))
+    return [((cx, cy, (z0 + z1) / 2), (d, w, z1 - z0), yaw) for yaw in OCT_YAWS]
+
+
+def octagon(name, center_xy, d, z0, z1, material, kind, tags=(), folder=None, layout=None, clip=False):
+    """Regular octagon of across-flats d as four boxes named <name>_<n>; all carry the Layout tag `layout` (default: name)."""
+    out = []
+    for n, (c, sz, yaw) in enumerate(octagon_boxes(center_xy[0], center_xy[1], d, z0, z1)):
+        out.append(box(f"{name}_{n}", c, sz, material, kind, rot=unreal.Rotator(0, 0, yaw), tags=tags, folder=folder,
+                       layout=layout or name, clip=clip))
+    return out
 
 
 def stairs_boxes(x0, y, tread, width, riser, steps, axis="x", direction=1, z0=0.0):

@@ -32,13 +32,16 @@ GRAVITY = 2000.0
 PAD_TRIGGER_Z = 70.0
 TRAJECTORY_DT = 1.0 / 240.0
 
+from maps.records import DEFAULT_RULES, LEGACY_RULES, HAZARD_TYPES, OCT_CLEAR_FACTOR, PAD_MAX_LAUNCH_SPEED  # noqa: E402,F401
+
 
 def blockout_path(L):
-    return f"/Game/Maps/{L.MAP_ID}/L_{L.MAP_ID}_Blockout"
+    """The spec module's MAP_PATH (ADR 0008 1.2); DM1 has none and keeps /Game/Maps/<MAP_ID>/L_<MAP_ID>_Blockout."""
+    return getattr(L, "MAP_PATH", None) or f"/Game/Maps/{L.MAP_ID}/L_{L.MAP_ID}_Blockout"
 
 
 def art_path(L):
-    return f"/Game/Maps/{L.MAP_ID}/L_{L.MAP_ID}"
+    return getattr(L, "ART_MAP_PATH", None) or f"/Game/Maps/{L.MAP_ID}/L_{L.MAP_ID}"
 
 
 def sky_cubemap(L):
@@ -239,6 +242,7 @@ def pad_arc(L, pad, solids):
     """Walk the feet arc (origin = pad floor point, VeloxJumpPad::TryComputeLandingPoint) from the apex on; returns
     (landing, error text or None). A hit before the apex is an error (the arc must be free up to the apex)."""
     v, t_apex = pad_launch(L, pad)
+    cyls = [(o.cx, o.cy, oct_r_clear(o), o.z0, o.z1) for o in octs(L)]       # an Oct must be cleared: circumscribed radius
     clips = [(c.x0, c.x1, c.y0, c.y1, c.z0, c.z1) for c in L.CLIPS]
     pre = [s[2:] for s in solids if s[1] != "floor"] + clips        # the pad stands on the ground slab
     post = [s[2:] for s in solids] + clips
@@ -252,15 +256,508 @@ def pad_arc(L, pad, solids):
     for i in range(1, steps):
         t = i * TRAJECTORY_DT
         cur = at(t)
-        for b in (pre if t < t_apex else post):
-            if seg_hits_box(prev, cur, b):
-                # first contact: the landing is where the segment enters the top of the box
-                if t < t_apex - 1e-6:
-                    return None, f"{pad.id}: the arc hits solid {b} before its apex (t={t:.2f} s < {t_apex:.2f} s) at {cur}"
-                lx, ly = cur[0], cur[1]
-                return (lx, ly, cur[2]), None
+        hit = next((b for b in (pre if t < t_apex else post) if seg_hits_box(prev, cur, b)), None)
+        if hit is None:
+            hit = next((c for c in cyls if seg_cyl_t(prev, cur, *c) is not None), None)
+        if hit is not None:
+            # first contact: the landing is where the segment enters the top of the box
+            if t < t_apex - 1e-6:
+                return None, f"{pad.id}: the arc hits solid {hit} before its apex (t={t:.2f} s < {t_apex:.2f} s) at {cur}"
+            lx, ly = cur[0], cur[1]
+            return (lx, ly, cur[2]), None
         prev = cur
     return None, f"{pad.id}: the arc never lands"
+
+
+# ---------------------------------------------------------------- M7 P4: rules, Oct, Hazard, line of sight, link ends, drops, free edges
+def rules(L):
+    """DEFAULT_RULES merged with the spec module's RULES; a key that DEFAULT_RULES does not know is an error (a typo would silently do nothing)."""
+    out = dict(DEFAULT_RULES)
+    out.update(LEGACY_RULES.get(getattr(L, "MAP_ID", None), {}))
+    extra = getattr(L, "RULES", None) or {}
+    unknown = sorted(set(extra) - set(out))
+    if unknown:
+        raise ValueError(f"unknown RULES key(s) {unknown}")
+    out.update(extra)
+    return out
+
+
+def octs(L):
+    return list(getattr(L, "OCTS", None) or ())
+
+
+def hazards(L):
+    return list(getattr(L, "HAZARDS", None) or ())
+
+
+def oct_r_block(o):
+    """Radius where an Oct must block (line of sight): the inscribed circle."""
+    return o.d / 2.0
+
+
+def oct_r_clear(o):
+    """Radius where an Oct must be cleared (pad arcs, gaps): the circumscribed circle, 0.541 d."""
+    return o.d * OCT_CLEAR_FACTOR
+
+
+def seg_box_t(p, q, box, pad=0.0):
+    """Entry parameter t in [0, 1] of the segment p->q into (x0, x1, y0, y1, z0, z1) grown by `pad`, or None."""
+    lo = (box[0] - pad, box[2] - pad, box[4] - pad)
+    hi = (box[1] + pad, box[3] + pad, box[5] + pad)
+    t0, t1 = 0.0, 1.0
+    for a in range(3):
+        d = q[a] - p[a]
+        if abs(d) < 1e-9:
+            if p[a] < lo[a] or p[a] > hi[a]:
+                return None
+            continue
+        ta, tb = (lo[a] - p[a]) / d, (hi[a] - p[a]) / d
+        if ta > tb:
+            ta, tb = tb, ta
+        t0, t1 = max(t0, ta), min(t1, tb)
+        if t0 > t1:
+            return None
+    return t0
+
+
+def seg_cyl_t(p, q, cx, cy, r, z0, z1):
+    """Entry parameter of the segment p->q into the vertical cylinder (cx, cy, r, z0..z1), or None."""
+    t0, t1 = 0.0, 1.0
+    dz = q[2] - p[2]
+    if abs(dz) < 1e-9:
+        if p[2] < z0 or p[2] > z1:
+            return None
+    else:
+        ta, tb = (z0 - p[2]) / dz, (z1 - p[2]) / dz
+        if ta > tb:
+            ta, tb = tb, ta
+        t0, t1 = max(t0, ta), min(t1, tb)
+        if t0 > t1:
+            return None
+    dx, dy, fx, fy = q[0] - p[0], q[1] - p[1], p[0] - cx, p[1] - cy
+    a, c = dx * dx + dy * dy, fx * fx + fy * fy - r * r
+    if a < 1e-12:
+        return t0 if c <= 0.0 else None
+    b = 2.0 * (fx * dx + fy * dy)
+    disc = b * b - 4.0 * a * c
+    if disc < 0.0:
+        return None
+    s = math.sqrt(disc)
+    t0, t1 = max(t0, (-b - s) / (2.0 * a)), min(t1, (-b + s) / (2.0 * a))
+    return t0 if t0 <= t1 else None
+
+
+NONSTANDING_KINDS = ("wall", "bridgewall", "lintel", "hazard")       # solid kinds that are no standing surface
+
+
+def _supports(L, solids, x, y, z, tol):
+    """Is there a standing surface within `tol` of height z under (x, y)? Boxes, ramp slabs, Oct tops."""
+    for s in solids:
+        if s[1] not in NONSTANDING_KINDS and s[2] <= x <= s[3] and s[4] <= y <= s[5] and abs(s[7] - z) <= tol:
+            return True
+    for r in L.RAMPS:
+        rz = ramp_surface_z(L, r, x, y)
+        if rz is not None and abs(rz - z) <= tol:
+            return True
+    for o in octs(L):
+        if math.hypot(x - o.cx, y - o.cy) <= oct_r_block(o) and abs(o.z1 - z) <= tol:
+            return True
+    return False
+
+
+def _solid_at(L, solids, x, y, z, tol):
+    """Is (x, y) occupied by something that reaches z (a wall or a neighbouring floor at or above it)? Used to tell a protected edge from a free one."""
+    for s in solids:
+        if s[1] != "hazard" and s[2] <= x <= s[3] and s[4] <= y <= s[5] and s[6] <= z + tol and s[7] >= z - tol:
+            return True
+    for r in L.RAMPS:
+        rz = ramp_surface_z(L, r, x, y)
+        if rz is not None and rz >= z - tol:
+            return True
+    for o in octs(L):
+        if math.hypot(x - o.cx, y - o.cy) <= oct_r_block(o) and o.z0 <= z + tol and o.z1 >= z - tol:
+            return True
+    return False
+
+
+def _obstructs(L, solids, x, y, z, head=160.0, tol=5.0):
+    """Does anything stand in the column at (x, y) between z + tol and z + head (a wall, a taller step, an Oct)?"""
+    for s in solids:
+        if s[1] != "hazard" and s[2] <= x <= s[3] and s[4] <= y <= s[5] and s[6] < z + head and s[7] > z + tol:
+            return True
+    for o in octs(L):
+        if math.hypot(x - o.cx, y - o.cy) <= oct_r_block(o) and o.z0 < z + head and o.z1 > z + tol:
+            return True
+    return False
+
+
+# ---- line of sight (ADR 0008 1.4)
+LOS_EYE_Z = 160.0
+LOS_TARGET_Z = 60.0
+
+
+def _slab_boxes(L, r):
+    """Stepped thin boxes approximating the slab of a free-spanning (fill "none") ramp, for line of sight only."""
+    f = ramp_frame(L, r)
+    th = math.radians(f.deg)
+    sign = f.d[0] if f.axis == "x" else f.d[1]
+    out = []
+    n = max(1, int(math.ceil(f.run / 50.0)))
+    for i in range(n):
+        sa, sb = f.run * i / n, f.run * (i + 1) / n
+        lo, hi = (r.x0 + sa, r.x0 + sb) if sign > 0 else (r.x0 - sb, r.x0 - sa)
+        z1 = sb * math.tan(th) + f.z0
+        z0 = sa * math.tan(th) - RAMP_THICKNESS / math.cos(th) + f.z0
+        out.append((lo, hi, r.y0, r.y1, z0, z1) if f.axis == "x" else (r.y0, r.y1, lo, hi, z0, z1))
+    return out
+
+
+def sight_blockers(L):
+    """(boxes, cylinders) that block a line of sight: every solid but the lava bed, free ramp slabs, Octs (radius d/2)."""
+    boxes = [s[2:] for s in all_solids(L) if s[1] != "hazard"]
+    for r in L.RAMPS:
+        if r.fill == "none":
+            boxes += _slab_boxes(L, r)
+    return boxes, [(o.cx, o.cy, oct_r_block(o), o.z0, o.z1) for o in octs(L)]
+
+
+def _los_points(L, name):
+    """name -> [(label, (x, y, floor_z))]: a spawn id, an item id, a name in POINTS (x, y[, floor z]), or the groups `spawns` / `majors`."""
+    items = {i.id: i for i in L.ITEMS}
+    if name == "spawns":
+        return [(s.id, (s.x, s.y, L.FLOOR_Z)) for s in L.SPAWNS]
+    if name == "majors":
+        ids = getattr(L, "MAJOR_IDS", None) or (L.MEGA_ID, L.RA_ID)
+        return [(i, (items[i].x, items[i].y, items[i].z)) for i in ids]
+    pts = getattr(L, "POINTS", None) or {}
+    if name in pts:
+        v = pts[name]
+        group = isinstance(v[0], (tuple, list))                 # a list of points is a group (labels name[0], name[1], ...)
+        out = []
+        for i, p in enumerate(v if group else [v]):
+            out.append((f"{name}[{i}]" if group else name, (p[0], p[1], p[2] if len(p) > 2 else L.FLOOR_Z)))
+        return out
+    for s in L.SPAWNS:
+        if s.id == name:
+            return [(name, (s.x, s.y, L.FLOOR_Z))]
+    if name in items:
+        return [(name, (items[name].x, items[name].y, items[name].z))]
+    raise KeyError(f"line of sight: unknown name {name!r} (spawn id, item id, POINTS entry, spawns, majors)")
+
+
+def los_pairs(L, a, b):
+    """[(label_a, label_b, clear)] for every pair of the two names: from the eye (LOS_EYE_Z above the source floor) to LOS_TARGET_Z above the target."""
+    boxes, cyls = sight_blockers(L)
+    eye = getattr(L, "EYE_Z", LOS_EYE_Z)
+    out = []
+    for la, pa in _los_points(L, a):
+        for lb, pb in _los_points(L, b):
+            if la == lb:
+                continue
+            p, q = (pa[0], pa[1], pa[2] + eye), (pb[0], pb[1], pb[2] + LOS_TARGET_Z)
+            hit = any(seg_hits_box(p, q, bx) for bx in boxes) or any(seg_cyl_t(p, q, *c) is not None for c in cyls)
+            out.append((la, lb, not hit))
+    return out
+
+
+def los(L, a, b):
+    """True when EVERY pair of a and b has a clear line of sight (so `not los(...)` is not 'blocked'; use los_pairs for the pairs)."""
+    return all(c for (_a, _b, c) in los_pairs(L, a, b))
+
+
+def longest_sightline(L, floor_pt, rays=72, reach=30000.0):
+    """Longest horizontal sight distance from the eye above `floor_pt` over `rays` directions (solids and Octs; the clip is not counted)."""
+    boxes, cyls = sight_blockers(L)
+    eye = getattr(L, "EYE_Z", LOS_EYE_Z)
+    p = (floor_pt[0], floor_pt[1], floor_pt[2] + eye)
+    best = 0.0
+    for k in range(rays):
+        a = 2.0 * math.pi * k / rays
+        q = (p[0] + reach * math.cos(a), p[1] + reach * math.sin(a), p[2])
+        t = min([x for x in (seg_box_t(p, q, bx) for bx in boxes) if x is not None]
+                + [x for x in (seg_cyl_t(p, q, *c) for c in cyls) if x is not None] + [1.0])
+        best = max(best, t * reach)
+    return best
+
+
+def check_los(L):
+    """LOS_BLOCKED must be blocked, LOS_CLEAR clear. DM1 (no lists) keeps its old rule: no spawn sees Mega or RA. Returns (problems, figures)."""
+    bad, fig = [], {}
+    blocked = getattr(L, "LOS_BLOCKED", None)
+    clear = getattr(L, "LOS_CLEAR", None)
+    explicit = blocked is not None or clear is not None
+    if blocked is None and clear is None:
+        blocked = [("spawns", "majors")]
+    # an entry is (a, b) or (a, b, tol): tol = the fraction of pairs allowed to break the rule (default 0); explicit entries print their figure
+    for entry in blocked or ():
+        a, b, tol = entry[0], entry[1], (entry[2] if len(entry) > 2 else 0.0)
+        pairs = los_pairs(L, a, b)
+        seen = [(la, lb) for (la, lb, c) in pairs if c]
+        frac = len(seen) / len(pairs) if pairs else 0.0
+        if explicit:
+            fig[f"los_visible_pct {a} -> {b}"] = round(100.0 * frac, 2)
+        if frac > tol + 1e-12:
+            bad.append(f"line of sight {a} -> {b} must be blocked: {len(seen)} of {len(pairs)} pairs ({100.0 * frac:.1f} %) see each other, "
+                       f"tolerance {100.0 * tol:.1f} %; first {seen[0][0]} -> {seen[0][1]}")
+    for entry in clear or ():
+        a, b, tol = entry[0], entry[1], (entry[2] if len(entry) > 2 else 0.0)
+        pairs = los_pairs(L, a, b)
+        hidden = [(la, lb) for (la, lb, c) in pairs if not c]
+        frac = len(hidden) / len(pairs) if pairs else 0.0
+        if explicit:
+            fig[f"los_blocked_pct {a} -> {b}"] = round(100.0 * frac, 2)
+        if frac > tol + 1e-12:
+            bad.append(f"line of sight {a} -> {b} must be clear: {len(hidden)} of {len(pairs)} pairs ({100.0 * frac:.1f} %) are blocked, "
+                       f"tolerance {100.0 * tol:.1f} %; first {hidden[0][0]} -> {hidden[0][1]}")
+    if explicit:
+        longest = 0.0
+        for s in L.SPAWNS:
+            d = longest_sightline(L, (s.x, s.y, L.FLOOR_Z))
+            fig[f"{s.id}_sightline_m"] = round(d / 100.0, 1)
+            longest = max(longest, d)
+        fig["longest_sightline_m"] = round(longest / 100.0, 1)
+    return bad, fig
+
+
+# ---- link ends and drops
+def link_end_problem(L, solids, pt, rl, inset_ring=16):
+    """None, or why `pt` is not a ground point: no standing surface within link_end_z_tol, or a point link_end_inset away that is below it
+    (the end lies less than the agent radius inside an edge). A wall or a higher neighbour at that distance is fine."""
+    tol, inset = rl["link_end_z_tol"], rl["link_end_inset"]
+    if not _supports(L, solids, pt[0], pt[1], pt[2], tol):
+        return "on no standing surface (within %g cm in Z)" % tol
+    for k in range(inset_ring):
+        a = 2.0 * math.pi * k / inset_ring
+        x, y = pt[0] + inset * math.cos(a), pt[1] + inset * math.sin(a)
+        if not _solid_at(L, solids, x, y, pt[2], tol):
+            return "less than %g cm inside the edge (open at %.0f deg)" % (inset, math.degrees(a))
+    return None
+
+
+def drop_problems(L, solids, k, rl):
+    """ADR 0006 E3 (d) for a DROP end: drop_clear x drop_clear of clear top, drop_wall_ahead to the wall ahead, drop_pad_dist from any pad."""
+    bad = []
+    ex, ey, ez = k.end
+    tol = rl["link_end_z_tol"]
+    h = rl["drop_clear"] / 2.0
+    n = int(h // 25.0)
+    for i in range(-n, n + 1):
+        for j in range(-n, n + 1):
+            x, y = ex + i * 25.0, ey + j * 25.0
+            if not _supports(L, solids, x, y, ez, tol) or _obstructs(L, solids, x, y, ez, tol=tol):
+                bad.append(f"{k.id}: DROP end has no {rl['drop_clear']:.0f} x {rl['drop_clear']:.0f} clear top (blocked at {x:.0f}, {y:.0f})")
+                break
+        else:
+            continue
+        break
+    dx, dy = ex - k.start[0], ey - k.start[1]
+    dist = math.hypot(dx, dy)
+    if dist > 1e-6:
+        boxes, cyls = sight_blockers(L)
+        ahead = (ex + dx / dist * rl["drop_wall_ahead"], ey + dy / dist * rl["drop_wall_ahead"])
+        for zz in (ez + 40.0, ez + 140.0):
+            p, q = (ex, ey, zz), (ahead[0], ahead[1], zz)
+            if any(seg_hits_box(p, q, bx) for bx in boxes) or any(seg_cyl_t(p, q, *c) is not None for c in cyls):
+                bad.append(f"{k.id}: DROP end has a wall less than {rl['drop_wall_ahead']:.0f} cm ahead")
+                break
+    for p in L.PADS:
+        if math.hypot(p.x - ex, p.y - ey) < rl["drop_pad_dist"]:
+            bad.append(f"{k.id}: DROP end is {math.hypot(p.x - ex, p.y - ey):.0f} cm from pad {p.id} (< {rl['drop_pad_dist']:.0f})")
+    return bad
+
+
+# ---- pad arcs
+def pad_arc_clearance_problem(L, pad, solids, landing, clr):
+    """None, or the first solid / Oct the feet arc passes closer than `clr` cm to between the launch and the landing. Ground at the pad
+    (tops <= the pad floor) is ignored; a solid whose top is at or below the landing is only grown sideways (the arc has to come down onto it)."""
+    v, _t_apex = pad_launch(L, pad)
+    o = (pad.x, pad.y, L.FLOOR_Z)
+
+    def at(t):
+        return (o[0] + v[0] * t, o[1] + v[1] * t, o[2] + v[2] * t - 0.5 * GRAVITY * t * t)
+
+    lz = landing[2]
+    prev = at(0.0)
+    for i in range(1, int(5.0 / TRAJECTORY_DT)):
+        cur = at(i * TRAJECTORY_DT)
+        if i * TRAJECTORY_DT > _t_apex and cur[2] <= lz + 1.0:
+            break
+        for s in solids:
+            if s[7] <= o[2] + 1.0:
+                continue
+            b = s[2:]
+            grow_z = 0.0 if s[7] <= lz + 1.0 else clr
+            box = (b[0] - clr, b[1] + clr, b[2] - clr, b[3] + clr, b[4] - grow_z, b[5] + grow_z)
+            if seg_box_t(prev, cur, box) is not None:
+                return f"{pad.id}: the arc passes within {clr:.0f} cm of solid {s[0]}"
+        for oc in octs(L):
+            if oc.z1 <= o[2] + 1.0:
+                continue
+            gz = 0.0 if oc.z1 <= lz + 1.0 else clr
+            if seg_cyl_t(prev, cur, oc.cx, oc.cy, oct_r_clear(oc) + clr, oc.z0 - gz, oc.z1 + gz) is not None:
+                return f"{pad.id}: the arc passes within {clr:.0f} cm of Oct {oc.id}"
+        prev = cur
+    return None
+
+
+# ---- free ramps: the passage under the slab (ADR 0008 D41)
+def ramp_passage(L, r, solids):
+    """(width, how) of the best passage under a free-spanning ramp slab: the contiguous width (>= 160 cm clear) at the high end for a walk in
+    along the run ('along'), or the clear stretch along the run across the whole band for a walk through crosswise ('across'). 0 if none."""
+    f = ramp_frame(L, r)
+    th = math.radians(f.deg)
+    sign = f.d[0] if f.axis == "x" else f.d[1]
+
+    def clearance(s, c):
+        under = s * math.tan(th) + f.z0 - RAMP_THICKNESS / math.cos(th)
+        x, y = (r.x0 + sign * s, c) if f.axis == "x" else (c, r.x0 + sign * s)
+        g = L.FLOOR_Z
+        for sd in solids:
+            if sd[1] != "hazard" and sd[2] <= x <= sd[3] and sd[4] <= y <= sd[5]:
+                if sd[6] < under - 1e-6 < sd[7]:
+                    return 0.0
+                if sd[7] <= under + 1e-6:
+                    g = max(g, sd[7])
+        return under - g
+
+    cs = [r.y0 + i * 5.0 for i in range(int((r.y1 - r.y0) // 5.0) + 1)]
+    best_w, run = 0.0, 0.0
+    for c in cs:
+        run = run + 5.0 if clearance(f.run - 5.0, c) >= 160.0 else 0.0
+        best_w = max(best_w, run)
+    best_l, run = 0.0, 0.0
+    for i in range(int(f.run // 5.0) + 1):
+        s = i * 5.0
+        run = run + 5.0 if all(clearance(s, c) >= 160.0 for c in cs[::5] + [cs[-1]]) else 0.0
+        best_l = max(best_l, run)
+    return (best_w, "along") if best_w >= best_l else (best_l, "across")
+
+
+# ---- hazards and Octs
+def _in_hazard(h, p):
+    return h.x0 <= p[0] <= h.x1 and h.y0 <= p[1] <= h.y1 and h.z0 <= p[2] <= h.z1
+
+
+def check_hazards(L, solids, rl):
+    bad = []
+    hz = hazards(L)
+    ids = [h.id for h in hz]
+    if len(set(ids)) != len(ids):
+        bad.append("duplicate hazard ids")
+    for h in hz:
+        if h.type not in HAZARD_TYPES:
+            bad.append(f"{h.id}: hazard type {h.type!r} (lava | void)")
+            continue
+        if not (h.x0 < h.x1 and h.y0 < h.y1 and h.z0 < h.z1):
+            bad.append(f"{h.id}: empty hazard box")
+            continue
+        pts = [(f"item {i.id}", (i.x, i.y, i.z)) for i in L.ITEMS]
+        pts += [(f"spawn {s.id}", (s.x, s.y, L.FLOOR_Z + PLAYERSTART_Z)) for s in L.SPAWNS]
+        pts += [(f"pad {p.id}", (p.x, p.y, L.FLOOR_Z)) for p in L.PADS] + [(f"pad {p.id} landing", tuple(p.land)) for p in L.PADS]
+        for k in L.LINKS:
+            pts += [(f"link {k.id} start", tuple(k.start)), (f"link {k.id} end", tuple(k.end))]
+        for what, p in pts:
+            if _in_hazard(h, p):
+                bad.append(f"{h.id}: {what} {tuple(p)} lies inside the hazard")
+        if h.type == "lava":
+            if not any(s[1] == "hazard" and s[2] <= h.x0 and s[3] >= h.x1 and s[4] <= h.y0 and s[5] >= h.y1 and abs(s[7] - h.z0) <= 1.0
+                       for s in solids):
+                bad.append(f"{h.id}: lava has no Box of kind 'hazard' (the bed) under it, covering its footprint with its top at z0 {h.z0:g}")
+            adj = [s[7] for s in solids if s[1] in ("floor", "platform", "bridge")
+                   and s[2] <= h.x1 + 1.0 and s[3] >= h.x0 - 1.0 and s[4] <= h.y1 + 1.0 and s[5] >= h.y0 - 1.0
+                   and not (s[2] < h.x1 - 1.0 and s[3] > h.x0 + 1.0 and s[4] < h.y1 - 1.0 and s[5] > h.y0 + 1.0)       # touching, not overlapping
+                   and h.z1 < s[7] <= h.z1 + 200.0]
+            if not adj:
+                bad.append(f"{h.id}: lava has no adjoining floor top (within 200 cm above its surface)")
+            for t in adj:
+                if not 20.0 <= t - h.z1 <= 60.0:
+                    bad.append(f"{h.id}: lava surface {h.z1:g} is {t - h.z1:.0f} cm below the adjoining floor top {t:g} (needs 20..60)")
+                    break
+    return bad
+
+
+def check_octs(L, solids, rl):
+    bad = []
+    os_ = octs(L)
+    ids = [o.id for o in os_] + [s[0] for s in solids]
+    dup = [k for k, n in Counter(ids).items() if n > 1]
+    if dup:
+        bad.append(f"duplicate ids between Octs and solids {dup}")
+    for o in os_:
+        if not (o.d > 0.0 and o.z1 > o.z0):
+            bad.append(f"{o.id}: empty Oct")
+    gmin = rl["oct_gap_min"]
+    for i, o in enumerate(os_):
+        rc = oct_r_clear(o)
+        for it in L.ITEMS:
+            if math.hypot(it.x - o.cx, it.y - o.cy) < rc and o.z0 < it.z + 20.0 < o.z1:
+                bad.append(f"item {it.id} is inside Oct {o.id}")
+        for s in L.SPAWNS:
+            if math.hypot(s.x - o.cx, s.y - o.cy) < rc + 34.0 and o.z0 < L.FLOOR_Z + PLAYERSTART_Z < o.z1:
+                bad.append(f"spawn {s.id} is inside Oct {o.id}")
+        for p in os_[i + 1:]:
+            if o.z0 < p.z1 and p.z0 < o.z1:
+                gap = math.hypot(o.cx - p.cx, o.cy - p.cy) - rc - oct_r_clear(p)
+                if 0.0 < gap < gmin:
+                    bad.append(f"Octs {o.id} and {p.id} leave a {gap:.0f} cm gap (touch, or leave >= {gmin:.0f})")
+        for s in solids:
+            if s[1] in ("floor", "lintel", "hazard") or not (s[6] < o.z1 - 1.0 and s[7] > o.z0 + 1.0):
+                continue
+            dx = max(s[2] - o.cx, 0.0, o.cx - s[3])
+            dy = max(s[4] - o.cy, 0.0, o.cy - s[5])
+            gap = math.hypot(dx, dy) - rc
+            if 0.0 < gap < gmin:
+                bad.append(f"Oct {o.id} leaves a {gap:.0f} cm gap to solid {s[0]} (touch, or leave >= {gmin:.0f})")
+    return bad
+
+
+# ---- free edges (report only)
+def free_edges(L, step=50.0):
+    """Walkable tops (kinds floor, platform, bridge) whose edge has a drop > free_edge_drop and neither a link start within 100 cm, a wall /
+    higher neighbour / clip, nor a listed exemption (spec FREE_EDGE_EXEMPT = box ids). Returns {box id: free edge length in cm}."""
+    rl = rules(L)
+    solids = all_solids(L)
+    exempt = set(getattr(L, "FREE_EDGE_EXEMPT", None) or ())
+    clips = [(c.x0, c.x1, c.y0, c.y1, c.z0, c.z1) for c in L.CLIPS]
+    starts = [k.start for k in L.LINKS]
+    out = {}
+    for b in L.BOXES:
+        if b.kind not in ("floor", "platform", "bridge") or b.id in exempt:
+            continue
+        top = b.z1
+        edges = [("x", b.x0, b.y0, b.y1, -1.0), ("x", b.x1, b.y0, b.y1, 1.0), ("y", b.y0, b.x0, b.x1, -1.0), ("y", b.y1, b.x0, b.x1, 1.0)]
+        n_free = 0
+        for (axis, fixed, lo, hi, sg) in edges:
+            for i in range(max(1, int((hi - lo) // step))):
+                along = (lo + hi) / 2 if hi - lo < step else lo + (i + 0.5) * step
+                px, py = (fixed, along) if axis == "x" else (along, fixed)
+                nrm = (sg, 0.0) if axis == "x" else (0.0, sg)
+                ox, oy = px + nrm[0] * 10.0, py + nrm[1] * 10.0
+                if any(_in_box((ox, oy, top + 60.0), (c[0], c[1], c[2], c[3], c[4], c[5])) for c in clips):
+                    continue
+                if any(math.hypot(sx - px, sy - py) <= 100.0 and abs(sz - top) <= 20.0 for (sx, sy, sz) in starts):
+                    continue
+                # a wall or a higher neighbour beside the edge protects it; otherwise find the ground below
+                if any(s[1] != "hazard" and s[2] <= ox <= s[3] and s[4] <= oy <= s[5] and s[7] > top + 5.0 and s[6] < top + 180.0 for s in solids):
+                    continue
+                drop = None
+                for s in solids:
+                    if s[1] not in NONSTANDING_KINDS and s[2] <= ox <= s[3] and s[4] <= oy <= s[5] and s[7] <= top + 5.0:
+                        drop = top - s[7] if drop is None else min(drop, top - s[7])
+                for r in L.RAMPS:
+                    rz = ramp_surface_z(L, r, ox, oy)
+                    if rz is not None and rz <= top + 5.0:
+                        drop = top - rz if drop is None else min(drop, top - rz)
+                if drop is None or drop > rl["free_edge_drop"]:
+                    n_free += 1
+        if n_free:
+            out[b.id] = n_free * step
+    return out
+
+
+def free_edge_figures(L):
+    fe = free_edges(L)
+    return {"free_edge_m": round(sum(fe.values()) / 100.0, 1), "free_edge_boxes": len(fe)}
 
 
 # ---------------------------------------------------------------- validation (no editor needed)
@@ -268,6 +765,7 @@ def validate_layout(L):
     """Asserts the geometry rules of ADR 0006 section 3 on the records. Returns (list of problems, dict of figures)."""
     bad = []
     fig = {}
+    rl = rules(L)
     solids = all_solids(L)
     ids = [s[0] for s in solids]
     dup = [k for k, n in Counter(ids).items() if n > 1]
@@ -281,14 +779,14 @@ def validate_layout(L):
     for b in L.BOXES:
         if b.kind in ("platform", "bridge") and b.z1 > 0.0:
             w = min(b.x1 - b.x0, b.y1 - b.y0)
-            if w < 120.0:
-                bad.append(f"{b.id}: walkable width {w:.0f} < 120")
+            if w < rl["walkable_width"]:
+                bad.append(f"{b.id}: walkable width {w:.0f} < {rl['walkable_width']:g}")
     for s in L.STAIRS:
-        if abs(s.y1 - s.y0) < 120.0:
+        if abs(s.y1 - s.y0) < rl["walkable_width"]:
             bad.append(f"{s.id}: stairs width < 120")
     for r in L.RAMPS:
         f = ramp_frame(L, r)
-        if f.deg >= 45.5:
+        if f.deg >= rl["ramp_max_deg"]:
             bad.append(f"{r.id}: ramp angle {f.deg:g} deg >= 45.5 (walkable floor angle)")
         if r.deg is not None:                     # DM1 ramps use the global RAMP_DEG: no figure, so its golden stays identical
             fig[f"{r.id}_deg"] = f.deg
@@ -299,10 +797,14 @@ def validate_layout(L):
                 bad.append(f"{r.id}: free ramp has {under:.0f} cm clear under its high end (< 160)")
             if abs(r.y1 - r.y0) < 170.0:
                 bad.append(f"{r.id}: free ramp is {abs(r.y1 - r.y0):.0f} cm wide (< 170)")
+            width, how = ramp_passage(L, r, solids)       # the full passage test (P3 left it to P4)
+            fig[f"{r.id}_under_w"] = round(width)
+            if width < 170.0:
+                bad.append(f"{r.id}: free ramp has no passage under the slab (>= 160 clear and >= 170 wide; best {width:.0f} cm {how})")
     for w in L.WALLS:
         for o in w.openings:
             width = o.o1 - o.o0
-            if not 240.0 <= width <= 400.0:
+            if not rl["door_min"] <= width <= rl["door_max"]:
                 bad.append(f"{w.id}: opening {o.o0}..{o.o1} is {width:.0f} wide, outside 240..400")
     # ledge depth: the A ledge, B balcony, D balcony are >= 120 deep by the width rule above
     # rooms: heights
@@ -317,16 +819,26 @@ def validate_layout(L):
             bad.append(f"{p.id}: no walkable box under the landing point {p.land}")
         else:
             z = zone[0]
-            if z.x1 - z.x0 < 300.0 or z.y1 - z.y0 < 300.0:
+            if z.x1 - z.x0 < rl["pad_zone"] or z.y1 - z.y0 < rl["pad_zone"]:
                 bad.append(f"{p.id}: landing zone {z.id} is {z.x1 - z.x0:.0f} x {z.y1 - z.y0:.0f} < 300 x 300")
+        if p.target[2] - (L.FLOOR_Z + PAD_TRIGGER_Z) <= 0.0:
+            bad.append(f"{p.id}: target {tuple(p.target)} is not above the trigger centre")
+            continue
+        speed = math.sqrt(sum(c * c for c in pad_launch(L, p)[0]))
+        if speed > rl["pad_max_launch_speed"]:
+            bad.append(f"{p.id}: launch speed {speed:.0f} cm/s > PAD_MAX_LAUNCH_SPEED {rl['pad_max_launch_speed']:.0f}")
         landing, err = pad_arc(L, p, solids)
         if err:
             bad.append(err)
         else:
             d = math.hypot(landing[0] - p.land[0], landing[1] - p.land[1])
             fig[f"{p.id}_landing"] = (round(landing[0]), round(landing[1]), round(landing[2], 1))
-            if d > 60.0 or abs(landing[2] - p.land[2]) > 30.0:
+            if d > rl["pad_land_tol"] or abs(landing[2] - p.land[2]) > rl["pad_land_tol_z"]:
                 bad.append(f"{p.id}: simulated landing {tuple(round(c) for c in landing)} is {d:.0f} cm from the authored {p.land}")
+            if rl["pad_arc_clearance"] > 0.0:
+                why = pad_arc_clearance_problem(L, p, solids, landing, rl["pad_arc_clearance"])
+                if why:
+                    bad.append(why)
     # rocket-jump clearance
     for k in L.LINKS:
         if k.type != "ROCKET_JUMP":
@@ -353,12 +865,9 @@ def validate_layout(L):
         fig[f"{s.id}_weapon_m"] = round(dw / 100.0, 1)
         if dw > L.SPAWN_MAX_WEAPON:
             bad.append(f"spawn {s.id} is {dw / 100:.1f} m from the nearest weapon (> 8 m)")
-        for tid in (L.MEGA_ID, L.RA_ID):
-            tgt = by_id[tid]
-            p = (s.x, s.y, L.FLOOR_Z + L.EYE_Z)
-            q = (tgt.x, tgt.y, tgt.z + L.EYE_Z)
-            if not any(seg_hits_box(p, q, sd[2:]) for sd in solids if sd[1] != "floor"):
-                bad.append(f"spawn {s.id} has line of sight to {tid}")
+    los_bad, los_fig = check_los(L)         # LOS_BLOCKED / LOS_CLEAR; without them: no spawn sees Mega or RA (DM1, as before)
+    bad += los_bad
+    fig.update(los_fig)
     # nav links and pads cross-check
     pad_ids = {p.id for p in L.PADS}
     for k in L.LINKS:
@@ -368,20 +877,25 @@ def validate_layout(L):
                 bad.append(f"{k.id}: unknown pad {k.pad}")
             elif math.hypot(k.end[0] - p.land[0], k.end[1] - p.land[1]) > 60.0 or abs(k.end[2] - p.land[2]) > 30.0:
                 bad.append(f"{k.id}: link end {k.end} is more than 60 cm from the pad landing {p.land}")
-    jp = sum(1 for k in L.LINKS if k.type == "JUMP_PAD")
-    rj = sum(1 for k in L.LINKS if k.type == "ROCKET_JUMP")
-    if (jp, rj) != (3, 2):
-        bad.append(f"links: JUMP_PAD={jp} ROCKET_JUMP={rj}, expected 3 and 2")
-    if len(pad_ids) != 3:
-        bad.append("expected 3 pads")
-    # ADR item counts
-    kinds = Counter(i.definition.rsplit("DA_Item_", 1)[1] for i in L.ITEMS)
-    want = {"Health_Mega": 1, "Armor_Red": 1, "Armor_Yellow": 2, "Armor_Shard": 6, "Health_Large": 1, "Health_Medium": 5,
-            "Health_Small": 8, "Weapon_RocketLauncher": 1, "Weapon_Railgun": 1, "Weapon_LightningGun": 1, "Weapon_Shotgun": 1,
-            "Weapon_PlasmaGun": 1, "Ammo_Rockets": 1, "Ammo_Slugs": 1, "Ammo_Lightning": 1, "Ammo_Shells": 1, "Ammo_Cells": 1,
-            "Powerup_Quad": 1}
-    if dict(kinds) != want:
-        bad.append(f"item mix differs from ADR 0006 section 3: {dict(kinds)}")
+    # link ends on ground (hard on every map) and drop rule E3 (d)
+    for k in L.LINKS:
+        for what, pt in (("start", k.start), ("end", k.end)):
+            why = link_end_problem(L, solids, pt, rl) if rl["link_end_ground"] else None
+            if why:
+                bad.append(f"{k.id}: link {what} {tuple(pt)} is {why}")
+        if k.type == "DROP" and rl["drop_rule"]:
+            bad += drop_problems(L, solids, k, rl)
+    # counts a map declares in RULES (DM1: LEGACY_RULES, its ADR 0006 section 3 values); None = not checked
+    if rl["link_counts"] is not None:
+        got = {t: sum(1 for k in L.LINKS if k.type == t) for t in rl["link_counts"]}
+        if got != dict(rl["link_counts"]):
+            bad.append(f"links by type {got}, expected {dict(rl['link_counts'])}")
+    if rl["pad_count"] is not None and len(pad_ids) != rl["pad_count"]:
+        bad.append(f"expected {rl['pad_count']} pads, found {len(pad_ids)}")
+    if rl["item_mix"] is not None:
+        kinds = Counter(i.definition.rsplit("DA_Item_", 1)[1] for i in L.ITEMS)
+        if dict(kinds) != dict(rl["item_mix"]):
+            bad.append(f"item mix differs from the map's item_mix rule: {dict(kinds)}")
     quad = [i for i in L.ITEMS if i.definition.endswith("Powerup_Quad")]
     if not quad or quad[0].disabled_in_modes != (L.DUEL,):
         bad.append("the Quad must be disabled in Duel (FFA only)")
@@ -389,12 +903,17 @@ def validate_layout(L):
     tops = [s for s in solids]
     for it in L.ITEMS:
         on_ramp = any(ramp_surface_z(L, r, it.x, it.y) is not None and abs(it.z - ramp_surface_z(L, r, it.x, it.y)) < 1.0 for r in L.RAMPS)
-        on_top = any(s[2] <= it.x <= s[3] and s[4] <= it.y <= s[5] and abs(s[7] - it.z) < 1.0 and s[1] != "lintel" for s in tops)
+        on_top = any(s[2] <= it.x <= s[3] and s[4] <= it.y <= s[5] and abs(s[7] - it.z) < 1.0 and s[1] not in ("lintel", "hazard") for s in tops)
+        on_top = on_top or any(math.hypot(it.x - o.cx, it.y - o.cy) <= oct_r_block(o) and abs(o.z1 - it.z) < 1.0 for o in octs(L))
         if not (on_ramp or on_top):
             bad.append(f"item {it.id} at ({it.x}, {it.y}, {it.z}) stands on no solid top")
         inside = [s[0] for s in tops if s[2] < it.x < s[3] and s[4] < it.y < s[5] and s[6] < it.z + 20.0 < s[7]]
         if inside:
             bad.append(f"item {it.id} is inside solid {inside}")
+    bad += check_octs(L, solids, rl)
+    bad += check_hazards(L, solids, rl)
+    if rl["free_edge_report"]:
+        fig.update(free_edge_figures(L))
     return bad, fig
 
 
@@ -741,10 +1260,21 @@ def spawn_geometry(L, clip=False):
             rec = sid.split("_Fill_")[0]
         vm.box(("Clip_" + sid) if clip else sid, ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), (x1 - x0, y1 - y0, z1 - z0),
                material_of(L, kind, sid), kind, folder=("Rooms" if kind in ("floor", "wall", "lintel") else "Levels"), layout=rec, clip=clip)
+    for o in octs(L):
+        vm.octagon(("Clip_" + o.id) if clip else o.id, (o.cx, o.cy), o.d, o.z0, o.z1, o.mat, o.kind, folder="Levels", layout=o.id, clip=clip)
     for r in L.RAMPS:
         f = ramp_frame(L, r)
         vm.ramp(("Clip_" + r.id) if clip else r.id, f.foot, f.length, r.y1 - r.y0, RAMP_THICKNESS, f.deg,
                 "RampWalkable", kind="ramp", folder="Levels", layout=r.id, clip=clip, yaw=ramp_yaw(r))
+
+
+def spawn_hazards(L):
+    """AVeloxHazardVolume per Hazard record (veloxmap.hazard(), task H2: it needs the C++ class). The lava bed is an ordinary 'hazard' Box."""
+    for h in hazards(L):
+        if not hasattr(vm, "hazard"):
+            vm.fail(f"{h.id}: veloxmap.hazard() does not exist yet (task H2); a layout with Hazard records cannot be built before it")
+            return
+        vm.hazard(h.id, h.type, ((h.x0 + h.x1) / 2, (h.y0 + h.y1) / 2, (h.z0 + h.z1) / 2), (h.x1 - h.x0, h.y1 - h.y0, h.z1 - h.z0), layout=h.id)
 
 
 def spawn_clips(L):
@@ -827,6 +1357,10 @@ def expected_counts(L):
     for (_, kind, *_rest) in all_solids(L):
         exp[kind] = exp.get(kind, 0) + 1
     exp["target"] = len(L.PADS)       # cylinder landing markers
+    for o in octs(L):                 # four boxes per Oct, counted under the Oct's own kind
+        exp[o.kind] = exp.get(o.kind, 0) + 4
+    if hazards(L):
+        exp["hazardvolume"] = len(hazards(L))      # AVeloxHazardVolume actors (veloxmap.hazard(), task H2)
     return exp
 
 
@@ -835,6 +1369,7 @@ def build_map(L):
     if les is None:
         return
     spawn_geometry(L)
+    spawn_hazards(L)
     spawn_clips(L)
     spawn_perimeter_clip(L)
     spawn_items(L)
@@ -915,6 +1450,7 @@ def build_art_map(L):
     if les is None:
         return
     spawn_geometry(L, clip=True)
+    spawn_hazards(L)
     spawn_clips(L)
     spawn_perimeter_clip(L)
     spawn_items(L)
