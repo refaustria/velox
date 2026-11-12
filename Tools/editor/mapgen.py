@@ -73,40 +73,108 @@ def expand_wall(w):
     return pieces
 
 
+StairsFrame = namedtuple("StairsFrame", "axis x_from d band tread riser z0")
+RampFrame = namedtuple("RampFrame", "axis foot d band deg z0 run length")
+_RAMP_DIRS = {"+x": ("x", 1.0), "-x": ("x", -1.0), "+y": ("y", 1.0), "-y": ("y", -1.0)}
+_RAMP_YAW = {"+x": 0.0, "+y": 90.0, "-x": 180.0, "-y": 270.0}      # yaw of the slab's local +X (the run direction)
+
+
+def stairs_frame(L, s):
+    """Stairs record -> StairsFrame: run axis ('x'|'y'), start coordinate on it, direction sign, cross band (y0, y1), tread, riser and
+    base height with the layout defaults applied. All code reads stairs through this helper (ADR 0008 section 1.3)."""
+    if s.axis not in ("x", "y"):
+        raise ValueError(f"{s.id}: stairs axis {s.axis!r} (x | y)")
+    return StairsFrame(s.axis, s.x_from, s.x_dir, (s.y0, s.y1), L.TREAD if s.tread is None else s.tread,
+                       L.RISER if s.riser is None else s.riser, L.FLOOR_Z if s.z0 is None else s.z0)
+
+
 def expand_stairs(L, s):
+    f = stairs_frame(L, s)
     out = []
     # The first 20 cm step is left out (the foot rises 40 cm at once, still below the 45 cm step height): Recast raises the nav
     # over a lone 20 cm step beside a wall and the lint then reports the foot strip as walk-in floor.
     for i in range(1, s.steps):
-        xa = s.x_from + s.x_dir * i * L.TREAD
-        xb = xa + s.x_dir * L.TREAD
+        xa = f.x_from + f.d * i * f.tread
+        xb = xa + f.d * f.tread
         if i == 1:
-            xa -= s.x_dir * STAIR_FOOT_EXTRA      # lengthened foot (see above)
-        out.append((f"{s.id}_{i:02d}", "step", min(xa, xb), max(xa, xb), s.y0, s.y1, 0.0, (i + 1) * L.RISER))
+            xa -= f.d * STAIR_FOOT_EXTRA      # lengthened foot (see above)
+        lo, hi = min(xa, xb), max(xa, xb)
+        top = f.z0 + (i + 1) * f.riser
+        if f.axis == "x":
+            out.append((f"{s.id}_{i:02d}", "step", lo, hi, f.band[0], f.band[1], f.z0, top))
+        else:
+            out.append((f"{s.id}_{i:02d}", "step", f.band[0], f.band[1], lo, hi, f.z0, top))
     return out
+
+
+def ramp_frame(L, r):
+    """Ramp record -> RampFrame: run axis, foot point (x, y, z0) at the middle of the cross band, unit direction (dx, dy), cross band
+    (c0, c1) as coordinates on the other axis, angle, foot height, horizontal run and slope length. `rise` is the height gained."""
+    if r.dir not in _RAMP_DIRS:
+        raise ValueError(f"{r.id}: ramp dir {r.dir!r} (+x -x +y -y)")
+    axis, sign = _RAMP_DIRS[r.dir]
+    deg = L.RAMP_DEG if r.deg is None else r.deg
+    z0 = L.FLOOR_Z if r.z0 is None else r.z0
+    mid = (r.y0 + r.y1) / 2
+    th = math.radians(deg)
+    if axis == "x":
+        foot, d = (r.x0, mid, z0), (sign, 0.0)
+    else:
+        foot, d = (mid, r.x0, z0), (0.0, sign)
+    return RampFrame(axis, foot, d, (r.y0, r.y1), deg, z0, r.rise / math.tan(th), r.rise / math.sin(th))
+
+
+def ramp_yaw(r):
+    return _RAMP_YAW[r.dir]
 
 
 def ramp_geometry(L, r):
     """(run, length along the slope) of the ramp."""
-    th = math.radians(L.RAMP_DEG)
-    return r.rise / math.tan(th), r.rise / math.sin(th)
+    f = ramp_frame(L, r)
+    return f.run, f.length
+
+
+def _ramp_local(f, r, x, y):
+    """(distance along the run from the foot, cross coordinate) of the world point (x, y)."""
+    if f.axis == "x":
+        return (x - r.x0) * f.d[0], y
+    return (y - r.x0) * f.d[1], x
+
+
+def ramp_surface_z(L, r, x, y):
+    """Walking surface height of the ramp at (x, y), or None outside its footprint (band and run, edges included)."""
+    f = ramp_frame(L, r)
+    s, cross = _ramp_local(f, r, x, y)
+    if not (f.band[0] <= cross <= f.band[1] and 0.0 <= s <= f.run):
+        return None
+    return s * math.tan(math.radians(f.deg)) + f.z0
 
 
 def expand_ramp_fills(L, r):
     """Stepped pawn-blocking fill boxes under the thin slab (Ramp_Fill_*, as on L_ItemTest): each box reaches the slab underside
-    at its low-X end, so the residual clearance under the slab is < RAMP_FILL_STEP * tan(15 deg) = 54 cm (< agent height)."""
-    th = math.radians(L.RAMP_DEG)
-    run, _ = ramp_geometry(L, r)
+    at its low end, so the residual clearance under the slab is < RAMP_FILL_STEP * tan(deg) (54 cm at 15 deg). `fill="none"`: no boxes
+    (a free-spanning slab, see validate_layout)."""
+    if r.fill == "none":
+        return []
+    if r.fill != "solid":
+        raise ValueError(f"{r.id}: ramp fill {r.fill!r} (solid | none)")
+    f = ramp_frame(L, r)
+    th = math.radians(f.deg)
+    sign = f.d[0] if f.axis == "x" else f.d[1]
     out = []
-    xa = r.x0
+    sa = 0.0
     n = 0
-    while xa < r.x0 + run - 1e-6:
-        xb = min(xa + RAMP_FILL_STEP, r.x0 + run)
-        top = (xa - r.x0) * math.tan(th) - RAMP_THICKNESS / math.cos(th)
-        if top > 1.0:
+    while sa < f.run - 1e-6:
+        sb = min(sa + RAMP_FILL_STEP, f.run)
+        top = sa * math.tan(th) - RAMP_THICKNESS / math.cos(th) + f.z0
+        if top > f.z0 + 1.0:
             n += 1
-            out.append((f"{r.id}_Fill_{n}", "platform", xa, xb, r.y0, r.y1, 0.0, top))
-        xa = xb
+            lo, hi = (r.x0 + sa, r.x0 + sb) if sign > 0 else (r.x0 - sb, r.x0 - sa)
+            if f.axis == "x":
+                out.append((f"{r.id}_Fill_{n}", "platform", lo, hi, r.y0, r.y1, f.z0, top))
+            else:
+                out.append((f"{r.id}_Fill_{n}", "platform", r.y0, r.y1, lo, hi, f.z0, top))
+        sa = sb
     return out
 
 
@@ -218,6 +286,19 @@ def validate_layout(L):
     for s in L.STAIRS:
         if abs(s.y1 - s.y0) < 120.0:
             bad.append(f"{s.id}: stairs width < 120")
+    for r in L.RAMPS:
+        f = ramp_frame(L, r)
+        if f.deg >= 45.5:
+            bad.append(f"{r.id}: ramp angle {f.deg:g} deg >= 45.5 (walkable floor angle)")
+        if r.deg is not None:                     # DM1 ramps use the global RAMP_DEG: no figure, so its golden stays identical
+            fig[f"{r.id}_deg"] = f.deg
+        if r.fill == "none":
+            # free-spanning slab (ADR 0008 D41): the high end must leave >= 160 cm clear below the slab and the band must be >= 170 wide
+            under = r.rise - RAMP_THICKNESS / math.cos(math.radians(f.deg))
+            if under < 160.0:
+                bad.append(f"{r.id}: free ramp has {under:.0f} cm clear under its high end (< 160)")
+            if abs(r.y1 - r.y0) < 170.0:
+                bad.append(f"{r.id}: free ramp is {abs(r.y1 - r.y0):.0f} cm wide (< 170)")
     for w in L.WALLS:
         for o in w.openings:
             width = o.o1 - o.o0
@@ -307,7 +388,7 @@ def validate_layout(L):
     # items stand on something: the floor point is within 1 cm of a solid top whose footprint contains it (or the ramp)
     tops = [s for s in solids]
     for it in L.ITEMS:
-        on_ramp = any(abs(it.z - L.ramp_z(r, it.x)) < 1.0 and r.y0 <= it.y <= r.y1 and r.x0 <= it.x <= r.x0 + ramp_geometry(L, r)[0] for r in L.RAMPS)
+        on_ramp = any(ramp_surface_z(L, r, it.x, it.y) is not None and abs(it.z - ramp_surface_z(L, r, it.x, it.y)) < 1.0 for r in L.RAMPS)
         on_top = any(s[2] <= it.x <= s[3] and s[4] <= it.y <= s[5] and abs(s[7] - it.z) < 1.0 and s[1] != "lintel" for s in tops)
         if not (on_ramp or on_top):
             bad.append(f"item {it.id} at ({it.x}, {it.y}, {it.z}) stands on no solid top")
@@ -347,8 +428,12 @@ def _in_box(p, b):
 
 def _in_ramp_body(L, p):
     for r in L.RAMPS:
-        run, _ = ramp_geometry(L, r)
-        if r.y0 < p[1] < r.y1 and r.x0 < p[0] < r.x0 + run and 0.0 < p[2] < L.ramp_z(r, p[0]):
+        if r.fill == "none":
+            continue
+        f = ramp_frame(L, r)
+        s_run, cross = _ramp_local(f, r, p[0], p[1])
+        z = ramp_surface_z(L, r, p[0], p[1])
+        if z is not None and f.band[0] < cross < f.band[1] and 0.0 < s_run < f.run and f.z0 < p[2] < z:
             return True
     return False
 
@@ -475,34 +560,44 @@ def stairs_plan(L, cover, s):
     protrusion rule (bounds against clip) must flag by construction."""
     out = []
     steps = [t for t in expand_stairs(L, s)]
-    d = s.x_dir
+    f = stairs_frame(L, s)
     for (sid, _k, x0, x1, y0, y1, z0, z1) in steps:
         out.append(Inst("Floor_400", x0, y0, z1, 0.0, (x1 - x0) / 400.0, (y1 - y0) / 400.0, 1.0, s.id, None))
     for g in range(0, len(steps), 5):
         grp = steps[g:g + 5]
-        xa = min(t[2] for t in grp)
-        xb = max(t[3] for t in grp)
+        ia, ib = (2, 3) if f.axis == "x" else (4, 5)
+        xa = min(t[ia] for t in grp)
+        xb = max(t[ib] for t in grp)
         low = min(t[7] for t in grp) - FLOOR_SLAB
-        if low > 1.0:
-            for nrm, c in (((0, 1), s.y1), ((0, -1), s.y0)):
-                out += vertical_tiles(cover, s.id, nrm, c, xa, xb, 0.0, low)
+        if low > f.z0 + 1.0:
+            sides = (((0, 1), s.y1), ((0, -1), s.y0)) if f.axis == "x" else (((1, 0), s.y1), ((-1, 0), s.y0))
+            for nrm, c in sides:
+                out += vertical_tiles(cover, s.id, nrm, c, xa, xb, f.z0, low)
     return out
 
 
 def ramp_plan(L, cover, r):
-    """The ramp surface from Bridge_400 plates (Plate material) pitched RAMP_DEG and squashed to the 20 cm clip slab; the plates lie exactly
-    on the slab's oriented box. Ramp_15 is not used (bounds contain the air above the slope, see stairs_plan)."""
-    th = math.radians(L.RAMP_DEG)
-    _, length = ramp_geometry(L, r)
+    """The ramp surface from Bridge_400 plates (Plate material) pitched `deg` and squashed to the 20 cm clip slab; the plates lie exactly
+    on the slab's oriented box. Ramp_15 is not used (bounds contain the air above the slope, see stairs_plan). The plates are yawed
+    to the run direction; a plate's local +Y runs to the left of the run direction, so the cross offset starts at the band's low
+    end when that is +axis and at its high end otherwise."""
+    f = ramp_frame(L, r)
+    th = math.radians(f.deg)
+    yaw = ramp_yaw(r)
     out = []
-    n = max(1, int(round(length / 400.0)))
-    seg = length / n
+    n = max(1, int(round(f.length / 400.0)))
+    seg = f.length / n
     nw = max(1, int(round((r.y1 - r.y0) / 200.0)))
     wseg = (r.y1 - r.y0) / nw
+    run_d = f.d[0] if f.axis == "x" else f.d[1]
+    cross_up = (run_d > 0) if f.axis == "x" else (run_d < 0)
     for k in range(n):
         for j in range(nw):
-            out.append(Inst("Bridge_400", r.x0 + k * seg * math.cos(th), r.y0 + j * wseg, k * seg * math.sin(th), 0.0,
-                            seg / 400.0, wseg / 200.0, RAMP_THICKNESS / 60.0, r.id, None, L.RAMP_DEG))
+            run_c = r.x0 + run_d * (k * seg * math.cos(th))
+            cross_c = r.y0 + j * wseg if cross_up else r.y1 - j * wseg
+            x, y = (run_c, cross_c) if f.axis == "x" else (cross_c, run_c)
+            out.append(Inst("Bridge_400", x, y, k * seg * math.sin(th) + f.z0, yaw,
+                            seg / 400.0, wseg / 200.0, RAMP_THICKNESS / 60.0, r.id, None, f.deg))
     return out
 
 
@@ -593,12 +688,13 @@ def clip_oriented_boxes(L, audit):
            for s in all_solids(L)]
     out += [audit.oriented_box(((c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2, (c.z0 + c.z1) / 2), ((c.x1 - c.x0) / 2, (c.y1 - c.y0) / 2, (c.z1 - c.z0) / 2), (0, 0, 0))
             for c in L.CLIPS]
-    th = math.radians(L.RAMP_DEG)
     for r in L.RAMPS:
-        _, length = ramp_geometry(L, r)
-        cx = r.x0 + length / 2 * math.cos(th) + RAMP_THICKNESS / 2 * math.sin(th)
-        cz = L.FLOOR_Z + length / 2 * math.sin(th) - RAMP_THICKNESS / 2 * math.cos(th)
-        out.append(audit.oriented_box((cx, (r.y0 + r.y1) / 2, cz), (length / 2, (r.y1 - r.y0) / 2, RAMP_THICKNESS / 2), (L.RAMP_DEG, 0, 0)))
+        f = ramp_frame(L, r)
+        th = math.radians(f.deg)
+        off = f.length / 2 * math.cos(th) + RAMP_THICKNESS / 2 * math.sin(th)
+        cz = f.z0 + f.length / 2 * math.sin(th) - RAMP_THICKNESS / 2 * math.cos(th)
+        out.append(audit.oriented_box((f.foot[0] + f.d[0] * off, f.foot[1] + f.d[1] * off, cz),
+                                      (f.length / 2, (r.y1 - r.y0) / 2, RAMP_THICKNESS / 2), (f.deg, ramp_yaw(r), 0)))
     return out
 
 
@@ -646,15 +742,35 @@ def spawn_geometry(L, clip=False):
         vm.box(("Clip_" + sid) if clip else sid, ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), (x1 - x0, y1 - y0, z1 - z0),
                material_of(L, kind, sid), kind, folder=("Rooms" if kind in ("floor", "wall", "lintel") else "Levels"), layout=rec, clip=clip)
     for r in L.RAMPS:
-        run, length = ramp_geometry(L, r)
-        vm.ramp(("Clip_" + r.id) if clip else r.id, (r.x0, (r.y0 + r.y1) / 2, L.FLOOR_Z), length, r.y1 - r.y0, RAMP_THICKNESS, L.RAMP_DEG,
-                "RampWalkable", kind="ramp", folder="Levels", layout=r.id, clip=clip)
+        f = ramp_frame(L, r)
+        vm.ramp(("Clip_" + r.id) if clip else r.id, f.foot, f.length, r.y1 - r.y0, RAMP_THICKNESS, f.deg,
+                "RampWalkable", kind="ramp", folder="Levels", layout=r.id, clip=clip, yaw=ramp_yaw(r))
 
 
 def spawn_clips(L):
     for c in L.CLIPS:
         a = vm.clip_box(c.id, ((c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2, (c.z0 + c.z1) / 2), (c.x1 - c.x0, c.y1 - c.y0, c.z1 - c.z0))
         vm.tag_actor(a, c.id)
+
+
+CLIP_MODE_ACTORS = {"box": 5, "walls": 4, "none": 0}
+
+
+def clip_mode(L):
+    """The spec module's CLIP_MODE: None (default: the layout's own CLIPS records only, as DM1) | "box" | "walls" | "none"."""
+    mode = getattr(L, "CLIP_MODE", None)
+    if mode is not None and mode not in CLIP_MODE_ACTORS:
+        raise ValueError(f"CLIP_MODE {mode!r} (box | walls | none)")
+    return mode
+
+
+def spawn_perimeter_clip(L):
+    """Perimeter clip walls (and ceiling for "box") from CLIP_MODE; needs CLIP_HALF = (half_x, half_y) in the spec module."""
+    mode = clip_mode(L)
+    if mode in (None, "none"):
+        return
+    hx, hy = L.CLIP_HALF
+    vm.clip_walls(hx, hy, mode=mode, wall_t=getattr(L, "CLIP_WALL_T", 100.0))
 
 
 def spawn_items(L):
@@ -706,7 +822,7 @@ def set_game_mode():
 
 def expected_counts(L):
     exp = dict(L.EXPECTED)
-    exp["clip"] = len(L.CLIPS)
+    exp["clip"] = len(L.CLIPS) + CLIP_MODE_ACTORS.get(clip_mode(L), 0)
     exp["ramp"] = len(L.RAMPS)
     for (_, kind, *_rest) in all_solids(L):
         exp[kind] = exp.get(kind, 0) + 1
@@ -720,6 +836,7 @@ def build_map(L):
         return
     spawn_geometry(L)
     spawn_clips(L)
+    spawn_perimeter_clip(L)
     spawn_items(L)
     spawn_pads_and_links(L)
     spawn_starts_and_camera(L)
@@ -799,6 +916,7 @@ def build_art_map(L):
         return
     spawn_geometry(L, clip=True)
     spawn_clips(L)
+    spawn_perimeter_clip(L)
     spawn_items(L)
     spawn_pads_and_links(L, markers=False)
     spawn_starts_and_camera(L)

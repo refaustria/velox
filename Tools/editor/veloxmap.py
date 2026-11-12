@@ -66,12 +66,14 @@ EAS = None
 _MESH = {}
 
 
-def configure(log_prefix=None, fill_nav_kinds=None):
-    global LOG_PREFIX, FILL_NAV_KINDS
+def configure(log_prefix=None, fill_nav_kinds=None, clip_h=None):
+    global LOG_PREFIX, FILL_NAV_KINDS, CLIP_H
     if log_prefix is not None:
         LOG_PREFIX = log_prefix
     if fill_nav_kinds is not None:
         FILL_NAV_KINDS = tuple(fill_nav_kinds)
+    if clip_h is not None:
+        CLIP_H = float(clip_h)
 
 
 def log(msg):
@@ -235,24 +237,40 @@ def box(name, center, size, material, kind, rot=None, collide=True, tags=(), fol
     return a
 
 
-def ramp(name, origin, length, width, thickness, deg, material, kind="ramp", tags=(), folder=None, layout=None, clip=False):
-    """Thin slab whose top surface runs from `origin` (x, y, z) rising along +X at `deg` degrees over `length` cm
-    (the slab centre is offset half a thickness along -normal)."""
+def ramp_center(origin, length, thickness, deg, yaw=0.0):
+    """Slab centre (x, y, z) of a ramp whose top surface starts at `origin` and rises at `deg` along the direction `yaw` (degrees from
+    +X towards +Y): the offset along the run is rotated by yaw. Pure arithmetic (testable outside the editor)."""
     th = math.radians(deg)
-    cx = origin[0] + length / 2 * math.cos(th) + thickness / 2 * math.sin(th)
-    cz = origin[2] + length / 2 * math.sin(th) - thickness / 2 * math.cos(th)
-    return box(name, (cx, origin[1], cz), (length, width, thickness), material, kind, rot=unreal.Rotator(0, deg, 0),
-               tags=tags, folder=folder, layout=layout, clip=clip)
+    off = length / 2 * math.cos(th) + thickness / 2 * math.sin(th)
+    ya = math.radians(yaw)
+    return (origin[0] + off * math.cos(ya), origin[1] + off * math.sin(ya),
+            origin[2] + length / 2 * math.sin(th) - thickness / 2 * math.cos(th))
 
 
-def stairs(name, x0, y, tread, width, riser, steps, material, kind="step", tags=(), folder=None, layout=None):
-    """Solid steps rising along +X from x0: step s spans x0 + s*tread .. +tread and is (s+1)*riser high. Names <name>_<nn>."""
+def ramp(name, origin, length, width, thickness, deg, material, kind="ramp", tags=(), folder=None, layout=None, clip=False, yaw=0.0):
+    """Thin slab whose top surface runs from `origin` (x, y, z) rising at `deg` degrees over `length` cm along +X, or along the
+    direction `yaw` (rotator (roll 0, pitch deg, yaw); the slab centre is offset half a thickness along -normal)."""
+    return box(name, ramp_center(origin, length, thickness, deg, yaw), (length, width, thickness), material, kind,
+               rot=unreal.Rotator(0, deg, yaw), tags=tags, folder=folder, layout=layout, clip=clip)
+
+
+def stairs_boxes(x0, y, tread, width, riser, steps, axis="x", direction=1, z0=0.0):
+    """[(centre, size)] of each step. Axis x: step s spans x0 + direction*s*tread .. +tread along X at cross position y; axis y swaps
+    the roles (x0 is a Y value, y the X cross position). Step s tops at z0 + (s+1)*riser and is solid down to z0."""
     out = []
     for s in range(steps):
         hgt = (s + 1) * riser
-        out.append(box(f"{name}_{s:02d}", (x0 + s * tread + tread / 2, y, hgt / 2), (tread, width, hgt), material, kind,
-                       tags=tags, folder=folder, layout=layout))
+        run = x0 + direction * (s * tread + tread / 2)
+        c = (run, y, z0 + hgt / 2) if axis == "x" else (y, run, z0 + hgt / 2)
+        sz = (tread, width, hgt) if axis == "x" else (width, tread, hgt)
+        out.append((c, sz))
     return out
+
+
+def stairs(name, x0, y, tread, width, riser, steps, material, kind="step", tags=(), folder=None, layout=None, axis="x", direction=1, z0=0.0):
+    """Solid steps rising along +X (axis "x", direction 1 / -1) or along Y (axis "y") from x0. Names <name>_<nn>."""
+    return [box(f"{name}_{n:02d}", c, sz, material, kind, tags=tags, folder=folder, layout=layout)
+            for n, (c, sz) in enumerate(stairs_boxes(x0, y, tread, width, riser, steps, axis, direction, z0))]
 
 
 def cylinder_marker(name, center, size, material, kind="target", tags=(), folder=None, layout=None):
@@ -384,15 +402,21 @@ def clip_box(name, center, size):
     return a
 
 
-def clip_walls(half_x, half_y, height=CLIP_H, ceiling_z=None, wall_t=100.0):
-    """Four clip walls coinciding with the visible perimeter walls (inner face at +-half_x / +-half_y), `height` high,
-    plus a ceiling slab (centre Z `ceiling_z`, default height + wall_t / 2, i.e. sitting on the walls). 5 actors, kind "clip"."""
-    h, t = height, wall_t
+def clip_walls(half_x, half_y, height=None, ceiling_z=None, wall_t=100.0, mode="box"):
+    """Four clip walls coinciding with the visible perimeter walls (inner face at +-half_x / +-half_y), `height` high (default: CLIP_H,
+    set per map by configure(clip_h=) from the spec module), plus a ceiling slab (centre Z `ceiling_z`, default height + wall_t / 2,
+    i.e. sitting on the walls). mode "box": 5 actors (walls + ceiling, kind "clip"); "walls": the four walls only; "none": nothing."""
+    if mode not in ("box", "walls", "none"):
+        raise ValueError(f"clip_walls mode {mode!r} (box | walls | none)")
+    if mode == "none":
+        return
+    h, t = (CLIP_H if height is None else height), wall_t
     clip_box("Clip_N", (0, half_y + t / 2, h / 2), (2 * half_x + 2 * t, t, h))
     clip_box("Clip_S", (0, -half_y - t / 2, h / 2), (2 * half_x + 2 * t, t, h))
     clip_box("Clip_E", (half_x + t / 2, 0, h / 2), (t, 2 * half_y, h))
     clip_box("Clip_W", (-half_x - t / 2, 0, h / 2), (t, 2 * half_y, h))
-    clip_box("Clip_Ceiling", (0, 0, h + t / 2 if ceiling_z is None else ceiling_z), (2 * half_x + 2 * t, 2 * half_y + 2 * t, t))
+    if mode == "box":
+        clip_box("Clip_Ceiling", (0, 0, h + t / 2 if ceiling_z is None else ceiling_z), (2 * half_x + 2 * t, 2 * half_y + 2 * t, t))
 
 
 def set_kill_z(z):
