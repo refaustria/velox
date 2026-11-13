@@ -206,8 +206,10 @@ RAMPS = [
 
 # ---------------------------------------------------------------- jump pads (AimAtTarget: the target is the capsule-centre apex, ADR 0002)
 PADS = [
-    # P1 on the Orchestra floor (z=PIT) as in the concept; lands in the Templum gate
-    Pad("P1", -300, 0, (-1950, 0, 1050), (-2922, 0, U), PIT),
+    # P1: concept has it on the Orchestra floor (-300, 0, z=PIT), landing in the Templum gate. B2 deviation (S2's D2 again): on the Cavea's west rim
+    # (-1200, 0, z=F), same landing. VeloxNav link_span: Detour never connects a nav link whose ends are more than one 1000 cm tile apart, and the pit pad's
+    # link (x -300 to -2922) spans three tiles, so no bot would ever take it. From the rim the link spans two (-1200 to -2922).
+    Pad("P1", -1200, 0, (-2227, 0, 950), (-2922, 0, U), F),
     Pad("P2", -3050, 2350, (-2950, 2000, 820), (-2899, 1823, U), F),       # Via Sacra west -> Templum north wing
     Pad("P3", -3050, -2350, (-2950, -2000, 820), (-2899, -1823, U), F),    # Rivus west -> Templum south wing
     Pad("P4", 3110, 1300, (3110, 640, 1160), (3110, 369, C), F),            # NE grove -> Corona north strip

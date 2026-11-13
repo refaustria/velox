@@ -1,6 +1,6 @@
 {
  "name": "NemusRun",
- "note": "L_Nemus_Blockout (M7 B2). Dead-reckoned (800 cm/s) walk: from the Tabulatum west ledge down Radix Magna into the pit (entry / exit speed in the row log), pad P1 to the Templum gate, off the Templum north edge, anchored on the NW tree-wall corner, pad P2 to the north wing, off the south edge, anchored on the SW corner, pad P3 to the south wing, off the south edge, along the south wall to the SE corner, pad P5 onto the east log. Pad P4 and the rocket jumps are not scripted (bots and FtMapReachability cover them).",
+ "note": "L_Nemus_Blockout (M7 B2). Dead-reckoned (800 cm/s) walk: from the Tabulatum west ledge down Radix Magna into the pit (entry / exit speed in the row log), pit stairs north, pad P1 (Cavea west rim) to the Templum gate, off the Templum north edge, anchored on the NW tree-wall corner, pad P2 to the north wing, off the south edge, anchored on the SW corner, pad P3 to the south wing, off the south edge, along the south wall to the SE corner, pad P5 onto the east log. Pad P4 and the rocket jumps are not scripted (bots and FtMapReachability cover them).",
  "startYaw": 180,
  "startLocation": [
   2400,
@@ -30,9 +30,39 @@
    "label": "Radix Magna downhill"
   },
   {
-   "duration": 2.5,
+   "duration": 0.7,
    "forward": 1,
    "yaw": 180.0,
+   "label": "pit west"
+  },
+  {
+   "duration": 0.5,
+   "label": "pit west coast"
+  },
+  {
+   "duration": 1.7,
+   "forward": 1,
+   "yaw": 90.0,
+   "label": "pit stairs north"
+  },
+  {
+   "duration": 0.5,
+   "label": "stairs coast"
+  },
+  {
+   "duration": 1.5,
+   "forward": 1,
+   "yaw": 180.0,
+   "label": "rim west"
+  },
+  {
+   "duration": 0.5,
+   "label": "rim west coast"
+  },
+  {
+   "duration": 2.5,
+   "forward": 1,
+   "yaw": -90.0,
    "until": "airborne",
    "label": "to P1 pad (until launched)"
   },
@@ -51,39 +81,35 @@
    "label": "P1 pad flight"
   },
   {
-   "duration": 0.32,
+   "duration": 0.55,
    "forward": 1,
    "yaw": 0.0,
    "label": "gate east"
   },
   {
-   "duration": 0.5,
+   "duration": 0.6,
    "label": "gate east coast"
   },
   {
-   "duration": 2.38,
+   "duration": 2.75,
    "forward": 1,
    "yaw": 90.0,
-   "label": "podium north to the edge"
-  },
-  {
-   "duration": 0.5,
-   "label": "podium north to the edge coast"
-  },
-  {
-   "duration": 0.12,
-   "forward": 1,
-   "yaw": 90.0,
-   "label": "north off the edge"
+   "label": "podium north off the edge"
   },
   {
    "duration": 0.9,
    "label": "north drop fall"
   },
   {
-   "duration": 1.8,
+   "duration": 1.0,
    "forward": 1,
-   "yaw": 135.0,
+   "yaw": 180.0,
+   "label": "anchor NW wall"
+  },
+  {
+   "duration": 1.2,
+   "forward": 1,
+   "yaw": 90.0,
    "label": "anchor NW corner"
   },
   {
@@ -112,29 +138,35 @@
    "label": "P2 pad flight"
   },
   {
-   "duration": 4.44,
+   "duration": 0.12,
    "forward": 1,
-   "yaw": -90.0,
-   "label": "podium south to the edge"
+   "yaw": 0.0,
+   "label": "wing east"
   },
   {
    "duration": 0.5,
-   "label": "podium south to the edge coast"
+   "label": "wing east coast"
   },
   {
-   "duration": 0.12,
+   "duration": 5.05,
    "forward": 1,
    "yaw": -90.0,
-   "label": "south off the edge"
+   "label": "podium south off the edge"
   },
   {
    "duration": 0.9,
    "label": "south drop fall"
   },
   {
-   "duration": 1.8,
+   "duration": 1.0,
    "forward": 1,
-   "yaw": -135.0,
+   "yaw": 180.0,
+   "label": "anchor SW wall"
+  },
+  {
+   "duration": 1.2,
+   "forward": 1,
+   "yaw": -90.0,
    "label": "anchor SW corner"
   },
   {
@@ -163,7 +195,17 @@
    "label": "P3 pad flight"
   },
   {
-   "duration": 0.45,
+   "duration": 0.12,
+   "forward": 1,
+   "yaw": 0.0,
+   "label": "wing east 2"
+  },
+  {
+   "duration": 0.5,
+   "label": "wing east 2 coast"
+  },
+  {
+   "duration": 0.5,
    "forward": 1,
    "yaw": -90.0,
    "label": "south off the wing"
