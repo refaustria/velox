@@ -1,0 +1,2 @@
+[navlint] L_Orbita_Blockout walkable_m2=2355.00 covered_pct=99.94 clusters=0 (walkin=0 isolated=0 edge=0) lowclear=0 hazard_m2=0.00 result=PASS
+[navlint] log: /home/bojan/velox/.claude/worktrees/agent-a87cb8c8bb1fe73e3/Saved/CI/20261113-141729-3539625/navlint-L_Orbita_Blockout.log

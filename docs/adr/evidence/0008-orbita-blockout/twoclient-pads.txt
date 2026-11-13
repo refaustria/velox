@@ -1,0 +1,30 @@
+== /mnt/oldroot/velox-scratch/m7-orbita/s1/twoclient3/clientA.log
+  total corrections 2 max 1.75
+  VeloxJumpPad_6               t=  37.57 corrections_in_flight=2 max=1.75
+  VeloxJumpPad_11              t=  42.99 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_9               t=  47.35 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_10              t=  59.63 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_7               t=  65.47 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_8               t=  69.92 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_6               t=  78.89 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_11              t=  84.40 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_9               t=  88.53 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_10              t= 100.62 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_7               t= 106.24 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_8               t= 110.49 corrections_in_flight=0 max=0.00
+  script=OrbitaRun moves=9264 corrections=2 max=1.75 mean=0.88 checks=12/12 peak2d=2499.8 peak_t=42.995 result=PASS reason=-
+== /mnt/oldroot/velox-scratch/m7-orbita/s1/twoclient3/clientB.log
+  total corrections 0 max 0.00
+  VeloxJumpPad_6               t=  59.52 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_11              t=  64.93 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_9               t=  69.29 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_10              t=  81.57 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_7               t=  87.39 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_8               t=  91.84 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_6               t= 100.81 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_11              t= 105.94 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_9               t= 110.09 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_10              t= 122.17 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_7               t= 127.80 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_8               t= 132.05 corrections_in_flight=0 max=0.00
+  script=OrbitaRun moves=9209 corrections=0 max=0.00 mean=0.00 checks=12/12 peak2d=2499.8 peak_t=64.939 result=PASS reason=-

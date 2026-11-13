@@ -44,7 +44,7 @@ DUEL = "Velox.Mode.Duel"
 FFA = "Velox.Mode.FFA"
 
 # Decks are "floor" boxes (solid, 200 thick, no nav fill: there is nothing under them); covers are "wall" (not standable) or "platform".
-FILL_NAV_KINDS = ()
+FILL_NAV_KINDS = ("platform", "wall")   # M7 B5 navlint: solids standing on a deck carry no nav inside them (lowclear inside=1); decks and bridges stay unfilled (void below)
 FLOATING_KINDS = ("ramp", "bridge", "bridgewall", "lintel")
 
 # ---------------------------------------------------------------- ramps (15 deg; run for a rise of 320 is 1194.2: feet placed so the top meets its deck flush)
@@ -82,10 +82,10 @@ BOXES = [
     # PA Pons Australis (south bridge) and HR Horreum (cargo deck)
     Box("PA", B, "Platform", -200, 200, -2400, -1600, -200, 0),
     Box("HR", F, "Floor", -1400, 2000, -3400, -2400, -200, 0),
-    Box("K1", P, "Platform", -600, -200, -3300, -3100, 0, 160),                # container 400 x 200 x 160
-    Box("K1_Crate", P, "Platform", -200, 0, -3300, -3100, 0, 100),             # 100 cm step beside it (200 wide: walkable-width rule)
-    Box("K2", P, "Platform", 800, 1200, -2700, -2500, 0, 200),
-    Box("HR_Parapet", W, "Wall", -400, 400, -3400, -3380, 0, 120),
+    Box("K1", P, "Platform", -600, -200, -3400, -3200, 0, 160),                # container 400 x 200 x 160; B5: flush with the south edge (a 100 cm strip behind it had no nav)
+    Box("K1_Crate", P, "Platform", -200, 0, -3400, -3200, 0, 100),             # 100 cm step beside it (200 wide: walkable-width rule)
+    Box("K2", P, "Platform", 800, 1200, -2800, -2600, 0, 200),                 # B5: 100 south (the 100 cm strip to the north edge had no nav)
+    Box("HR_Parapet", W, "Wall", 0, 400, -3400, -3380, 0, 120),                # B5: east half only (K1 and its crate now stand on the edge)
     # SE Semita and TR Trabs (Clivus Orientis joins them)
     Box("SE", F, "Floor", 2000, 3900, -3200, -2800, -200, 0),
     Box("TR", F, "Floor", 3400, 4000, -1600, 2000, 120, 320),
@@ -104,7 +104,7 @@ BOXES = [
     Box("HO", F, "Floor", -800, 800, 2794.2, 3800, -520, -320),
     Box("HOj", F, "Floor", -1200, -800, 3000, 3400, -520, -320),
     Box("HO_Rack1", W, "Wall", -600, -200, 3300, 3400, -320, -120),
-    Box("HO_Rack2", W, "Wall", 300, 700, 3550, 3650, -320, -120),
+    Box("HO_Rack2", W, "Wall", 400, 800, 3700, 3800, -320, -120),             # B5: in the NE corner, flush with both edges (strips behind it had no nav)
     Box("SC", F, "Floor", -3000, -1800, 2600, 3800, -40, 160),
     Box("SC_Rock", W, "Wall", -2200, -1800, 3400, 3800, 160, 460),            # rock outcrop, P2 backstop
 ]
@@ -114,7 +114,14 @@ STAIRS = []
 ROOMS = []
 
 # Open sky: no lid. The RJ clearance rule accepts a take-off with nothing above it (rules rj_open_sky, M7 P6).
-CLIPS = []
+# B5 navlint: caps (invisible, no nav influence) on the cover tops a pawn could stand on but Recast erodes away (isolated clusters).
+CLIPS = [
+    Clip("Cap_AR_Cover", -3950, -3850, 100, 500, 200, 300),
+    Clip("Cap_HO_Rack1", -600, -200, 3300, 3400, -120, -20),
+    Clip("Cap_HO_Rack2", 400, 800, 3700, 3800, -120, -20),
+    Clip("Cap_TRn_Back", 4150, 4200, -400, 400, 620, 720),
+    Clip("Cap_N2d", -300, 300, -300, -250, 940, 1040),
+]
 RJ_CLEARANCE_MIN = 900.0
 
 # ---------------------------------------------------------------- void (ADR 0008 3.4): top -1400, bottom -2000, footprint + 6000 per side

@@ -1,0 +1,17 @@
+void deaths {'self': 51, 'credited': 14}
+  self     Armamentarium      15
+  self     Scopulus           11
+  self     N0 hub             7
+  self     Clivus Orientis    6
+  credited N0 hub             4
+  credited Scopulus           4
+  self     Horreum            4
+  self     PF east bridge     3
+  self     Hortus             3
+  credited Semita             2
+  self     Semita             2
+  credited Armamentarium      1
+  credited PF west bridge     1
+  credited Hortus             1
+  credited Trabs              1
+last goal: self/item=45, credited/item=12, self/fight=4, credited/roam=2, self/roam=2

@@ -1,0 +1,60 @@
+run 1 exit=0
+run 2 exit=0
+run 3 exit=0
+run 4 exit=0
+run 5 exit=0
+run 6 exit=0
+run 7 exit=0
+run 8 exit=0
+run 9 exit=0
+run 10 exit=0
+run 1: FAIL(budget>300,allunreach_air) stuck=0 pocket=0 repaths=37 [Celer=8 Fulgur=7 Rapidus=10 Ventus=12] rules=[] max_dwell_s=3 [Celer@(104,3602),goal=fight] timed_waits=1 wait_samples=1 wait_max_s=1.9 [Ventus:Weapon_Shotgun:R=2.1,lead=0.7] wait_capped=0 link_max_dt=5.22 [Ventus:VeloxNavLink_26:replaced] link_fail_reasons=[relaunched=10 replaced=3] long_links_not_timeout=[] bursts=[] pickups=73 mega=4 kills=14 suicides=17 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=27.3% armed_fight_share=57.9% (92/159) allunreach_air=1 allunreach_ground=0 budget_mean_us=337.5 run_mean_us=337.9 nav_s=1.779 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=25 hazard_death_credited=8 hazard_death_self=17 per bot: Celer:7/1/6 Fulgur:4/1/3 Rapidus:8/4/4 Ventus:6/2/4
+  strikes: -
+run 2: FAIL(budget>300) stuck=0 pocket=0 repaths=30 [Celer=7 Fulgur=4 Rapidus=9 Ventus=10] rules=[] max_dwell_s=4 [Fulgur@(-3495,139),goal=fight] timed_waits=3 wait_samples=3 wait_max_s=2.4 [Rapidus:Weapon_RocketLauncher:R=2.8,lead=1.7] wait_capped=0 link_max_dt=5.23 [Ventus:VeloxNavLink_28:replaced] link_fail_reasons=[relaunched=6 replaced=7] long_links_not_timeout=[] bursts=[] pickups=74 mega=4 kills=17 suicides=16 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=25.9% armed_fight_share=50.5% (94/186) allunreach_air=0 allunreach_ground=0 budget_mean_us=369.3 run_mean_us=369.2 nav_s=1.728 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=24 hazard_death_credited=8 hazard_death_self=16 per bot: Celer:6/1/5 Fulgur:8/3/5 Rapidus:5/2/3 Ventus:5/2/3
+  strikes: -
+run 3: FAIL(budget>300) stuck=0 pocket=0 repaths=32 [Celer=9 Fulgur=9 Rapidus=6 Ventus=8] rules=[] max_dwell_s=2 [Ventus@(-3979,50),goal=fight] timed_waits=0 wait_samples=0 wait_max_s=0.0 [-] wait_capped=0 link_max_dt=4.95 [Rapidus:VeloxNavLink_27:replaced] link_fail_reasons=[missed=1 relaunched=7 replaced=10] long_links_not_timeout=[] bursts=[] pickups=74 mega=4 kills=14 suicides=20 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=25.7% armed_fight_share=59.5% (91/153) allunreach_air=0 allunreach_ground=0 budget_mean_us=353.9 run_mean_us=355.1 nav_s=1.573 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=29 hazard_death_credited=9 hazard_death_self=20 per bot: Celer:7/4/3 Fulgur:5/3/2 Rapidus:8/0/8 Ventus:9/2/7
+  strikes: -
+  FLAG no timed-wait sample although 22 Item routes had available=0 (log-format drift? ADR 0006 E2)
+run 4: FAIL(budget>300) stuck=0 pocket=0 repaths=40 [Celer=9 Fulgur=9 Rapidus=13 Ventus=9] rules=[] max_dwell_s=3 [Rapidus@(-3452,-467),goal=fight] timed_waits=7 wait_samples=9 wait_max_s=5.3 [Celer:Health_Mega:R=5.3,lead=-0.6] wait_capped=0 link_max_dt=4.95 [Rapidus:VeloxNavLink_27:replaced] link_fail_reasons=[relaunched=2 replaced=8] long_links_not_timeout=[] bursts=[] pickups=71 mega=4 kills=17 suicides=21 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=16.9% armed_fight_share=40.9% (54/132) allunreach_air=0 allunreach_ground=0 budget_mean_us=374.3 run_mean_us=375.7 nav_s=1.656 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=34 hazard_death_credited=13 hazard_death_self=21 per bot: Celer:9/6/3 Fulgur:11/6/5 Rapidus:6/1/5 Ventus:8/0/8
+  strikes: -
+run 5: FAIL(budget>300) stuck=0 pocket=0 repaths=49 [Celer=13 Fulgur=8 Rapidus=10 Ventus=18] rules=[] max_dwell_s=3 [Rapidus@(-3747,406),goal=item] timed_waits=4 wait_samples=6 wait_max_s=7.0 [Rapidus:Armor_Red:R=7.0,lead=0.7] wait_capped=0 link_max_dt=4.27 [Ventus:VeloxNavLink_27:replaced] link_fail_reasons=[relaunched=12 replaced=5] long_links_not_timeout=[] bursts=[] pickups=78 mega=4 kills=16 suicides=21 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=13.2% armed_fight_share=27.1% (39/144) allunreach_air=0 allunreach_ground=0 budget_mean_us=362.5 run_mean_us=361.0 nav_s=1.733 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=28 hazard_death_credited=7 hazard_death_self=21 per bot: Celer:6/1/5 Fulgur:7/3/4 Rapidus:10/2/8 Ventus:5/1/4
+  strikes: -
+run 6: FAIL(budget>300) stuck=0 pocket=0 repaths=33 [Celer=11 Fulgur=7 Rapidus=7 Ventus=8] rules=[] max_dwell_s=2 [Ventus@(3774,-3009),goal=item] timed_waits=5 wait_samples=8 wait_max_s=4.0 [Celer:Weapon_Railgun:R=4.2,lead=0.9] wait_capped=0 link_max_dt=4.94 [Ventus:VeloxNavLink_26:replaced] link_fail_reasons=[missed=1 relaunched=11 replaced=4] long_links_not_timeout=[] bursts=[] pickups=75 mega=4 kills=20 suicides=14 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=20.2% armed_fight_share=43.1% (69/160) allunreach_air=0 allunreach_ground=0 budget_mean_us=357.8 run_mean_us=356.6 nav_s=1.799 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=29 hazard_death_credited=15 hazard_death_self=14 per bot: Celer:6/2/4 Fulgur:6/2/4 Rapidus:9/5/4 Ventus:8/6/2
+  strikes: -
+run 7: FAIL(budget>300) stuck=0 pocket=0 repaths=36 [Celer=12 Fulgur=9 Rapidus=7 Ventus=8] rules=[] max_dwell_s=3 [Fulgur@(321,3543),goal=fight] timed_waits=2 wait_samples=3 wait_max_s=4.0 [Fulgur:Health_Mega:R=4.6,lead=1.2] wait_capped=0 link_max_dt=5.07 [Ventus:VeloxNavLink_27:replaced] link_fail_reasons=[below_start=1 relaunched=9 replaced=7] long_links_not_timeout=[] bursts=[] pickups=78 mega=4 kills=18 suicides=18 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=20.1% armed_fight_share=47.5% (75/158) allunreach_air=0 allunreach_ground=0 budget_mean_us=312.1 run_mean_us=310.5 nav_s=1.676 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=33 hazard_death_credited=15 hazard_death_self=18 per bot: Celer:10/4/6 Fulgur:8/2/6 Rapidus:8/6/2 Ventus:7/3/4
+  strikes: -
+run 8: FAIL(budget>300) stuck=0 pocket=0 repaths=31 [Celer=9 Fulgur=5 Rapidus=8 Ventus=9] rules=[] max_dwell_s=3 [Rapidus@(-117,730),goal=fight] timed_waits=3 wait_samples=5 wait_max_s=3.0 [Fulgur:Weapon_LightningGun:R=3.4,lead=1.0] wait_capped=0 link_max_dt=4.26 [Celer:VeloxNavLink_27:replaced] link_fail_reasons=[relaunched=8 replaced=3] long_links_not_timeout=[] bursts=[] pickups=84 mega=4 kills=19 suicides=16 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=23.3% armed_fight_share=52.4% (77/147) allunreach_air=0 allunreach_ground=0 budget_mean_us=385.4 run_mean_us=385.4 nav_s=1.603 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=25 hazard_death_credited=9 hazard_death_self=16 per bot: Celer:5/0/5 Fulgur:10/6/4 Rapidus:5/2/3 Ventus:5/1/4
+  strikes: -
+run 9: FAIL(budget>300) stuck=0 pocket=0 repaths=31 [Celer=13 Fulgur=8 Rapidus=4 Ventus=6] rules=[] max_dwell_s=2 [Celer@(-3193,-13),goal=item] timed_waits=6 wait_samples=8 wait_max_s=8.4 [Celer:Armor_Red:R=8.4,lead=-1.0] wait_capped=0 link_max_dt=4.30 [Celer:VeloxNavLink_26:replaced] link_fail_reasons=[below_start=3 relaunched=9 replaced=5] long_links_not_timeout=[] bursts=[] pickups=76 mega=4 kills=14 suicides=20 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=15.1% armed_fight_share=31.4% (50/159) allunreach_air=0 allunreach_ground=1 budget_mean_us=394.9 run_mean_us=396.4 nav_s=1.8 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=26 hazard_death_credited=6 hazard_death_self=20 per bot: Celer:7/2/5 Fulgur:8/2/6 Rapidus:4/0/4 Ventus:7/2/5
+  strikes: -
+run 10: FAIL(budget>300) stuck=0 pocket=0 repaths=44 [Celer=10 Fulgur=10 Rapidus=10 Ventus=14] rules=[] max_dwell_s=3 [Rapidus@(-3546,19),goal=fight] timed_waits=2 wait_samples=4 wait_max_s=4.0 [Rapidus:Weapon_LightningGun:R=4.1,lead=0.3] wait_capped=0 link_max_dt=3.89 [Fulgur:VeloxNavLink_28:replaced] link_fail_reasons=[relaunched=12 replaced=3] long_links_not_timeout=[] bursts=[] pickups=81 mega=4 kills=13 suicides=19 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=23.0% armed_fight_share=47.6% (80/168) allunreach_air=0 allunreach_ground=0 budget_mean_us=337.9 run_mean_us=336.8 nav_s=1.799 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=25 hazard_death_credited=6 hazard_death_self=19 per bot: Celer:8/1/7 Fulgur:6/2/4 Rapidus:6/2/4 Ventus:5/1/4
+  strikes: -
+SET runs=10 FAIL(per_run:run 1,run 2,run 3,run 4,run 5,run 6,run 7,run 8,run 9,run 10;inv:item_coverage) sum_stuck=0 max_run_stuck=0 bursts=0 pocket=0 dwell_ge6_runs=0 max_dwell=4 wait_max_s=8.4 max_link_dt=5.23 sum_kills=162 min_kills=13 sum_repaths=363 max_run_repaths=49 not_at_goal=0 rules={}
+SET speed strikes: -
+SET band=L_Orbita_Blockout (no BAND_* value) (report-only): sum_kills=162 not judged; the per-run kills / pickups / Mega bands are not judged either
+SET hazard (report-only, ADR 0008 3.5): hazard_touch=278 hazard_death_credited=96 hazard_death_self=182 per bot touch/credited/self: Celer:71/22/49 Fulgur:73/30/43 Rapidus:69/24/45 Ventus:65/20/45 per run self=[17,16,20,21,21,14,18,16,20,19]
+SET invariants (ADR 0006 section 7, every map):
+  left_arena                   0                                            limit 0        PASS
+  world_kill                   0                                            limit 0        PASS
+  no_nav_point                 0                                            limit 0        PASS
+  giveup                       0                                            limit 0        PASS
+  sum_stuck                    0                                            limit <= 5     PASS
+  bursts                       0                                            limit 0        PASS
+  max_dwell_s                  4                                            limit <= 5     PASS
+  nav_build_s                  1.800                                        limit <= 2.0   PASS
+  link_success[Drop]           92.0 % (23/25) aborted=5 n<30, not judged    limit >= 90 %  PASS
+  link_success[Jump]           100.0 % (5/5) aborted=137 n<30, not judged   limit >= 90 %  PASS
+  link_success[JumpPad]        100.0 % (8/8) aborted=3 n<30, not judged     limit >= 90 %  PASS
+  item_coverage                36/37 pickups (19 definitions)               limit all      FAIL
+  untaken items (layout or link defect): DA_Item_Health_Medium@(3700.00,900.00,320.00)
+  FLAG link Jump: aborted 137 >= ok 5 (re-planned more than traversed; report-only)

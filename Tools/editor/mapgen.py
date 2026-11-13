@@ -1390,6 +1390,8 @@ def set_game_mode():
 def expected_counts(L):
     exp = dict(L.EXPECTED)
     exp["clip"] = len(L.CLIPS) + CLIP_MODE_ACTORS.get(clip_mode(L), 0)
+    if not exp["clip"]:
+        del exp["clip"]          # M7 B5: a map without any clip (Orbita, CLIP_MODE "none") spawns none; veloxmap.COUNTS has no key then
     exp["ramp"] = len(L.RAMPS)
     for (_, kind, *_rest) in all_solids(L):
         exp[kind] = exp.get(kind, 0) + 1
