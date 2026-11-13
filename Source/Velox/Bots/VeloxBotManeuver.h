@@ -104,15 +104,37 @@ struct FVeloxManeuverParams
 	float StartAcceptanceCm = 30.f;
 	/** Landing within this of End counts as ok (UVeloxBotSettings::LinkEndAcceptanceCm). */
 	float EndAcceptanceCm = 150.f;
-	/** Jump / JumpFast: hold jump from this distance before Start (UVeloxBotSettings::TakeoffLeadCm). */
+	/**
+	 * Jump / JumpFast: the take-off window opens this far before Start along the link (UVeloxBotSettings::TakeoffLeadCm);
+	 * in it a ledge ahead (FVeloxManeuverInput::bLedgeAhead) fires the jump (task M7 H11).
+	 */
 	float TakeoffLeadCm = 100.f;
+	/**
+	 * Jump / JumpFast (task M7 H11): the jump fires at the latest this far past Start along the link (UVeloxBotSettings::
+	 * TakeoffMaxPastStartCm) when no ledge was seen first (a link without a drop at its start, a missed probe).
+	 */
+	float TakeoffMaxPastStartCm = 40.f;
+	/** Jump / JumpFast (task M7 H11): XY length of the link (cm); 0 = no along-link speed check. */
+	float LinkLengthCm = 0.f;
+	/** Jump / JumpFast (task M7 H11): flight time of a jump from the start's level to the end's level (s); 0 = no check. */
+	float GapAirSeconds = 0.f;
+	/**
+	 * Jump / JumpFast (task M7 H11): the landing may stop this far short of End (cm; UVeloxBotSettings::TakeoffLandInsetCm,
+	 * the smaller of the 60 / 100 cm authoring insets, so the way back of a both-ways link is covered too).
+	 */
+	float TakeoffLandInsetCm = 60.f;
+	/**
+	 * Jump / JumpFast (task M7 H11): more speed across the link than this at the take-off counts as too slow, and near
+	 * Start an approach mostly across the link backs up at once (cm/s; UVeloxBotSettings::TakeoffMaxLateralCmS; 0 = off).
+	 */
+	float TakeoffMaxLateralCmS = 0.f;
 	/** JumpFast: AVeloxNavLink::RequiredSpeedCmS. */
 	float RequiredSpeedCmS = 0.f;
 	/** JumpFast: jump only at >= RequiredSpeedCmS x this. */
 	float RequiredSpeedFraction = 0.9f;
-	/** JumpFast: back-up distance from Start before the retry, cm. */
+	/** Jump / JumpFast: back-up distance from Start before the retry, cm (H11: along the link, clamped to the mesh by the follower). */
 	float RunUpCm = 600.f;
-	/** JumpFast: retries after a too-slow approach. */
+	/** Jump / JumpFast: retries after a too-slow take-off (H11: JUMP too, on the along-link speed). */
 	int32 MaxRetries = 1;
 	/** RocketJump: AVeloxNavLink::RunUpSeconds / RocketJumpPitchDeg. */
 	float RunUpSeconds = 0.3f;
@@ -132,6 +154,22 @@ struct FVeloxManeuverInput
 	float Speed2D = 0.f;
 	float DistToStart = 0.f;
 	float DistToEnd = 0.f;
+	/**
+	 * Task M7 H11: signed distance of the feet past Start along the link's XY axis Start -> End (cm; negative = before
+	 * Start). Jump / JumpFast take off on it (the radial DistToStart fired the jump up to TakeoffLeadCm early).
+	 */
+	float ProgressCm = 0.f;
+	/** Task M7 H11: the XY distance the pawn covers this tick (Speed2D x DeltaTime, cm): the take-off fires one tick early. */
+	float StepCm = 0.f;
+	/** Task M7 H11: the XY velocity along the link axis (cm/s; negative = away from End). */
+	float AlongSpeedCmS = 0.f;
+	/** Task M7 H11: the XY speed across the link axis (cm/s, >= 0). */
+	float LateralSpeedCmS = 0.f;
+	/**
+	 * Task M7 H11 (Jump / JumpFast, on the ground in the take-off window): no floor just ahead of the feet along the link
+	 * axis (the follower's down trace StepCm + UVeloxBotSettings::TakeoffLedgeProbeCm ahead): the take-off edge.
+	 */
+	bool bLedgeAhead = false;
 	/** An external impulse (knockback) arrived since the last tick. */
 	bool bImpulseReceived = false;
 	/** RocketJump: the rocket launcher is the current weapon and its switch has ended (SwitchEndTime passed). */
@@ -170,6 +208,37 @@ struct FVeloxManeuverOutput
 	bool bAbort = false;
 	EVeloxManeuverResult Reason = EVeloxManeuverResult::None;
 };
+
+namespace VeloxBotManeuverRules
+{
+	/** Task M7 H11: a back-up shorter than this (cm, the mesh behind the link start) gives no run-up worth a retry. */
+	constexpr float MinRunUpCm = 100.f;
+
+	/**
+	 * Task M7 H11: along-link take-off speed (cm/s) that lands LandInsetCm short of End from ProgressCm past Start after
+	 * AirSeconds of flight: max(0, LinkLengthCm - ProgressCm - LandInsetCm) / AirSeconds; 0 without a flight time.
+	 */
+	inline float GapTakeoffSpeed(float LinkLengthCm, float ProgressCm, float LandInsetCm, float AirSeconds)
+	{
+		return AirSeconds > UE_KINDA_SMALL_NUMBER ? FMath::Max(0.f, LinkLengthCm - ProgressCm - LandInsetCm) / AirSeconds : 0.f;
+	}
+
+	/**
+	 * Task M7 H11: flight time of a jump (JumpVelocity up, gravity |GravityZ|) from a start DropCm above the landing level
+	 * (negative = the landing is higher): the later root of the ballistic height; the apex time when the level is out of
+	 * reach; 0 without gravity.
+	 */
+	inline float JumpAirSeconds(float JumpVelocity, float GravityZ, float DropCm)
+	{
+		const float G = FMath::Abs(GravityZ);
+		if (G < UE_KINDA_SMALL_NUMBER)
+		{
+			return 0.f;
+		}
+		const float Disc = JumpVelocity * JumpVelocity + 2.f * G * DropCm;
+		return Disc > 0.f ? (JumpVelocity + FMath::Sqrt(Disc)) / G : JumpVelocity / G;
+	}
+}
 
 struct VELOX_API FVeloxBotManeuver
 {

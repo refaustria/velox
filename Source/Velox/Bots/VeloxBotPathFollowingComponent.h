@@ -156,6 +156,9 @@ public:
 	/** H8: hop landing tests run (cache misses). */
 	int32 GetHopLandingChecks() const { return HopLandingChecks; }
 
+	/** Task M7 H11: plain-segment hops refused because they would land past the take-off of the JUMP link ahead (ticks). */
+	int32 GetGapHopRefusedTicks() const { return GapHopRefusedTicks; }
+
 	/** D35: the last line-of-walk check of the current plain segment found it blocked (cleared on a new segment / path). */
 	bool IsSegmentBlockedNow() const { return bSegmentBlocked; }
 	/** D35: details of the last blocked check (valid once a check was blocked). */
@@ -214,6 +217,27 @@ private:
 	bool ImpulseThisStep() const;
 	/** The landing point is on the nav surface of LinkEnd (a nav raycast between them stays on the mesh). */
 	bool IsOnEndSurface(const FVector& Feet) const;
+	/**
+	 * Task M7 H11: the JUMP / JUMP_FAST take-off ledge probe: no static floor within TakeoffLedgeDepthCm below the point
+	 * StepCm + TakeoffLedgeProbeCm ahead of the feet along Axis (XY unit).
+	 */
+	bool IsLedgeAhead(const FVector& Feet, const FVector2D& Axis, float StepCm) const;
+	/**
+	 * Task M7 H11: on a plain segment that ends at a JUMP / JUMP_FAST link start, a hop taken now lands (at the take-off
+	 * level, the bot's own hop air time + HopLandingSlackSeconds) more than TakeoffMaxPastStartCm past that start along the
+	 * link, unless it clears the whole link (plain air time, no slack): in the gap, or on the edge with no ground tick
+	 * left for the take-off (a bunny hop into the link carried the bot over the edge with jump released).
+	 */
+	bool HopOverrunsGapTakeoff(const FVector& Feet, const FVector& Velocity) const;
+
+	/** Task M7 H11: the current plain segment ends at the start of a JUMP / JUMP_FAST link (set in SetMoveSegment). */
+	bool bGapLinkAhead = false;
+	FVector GapLinkStart = FVector::ZeroVector;
+	/** XY unit axis of that link (start -> end, as the path traverses it). */
+	FVector2D GapLinkAxis = FVector2D::ZeroVector;
+	/** XY length of that link (cm). */
+	double GapLinkLength = 0.0;
+	int32 GapHopRefusedTicks = 0;
 
 	/** Knockback grace of the previous step (an impulse = the grace rising from 0). */
 	float LastKnockbackGrace = 0.f;

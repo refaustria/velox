@@ -34,6 +34,7 @@ FTS=(
   "FtBotLavaEscape|L_HazardTest|velox.bots.FtBotLavaEscape"
   "FtBotKnockOff|L_HazardTest|velox.bots.FtBotKnockOff"
   "FtBotLavaAvoid|L_HazardTest|velox.bots.FtBotLavaAvoid"
+  "FtBotGapJump|L_GapTest|velox.bots.FtBotGapJump"   # M7 H11: JUMP gap links 300 / 400 cm, >= 9 of 10 each, hazard behaviours on and off
 )
 # One row per M7 map (ADR 0008 1.6): the blockout maps are not in the default list (not cooked, no band yet) and are added with
 # --map-ft <Map>[:WalkExempt ids] (repeatable), e.g. --map-ft L_Sacrarium_Blockout:Quad,Railgun. Row name: FtMapReachability-<Map>.
@@ -48,6 +49,7 @@ FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest
 FtHazard (L_HazardTest, FT_Hazard: ADR 0008 3.7), FtBotEdge (L_HazardTest, FT_BotEdge: ADR 0008 3.6.1/2, 60 s fight),
 FtBotLavaEscape (L_HazardTest, FT_BotLavaEscape: ADR 0008 3.6.4), FtBotKnockOff (L_HazardTest, FT_BotKnockOff: ADR 0008 3.6.3, 10 trials + 10 pad crossings + 10 pad crossings knocked sideways in the flight, M7 H8),
 FtBotLavaAvoid (L_HazardTest, FT_BotLavaAvoid: task M7 H7, 8 routes across the lava channel + 8 fights beside it, 0 lava entries),
+FtBotGapJump (L_GapTest, FT_BotGapJump: task M7 H11, 300 and 400 cm JUMP gap links, >= 9 of 10 crossings each, EdgeAware on and off),
 each as
   UnrealEditor-Cmd Velox.uproject <map> -game -nullrhi -unattended -nosound -UseFixedTimeStep -FPS=60 -log
       -port=N -ExecCmds="velox.bots.Seed ${SEED}, <command> quit"

@@ -231,8 +231,17 @@ namespace VeloxBotTestsShared
 		In.Time = Time;
 		In.DistToStart = DistToStart;
 		In.DistToEnd = DistToEnd;
+		// Task M7 H11: approaching Start along the link axis.
+		In.ProgressCm = -DistToStart;
 		In.bOnGround = bOnGround;
 		In.Speed2D = Speed;
+		return In;
+	}
+
+	/** Task M7 H11: a gap-jump approach tick at the take-off edge (the follower's ledge probe found no floor ahead). */
+	FVeloxManeuverInput AtLedge(FVeloxManeuverInput In)
+	{
+		In.bLedgeAhead = true;
 		return In;
 	}
 }
@@ -1244,6 +1253,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVeloxBotsManeuverTest, "Velox.Bots.Maneuver", 
 bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 {
 	using VeloxBotTestsShared::ManeuverIn;
+	using VeloxBotTestsShared::AtLedge;
 	const double Dt = 1.0 / 60.0;
 
 	FVeloxManeuverParams RJ;
@@ -1383,7 +1393,7 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 		FVeloxManeuverOutput O = M.Tick(ManeuverIn(T, 500.f, 1200.f, true, 900.f));
 		TestFalse(TEXT("JumpFast far from Start: no jump yet"), O.bJumpHeld);
 		T += Dt;
-		O = M.Tick(ManeuverIn(T, 90.f, 790.f, true, 0.85f * 1100.f));
+		O = M.Tick(AtLedge(ManeuverIn(T, 90.f, 790.f, true, 0.85f * 1100.f)));
 		TestFalse(TEXT("JumpFast below 0.9 x required: no jump"), O.bJumpHeld);
 		TestTrue(TEXT("JumpFast too slow: back up"), O.WishToward == EVeloxManeuverWish::AwayFromStart);
 		T += Dt;
@@ -1393,21 +1403,127 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 		O = M.Tick(ManeuverIn(T, 650.f, 1350.f, true, 400.f));
 		TestTrue(TEXT("JumpFast run-up done -> approach again"), M.Phase == EVeloxManeuverPhase::Approach);
 		T += Dt;
-		O = M.Tick(ManeuverIn(T, 90.f, 790.f, true, 900.f));
+		O = M.Tick(AtLedge(ManeuverIn(T, 90.f, 790.f, true, 900.f)));
 		TestTrue(TEXT("JumpFast second too-slow approach -> abort tooslow"), O.bAbort && O.Reason == EVeloxManeuverResult::TooSlow);
 		TestFalse(TEXT("JumpFast never jumped"), O.bJumpHeld);
 
 		FVeloxBotManeuver Fast;
 		T = 0.0;
 		Fast.Begin(JF, FVector::ZeroVector, FVector(700.0, 0.0, 0.0), T);
-		O = Fast.Tick(ManeuverIn(T, 90.f, 790.f, true, 0.9f * 1100.f + 1.f));
+		O = Fast.Tick(AtLedge(ManeuverIn(T, 90.f, 790.f, true, 0.9f * 1100.f + 1.f)));
 		TestTrue(TEXT("JumpFast at >= 0.9 x required: jump held"), O.bJumpHeld);
 		T += Dt;
 		O = Fast.Tick(ManeuverIn(T, 50.f, 700.f, false, 1000.f));
-		TestTrue(TEXT("JumpFast airborne: keeps the hop"), O.bJumpHeld && O.WishToward == EVeloxManeuverWish::End);
+		TestTrue(TEXT("JumpFast airborne: jump released (H11: the landing is seen), wish End"), !O.bJumpHeld && O.WishToward == EVeloxManeuverWish::End);
 		T += Dt;
 		O = Fast.Tick(ManeuverIn(T, 700.f, 60.f, true, 1000.f));
 		TestTrue(TEXT("JumpFast landing near End -> ok"), O.bDone);
+	}
+
+	// Task M7 H11: a JUMP gap link takes off at the edge (ledge probe) or TakeoffMaxPastStartCm past Start, never at the old
+	// radial TakeoffLeadCm before it; the flight releases jump so the landing is seen (no auto-hop through it).
+	{
+		FVeloxManeuverParams J;
+		J.Type = EVeloxManeuverType::Jump;
+		FVeloxBotManeuver M;
+		double T = 0.0;
+		M.Begin(J, FVector::ZeroVector, FVector(560.0, 0.0, 0.0), T);
+		FVeloxManeuverOutput O = M.Tick(ManeuverIn(T, 90.f, 650.f, true, 800.f));
+		TestFalse(TEXT("Jump 90 cm before Start without a ledge: no jump (was the H11 early take-off)"), O.bJumpHeld);
+		T += Dt;
+		FVeloxManeuverInput Past = ManeuverIn(T, 20.f, 540.f, true, 800.f);
+		Past.ProgressCm = 20.f;
+		Past.StepCm = 800.f * Dt;
+		O = M.Tick(Past);
+		TestFalse(TEXT("Jump 20 cm past Start (+ a 13 cm step, under the 40 cm cap), no ledge yet: still running"), O.bJumpHeld);
+		T += Dt;
+		Past.Time = T;
+		Past.bLedgeAhead = true;
+		O = M.Tick(Past);
+		TestTrue(TEXT("Jump ledge ahead in the window: jump"), O.bJumpHeld && !O.bAbort);
+		T += Dt;
+		O = M.Tick(ManeuverIn(T, 60.f, 480.f, false, 800.f));
+		TestTrue(TEXT("Jump airborne: jump released, wish End"), M.Phase == EVeloxManeuverPhase::Airborne && !O.bJumpHeld && O.WishToward == EVeloxManeuverWish::End);
+		T += Dt;
+		O = M.Tick(ManeuverIn(T, 520.f, 60.f, true, 800.f));
+		TestTrue(TEXT("Jump landing near End -> ok"), O.bDone && M.Result == EVeloxManeuverResult::Ok);
+
+		FVeloxBotManeuver Cap;
+		T = 0.0;
+		Cap.Begin(J, FVector::ZeroVector, FVector(560.0, 0.0, 0.0), T);
+		FVeloxManeuverInput AtCap = ManeuverIn(T, 30.f, 530.f, true, 800.f);
+		AtCap.ProgressCm = J.TakeoffMaxPastStartCm - 800.f * Dt + 0.5f;
+		AtCap.StepCm = 800.f * Dt;
+		O = Cap.Tick(AtCap);
+		TestTrue(TEXT("Jump without a ledge: jump one step before TakeoffMaxPastStartCm past Start"), O.bJumpHeld);
+
+		FVeloxBotManeuver Early;
+		T = 0.0;
+		Early.Begin(J, FVector::ZeroVector, FVector(560.0, 0.0, 0.0), T);
+		O = Early.Tick(AtLedge(ManeuverIn(T, J.TakeoffLeadCm + 30.f, 700.f, true, 800.f)));
+		TestFalse(TEXT("Jump ledge before the take-off window (a side edge): no jump"), O.bJumpHeld);
+
+		// Along-link speed: flat jump 675 cm/s at g 2000 flies 0.675 s; a 560 cm link from 20 cm past Start, landing 60 short.
+		TestNearlyEqual(TEXT("jump air time, flat"), VeloxBotManeuverRules::JumpAirSeconds(675.f, -2000.f, 0.f), 0.675f, 1e-4f);
+		TestTrue(TEXT("jump air time, 320 cm down is longer"), VeloxBotManeuverRules::JumpAirSeconds(675.f, -2000.f, 320.f) > 0.9f);
+		TestNearlyEqual(TEXT("jump air time, out of reach: apex"), VeloxBotManeuverRules::JumpAirSeconds(675.f, -2000.f, -200.f), 675.f / 2000.f, 1e-4f);
+		TestNearlyEqual(TEXT("gap take-off speed"), VeloxBotManeuverRules::GapTakeoffSpeed(560.f, 20.f, 60.f, 0.675f), 480.f / 0.675f, 0.01f);
+
+		// Side approach (Nemus Log_Land): 800 cm/s 2-D but 300 along the link at the ledge -> back up along the link, then
+		// the straight run-up jumps; a JUMP out of retries jumps anyway.
+		FVeloxManeuverParams JS = J;
+		JS.LinkLengthCm = 560.f;
+		JS.GapAirSeconds = 0.675f;
+		JS.RunUpCm = 400.f;
+		FVeloxBotManeuver Side;
+		T = 0.0;
+		Side.Begin(JS, FVector::ZeroVector, FVector(560.0, 0.0, 0.0), T);
+		FVeloxManeuverInput SideIn = AtLedge(ManeuverIn(T, 20.f, 540.f, true, 800.f));
+		SideIn.ProgressCm = 20.f;
+		SideIn.AlongSpeedCmS = 300.f;
+		O = Side.Tick(SideIn);
+		TestTrue(TEXT("Jump side approach too slow along the link: back up"), !O.bJumpHeld && Side.Phase == EVeloxManeuverPhase::BackUp && O.WishToward == EVeloxManeuverWish::AwayFromStart);
+		T += Dt;
+		O = Side.Tick(ManeuverIn(T, 420.f, 980.f, true, 600.f));
+		TestTrue(TEXT("Jump run-up reached -> approach"), Side.Phase == EVeloxManeuverPhase::Approach);
+		T += Dt;
+		SideIn.Time = T;
+		SideIn.AlongSpeedCmS = 800.f;
+		O = Side.Tick(SideIn);
+		TestTrue(TEXT("Jump straight run-up: jump"), O.bJumpHeld);
+		FVeloxBotManeuver Stuck;
+		T = 0.0;
+		JS.RunUpCm = 50.f;
+		Stuck.Begin(JS, FVector::ZeroVector, FVector(560.0, 0.0, 0.0), T);
+		SideIn.Time = T;
+		SideIn.AlongSpeedCmS = 300.f;
+		O = Stuck.Tick(SideIn);
+		TestTrue(TEXT("Jump without room for a run-up: jump anyway"), O.bJumpHeld && !O.bAbort);
+
+		// Across the link: 780 along but 400 across at the ledge backs up; near Start mostly across backs up at once.
+		JS.RunUpCm = 400.f;
+		JS.TakeoffMaxLateralCmS = 250.f;
+		FVeloxBotManeuver Across;
+		T = 0.0;
+		Across.Begin(JS, FVector::ZeroVector, FVector(560.0, 0.0, 0.0), T);
+		SideIn.Time = T;
+		SideIn.AlongSpeedCmS = 780.f;
+		SideIn.LateralSpeedCmS = 400.f;
+		O = Across.Tick(SideIn);
+		TestTrue(TEXT("Jump 400 cm/s across the link at the ledge: back up"), !O.bJumpHeld && Across.Phase == EVeloxManeuverPhase::BackUp);
+		FVeloxBotManeuver Early2;
+		T = 0.0;
+		Early2.Begin(JS, FVector::ZeroVector, FVector(560.0, 0.0, 0.0), T);
+		FVeloxManeuverInput Cross = ManeuverIn(T, 60.f, 600.f, true, 850.f);
+		Cross.AlongSpeedCmS = 200.f;
+		Cross.LateralSpeedCmS = 820.f;
+		O = Early2.Tick(Cross);
+		TestTrue(TEXT("Jump near Start mostly across the link: back up at once"), !O.bJumpHeld && Early2.Phase == EVeloxManeuverPhase::BackUp);
+		Cross.ProgressCm = -(JS.TakeoffLeadCm + 50.f);
+		FVeloxBotManeuver Far;
+		Far.Begin(JS, FVector::ZeroVector, FVector(560.0, 0.0, 0.0), T);
+		O = Far.Tick(Cross);
+		TestTrue(TEXT("Jump far before Start across the link: still approaching"), Far.Phase == EVeloxManeuverPhase::Approach);
 	}
 
 	// Jump pad: to the pad centre, never jump, done on landing near End.

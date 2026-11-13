@@ -84,8 +84,10 @@ FVeloxManeuverOutput FVeloxBotManeuver::TickAirborne(const FVeloxManeuverInput& 
 	}
 	FVeloxManeuverOutput Out;
 	Out.WishToward = EVeloxManeuverWish::End;
-	// Gap jumps keep the hop going (the steering re-decides after the landing); pads, drops and rocket jumps land flat.
-	Out.bJumpHeld = Type == EVeloxManeuverType::Jump || Type == EVeloxManeuverType::JumpFast;
+	// Task M7 H11: every flight lands flat, gap jumps too. A held key re-jumps in the landing frame itself (bAutoHop,
+	// UVeloxMovementComponent::ProcessLanded), so the pawn is never on the ground at a bot tick and the landing above is
+	// never seen: the gap jump hopped on at End (or in the pit) until the D28 timeout (Nemus B2: every link_timeout strike).
+	Out.bJumpHeld = false;
 	return Out;
 }
 
@@ -158,12 +160,31 @@ FVeloxManeuverOutput FVeloxBotManeuver::Tick(const FVeloxManeuverInput& In)
 				EnterPhase(EVeloxManeuverPhase::Airborne, In.Time);
 				return TickAirborne(In);
 			}
-			if (In.DistToStart <= Params.TakeoffLeadCm)
+			// Task M7 H11: take off at the edge, not up to TakeoffLeadCm early in any direction (the radial DistToStart): a
+			// 400 cm gap needs the take-off within about 90 cm of the edge at 800 cm/s. In the window a ledge ahead fires the
+			// jump; without one it fires TakeoffMaxPastStartCm past Start. StepCm: the jump goes out with this tick's move.
+			if ((In.bLedgeAhead && In.ProgressCm + In.StepCm >= -Params.TakeoffLeadCm) || In.ProgressCm + In.StepCm >= Params.TakeoffMaxPastStartCm)
 			{
-				const bool bTooSlow = Type == EVeloxManeuverType::JumpFast && In.Speed2D < Params.RequiredSpeedCmS * Params.RequiredSpeedFraction;
+				// Task M7 H11: the jump carries the speed along the link, not the 2-D speed: a bot that came in from the side
+				// (Nemus Log_Land joins the log at 90 degrees, the Templum podium from any angle) took off with ~800 cm/s mostly
+				// across the link and fell short. Below the along-link speed the flight needs (VeloxBotManeuverRules::
+				// GapTakeoffSpeed), back up along the link for a straight run-up (Params.RunUpCm, clamped to the mesh by the
+				// follower; under 100 cm there is no room) and retry; a JUMP out of retries jumps anyway (best effort, the bot is
+				// at the edge), a JUMP_FAST stays tooslow.
+				const float NeedAlong = VeloxBotManeuverRules::GapTakeoffSpeed(Params.LinkLengthCm, In.ProgressCm, Params.TakeoffLandInsetCm, Params.GapAirSeconds);
+				const bool bSlowAlong = In.AlongSpeedCmS < NeedAlong;
+				// The speed across the link carries the flight off a narrow landing (the flight's arrive wish brakes only part).
+				const bool bAcross = Params.TakeoffMaxLateralCmS > 0.f && In.LateralSpeedCmS > Params.TakeoffMaxLateralCmS;
+				const bool bTooSlow = bSlowAlong || bAcross || (Type == EVeloxManeuverType::JumpFast && In.Speed2D < Params.RequiredSpeedCmS * Params.RequiredSpeedFraction);
 				if (bTooSlow)
 				{
-					if (Retries >= Params.MaxRetries)
+					const bool bCanBackUp = Retries < Params.MaxRetries && Params.RunUpCm >= VeloxBotManeuverRules::MinRunUpCm;
+					if (!bCanBackUp && Type == EVeloxManeuverType::Jump)
+					{
+						Out.bJumpHeld = true;
+						return Out;
+					}
+					if (!bCanBackUp)
 					{
 						return Finish(EVeloxManeuverResult::TooSlow, In.Time);
 					}
@@ -173,6 +194,15 @@ FVeloxManeuverOutput FVeloxBotManeuver::Tick(const FVeloxManeuverInput& In)
 					return Out;
 				}
 				Out.bJumpHeld = true;
+			}
+			else if (Params.TakeoffMaxLateralCmS > 0.f && In.ProgressCm >= -Params.TakeoffLeadCm && In.LateralSpeedCmS > Params.TakeoffMaxLateralCmS &&
+				In.LateralSpeedCmS > In.AlongSpeedCmS && Retries < Params.MaxRetries && Params.RunUpCm >= VeloxBotManeuverRules::MinRunUpCm)
+			{
+				// Task M7 H11: near Start and mostly across the link (Nemus Log_Land meets the log next to the take-off): brake
+				// into the run-up now instead of running across the narrow strip to the edge (below_start: off the log's side).
+				++Retries;
+				EnterPhase(EVeloxManeuverPhase::BackUp, In.Time);
+				Out.WishToward = EVeloxManeuverWish::AwayFromStart;
 			}
 			return Out;
 
