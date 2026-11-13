@@ -2381,6 +2381,35 @@ bool FVeloxBotsCombatRulesTest::RunTest(const FString& Parameters)
 		FVeloxCombatWishInput Empty;
 		TestTrue(TEXT("no enemy, no dodge, no path -> zero wish"), VeloxBotCombat::CombatWish(Empty).IsZero());
 	}
+	// ADR 0008 3.6.1/2: edge fallback, probe point, choice, hop landing point.
+	{
+		FVeloxCombatWishInput In;
+		In.ToEnemy = FVector2D(200.0, 0.0);
+		In.BestMinCm = 300.f;
+		In.BestMaxCm = 1500.f;
+		In.RangeWeight = 0.6f;
+		In.StrafeAmplitude = 0.9f;
+		In.bNoLateralOrRetreat = true;
+		TestTrue(TEXT("edge fallback inside BestMin: no strafe, no retreat -> zero wish"), VeloxBotCombat::CombatWish(In).IsZero());
+		In.bDodge = true;
+		In.DodgeDir = FVector2D(0.0, 1.0);
+		TestTrue(TEXT("edge fallback drops the dodge too"), VeloxBotCombat::CombatWish(In).IsZero());
+		In.ToEnemy = FVector2D(2000.0, 0.0);
+		TestTrue(TEXT("edge fallback keeps closing in (beyond BestMax)"), VeloxBotCombat::CombatWish(In).Equals(FVector2D(1.0, 0.0), 1e-4));
+		In.ToEnemy = FVector2D(1000.0, 0.0);
+		In.bBlendPath = true;
+		In.PathWeight = 0.5f;
+		In.PathWish = FVector2D(0.0, -1.0);
+		TestTrue(TEXT("edge fallback keeps the blended path"), VeloxBotCombat::CombatWish(In).Equals(FVector2D(0.0, -1.0), 1e-4));
+
+		const FVector P = VeloxBotCombat::EdgeProbePoint(FVector(100.0, 0.0, 50.0), FVector2D(400.0, 0.0), FVector2D(0.0, 1.0), 0.25f, 150.f);
+		TestTrue(TEXT("probe = feet + v x 0.25 + wish x 150"), P.Equals(FVector(200.0, 150.0, 50.0), 1e-3));
+		TestEqual(TEXT("probe on nav -> keep"), VeloxBotCombat::ChooseEdgeWish(true, false), EVeloxEdgeChoice::Keep);
+		TestEqual(TEXT("only the mirror on nav -> mirror"), VeloxBotCombat::ChooseEdgeWish(false, true), EVeloxEdgeChoice::Mirror);
+		TestEqual(TEXT("neither on nav -> drop"), VeloxBotCombat::ChooseEdgeWish(false, false), EVeloxEdgeChoice::Drop);
+		const FVector L = VeloxBotCombat::HopLandingPoint(FVector(0.0, 0.0, 10.0), FVector2D(600.0, -300.0), 0.5f);
+		TestTrue(TEXT("hop landing = feet + v x air time"), L.Equals(FVector(300.0, -150.0, 10.0), 1e-3));
+	}
 	// Projectile threat: rocket at 2250 cm/s.
 	{
 		const FVector Bot(1000.0, 0.0, 0.0);

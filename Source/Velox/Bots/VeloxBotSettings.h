@@ -139,6 +139,39 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "10.0", Units = "cm"))
 	float OnMeshHalfHeightCm = 100.f;
 
+	/**
+	 * ADR 0008 3.6.1 edge-aware overlay (only on maps with a hazard volume): the combat overlay's wish is probed at
+	 * Feet + Velocity2D x EdgeProbeLookaheadSeconds + Wish x this; a probe that does not project onto the nav mesh with
+	 * UVeloxBotItemRouter::GetOnMeshExtent() tries the mirrored lateral, then drops lateral and retreat (cm).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "cm"))
+	float EdgeProbeCm = 150.f;
+
+	/** 3.6.1: the edge probe starts where the current horizontal velocity carries the bot in this time (s). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "s"))
+	float EdgeProbeLookaheadSeconds = 0.25f;
+
+	/** 3.6.1: the edge probe runs at most this often; its verdict is cached between probes (s; like the D18 headroom sweep). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "s"))
+	float EdgeProbeCheckSeconds = 0.1f;
+
+	/**
+	 * ADR 0008 3.6.2 hop landing guard (extends D18; only on maps with a hazard volume): on the ground a hop (path bunny
+	 * hop or overlay dodge jump) is refused when Feet + Velocity2D x (the bot's own hop air time + this) does not project
+	 * onto the nav mesh within (HopLandingProjectRadiusCm, HopLandingProjectRadiusCm, OnMeshHalfHeightCm) (s; the slack
+	 * covers the air-strafe gain of the hop).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "s"))
+	float HopLandingSlackSeconds = 0.1f;
+
+	/**
+	 * 3.6.2: horizontal half extent of the landing projection (cm). About one nav cell (19), not GetOnMeshExtent's 100:
+	 * the mesh is eroded by the agent radius (45), so a point 100 cm off the mesh is ~55 cm beyond the ledge and would
+	 * still "project" (FtBotEdge: a 0.73 s hop at 800 cm/s landed 20 cm past the platform edge with the wide extent).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "1.0", Units = "cm"))
+	float HopLandingProjectRadiusCm = 20.f;
+
 	/** A bot tick above this controller time is logged once (microseconds). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Debug", Meta = (ClampMin = "0.0"))
 	float BudgetWarnMicroseconds = 600.f;
