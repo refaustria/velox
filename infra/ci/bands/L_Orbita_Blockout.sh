@@ -10,3 +10,7 @@
 # stay hard and are not in this file.
 VELOX_BAND_FILE="L_Orbita_Blockout"
 VELOX_ARENA_FLOOR_Z=-700
+# Provisional hard hazard gate (ADR 0008 5.3, hazard review F9, task M7 H9): hazard_death_self over FFA x 10 <= 10 (ffa_set.py), per
+# BotDuel round <= 2 (nettest.sh). Does not switch the other bands from report-only to judged.
+BAND_HAZARD_SELF_SET_MAX=10
+BAND_HAZARD_SELF_ROUND_MAX=2

@@ -355,6 +355,14 @@ run_one() {
       MAP_OVERRIDE_NOTED=1
     fi
   fi
+  if [[ "$script" == BotRun ]]; then
+    # M7 H9: per-map park point of the idle human (BotWatch.json parks it at the L_ItemTest south wall, outside the Nemus / Fornax
+    # footprints = world kills). botwatch_park.py reads the map spec; rc 3 (L_ItemTest, DM1, no layout module) keeps BotWatch.json.
+    local park_map="${map%%\?*}" park_json="$OUT_DIR/BotWatch-park.json" park_loc
+    if park_loc="$(python3 -I "$REPO_ROOT/infra/ci/botwatch_park.py" "$park_map" "$REPO_ROOT/Content/Data/MoveScripts/BotWatch.json" "$park_json")"; then
+      script_args=(-VeloxScript="$park_json"); echo "[ci] [BotRun] idle client parked at ($park_loc) for $park_map (botwatch_park.py)"
+    fi
+  fi
   if [[ "$ITEM_SCRIPTS" == *" $script "* ]]; then
     # M3 task 04 / ADR 0004 section 10: velox.items.Watch logs the client's placeholder and Health/Armor/Bullets changes.
     map="L_ItemTest"; cexec="$cexec, velox.items.Watch"
@@ -2941,10 +2949,18 @@ if script == "BotDuel":
         [r.get("camp_episodes", 0) for r in valid], sum(r.get("camp_episodes", 0) for r in valid), [r.get("camp_lines", 0) for r in valid],
         ["%.1f" % (100.0 * r.get("camp_episodes", 0) / r["goal_changes"]) if r.get("goal_changes") else "0.0" for r in valid], ["%.1f" % r.get("camp_max_lead", 0.0) for r in valid]))
 print("  left_arena=[%s] world_kills=[%s]" % (",".join(r.get("left_arena") or "none" for r in runs), ",".join(str(r.get("world_kills", 0)) for r in runs)))
-print("  hazard (report-only, ADR 0008 3.5): hazard_touch=%s hazard_death_credited=%s hazard_death_self=%s | sums touch=%d credited=%d self=%d" % (
-    [r.get("hazard_touch", 0) for r in runs], [r.get("hazard_death_credited", 0) for r in runs], [r.get("hazard_death_self", 0) for r in runs],
+# ADR 0008 5.3 / H9 (F9): provisional hard gate hazard_death_self per BotDuel round (BAND_HAZARD_SELF_ROUND_MAX, set in the band file
+# of Fornax and Orbita); judged when set, on every valid round, whatever the repeat count. The FFA set sum is judged by ffa_set.py.
+HAZ_ROUND_MAX = band("BAND_HAZARD_SELF_ROUND_MAX")
+hz_gate_txt = "report-only, ADR 0008 3.5"
+if HAZ_ROUND_MAX is not None and script == "BotDuel":
+    hz_gate_txt = "GATE per round <= %d (ADR 0008 5.3)" % HAZ_ROUND_MAX
+    hz_bad = ["round %d: %d" % (k_ + 1, r.get("hazard_death_self", 0)) for k_, r in enumerate(runs) if not r.get("invalid") and r.get("hazard_death_self", 0) > HAZ_ROUND_MAX]
+    if hz_bad: fails.append("hazard_death_self per round > %d (%s)" % (HAZ_ROUND_MAX, "; ".join(hz_bad)))
+print("  hazard (%s): hazard_touch=%s hazard_death_credited=%s hazard_death_self=%s | sums touch=%d credited=%d self=%d" % (
+    hz_gate_txt, [r.get("hazard_touch", 0) for r in runs], [r.get("hazard_death_credited", 0) for r in runs], [r.get("hazard_death_self", 0) for r in runs],
     sum(r.get("hazard_touch", 0) for r in runs), sum(r.get("hazard_death_credited", 0) for r in runs), sum(r.get("hazard_death_self", 0) for r in runs)))
-has_band = band_name != "none" and any(k_.startswith("BAND_") and v_.strip() for k_, v_ in os.environ.items())   # ADR 0008 3.5: no BAND_* value = report-only
+has_band = band_name != "none" and any(k_.startswith("BAND_") and not k_.startswith("BAND_HAZARD_") and v_.strip() for k_, v_ in os.environ.items())   # ADR 0008 3.5: no BAND_* value = report-only; BAND_HAZARD_* (the 5.3 gate) does not switch the other bands on
 print("  %s" % ("bands=%s" % band_label if has_band else "band=%s (report-only: the per-map set bands are printed, not judged; the map-independent invariants are judged)" % (band_label if band_name != "none" else "none")))
 # ADR 0006 section 7: link traversal success per link type over the valid rounds (ok / (ok + failed); "aborted" re-plans are not attempts).
 lt_ = {}

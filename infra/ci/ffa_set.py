@@ -36,7 +36,7 @@ def band(key):
 
 
 band_name = os.environ.get('VELOX_BAND_NAME', 'none')
-has_band = band_name != 'none' and any(k.startswith('BAND_') and v.strip() for k, v in os.environ.items())   # ADR 0008 3.5: a band file with no BAND_* value is report-only
+has_band = band_name != 'none' and any(k.startswith('BAND_') and not k.startswith('BAND_HAZARD_') and v.strip() for k, v in os.environ.items())   # ADR 0008 3.5: a band file with no BAND_* value is report-only
 band_label = os.environ.get('VELOX_BAND_LABEL', band_name)   # '<map> (file <F>)' when the map's band file sources another map's
 SUM_KILLS_MIN = band('FFA_KILLS_MIN')    # D51 (1)/(7): was 70 (D49); largest k with P(sum < k) <= 2.5 % at 10 runs
 
@@ -157,6 +157,25 @@ inv_fail = [n for n, _, _, ok in inv if not ok]
 for n in inv_fail:
     fails.append('inv:' + n)
 
+hz_t = sum(r.get('hazard_touch', 0) for r in runs)
+hz_c = sum(r.get('hazard_death_credited', 0) for r in runs)
+hz_s = sum(r.get('hazard_death_self', 0) for r in runs)
+hz_b = {}
+for r in runs:
+    for b, v in (r.get('hazard_bots') or {}).items():
+        a = hz_b.setdefault(b, [0, 0, 0])
+        for i in range(3):
+            a[i] += v[i]
+# ADR 0008 5.3 / H9 (F9): provisional hard gate, judged when the band file sets BAND_HAZARD_SELF_SET_MAX (Fornax 6, Orbita 10 over FFA x 10).
+# It does not switch the other bands from report-only to judged (has_band ignores BAND_HAZARD_*). Judged for the ten-run set only.
+HAZ_SET_MAX = band('HAZARD_SELF_SET_MAX')
+hz_gate = 'report-only, ADR 0008 3.5'
+if HAZ_SET_MAX is not None:
+    if len(runs) == D51_KILLS_RUNS:
+        hz_gate = f'GATE set sum <= {HAZ_SET_MAX} (ADR 0008 5.3)'
+        if hz_s > HAZ_SET_MAX: fails.append(f'hazard_death_self>{HAZ_SET_MAX}')
+    else:
+        hz_gate = f'gate {HAZ_SET_MAX} judged for {D51_KILLS_RUNS} runs only; {len(runs)} run(s): reported'
 rules = {}
 for r in runs:
     for k, v in r['rules'].items():
@@ -171,16 +190,7 @@ if not has_band:
     print(f"SET band={'none' if band_name == 'none' else band_label + ' (no BAND_* value)'} (report-only): sum_kills={ki} not judged; the per-run kills / pickups / Mega bands are not judged either")
 else:
     print(f"SET bands={band_label}: sum_kills >= {SUM_KILLS_MIN}" + ('' if kills_judged else f' (judged for {D51_KILLS_RUNS} runs only; {len(runs)} run(s): reported)'))
-hz_t = sum(r.get('hazard_touch', 0) for r in runs)
-hz_c = sum(r.get('hazard_death_credited', 0) for r in runs)
-hz_s = sum(r.get('hazard_death_self', 0) for r in runs)
-hz_b = {}
-for r in runs:
-    for b, v in (r.get('hazard_bots') or {}).items():
-        a = hz_b.setdefault(b, [0, 0, 0])
-        for i in range(3):
-            a[i] += v[i]
-print(f"SET hazard (report-only, ADR 0008 3.5): hazard_touch={hz_t} hazard_death_credited={hz_c} hazard_death_self={hz_s}"
+print(f"SET hazard ({hz_gate}): hazard_touch={hz_t} hazard_death_credited={hz_c} hazard_death_self={hz_s}"
       + (' per bot touch/credited/self: ' + ' '.join(f'{b}:{v[0]}/{v[1]}/{v[2]}' for b, v in sorted(hz_b.items())) if hz_b else '')
       + f" per run self=[{','.join(str(r.get('hazard_death_self', 0)) for r in runs)}]")
 print('SET invariants (ADR 0006 section 7, every map):')
