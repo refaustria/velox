@@ -29,6 +29,8 @@ FTS=(
   "FtDm1Reachability|@DM1|velox.bots.FtDm1Reachability"   # the alias of FtMapReachability (ADR 0008 1.6)
   "FtHazard|L_HazardTest|velox.combat.FtHazard"
   "FtBotEdge|L_HazardTest|velox.bots.FtBotEdge"
+  "FtBotLavaEscape|L_HazardTest|velox.bots.FtBotLavaEscape"
+  "FtBotKnockOff|L_HazardTest|velox.bots.FtBotKnockOff"
 )
 # One row per M7 map (ADR 0008 1.6): the blockout maps are not in the default list (not cooked, no band yet) and are added with
 # --map-ft <Map>[:WalkExempt ids] (repeatable), e.g. --map-ft L_Sacrarium_Blockout:Quad,Railgun. Row name: FtMapReachability-<Map>.
@@ -41,6 +43,7 @@ Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b] [--dm1-map NAME] 
 Runs, in order: FtItemPickup (L_ItemTest), FtNavigation (L_ItemTest), FtStrafeCorridor (L_MovementTest),
 FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (${DM1_MAP}, FT_Map_Reachability via the old command name),
 FtHazard (L_HazardTest, FT_Hazard: ADR 0008 3.7), FtBotEdge (L_HazardTest, FT_BotEdge: ADR 0008 3.6.1/2, 60 s fight),
+FtBotLavaEscape (L_HazardTest, FT_BotLavaEscape: ADR 0008 3.6.4), FtBotKnockOff (L_HazardTest, FT_BotKnockOff: ADR 0008 3.6.3, 10 trials),
 each as
   UnrealEditor-Cmd Velox.uproject <map> -game -nullrhi -unattended -nosound -UseFixedTimeStep -FPS=60 -log
       -port=N -ExecCmds="velox.bots.Seed ${SEED}, <command> quit"

@@ -121,6 +121,34 @@ struct FVeloxBotState
 	/** Target of the last recovery attempt (the next attempt avoids it). */
 	FVector OffMeshLastTarget = FVector::ZeroVector;
 
+	// --- ADR 0008 3.6.3/4 (task M7 H5): only on maps with a hazard volume (VeloxBotCombatGlue::IsEdgeAware) ---
+	/** The current airborne stretch has been seen by ApplyHazardBehaviours (reset on the ground). */
+	bool bAirborneSeen = false;
+	/**
+	 * The current airborne stretch is not the bot's own hop: it began without the jump key, a knockback grace was seen in
+	 * it, or it outlasted the hop (VeloxBotRules::IsForeignFlight). Latched until the ground.
+	 */
+	bool bForeignFlight = false;
+	/** 3.6.3: the airborne recovery steered in the current flight (counted once per flight in AirRecoveryFlights). */
+	bool bAirRecoverySteered = false;
+	/** 3.6.3: the nav point the airborne recovery steers to (valid while bAirRecoveryHasTarget). */
+	FVector AirRecoveryTarget = FVector::ZeroVector;
+	bool bAirRecoveryHasTarget = false;
+	/** 3.6.3: flights in which the airborne recovery steered / ticks it steered / pad-flight ticks with zero move input (this life). */
+	int32 AirRecoveryFlights = 0;
+	int32 AirRecoveryTicks = 0;
+	int32 PadDisciplineTicks = 0;
+	/** 3.6.4: the hazard escape owns the input (feet in lava, until grounded outside it or HazardEscapeMaxSeconds). */
+	bool bHazardEscape = false;
+	double HazardEscapeSince = -1.0;
+	double NextHazardEscapeSearchTime = 0.0;
+	/** 3.6.4: where the escape heads (a nav point outside every hazard volume, else the nearest side of the volume). */
+	FVector HazardEscapeTarget = FVector::ZeroVector;
+	bool bHazardEscapeHasTarget = false;
+	/** 3.6.4: escapes started / finished out of the lava this life. */
+	int32 HazardEscapes = 0;
+	int32 HazardEscapesOut = 0;
+
 	// --- Input ---
 	FVeloxBotNavOutput Nav;
 	FVeloxBotInput Pending;
@@ -241,6 +269,29 @@ namespace VeloxBotRules
 
 	/** ?Bots=N capped to the mode's slots: MaxActive - 1 (one human slot) unless bFill; MaxActive <= 0 = no cap. */
 	VELOX_API int32 UrlBotCount(int32 Requested, int32 MaxActive, bool bFill);
+	/**
+	 * ADR 0008 3.6.3 (task M7 H5): the airborne stretch is a foreign flight, not the bot's own hop, when it began without
+	 * the jump key held (walked off, knocked off), a knockback grace is running (an impulse: a rocket, a pad off a link),
+	 * or it is a flight by IsFlight (longer than the own hop). The controller latches the answer until the ground.
+	 */
+	VELOX_API bool IsForeignFlight(bool bJumpHeldAtTakeoff, float KnockbackGraceSeconds, bool bIsFlight);
+	/**
+	 * ADR 0008 3.6.3: seconds until a ballistic flight (VelocityZ, gravity magnitude Gravity > 0) is HeightAboveLevelCm
+	 * lower than now (the descending crossing; HeightAboveLevelCm >= 0: the level is at or below the feet). 0 for a
+	 * level above the flight's reach or without gravity.
+	 */
+	VELOX_API float FlightSecondsToLevel(float VelocityZ, float HeightAboveLevelCm, float Gravity);
+	/**
+	 * ADR 0008 3.6.3: the air-recovery wish from the predicted landing (2-D) to the recovery nav point: zero when the
+	 * landing is within OnCourseCm of it (the flight already lands there), else the unit direction landing -> target
+	 * (the correction the velocity needs, not feet -> target).
+	 */
+	VELOX_API FVector2D AirRecoveryWish(const FVector2D& Landing, const FVector2D& Target, float OnCourseCm);
+	/**
+	 * ADR 0008 3.6.4: the escape point when no nav point outside the hazard is found: the nearest side of an oriented box
+	 * (Center, unit X axis AxisX in 2-D, half extents HalfX / HalfY) seen from Feet, pushed OutCm beyond that side.
+	 */
+	VELOX_API FVector2D HazardBoxExit(const FVector2D& Feet, const FVector2D& Center, const FVector2D& AxisX, float HalfX, float HalfY, float OutCm);
 }
 
 UCLASS(Config = Game)
@@ -439,6 +490,43 @@ public:
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "1"))
 	int32 OffMeshMaxAttempts = 6;
 
+	/**
+	 * ADR 0008 3.6.3 airborne recovery (only on maps with a hazard volume): horizontal half extent of the projection of
+	 * the predicted landing onto the nav mesh, at or below the bot's height (cm).
+	 */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "1", Units = "cm"))
+	float AirRecoveryExtentCm = 600.f;
+	/** 3.6.3: depth of the recovery window below the feet (cm); nav points deeper are not looked for. */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "1", Units = "cm"))
+	float AirRecoveryDownCm = 800.f;
+	/** 3.6.3: "at or below" tolerates nav points this far above the feet (cm; the mesh floats above the floor by up to a cell height). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "0", Units = "cm"))
+	float AirRecoveryUpToleranceCm = 20.f;
+	/** 3.6.3: a predicted landing within this of the recovery nav point is on course: no steering (cm, 2-D). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "0", Units = "cm"))
+	float AirRecoveryOnCourseCm = 20.f;
+	/** 3.6.4 hazard escape: radius of the search for the nearest nav point outside the hazard (cm). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "1", Units = "cm"))
+	float HazardEscapeExtentCm = 400.f;
+	/** 3.6.4: candidate directions per search ring (four rings at a quarter of HazardEscapeExtentCm each). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "1"))
+	int32 HazardEscapeDirections = 16;
+	/** 3.6.4: the escape window above the feet (cm): the rim of a lava channel is higher than its bed (a jump reaches it). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "0", Units = "cm"))
+	float HazardEscapeUpCm = 150.f;
+	/** 3.6.4: the escape window below the feet (cm). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "0", Units = "cm"))
+	float HazardEscapeDownCm = 100.f;
+	/** 3.6.4: a candidate nav point is in a hazard when the point this high above it is (cm; the lava volume is thin). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "0", Units = "cm"))
+	float HazardProbeUpCm = 20.f;
+	/** 3.6.4: the escape target is searched again this often while escaping (s). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "0.02", Units = "s"))
+	float HazardEscapeSearchSeconds = 0.25f;
+	/** 3.6.4: the escape gives the input back after this long, out or not (s; the lava kills well before). */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot|Hazard", Meta = (ClampMin = "0.1", Units = "s"))
+	float HazardEscapeMaxSeconds = 3.f;
+
 	/** velox.bots.Debug line interval (s). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0.1", Units = "s"))
 	float DebugIntervalSeconds = 1.f;
@@ -484,6 +572,20 @@ private:
 	void EnsureMove(double Now);
 	/** Off-mesh check and recovery move (task 04b); true while recovery owns the move (EnsureMove then requests no path). */
 	bool UpdateOffMeshRecovery(double Now);
+	/**
+	 * ADR 0008 3.6.4 (ahead of UpdateOffMeshRecovery): feet in a lava volume start the escape, which owns the move until
+	 * the bot stands outside the lava; searches the escape target (nearest nav point outside every hazard volume within
+	 * HazardEscapeExtentCm). True while escaping (EnsureMove then requests no path). Inert off hazard maps.
+	 */
+	bool UpdateHazardEscape(double Now);
+	/** Escape target search; false when neither a nav point nor the volume's side was found. */
+	bool FindHazardEscapeTarget(const FVector& Feet, FVector& OutTarget) const;
+	/**
+	 * ADR 0008 3.6.3/4 on State.Pending after Act (inert off hazard maps): the hazard escape (face the target, forward,
+	 * jump), pad discipline (no move input in a JUMP_PAD flight; aim live), the airborne recovery (foreign flight, not on a
+	 * link: full air control from the predicted landing toward the nearest nav point at or below the bot).
+	 */
+	void ApplyHazardBehaviours(double Now);
 	void StopMove();
 	/**
 	 * One stuck strike (section 5, D18, D28, D30): the VeloxBotStuck line with rule=, both clocks restart, the path is
