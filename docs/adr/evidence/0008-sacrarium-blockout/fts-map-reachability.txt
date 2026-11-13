@@ -1,0 +1,2 @@
+[fts] FtMapReachability-L_Sacrarium_Blockout PASS  ([2026.11.13-00.30.23:949][  3]LogVeloxBots: VeloxReachabilityFt test=FT_Map_Reachability result=PASS checks=7 failed=0)
+[fts] OK 1/1

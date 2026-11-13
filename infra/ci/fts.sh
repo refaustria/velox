@@ -28,6 +28,7 @@ FTS=(
   "FtCombatEvents|L_CombatTest|velox.bots.FtCombatEvents"
   "FtDm1Reachability|@DM1|velox.bots.FtDm1Reachability"   # the alias of FtMapReachability (ADR 0008 1.6)
   "FtHazard|L_HazardTest|velox.combat.FtHazard"
+  "FtMapReachability-L_Sacrarium_Blockout|L_Sacrarium_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Weapon_Railgun"   # M7 B1 (ADR 0008 5.3 c); the Railgun sits on the loft (pads / rocket jumps only)
 )
 # One row per M7 map (ADR 0008 1.6): the blockout maps are not in the default list (not cooked, no band yet) and are added with
 # --map-ft <Map>[:WalkExempt ids] (repeatable), e.g. --map-ft L_Sacrarium_Blockout:Quad,Railgun. Row name: FtMapReachability-<Map>.

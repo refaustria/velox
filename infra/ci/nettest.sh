@@ -58,6 +58,7 @@ FIRE_RATE_SCALE="${VELOX_FIRE_RATE_SCALE:-2.0}"
 ITEM_SCRIPTS=" ItemRun "
 # Scripts on L_DM1_Blockout (M5 task 06, ADR 0006 section 7): the scripted map regression, judged like PadRun.
 DM1_SCRIPTS=" DM1Run "
+SACRARIUM_SCRIPTS=" SacrariumRun "   # M7 task B1 (ADR 0008 5.3 d): on L_Sacrarium_Blockout, judged like PadRun/DM1Run; not in the default list (blockout not cooked)
 # Bot soaks (M4 task 07, ADR 0005 section 14 / D36), both on L_ItemTest with the server options in the map URL.
 BOT_SCRIPTS=" BotRun BotDuel "
 BOT_RUN_SECONDS=90      # BotWatch.json
@@ -306,6 +307,7 @@ run_one() {
   if [[ "$script" == LatchRun ]]; then cexec="velox.move.Preset Q3, $cexec"; sexec="velox.move.Preset Q3"; fi
   if [[ "$COMBAT_SCRIPTS" == *" $script "* ]]; then map="L_CombatTest"; fi
   if [[ "$DM1_SCRIPTS" == *" $script "* ]]; then map="${MAP_OVERRIDE:-L_DM1_Blockout}"; fi   # task 07d: --map L_DM1 runs DM1Run on the art map
+  if [[ "$SACRARIUM_SCRIPTS" == *" $script "* ]]; then map="L_Sacrarium_Blockout"; fi
   local connect_url="127.0.0.1:$PORT" client_timeout="$CLIENT_TIMEOUT"
   case "$script" in
     BotRun)
@@ -338,6 +340,7 @@ run_one() {
     if [[ "$BOT_SCRIPTS" == *" $script "* ]]; then
       map="${MAP_OVERRIDE}?${map#*\?}"   # keep "game=...?Bots=..."; every BOT_SCRIPTS map URL carries options
     elif [[ "$DM1_SCRIPTS" == *" $script "* ]]; then :   # DM1Run honours --map (task 07d)
+    elif [[ "$SACRARIUM_SCRIPTS" == *" $script "* ]]; then :   # SacrariumRun keeps its own map
     elif (( ! MAP_OVERRIDE_NOTED )); then
       echo "[ci] --map $MAP_OVERRIDE applies to BotRun/BotDuel/DM1Run only; $script and the other scripts keep their own map (logged once)"
       MAP_OVERRIDE_NOTED=1
@@ -1171,7 +1174,7 @@ if script == "StrafeRun":
     if bad:
         fails.append("correction > 5 cm within 0.5 s after the speed peak: %s" % fmt(bad))
 
-elif script in ("PadRun", "DM1Run"):
+elif script in ("PadRun", "DM1Run", "SacrariumRun"):
     # ADR 0002 A28(iii)/A30(iii): per pad exactly one client line src=live applied=1 and exactly one server line, with equal
     # move time stamps ts (the launch is queued at the end of the same move on both ends). src=replay applied=1 lines (a
     # replay re-entering the trigger) are allowed once per pad and replay and must carry the server's ts; applied=0 lines
@@ -1250,7 +1253,7 @@ elif script in ("PadRun", "DM1Run"):
     if final:
         # PadRun: 3 landing checkpoints; DM1Run (task m5-06): every marker of the script (the count is in the line itself).
         m_chk = re.search(r"checks=(\d+)/(\d+)", final)
-        want_chk = 3 if script == "PadRun" else 7
+        want_chk = {"PadRun": 3, "SacrariumRun": int(os.environ.get("VELOX_SACRARIUM_CHECKS", "9"))}.get(script, 7)
         if not m_chk or m_chk.group(1) != m_chk.group(2) or int(m_chk.group(2)) != want_chk:
             fails.append("landing checkpoints: %s (want %d/%d)" % (kv(final).get("checks"), want_chk, want_chk))
 
