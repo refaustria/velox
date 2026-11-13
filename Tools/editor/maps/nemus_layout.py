@@ -102,8 +102,20 @@ BOXES = (
     # ---- ground: forest floor (F) around the Cavea, the Orchestra (PIT); all kind floor so a pad arc starts on it (as DM1's Ground)
     [_b("Orchestra", "floor", -1000, 1000, -1000, 1000, PIT - 100, PIT),
      _b("Forest_W", "floor", -3300, -1000, -2700, 2700, PIT - 100, F),
-     _b("Forest_N", "floor", -1000, 1000, 1000, 2700, PIT - 100, F),
-     _b("Forest_S", "floor", -1000, 1000, -2700, -1000, PIT - 100, F),
+     # B2 reachability: the tier-3 ring (T3 240, 80 under the rim) was a nav island (FtMapReachability: the four tier-3 shards end 'partial' at the rim; the
+     # stairs touch the ring on one 120 cm window). Three 300 x 200 notches in the rim (top 280, 40 over the ring and 40 under the rim, both climbable) join the
+     # NW, NE and SE ring segments (the W ring joins SW) to the forest floor.
+     _b("Forest_N_a", "floor", -1000, -800, 1000, 2700, PIT - 100, F),
+     _b("Notch_NW", "floor", -800, -500, 1000, 1200, PIT - 100, T3 + 40),
+     _b("Forest_N_b", "floor", -800, -500, 1200, 2700, PIT - 100, F),
+     _b("Forest_N_c", "floor", -500, 500, 1000, 2700, PIT - 100, F),
+     _b("Notch_NE", "floor", 500, 800, 1000, 1200, PIT - 100, T3 + 40),
+     _b("Forest_N_d", "floor", 500, 800, 1200, 2700, PIT - 100, F),
+     _b("Forest_N_e", "floor", 800, 1000, 1000, 2700, PIT - 100, F),
+     _b("Forest_S_a", "floor", -1000, 500, -2700, -1000, PIT - 100, F),
+     _b("Notch_SE", "floor", 500, 800, -1200, -1000, PIT - 100, T3 + 40),
+     _b("Forest_S_b", "floor", 500, 800, -2700, -1200, PIT - 100, F),
+     _b("Forest_S_c", "floor", 800, 1000, -2700, -1000, PIT - 100, F),
      # east: cut for the Radix Magna trench (|y| < 200 up to x 1300), the root crosses the rim at x 1281
      _b("Forest_E_N", "floor", 1000, 1300, 200, 2700, PIT - 100, F),
      _b("Forest_E_S", "floor", 1000, 1300, -2700, -200, PIT - 100, F),
@@ -136,7 +148,7 @@ BOXES = (
         # ---- Trabs, the log: two segments, breaks at x -2500..-2100 (terrace) and -200..200 (middle); Radix Australis lands on Log_Land
         _b("Log_W", "platform", -2100, -200, -2000, -1600, F, U),
         _b("Log_E", "platform", 200, 2800, -2000, -1600, F, U),
-        _b("Log_Land", "platform", -400, -200, -1600, -1300, F, U),
+        _b("Log_Land", "platform", -400, -200, -1600, -1250, F, U),
         # ---- Pons N / S (bridges, underside 300), Tabulatum (solid podium round the trunk), Corona (bridge slab, underside 300 above)
         _b("Pons_N", "bridge", 2400, 2800, 600, 1600, U - 20, U),
         _b("Pons_S", "bridge", 2400, 2800, -1600, -600, U - 20, U),
@@ -145,6 +157,10 @@ BOXES = (
         _b("Corona_S", "bridge", 2460, 3300, -550, -200, C - 20, C),
         _b("Corona_W", "bridge", 2460, 2650, -200, 200, C - 20, C),
         _b("Corona_E", "bridge", 3050, 3300, -200, 200, C - 20, C),
+     # ---- B2: flat crests of the Rivus humps (120 cm between the up and down slabs; Hump1 moved 60 cm west so the gap to Hump2 stays 340)
+     _b("Hump1_Crest", "platform", -1920, -1800, -2700, -2300, F, F + HUMP),
+     _b("Hump2_Crest", "platform", -660, -540, -2700, -2300, F, F + HUMP),
+     _b("Hump3_Crest", "platform", 570, 690, -2700, -2300, F, F + HUMP),
     ]
 )
 
@@ -177,18 +193,23 @@ STAIRS = [
 RAMPS = [
     # Radix Magna: Orchestra floor (x 402) to the Tabulatum (x 2160), 20 deg, 400 wide, sealed underneath
     Ramp("Radix_Magna", 2160.0 - 640.0 / TAN20, -200, 200, 640.0, "+x", 20.0, PIT, "solid"),
-    # Radix Australis: forest floor to the log landing (x -400), 20 deg, 300 wide
-    Ramp("Radix_Australis", -400.0 - 320.0 / TAN20, -1600, -1300, 320.0, "+x", 20.0, F, "solid"),
-    # Rivus root humps: 15 deg up 400 / down 400, crest +107, centred on x -1800, -600, 600 (southern 400 cm of the Rivus)
-    Ramp("Hump1_Up", -2200, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump1_Dn", -1400, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
-    Ramp("Hump2_Up", -1000, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump2_Dn", -200, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
-    Ramp("Hump3_Up", 200, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump3_Dn", 1000, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
+    # Radix Australis: forest floor to the log landing (x -400), 15 deg (B2 navlint: a 20 deg foot leaves a 150 cm crawl space under the slab that the lint
+    # reads as uncovered floor; concept 20 deg), 350 wide (B2: Log_Land widened to match)
+    Ramp("Radix_Australis", -400.0 - 320.0 / TAN15, -1600, -1250, 320.0, "+x", 15.0, F, "solid"),
+    # Rivus root humps: 15 deg up 400 / down 400, crest +107, centred on x -1860, -600, 630 (southern 400 cm of the Rivus). B2 layout iteration: the two
+    # slabs no longer meet in a ridge; a 120 cm flat crest (box Hump<n>_Crest, F .. F + HUMP) sits between them, so the up / down ramps each end flush on a
+    # flat top as DM1's A_Ramp does (the ridge left nav gaps and polys inside the fill: navlint clusters / lowclear on Hump2 / Hump3).
+    Ramp("Hump1_Up", -2320, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump1_Dn", -1400, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
+    Ramp("Hump2_Up", -1060, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump2_Dn", -140, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
+    Ramp("Hump3_Up", 170, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump3_Dn", 1090, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
 ]
 
 # ---------------------------------------------------------------- jump pads (AimAtTarget: the target is the capsule-centre apex, ADR 0002)
 PADS = [
-    # P1 on the Orchestra floor (z=PIT) as in the concept; lands in the Templum gate
-    Pad("P1", -300, 0, (-1950, 0, 1050), (-2922, 0, U), PIT),
+    # P1: concept has it on the Orchestra floor (-300, 0, z=PIT), landing in the Templum gate. B2 deviation (S2's D2 again): on the Cavea's west rim
+    # (-1200, 0, z=F), same landing. VeloxNav link_span: Detour never connects a nav link whose ends are more than one 1000 cm tile apart, and the pit pad's
+    # link (x -300 to -2922) spans three tiles, so no bot would ever take it. From the rim the link spans two (-1200 to -2922).
+    Pad("P1", -1200, 0, (-2227, 0, 950), (-2922, 0, U), F),
     Pad("P2", -3050, 2350, (-2950, 2000, 820), (-2899, 1823, U), F),       # Via Sacra west -> Templum north wing
     Pad("P3", -3050, -2350, (-2950, -2000, 820), (-2899, -1823, U), F),    # Rivus west -> Templum south wing
     Pad("P4", 3110, 1300, (3110, 640, 1160), (3110, 369, C), F),            # NE grove -> Corona north strip
@@ -228,9 +249,9 @@ ITEMS = [
     _it("H5_Aq2", "Health.Small", 1900, 1800, U),
     _it("H5_Aq3", "Health.Small", 2200, 1800, U),
     _it("H5_Aq4", "Health.Small", 2500, 1800, U),
-    _it("H5_Hump1", "Health.Small", -1800, -2500, F + HUMP),
+    _it("H5_Hump1", "Health.Small", -1860, -2500, F + HUMP),
     _it("H5_Hump2", "Health.Small", -600, -2500, F + HUMP),
-    _it("H5_Hump3", "Health.Small", 600, -2500, F + HUMP),
+    _it("H5_Hump3", "Health.Small", 630, -2500, F + HUMP),
     _it("Shard_Log1", "Armor.Shard", -1700, -1800, U),
     _it("Shard_Log2", "Armor.Shard", -1300, -1800, U),
     _it("Shard_Log3", "Armor.Shard", -900, -1800, U),
@@ -303,8 +324,8 @@ LINKS = [Link(f"PadLink_{p.id}", "JUMP_PAD", (p.x, p.y, mapgen_pad_z(p)), p.land
     _drop("Drop_LogN_1", -1900, -1660, U, -1900, -1425, F),
     _drop("Drop_LogN_2", 700, -1660, U, 700, -1425, F),
     _drop("Drop_LogN_3", 1900, -1660, U, 1900, -1425, F),
-    _drop("Drop_LogS_1", -1000, -1940, U, -1000, -2175, F),
-    _drop("Drop_LogS_2", 1100, -1940, U, 1100, -2175, F),
+    _drop("Drop_LogS_1", -1230, -1940, U, -1230, -2175, F),
+    _drop("Drop_LogS_2", 1250, -1940, U, 1250, -2175, F),
     _drop("Drop_LogS_3", 2300, -1940, U, 2300, -2175, F),
     _drop("Drop_PonsN", 2460, 1000, U, 2250, 1000, F),
     _drop("Drop_PonsS", 2460, -1000, U, 2250, -1000, F),
@@ -321,10 +342,29 @@ LIGHTMASS_VOLUME = ((0.0, 0.0, 820.0), (7200.0, 6000.0, 2400.0))
 # ---------------------------------------------------------------- clip: perimeter walls come from CLIP_MODE ("walls"), the roof is this record
 CLIPS = [
     Clip("Ceil_Sky", -3500, 3500, -2900, 2900, SKY, SKY + 100),
+    # B2 layout iteration (navlint): every wall top is a walkable-looking top the 45 cm agent radius erodes (isolated clusters), and a trunk top
+    # 80 cm under the sky ceiling is a nav poly with 70 cm headroom (lowclear). Flush caps like Sacrarium's Ceil_* clips: the tree wall ring,
+    # the gate wings, the column stubs, a plug over each trunk top (overlapping both the trunk and the ceiling, so no coplanar seam).
+    Clip("Cap_Wall_W", -3400, -3300, -2800, 2800, F + 1200, F + 1300),
+    Clip("Cap_Wall_E", 3300, 3400, -2800, 2800, F + 1200, F + 1300),
+    Clip("Cap_Wall_S", -3300, 3300, -2800, -2700, F + 1200, F + 1300),
+    Clip("Cap_Wall_N", -3300, 3300, 2700, 2800, F + 1200, F + 1300),
+    Clip("Cap_Gate_N", -2600, -2500, 300, 1200, U + 400, U + 500),
+    Clip("Cap_Gate_S", -2600, -2500, -1200, -300, U + 400, U + 500),
+    Clip("Cap_Stub_1", -2990, -2910, 460, 540, U + 120, U + 220),
+    Clip("Cap_Stub_2", -2990, -2910, -540, -460, U + 160, U + 260),
+    Clip("Cap_Stub_3", -2990, -2910, 760, 840, U + 200, U + 300),
+    Clip("Cap_Stub_4", -2990, -2910, -840, -760, U + 120, U + 220),
+    Clip("Cap_Stub_5", -3190, -3110, 560, 640, U + 160, U + 260),
+    Clip("Cap_Stub_6", -3190, -3110, -640, -560, U + 200, U + 300),
+] + [Clip(f"Plug_{o.id}", o.cx - 175, o.cx + 175, o.cy - 175, o.cy + 175, F + 1580, SKY + 50) for o in OCTS if o.id.startswith("Trunk_")] + [
+    Clip("Plug_Mother", 2850 - 225, 2850 + 225, -225, 225, SKY - 10, SKY + 50),
 ]
 
-NAV_CENTER = (0.0, 0.0, 920.0)
-NAV_SIZE = (7000.0, 5800.0, 2400.0)      # X -3500..3500, Y -2900..2900, Z -280..2120
+# B2 navlint: the nav volume stops at Z 1900 (the trunk tops are at 1920 / 2000; nothing walkable or reachable lies above the Corona + knockback cap 1840),
+# so no nav poly forms on a trunk top under the sky ceiling (the clips carry no nav influence).
+NAV_CENTER = (0.0, 0.0, 810.0)
+NAV_SIZE = (7000.0, 5800.0, 2180.0)      # X -3500..3500, Y -2900..2900, Z -280..1900
 
 INTERMISSION_CAMERA = ((0.0, -3300.0, 2920.0), (0.0, -45.0, 90.0))   # location, (roll, pitch, yaw)
 INTERMISSION_LABEL = (0.0, 0.0, 2520.0)

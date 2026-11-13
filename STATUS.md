@@ -61,6 +61,7 @@ _Last updated: 2026-11-12 (project lead). Branches: `main` = M0–M6 (VM part; M
 - Disk hygiene: keep ≥ 15 GB free (standing OK for caches/build artefacts).
 
 ## Open questions for the human
+57. ~~API auth outage~~ — transient (403 Cloudflare on subagent calls, 2026-11-13); cleared without action, H10/H11 resumed.
 56. ~~Engine reinstall~~ — resolved 2026-11-12 22:50: human supplied a fresh 5.8.4 link (a 5.9.0-preview link was refused), re-extracted untrimmed except debug/templates/samples/docs/mobile platforms + the old plugin exclusions (47 GB). Engine gates re-run by agent.
 55. **Lead decision 2026-11-12 (human delegated M7 decisions): yes, as recommended.** **LFS plan for the M7 maps (ADR 0008 §2.4; confirm when convenient, does not block blockouts).** About 400 MB planned of the 600 MB limit, at most two committed Production bakes per map, a third needs the lead's OK; `infra/ci/lfs_budget.sh` warns at 450 MB and fails at 600 MB. Recommendation: yes.
 54. **Lead decision 2026-11-12 (human delegated M7 decisions): yes, as recommended.** **Public server and the new maps (ADR 0008; confirm when convenient, does not block blockouts).** The public server keeps serving `L_DM1` only until a new map has passed a Mac playtest, and Orbita never becomes the default public map (its own risk 4: 3 000 cm/s pad launches, a correction mid-arc is a death). Recommendation: yes.
