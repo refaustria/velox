@@ -2,7 +2,7 @@
 
 **Milestone:** M7 Maps (ADR 0008)
 **Agent:** dev-hard
-**Status:** open
+**Status:** done (dev-hard, 2026-11-13)
 **Depends on:** H8 (merged). Runs in parallel with H10 (different code path: link traversal, not combat); merge carefully.
 **Wave:** bot track (lead-added 2026-11-13 from B2, docs/tasks/m7-maps/18-b2-nemus-build.md notes). **Blocks B4 (Fornax lava hops are JUMP links) and B2b.**
 
@@ -16,11 +16,11 @@ Evidence: docs/adr/evidence/0008-nemus-blockout/, raw logs under /mnt/oldroot/ve
 - this file
 
 ## Acceptance criteria
-- [ ] Root cause stated with log evidence
-- [ ] New FT: bot crosses a 300 cm and a 400 cm gap JUMP link in ≥ 9/10 seeded tries each
-- [ ] Nemus FFA ×10 at 3 bots: JUMP link success ≥ 90 %, stuck within limit (re-run only that set; full B2b re-soak is a separate task)
-- [ ] DM1 BotRun ×3 behaviour PASS; FtBotEdge/LavaAvoid/LavaEscape/KnockOff unchanged green
-- [ ] build + full automation + fts.sh green; DM1 golden OK
+- [x] Root cause stated with log evidence
+- [x] New FT: bot crosses a 300 cm and a 400 cm gap JUMP link in ≥ 9/10 seeded tries each
+- [x] Nemus FFA ×10 at 3 bots: JUMP link success ≥ 90 %, stuck within limit (re-run only that set; full B2b re-soak is a separate task)
+- [x] DM1 BotRun ×3 behaviour PASS; FtBotEdge/LavaAvoid/LavaEscape/KnockOff unchanged green
+- [x] build + full automation + fts.sh green; DM1 golden OK
 
 ## Notes / outcome
 (Filled by the agent.)
@@ -45,3 +45,9 @@ JUMP_FAST shares all of it (same code path); its required-speed check is unchang
 - Nemus FFA ×10 at 3 (`nemus-ffa3-set10.txt`; run 1 re-run as `nemus-ffa3-r1`, the first attempt segfaulted at start-up before writing a log): link_success[Jump] **100 % (40/40)** (B2 0/33), aborted 19 (below_start 8+, relaunched by machine-gun hits in the flight, replaced; not attempts); sum_stuck 3 (all `fight_stall`, none `link_timeout`; B2 33); JumpPad 100 % (159/159), Drop 97 %. Still failing, not H11: nav_build_s 3.08 s in one run (1.4–1.8 s in the others, host load 10–33) and item_coverage 30/41 (B2 28/41), per-run budget > 300 µs under host load; B2b re-soak.
 - build + full automation: CI OK (`ci-full2.log`, incl. Velox.Bots.Maneuver with the new take-off / run-up / lateral cases); DM1, Nemus, Sacrarium golden byte-identical.
 - fts.sh: OK 17/17 (`fts-all.out`; FtBotEdge, FtBotLavaEscape, FtBotKnockOff, FtBotLavaAvoid unchanged green, FtBotGapJump new).
+- DM1 BotRun ×3 (`botrun-dm1b.out`, `--keep-going`): **set behaviour PASS** (stuck 0/0/0, majors 4/4, kills 5/6/7, no left_arena / world_kill); set cost FAIL from round 1 only (2 cost windows at load1 15–24); rounds 2 and 3 on the same binary cost PASS, so the cost windows are host load (A/B by repetition). DM1 has no JUMP link; the new per-tick work (ledge trace, hop overrun check) runs only on segments into or on a JUMP / JUMP_FAST link. A first attempt (`botrun-dm1.out`) failed only on nav build 2.05 s at load1 33.
+- After merging origin/m7-maps (H10, 90aa004): CI OK (`ci-merged.log`), fts.sh OK 17/17 incl. FtBotTargets (`fts-merged.out`), Nemus FFA ×3 Jump 11/11, sum_stuck 0 (`nemus-merged.out`).
+
+**Open / follow-ups**
+- JUMP_FAST: same take-off, flight and run-up code; the bot still cannot build speed above ground speed in the approach (no hops in the traversal), so links that need > ~800 cm/s depend on the arrival speed. Not measurable on Nemus (no attempt in 13 runs, as in B2); check on Culmen (B3).
+- Nemus `below_start` aborts (8 in 10 runs) are bots that left the log before the traversal began (mostly coming off Log_Land); not attempts, no stuck strike. B2b re-soak to judge item coverage (30/41) and nav build on a quiet host.
