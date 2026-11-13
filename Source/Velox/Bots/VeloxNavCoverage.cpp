@@ -10,6 +10,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Combat/VeloxHazardSubsystem.h"
 #include "Combat/VeloxHazardVolume.h"
+#include "Components/BoxComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -160,7 +161,12 @@ FVeloxNavCoverageReport VeloxNavCoverage::Run(UWorld* World, const FVeloxNavCove
 	{
 		for (const AVeloxHazardVolume* Volume : Hazards->GetVolumes())
 		{
-			HazardBoxes.Add(Volume->GetComponentsBoundingBox(true));
+			// Task M7 H8 (review F2, ADR 0008 G6): the volume's own box only, never the actor's component bounds (a nav
+			// modifier or any other child would widen the exemption past the hazard).
+			if (const UBoxComponent* Box = Volume->GetBox())
+			{
+				HazardBoxes.Add(Box->Bounds.GetBox());
+			}
 		}
 	}
 

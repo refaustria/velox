@@ -145,9 +145,14 @@ void UVeloxBotPathFollowingComponent::StepFollow(float DeltaTime)
 		{
 			AirborneSince = -1.0;
 		}
-		else if (AirborneSince < 0.0)
+		else
 		{
-			AirborneSince = Now;
+			if (AirborneSince < 0.0)
+			{
+				AirborneSince = Now;
+			}
+			// H8 (review F4): the hop landing verdict is cached per grounded stretch only.
+			NextHopLandingCheckTime = -1.0;
 		}
 	}
 	else
@@ -230,13 +235,31 @@ bool UVeloxBotPathFollowingComponent::HasHopLanding()
 	const UVeloxMovementComponent* Movement = GetBotMovement();
 	if (!Bot || !Movement || !Movement->IsOnGround() || !VeloxBotCombatGlue::IsEdgeAware(GetWorld()))
 	{
+		NextHopLandingCheckTime = -1.0;
 		return true;
 	}
 	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
-	const float AirSeconds = VeloxBotRules::HopAirSeconds(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), Settings.HopLandingSlackSeconds);
-	const FVector Landing = VeloxBotCombat::HopLandingPoint(Movement->GetActorFeetLocation(), FVector2D(Movement->Velocity), AirSeconds);
-	const FVector Extent(Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectRadiusCm, Settings.OnMeshHalfHeightCm);
-	if (VeloxBotCombatGlue::ProjectsOntoNav(*Bot, Landing, Extent))
+	const double Now = GetWorld()->GetTimeSeconds();
+	const float JumpVelocity = Movement->GetSimParams().JumpVelocity;
+	const float Gravity = FMath::Max(FMath::Abs(Movement->GetGravityZ()), 1.f);
+	const float AirSeconds = VeloxBotRules::HopAirSeconds(JumpVelocity, Movement->GetGravityZ(), Settings.HopLandingSlackSeconds);
+	const FVector2D Velocity2D(Movement->Velocity);
+	const FVector Landing = VeloxBotCombat::HopLandingPoint(Movement->GetActorFeetLocation(), Velocity2D, AirSeconds);
+	// The cached verdict holds only while the predicted landing stays near the one it was computed for (a strafe flip or
+	// a turn moves the landing by metres within one cache period).
+	if (NextHopLandingCheckTime >= 0.0 && Now < NextHopLandingCheckTime &&
+		FVector::DistSquared2D(Landing, CachedHopLanding) <= FMath::Square(Settings.HopLandingRecheckCm))
+	{
+		HopLandingBlockedTicks += bHopLandingClear ? 0 : 1;
+		return bHopLandingClear;
+	}
+	NextHopLandingCheckTime = Now + Settings.EdgeProbeCheckSeconds;
+	CachedHopLanding = Landing;
+	++HopLandingChecks;
+	// H8 (review F5): the ground under the landing within the slope window, not at the take-off height (ramps, chutes).
+	bHopLandingClear = VeloxBotCombatGlue::HopLandsSafely(*Bot, Landing, JumpVelocity * JumpVelocity / (2.f * Gravity),
+		static_cast<float>(Velocity2D.Size() * AirSeconds), Movement->GetWalkableFloorZ());
+	if (bHopLandingClear)
 	{
 		return true;
 	}

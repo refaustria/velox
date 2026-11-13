@@ -49,9 +49,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Velox|Hazard")
 	UBoxComponent* GetBox() const { return Box; }
 
-	/** H7: the lava nav area box, or null (void, client, EdgeAware 0). Tests. */
-	UBoxComponent* GetNavArea() const { return NavArea; }
-
 	/** World point inside the box (any rotation; the generator places axis-aligned boxes). */
 	bool ContainsPoint(const FVector& Point) const;
 
@@ -60,6 +57,13 @@ public:
 
 	/** Server: pawns currently tracked (inside, or left less than a second ago). Tests. */
 	int32 NumOccupants() const { return Occupants.Num(); }
+
+	/**
+	 * Task M7 H8 (review F11): the lava tick clock after a tick hit that was due at LastDamageTime + TickSeconds: advanced by
+	 * TickSeconds (exact cadence at any server frame time), or Now when the clock fell a full interval behind (one hit per
+	 * frame, no catch-up burst).
+	 */
+	static double AdvanceLavaTick(double LastDamageTime, double Now, double TickSeconds);
 
 	/** Seconds a left pawn's last-damage time is kept (ADR 0008 3.3: boundary jitter must not cause a second hit). */
 	static constexpr double KeepLeftSeconds = 1.0;
@@ -83,17 +87,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Velox|Hazard")
 	EVeloxHazardType Type = EVeloxHazardType::Lava;
 
-	/**
-	 * Task M7 H7: Lava only, server game worlds only, created at PostInitializeComponents: a no-collision box (the volume grown
-	 * by UVeloxBotSettings::HazardNavPaddingCm / HazardNavPaddingZCm) that marks the nav polys under it UVeloxNavArea_Hazard.
-	 */
-	UPROPERTY(Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Velox|Hazard")
-	TObjectPtr<UBoxComponent> NavArea;
-
 private:
-	/** H7: creates NavArea (Lava, velox.bots.EdgeAware on). */
-	void AddLavaNavArea();
-
 	/** True on a server / standalone world (a level actor that does not replicate has ROLE_Authority on clients too). */
 	bool IsServerWorld() const;
 

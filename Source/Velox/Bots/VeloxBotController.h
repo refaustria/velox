@@ -134,10 +134,21 @@ struct FVeloxBotState
 	/** 3.6.3: the nav point the airborne recovery steers to (valid while bAirRecoveryHasTarget). */
 	FVector AirRecoveryTarget = FVector::ZeroVector;
 	bool bAirRecoveryHasTarget = false;
-	/** 3.6.3: flights in which the airborne recovery steered / ticks it steered / pad-flight ticks with zero move input (this life). */
+	/**
+	 * 3.6.3: flights in which the airborne recovery steered / ticks it steered / pad-flight ticks on a hazard map (this
+	 * life; ADR 0008 G4, task M7 H8: the pad's ballistic arrive wish is the only move input, zero while on course).
+	 */
 	int32 AirRecoveryFlights = 0;
 	int32 AirRecoveryTicks = 0;
 	int32 PadDisciplineTicks = 0;
+	/** H8: pad-flight ticks on a hazard map in which the arrive wish steered (not on course). */
+	int32 PadArriveTicks = 0;
+	/** H8 (review F4): the airborne recovery's safe target for a landing over lava, re-searched every HazardEscapeSearchSeconds. */
+	FVector AirRecoverySafeTarget = FVector::ZeroVector;
+	bool bAirRecoveryHasSafeTarget = false;
+	double NextAirRecoverySearchTime = -1.0;
+	/** H8 (review F4): the own-hop landing test runs at most every UVeloxBotSettings::EdgeProbeCheckSeconds (reset on the ground). */
+	double NextHazardLandingProbeTime = -1.0;
 	/** Task M7 H7: feet height of the last ground tick (the level the bot's own hop lands on). */
 	double LastGroundFeetZ = 0.0;
 	/** H7: in the bot's own hop the predicted landing lies in lava: steered to the nearest safe nav point (flights / ticks, this life). */
@@ -589,7 +600,7 @@ private:
 	/** Escape target search; false when neither a nav point nor the volume's side was found. */
 	bool FindHazardEscapeTarget(const FVector& Feet, FVector& OutTarget) const;
 	/** Task M7 H7: own hop / dodge jump with its predicted landing in lava: steer to the nearest safe nav point (ApplyHazardBehaviours). */
-	void UpdateHazardLanding(const FVector& Feet, const FVector& Velocity, float GravityZ);
+	void UpdateHazardLanding(double Now, const FVector& Feet, const FVector& Velocity, float GravityZ, float JumpVelocity, float WalkableFloorZ);
 	/**
 	 * ADR 0008 3.6.3/4 on State.Pending after Act (inert off hazard maps): the hazard escape (face the target, forward,
 	 * jump), pad discipline (no move input in a JUMP_PAD flight; aim live), the airborne recovery (foreign flight, not on a

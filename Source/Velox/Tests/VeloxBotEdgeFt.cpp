@@ -209,9 +209,10 @@ namespace VeloxBotEdgeFt
 			FString::Printf(TEXT("visible=%.2f shots=%d"), VisibleFraction, Combat.ShotsPressed));
 		const bool bEdgeAware = VeloxBotCombatGlue::IsEdgeAware(Ft->World.Get());
 		Ft->Check(!bEdgeAware || Combat.EdgeProbeCount > 0, TEXT("edge_probes"), FString::Printf(TEXT("probes=%d edge_aware=%d"), Combat.EdgeProbeCount, bEdgeAware ? 1 : 0));
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotEdgeFt test=FT_BotEdge summary seconds=%.1f probes=%d mirror=%d drop=%d hop_refused=%d min_edge=%.0f max_speed=%.0f dodges=%d"),
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotEdgeFt test=FT_BotEdge summary seconds=%.1f probes=%d mirror=%d drop=%d hop_refused=%d min_edge=%.0f max_speed=%.0f dodges=%d hazard_back=%d no_wish=%d hop_checks=%d visible=%.2f"),
 			Elapsed, Combat.EdgeProbeCount, Combat.EdgeMirrorCount, Combat.EdgeDropCount, HopRefused,
-			Ft->MinEdgeCm == TNumericLimits<double>::Max() ? -1.0 : Ft->MinEdgeCm, Ft->MaxSpeed, Combat.DodgeCount);
+			Ft->MinEdgeCm == TNumericLimits<double>::Max() ? -1.0 : Ft->MinEdgeCm, Ft->MaxSpeed, Combat.DodgeCount, Combat.EdgeHazardBackCount, Combat.EdgeNoWishCount,
+			Follow ? Follow->GetHopLandingChecks() : 0, VisibleFraction);
 		return false;
 	}
 

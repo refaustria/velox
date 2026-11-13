@@ -3,8 +3,10 @@
 //
 //   Velox.Bots.HazardRules        automation, world-free: foreign-flight rule, ballistic time to a level, the air-recovery
 //                                 wish (on course / correction), the hazard box exit, the pad-flight predicate and what
-//                                 TickAirborne wishes on a pad (End, scale 1: the controller zeroes it on hazard maps), the
-//                                 H7 pad arrive wish and the hazard nav area.
+//                                 TickAirborne wishes on a pad (End, scale 1; the follower replaces it by the arrive wish),
+//                                 the H7 pad arrive wish, the hazard nav area (H8: footprint only), the H8 hop ground window
+//                                 (flat, 30 degree chute, ramp up, void), hazard damage is not heard (F8) and the lava tick
+//                                 clock (F11).
 //   velox.bots.FtBotLavaEscape [quit] [difficulty=Name]
 //       console on L_HazardTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a bot is put into the lava channel at three
 //       spots (centre, north end, south-east corner); each time its feet must be out of the lava (on the ground outside
@@ -16,7 +18,10 @@
 //       platform again, falls when its feet are 150 cm below the platform top (then it is put back before the void).
 //       Pass: >= 8 of 10 land (ADR 0008 task H5). Then pads (10) seeded pad crossings (start on the main floor east of the
 //       channel, Crc32(2000 + trial)) to the platform centre: one lands when the bot stands on the platform after an Ok
-//       traversal of Pad_Gap's JUMP_PAD link with pad-discipline ticks in the flight (H7: hard, >= 8 of 10).
+//       traversal of Pad_Gap's JUMP_PAD link with pad-discipline ticks in the flight (H7: hard, >= 8 of 10). Then padknocks
+//       (10) seeded pad crossings (Crc32(4000 + trial)) in which the bot gets a 300 cm/s sideways impulse 0.1..0.4 s into
+//       the pad flight (AddKnockback, additive; side seeded): one lands when the bot stands on the platform (task M7 H8,
+//       ruling 3: the pad arrive wish replaced the zero input; >= 8 of 10).
 //   velox.bots.FtBotLavaAvoid [quit] [trials=N] [difficulty=Name]
 //       console on L_HazardTest (H7): N (16) seeded trials (Crc32(3000 + trial)), the bot resting 60..250 cm off a rim of the
 //       lava channel. The first N/2 are routes to a point 60..250 cm beyond the other rim (sides alternate, 10 s each); the
@@ -36,6 +41,9 @@
 #include "Bots/VeloxBotManeuver.h"
 #include "Bots/VeloxBotSettings.h"
 #include "Bots/VeloxNavAreas.h"
+#include "Bots/VeloxBotSubsystem.h"
+#include "Combat/VeloxHazardVolume.h"
+#include "Core/VeloxGameplayTags.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -68,7 +76,7 @@ bool FVeloxBotsHazardRulesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("exit along the yawed axis"), North.Equals(FVector2D(0.0, 700.0), 1e-3));
 
 	// Pad discipline: the pad maneuver's flight is the IsPadFlight phase; TickAirborne itself wishes End at scale 1 without
-	// jump (the pre-M7 behaviour the controller overrides on hazard maps).
+	// jump (the pre-M7 behaviour; the follower replaces it with the ballistic arrive wish after the launch, every map).
 	{
 		FVeloxManeuverParams Pad;
 		Pad.Type = EVeloxManeuverType::JumpPad;
@@ -117,7 +125,62 @@ bool FVeloxBotsHazardRulesTest::RunTest(const FString& Parameters)
 	{
 		UVeloxNavArea_Hazard* Area = GetMutableDefault<UVeloxNavArea_Hazard>();
 		TestTrue(TEXT("hazard area costs more than a floor poly"), Area->DefaultCost > 1.f && Area->GetFixedAreaEnteringCost() > 0.f);
-		TestTrue(TEXT("hazard nav padding >= agent radius"), UVeloxBotSettings::Get().HazardNavPaddingCm >= 45.f);
+		// H8 (review F1, ADR 0008 G5(b)): the area is the volume's own footprint, bed to HazardNavTopCm above the surface,
+		// below the generator's 20 cm minimum rim drop (so no rim poly is marked).
+		const FBox Lava(FVector(-1500.0, -600.0, -60.0), FVector(-1200.0, 600.0, -40.0));
+		const float Top = UVeloxBotSettings::Get().HazardNavTopCm;
+		const FBox Area2 = UVeloxBotSubsystem::LavaNavAreaBox(Lava, Top);
+		TestTrue(TEXT("hazard nav top below the 20 cm rim drop"), Top >= 0.f && Top < 20.f);
+		TestTrue(TEXT("hazard nav area: no horizontal padding"), FVector2D(Area2.Min).Equals(FVector2D(Lava.Min)) && FVector2D(Area2.Max).Equals(FVector2D(Lava.Max)));
+		TestTrue(TEXT("hazard nav area: bed to surface + top"), FMath::IsNearlyEqual(Area2.Min.Z, -60.0) && FMath::IsNearlyEqual(Area2.Max.Z, -40.0 + Top));
+	}
+	// H8 (review F5, ADR 0008 G2): the ground window of a hop landing. A 580 cm hop with a 45 degree walkable limit reaches
+	// 580 cm down (Fornax's 30 degree chute is 335 lower there) and the apex up (a 20 degree ramp: 211 higher, apex 230).
+	{
+		double TopZ = 0.0;
+		double BottomZ = 0.0;
+		const float Walkable45 = FMath::Cos(FMath::DegreesToRadians(45.f));
+		VeloxBotCombat::HopGroundWindow(100.0, 230.f, 580.f, Walkable45, TopZ, BottomZ);
+		TestNearlyEqual(TEXT("hop window top = apex"), TopZ, 330.0, 1e-3);
+		TestNearlyEqual(TEXT("hop window bottom = distance x tan(45)"), BottomZ, 100.0 - 580.0, 0.5);
+		const double Chute = 100.0 - 580.0 * FMath::Tan(FMath::DegreesToRadians(30.0));
+		TestTrue(TEXT("30 degree chute landing inside the window"), Chute > BottomZ && Chute < TopZ);
+		const double Ramp = 100.0 + 580.0 * FMath::Tan(FMath::DegreesToRadians(20.0));
+		TestTrue(TEXT("20 degree ramp up landing inside the window"), Ramp > BottomZ && Ramp < TopZ);
+		TestTrue(TEXT("flat landing inside the window"), 100.0 > BottomZ && 100.0 < TopZ);
+		TestTrue(TEXT("void (1000 cm down) outside the window"), 100.0 - 1000.0 < BottomZ);
+		VeloxBotCombat::HopGroundWindow(0.0, 230.f, 0.f, Walkable45, TopZ, BottomZ);
+		TestTrue(TEXT("standing hop: flat ground still inside"), BottomZ < 0.0 && TopZ > 0.0);
+	}
+	// H8 (review F8, ADR 0008 G7): a credited lava tick is not heard; weapon damage is.
+	{
+		FGameplayTagContainer Lava;
+		Lava.AddTag(VeloxGameplayTags::Damage_Hazard_Lava);
+		FGameplayTagContainer Void;
+		Void.AddTag(VeloxGameplayTags::Damage_Hazard_Void);
+		FGameplayTagContainer Rocket;
+		Rocket.AddTag(VeloxGameplayTags::Damage_Environment);
+		TestFalse(TEXT("credited lava tick not heard"), VeloxBotCombat::IsHeardDamage(Lava));
+		TestFalse(TEXT("void hit not heard"), VeloxBotCombat::IsHeardDamage(Void));
+		TestTrue(TEXT("other damage heard"), VeloxBotCombat::IsHeardDamage(Rocket));
+	}
+	// H8 (review F11, ADR 0008 G7): the lava clock advances by the tick, not to the frame (8.5 ms frames: due at 0.25, the
+	// hit lands on the frame at 0.2550, the next is due at 0.50 again); a hitch of more than one interval restarts at Now.
+	{
+		TestNearlyEqual(TEXT("lava clock advances by the tick"), AVeloxHazardVolume::AdvanceLavaTick(0.0, 0.2550, 0.25), 0.25, 1e-9);
+		TestNearlyEqual(TEXT("lava clock after a hitch restarts at now"), AVeloxHazardVolume::AdvanceLavaTick(0.0, 0.80, 0.25), 0.80, 1e-9);
+		double Clock = 0.0;
+		int32 Hits = 0;
+		for (int32 Frame = 1; Frame <= 1176; ++Frame) // 10 s at 8.5 ms
+		{
+			const double Now = Frame * 0.0085;
+			if (Now - Clock >= 0.25 - 1.0e-3)
+			{
+				Clock = AVeloxHazardVolume::AdvanceLavaTick(Clock, Now, 0.25);
+				++Hits;
+			}
+		}
+		TestEqual(TEXT("lava ticks in 10 s at 8.5 ms frames"), Hits, 39);
 	}
 	return true;
 }
@@ -128,6 +191,7 @@ bool FVeloxBotsHazardRulesTest::RunTest(const FString& Parameters)
 
 #include "Bots/VeloxBotCombat.h"
 #include "Bots/VeloxBotLog.h"
+#include "Bots/VeloxBotPathFollowingComponent.h"
 #include "Bots/VeloxBotSubsystem.h"
 #include "Bots/VeloxDummySpawner.h"
 #include "Character/VeloxCharacter.h"
@@ -181,6 +245,12 @@ namespace VeloxBotRecoveryFt
 	constexpr double PadStartX0 = -1050.0;
 	constexpr double PadStartX1 = -250.0;
 	constexpr double PadStartHalfY = 800.0;
+	/** H8 ruling 3: pad crossings with a sideways knock in the flight; >= 8 of 10 land on the platform. */
+	constexpr int32 DefaultPadKnockTrials = 10;
+	constexpr int32 MinPadKnockLanded = 8;
+	constexpr double PadKnockSpeed = 300.0;
+	constexpr float PadKnockDelayMin = 0.1f;
+	constexpr float PadKnockDelayMax = 0.4f;
 	/** H7 FT_BotLavaAvoid: lava channel x -1500..-1200, y -600..600; starts / goals AvoidOffMinCm..AvoidOffMaxCm off its rims, |y| <= 500. */
 	constexpr double LavaX0 = -1500.0;
 	constexpr double LavaX1 = -1200.0;
@@ -239,6 +309,17 @@ namespace VeloxBotRecoveryFt
 		int32 LinksOkBefore = 0;
 		int32 LinksFailedBefore = 0;
 		double OnPlatformSince = -1.0;
+		/** H8 ruling 3: the pad-knock phase (after the plain pad crossings): knock delay / side of this trial, applied yet. */
+		bool bPadKnockPhase = false;
+		int32 NumPadKnockTrials = 0;
+		int32 PadKnockLanded = 0;
+		int32 PadKnocksApplied = 0;
+		float PadKnockDelay = 0.f;
+		float PadKnockSign = 1.f;
+		bool bPadKnocked = false;
+		double PadFlightSince = -1.0;
+		int32 PadArriveTicksBefore = 0;
+		int32 RecoveryTicksBefore = 0;
 		/** FT_BotLavaAvoid (H7): routed across the lava channel; lava entries (any overlap is a contact hit) per trial and total. */
 		bool bLavaAvoid = false;
 		/** FT_BotLavaAvoid: trials from this index on are fights against the dummy (the first ones are routes). */
@@ -365,10 +446,17 @@ namespace VeloxBotRecoveryFt
 	/** H7: a seeded start on the main floor east of the channel, the goal the platform centre (over Pad_Gap's link). */
 	void BeginPadTrial(FRecoveryFt& Ft, AVeloxCharacter& Pawn)
 	{
-		const uint32 Seed = 2000u + static_cast<uint32>(Ft.PadTrial);
+		const uint32 Seed = (Ft.bPadKnockPhase ? 4000u : 2000u) + static_cast<uint32>(Ft.PadTrial);
 		FRandomStream Rng(static_cast<int32>(FCrc::MemCrc32(&Seed, sizeof(Seed))));
 		const FVector Start(Rng.FRandRange(PadStartX0, PadStartX1), Rng.FRandRange(-PadStartHalfY, PadStartHalfY), 0.0);
 		Place(Pawn, Start, Rng.FRandRange(-180.f, 180.f));
+		// H8: drawn after the pad trials' draws, so the plain crossings keep their H7 starts.
+		Ft.PadKnockDelay = Rng.FRandRange(PadKnockDelayMin, PadKnockDelayMax);
+		Ft.PadKnockSign = Rng.FRand() < 0.5f ? -1.f : 1.f;
+		Ft.bPadKnocked = false;
+		Ft.PadFlightSince = -1.0;
+		Ft.PadArriveTicksBefore = Ft.Bot.IsValid() ? Ft.Bot->GetBotState().PadArriveTicks : 0;
+		Ft.RecoveryTicksBefore = Ft.Bot.IsValid() ? Ft.Bot->GetBotState().AirRecoveryTicks : 0;
 		Heal(Pawn);
 		Ft.Spot = Start;
 		Ft.PadTicksBefore = Ft.Bot.IsValid() ? Ft.Bot->GetBotState().PadDisciplineTicks : 0;
@@ -500,6 +588,29 @@ namespace VeloxBotRecoveryFt
 
 		if (Ft->bPadTrial)
 		{
+			if (Ft->bPadKnockPhase && !Ft->bPadKnocked && !Movement->IsOnGround())
+			{
+				// H8 ruling 3: a sideways hit in mid-arc (the pad's own launch seen, so the maneuver is in its flight).
+				const UVeloxBotPathFollowingComponent* Follow = Bot->GetBotPathFollowing();
+				if (Follow && Follow->IsOnLink() && Follow->GetManeuver().IsPadFlight() && Follow->GetManeuver().bLaunchImpulseSeen)
+				{
+					if (Ft->PadFlightSince < 0.0)
+					{
+						Ft->PadFlightSince = Ft->Now();
+					}
+					else if (Ft->Now() - Ft->PadFlightSince >= Ft->PadKnockDelay)
+					{
+						const FVector2D Along = FVector2D(Movement->Velocity).GetSafeNormal();
+						const FVector2D Side = FVector2D(-Along.Y, Along.X) * Ft->PadKnockSign;
+						const FVector Impulse(Side.X * PadKnockSpeed, Side.Y * PadKnockSpeed, 0.0);
+						Movement->AddKnockback(Impulse, false, EVeloxKnockbackSource::Server);
+						Ft->bPadKnocked = true;
+						++Ft->PadKnocksApplied;
+						UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRecoveryFt test=%s pad_knock_trial=%d knock at=%s vel=%s impulse=%s delay=%.2f"), Ft->Name, Ft->PadTrial,
+							*Feet.ToCompactString(), *Movement->Velocity.ToCompactString(), *Impulse.ToCompactString(), Ft->PadKnockDelay);
+					}
+				}
+			}
 			const bool bOnPlatform = Movement->IsOnGround() && Feet.Z > -50.0 && Feet.X >= PlatformX0 && Feet.X <= PlatformX1 && FMath::Abs(Feet.Y) <= PlatformHalfY;
 			const bool bFell = Feet.Z < FallenBelowCm;
 			// On the platform: wait for the link's report (the follower ends the traversal a tick or so after the landing).
@@ -520,20 +631,47 @@ namespace VeloxBotRecoveryFt
 			const int32 PadTicks = Bot->GetBotState().PadDisciplineTicks - Ft->PadTicksBefore;
 			const int32 LinksOk = Bot->GetBotState().LinksOk - Ft->LinksOkBefore;
 			const bool bEdgeAware = VeloxBotCombatGlue::IsEdgeAware(Ft->World.Get());
+			const int32 ArriveTicks = Bot->GetBotState().PadArriveTicks - Ft->PadArriveTicksBefore;
+			const int32 RecoveryTicks = Bot->GetBotState().AirRecoveryTicks - Ft->RecoveryTicksBefore;
+			if (Ft->bPadKnockPhase)
+			{
+				// H8 ruling 3: knocked sideways in the flight and still on the platform (the arrive wish or, once the hit ended
+				// the link, the airborne recovery steered it back).
+				const bool bOk = bOnPlatform && Ft->bPadKnocked;
+				Ft->PadKnockLanded += bOk ? 1 : 0;
+				UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRecoveryFt test=%s pad_knock_trial=%d result=%s knocked=%d on_platform=%d fell=%d dt=%.2f at=%s start=%s pad_ticks=%d arrive_ticks=%d recovery_ticks=%d links_ok=%d"),
+					Ft->Name, Ft->PadTrial, bOk ? TEXT("landed") : TEXT("missed"), Ft->bPadKnocked ? 1 : 0, bOnPlatform ? 1 : 0, bFell ? 1 : 0, Elapsed, *Feet.ToCompactString(),
+					*Ft->Spot.ToCompactString(), PadTicks, ArriveTicks, RecoveryTicks, LinksOk);
+				if (++Ft->PadTrial < Ft->NumPadKnockTrials)
+				{
+					BeginPadTrial(*Ft, *Pawn);
+					return true;
+				}
+				Ft->Check(Ft->PadKnockLanded >= MinPadKnockLanded, TEXT("pad_knock"), FString::Printf(TEXT("landed=%d of %d (need %d) knocked=%d sideways %.0f cm/s in the pad flight"),
+					Ft->PadKnockLanded, Ft->NumPadKnockTrials, MinPadKnockLanded, Ft->PadKnocksApplied, PadKnockSpeed));
+				return false;
+			}
 			// H7 (the H5 finding fixed): the crossing counts when the bot stands on the platform after an Ok link traversal
 			// (Pad_Gap's JUMP_PAD link, the only link of the map) and the pad discipline held the flight (pad_ticks > 0).
 			const bool bOk = bOnPlatform && LinksOk > 0 && (!bEdgeAware || PadTicks > 0);
 			Ft->PadLanded += bOk ? 1 : 0;
-			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRecoveryFt test=%s pad_trial=%d result=%s on_platform=%d fell=%d dt=%.2f at=%s start=%s pad_ticks=%d links_ok=%d edge_aware=%d"), Ft->Name,
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotRecoveryFt test=%s pad_trial=%d result=%s on_platform=%d fell=%d dt=%.2f at=%s start=%s pad_ticks=%d arrive_ticks=%d links_ok=%d edge_aware=%d"), Ft->Name,
 				Ft->PadTrial, bOk ? TEXT("landed") : TEXT("missed"), bOnPlatform ? 1 : 0, bFell ? 1 : 0, Elapsed, *Feet.ToCompactString(), *Ft->Spot.ToCompactString(), PadTicks,
-				LinksOk, bEdgeAware ? 1 : 0);
+				ArriveTicks, LinksOk, bEdgeAware ? 1 : 0);
 			if (++Ft->PadTrial < Ft->NumPadTrials)
 			{
 				BeginPadTrial(*Ft, *Pawn);
 				return true;
 			}
 			Ft->Check(Ft->PadLanded >= MinPadLanded, TEXT("pad"), FString::Printf(TEXT("landed=%d of %d (need %d) over Pad_Gap's link"), Ft->PadLanded, Ft->NumPadTrials, MinPadLanded));
-			return false;
+			if (Ft->NumPadKnockTrials <= 0)
+			{
+				return false;
+			}
+			Ft->bPadKnockPhase = true;
+			Ft->PadTrial = 0;
+			BeginPadTrial(*Ft, *Pawn);
+			return true;
 		}
 		if (Ft->bLavaAvoid)
 		{
@@ -629,7 +767,11 @@ namespace VeloxBotRecoveryFt
 				Ft->PadTrial = 0;
 				if (Ft->NumPadTrials <= 0)
 				{
-					return false;
+					if (Ft->NumPadKnockTrials <= 0)
+					{
+						return false;
+					}
+					Ft->bPadKnockPhase = true;
 				}
 				BeginPadTrial(*Ft, *Pawn);
 				return true;
@@ -672,6 +814,7 @@ namespace VeloxBotRecoveryFt
 		Ft->Name = Names[static_cast<int32>(Mode)];
 		Ft->NumTrials = bKnockOff ? DefaultTrials : bLavaAvoid ? DefaultAvoidTrials : UE_ARRAY_COUNT(LavaSpots);
 		Ft->NumPadTrials = DefaultPadTrials;
+		Ft->NumPadKnockTrials = DefaultPadKnockTrials;
 		Ft->FirstFightTrial = DefaultAvoidTrials / 2;
 		for (const FString& Arg : Args)
 		{
@@ -692,6 +835,10 @@ namespace VeloxBotRecoveryFt
 			else if (bKnockOff && Arg.StartsWith(TEXT("pads="), ESearchCase::IgnoreCase) && Arg.Split(TEXT("="), nullptr, &Value))
 			{
 				Ft->NumPadTrials = FMath::Max(0, FCString::Atoi(*Value));
+			}
+			else if (bKnockOff && Arg.StartsWith(TEXT("padknocks="), ESearchCase::IgnoreCase) && Arg.Split(TEXT("="), nullptr, &Value))
+			{
+				Ft->NumPadKnockTrials = FMath::Max(0, FCString::Atoi(*Value));
 			}
 		}
 		GRecoveryFt = Ft;
@@ -769,8 +916,9 @@ namespace VeloxBotRecoveryFt
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World) { Command(Args, World, EFtMode::LavaEscape); }));
 
 	FAutoConsoleCommandWithWorldAndArgs KnockCmd(TEXT("velox.bots.FtBotKnockOff"),
-		TEXT("velox.bots.FtBotKnockOff [quit] [trials=N] [pads=N]: FT_BotKnockOff on L_HazardTest: a bot knocked off the platform edge with 300 cm/s lands back in >= 8 of 10 "
-			 "seeded trials (ADR 0008 3.6.3), then crosses Pad_Gap's link onto the platform in >= 8 of 10 seeded starts (H7). Non-shipping."),
+		TEXT("velox.bots.FtBotKnockOff [quit] [trials=N] [pads=N] [padknocks=N]: FT_BotKnockOff on L_HazardTest: a bot knocked off the platform edge with 300 cm/s lands back in >= 8 of 10 "
+			 "seeded trials (ADR 0008 3.6.3), then crosses Pad_Gap's link onto the platform in >= 8 of 10 seeded starts (H7), then lands on it in >= 8 of 10 "
+			 "crossings knocked sideways (300 cm/s) in the pad flight (H8). Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World) { Command(Args, World, EFtMode::KnockOff); }));
 
 	FAutoConsoleCommandWithWorldAndArgs AvoidCmd(TEXT("velox.bots.FtBotLavaAvoid"),

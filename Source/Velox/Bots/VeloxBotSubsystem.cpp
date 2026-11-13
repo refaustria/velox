@@ -5,9 +5,14 @@
 #include "Bots/VeloxBotCombat.h"
 #include "Bots/VeloxBotController.h"
 #include "Bots/VeloxBotDifficulty.h"
+#include "Bots/VeloxBotItemRouting.h"
 #include "Bots/VeloxBotLog.h"
 #include "Bots/VeloxBotSettings.h"
+#include "Bots/VeloxNavAreas.h"
 #include "Bots/VeloxNavLink.h"
+#include "Combat/VeloxHazardVolume.h"
+#include "Components/BoxComponent.h"
+#include "GameFramework/PlayerStart.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -75,6 +80,138 @@ int32 UVeloxBotSubsystem::FindNearestEnd(const TArray<FVector>& Ends, const FVec
 	return Best;
 }
 
+FBox UVeloxBotSubsystem::LavaNavAreaBox(const FBox& VolumeBox, double TopCm)
+{
+	return FBox(VolumeBox.Min, FVector(VolumeBox.Max.X, VolumeBox.Max.Y, VolumeBox.Max.Z + FMath::Max(0.0, TopCm)));
+}
+
+TArray<UBoxComponent*> UVeloxBotSubsystem::GetHazardNavAreas() const
+{
+	TArray<UBoxComponent*> Out;
+	for (const TWeakObjectPtr<UBoxComponent>& Weak : HazardNavAreas)
+	{
+		if (UBoxComponent* Area = Weak.Get())
+		{
+			Out.Add(Area);
+		}
+	}
+	return Out;
+}
+
+void UVeloxBotSubsystem::HandleWorldInitializedActors(const FActorsInitializedParams& Params)
+{
+	if (Params.World == GetWorld())
+	{
+		AddHazardNavAreas();
+	}
+}
+
+void UVeloxBotSubsystem::AddHazardNavAreas()
+{
+	// ADR 0008 G5(b), task M7 H8 (review F1, F12): every Lava volume marks the nav polys inside its own footprint with the
+	// costly (not excluded) UVeloxNavArea_Hazard, bed to HazardNavTopCm above the surface. Created by the bots, not by the
+	// volume (ADR 0008 3.3: the volume knows nothing about bots). Server only (this subsystem exists only there); the runtime
+	// nav (Dynamic) is built after actor initialization, so the modifier is in the first build. A/B: velox.bots.EdgeAware 0.
+	UWorld* World = GetWorld();
+	if (!World || !VeloxBotCombatGlue::IsEdgeAwareEnabled())
+	{
+		return;
+	}
+	const double TopCm = UVeloxBotSettings::Get().HazardNavTopCm;
+	for (TActorIterator<AVeloxHazardVolume> It(World); It; ++It)
+	{
+		AVeloxHazardVolume* Volume = *It;
+		UBoxComponent* Box = Volume ? Volume->GetBox() : nullptr;
+		if (!Box || Volume->GetHazardType() != EVeloxHazardType::Lava ||
+			HazardNavAreas.ContainsByPredicate([Volume](const TWeakObjectPtr<UBoxComponent>& A) { return A.IsValid() && A->GetOwner() == Volume; }))
+		{
+			continue;
+		}
+		// Local space of the volume's box (axis-aligned in every generated map; a rotated box keeps its own footprint too).
+		const FVector Extent = Box->GetUnscaledBoxExtent();
+		const FBox Local = LavaNavAreaBox(FBox(-Extent, Extent), TopCm);
+		UBoxComponent* Area = NewObject<UBoxComponent>(Volume, TEXT("LavaNavArea"));
+		Area->SetupAttachment(Box);
+		Area->SetMobility(EComponentMobility::Static);
+		Area->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Area->SetGenerateOverlapEvents(false);
+		Area->SetHiddenInGame(true);
+		Area->InitBoxExtent(Local.GetExtent());
+		Area->SetRelativeLocation(Local.GetCenter());
+		Area->bDynamicObstacle = true;
+		Area->SetAreaClassOverride(UVeloxNavArea_Hazard::StaticClass());
+		Area->SetCanEverAffectNavigation(true);
+		Area->RegisterComponent();
+		HazardNavAreas.Add(Area);
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxHazardNav volume=%s box=%s"), *Volume->GetName(), *Area->Bounds.GetBox().ToString());
+	}
+}
+
+int32 UVeloxBotSubsystem::CountHazardAreaPoints() const
+{
+	UWorld* World = GetWorld();
+	const ARecastNavMesh* Recast = Cast<ARecastNavMesh>(GetNavData());
+	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+	if (!World || !Recast || !NavSys)
+	{
+		return 0;
+	}
+	const int32 HazardAreaId = Recast->GetAreaID(UVeloxNavArea_Hazard::StaticClass());
+	const FVector Extent = UVeloxBotItemRouter::GetOnMeshExtent();
+	int32 Points = 0;
+	int32 Hazard = 0;
+	auto Check = [&](const TCHAR* Kind, const FString& Name, const FVector& At)
+	{
+		++Points;
+		FNavLocation Projected;
+		if (HazardAreaId < 0 || !NavSys->ProjectPointToNavigation(At, Projected, Extent, Recast) || Projected.NodeRef == INVALID_NAVNODEREF)
+		{
+			return;
+		}
+		if (static_cast<int32>(Recast->GetPolyAreaID(Projected.NodeRef)) == HazardAreaId)
+		{
+			++Hazard;
+			UE_LOG(LogVeloxBots, Warning, TEXT("VeloxNav hazard_area kind=%s name=%s at=%s poly_at=%s: on a lava nav area poly (ADR 0008 G5(c) expects none)"), Kind, *Name,
+				*At.ToCompactString(), *Projected.Location.ToCompactString());
+		}
+	};
+	for (TActorIterator<AVeloxPickup> It(World); It; ++It)
+	{
+		Check(TEXT("pickup"), It->GetName(), It->GetActorLocation());
+	}
+	for (TActorIterator<APlayerStart> It(World); It; ++It)
+	{
+		Check(TEXT("spawn"), It->GetName(), It->GetActorLocation());
+	}
+	for (const AVeloxNavLink* Link : GetNavLinks())
+	{
+		Check(TEXT("link_start"), Link->GetName(), Link->GetStartWorld());
+		Check(TEXT("link_end"), Link->GetName(), Link->GetEndWorld());
+	}
+	// Review F1 check: nav polys inside a lava box (ADR 0008 1.3 makes the bed invisible to navigation, so expect 0).
+	int32 LavaPolys = 0;
+	for (TActorIterator<AVeloxHazardVolume> It(World); It; ++It)
+	{
+		const UBoxComponent* Box = It->GetHazardType() == EVeloxHazardType::Lava ? It->GetBox() : nullptr;
+		if (!Box)
+		{
+			continue;
+		}
+		TArray<FNavPoly> Polys;
+		const FBox VolumeBox = Box->Bounds.GetBox();
+		Recast->GetPolysInBox(VolumeBox, Polys);
+		int32 Inside = 0;
+		for (const FNavPoly& Poly : Polys)
+		{
+			Inside += VolumeBox.IsInsideOrOn(Poly.Center) ? 1 : 0;
+		}
+		LavaPolys += Inside;
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxNav hazard_polys volume=%s polys_in_box=%d touching=%d"), *It->GetName(), Inside, Polys.Num());
+	}
+	UE_LOG(LogVeloxBots, Log, TEXT("VeloxNav hazard_area count=%d points=%d lava_polys=%d areas=%d"), Hazard, Points, LavaPolys, GetHazardNavAreas().Num());
+	return Hazard;
+}
+
 bool UVeloxBotSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
 	if (!Super::ShouldCreateSubsystem(Outer))
@@ -94,6 +231,7 @@ void UVeloxBotSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	WorldInitSeconds = FPlatformTime::Seconds();
+	InitActorsHandle = FWorldDelegates::OnWorldInitializedActors.AddUObject(this, &ThisClass::HandleWorldInitializedActors);
 }
 
 void UVeloxBotSubsystem::Deinitialize()
@@ -108,6 +246,7 @@ void UVeloxBotSubsystem::Deinitialize()
 		}
 	}
 	NavReadyCallbacks.Reset();
+	FWorldDelegates::OnWorldInitializedActors.Remove(InitActorsHandle);
 	FWorldDelegates::OnWorldTickStart.Remove(TickStartHandle);
 	FWorldDelegates::OnWorldPreActorTick.Remove(PreActorHandle);
 	FWorldDelegates::OnWorldPostActorTick.Remove(PostActorHandle);
@@ -288,6 +427,10 @@ void UVeloxBotSubsystem::MarkNavReady()
 					*Link->GetName(), AVeloxNavLink::LinkTypeName(Link->GetLinkType()), SX, SY, EX, EY);
 			}
 		}
+	}
+	if (Recast)
+	{
+		CountHazardAreaPoints();
 	}
 	if (RelevantTriggers > 0)
 	{

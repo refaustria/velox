@@ -157,6 +157,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "cm"))
 	float EdgeProbeCm = 150.f;
 
+	/**
+	 * ADR 0008 G2, task M7 H8 (review F6): horizontal half extent of the edge probe's nav projection (cm). The agent radius:
+	 * the mesh is eroded by it, so "projects" means "the capsule centre is over floor". GetOnMeshExtent's 100 accepted
+	 * points about 55 cm past a ledge. The vertical half extent is OnMeshHalfHeightCm.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "1.0", Units = "cm"))
+	float EdgeProbeProjectRadiusCm = 45.f;
+
 	/** 3.6.1: the edge probe starts where the current horizontal velocity carries the bot in this time (s). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "s"))
 	float EdgeProbeLookaheadSeconds = 0.25f;
@@ -167,9 +175,10 @@ public:
 
 	/**
 	 * ADR 0008 3.6.2 hop landing guard (extends D18; only on maps with a hazard volume): on the ground a hop (path bunny
-	 * hop or overlay dodge jump) is refused when Feet + Velocity2D x (the bot's own hop air time + this) does not project
-	 * onto the nav mesh within (HopLandingProjectRadiusCm, HopLandingProjectRadiusCm, OnMeshHalfHeightCm) (s; the slack
-	 * covers the air-strafe gain of the hop).
+	 * hop or overlay dodge jump) is refused when there is no ground under Feet + Velocity2D x (the bot's own hop air time +
+	 * this) within the slope window (H8, VeloxBotCombat::HopGroundWindow), or that ground does not project onto the nav
+	 * mesh within (HopLandingProjectRadiusCm, HopLandingProjectRadiusCm, HopLandingProjectHalfHeightCm), or is lava (s; the
+	 * slack covers the air-strafe gain of the hop). The verdict is cached EdgeProbeCheckSeconds per grounded stretch.
 	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "s"))
 	float HopLandingSlackSeconds = 0.1f;
@@ -183,16 +192,28 @@ public:
 	float HopLandingProjectRadiusCm = 20.f;
 
 	/**
-	 * Task M7 H7 lava avoidance: every Lava AVeloxHazardVolume marks the nav polys inside its box grown by this much
-	 * horizontally with UVeloxNavArea_Hazard (paths keep this far off the channel rim; the floor mesh at a ledge is only eroded
-	 * by the agent radius, 45) (cm). Applied at load when velox.bots.EdgeAware is on (A/B: -dpcvars=velox.bots.EdgeAware=0).
+	 * H8 (review F5): vertical half extent of the landing projection around the ground found under the landing (cm). The
+	 * ground is found by a trace first, so this only bridges nav poly height (cell height, step) above the surface.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "1.0", Units = "cm"))
+	float HopLandingProjectHalfHeightCm = 50.f;
+
+	/**
+	 * H8 (review F4): a cached hop landing verdict is reused only while the predicted landing is within this distance of the
+	 * landing it was computed for (cm; the projection radius plus a margin: a strafe flip moves it by metres).
 	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "cm"))
-	float HazardNavPaddingCm = 100.f;
+	float HopLandingRecheckCm = 30.f;
 
-	/** H7: the hazard nav modifier reaches this far below the volume (the bed's polys sit on its bottom) and above it (the rim, cm). */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "cm"))
-	float HazardNavPaddingZCm = 80.f;
+	/**
+	 * Lava avoidance (ADR 0008 G5(b), tasks M7 H7 / H8): UVeloxBotSubsystem marks the nav polys inside every Lava volume's own
+	 * footprint (no horizontal padding: H8 review F1, a padded area swallowed Fornax's slag bridge and every lava-hop link end)
+	 * with UVeloxNavArea_Hazard, from the bed up to this far above the lava surface. Below the generator's 20 cm minimum drop
+	 * from a rim to the surface, so no rim or bridge poly is marked (cm). Applied at load when velox.bots.EdgeAware is on
+	 * (A/B: -dpcvars=velox.bots.EdgeAware=0).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", ClampMax = "19.0", Units = "cm"))
+	float HazardNavTopCm = 10.f;
 
 	/**
 	 * H7: the edge probe and the hop landing guard trace this far down from the probe point (WorldStatic) and reject it when

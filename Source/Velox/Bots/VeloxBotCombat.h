@@ -13,6 +13,7 @@
 #include "Bots/VeloxAimModel.h"
 #include "Bots/VeloxBotTypes.h"
 #include "Engine/DeveloperSettings.h"
+#include "GameplayTagContainer.h"
 #include "Math/RandomStream.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -327,6 +328,20 @@ namespace VeloxBotCombat
 	/** ADR 0008 3.6.2 landing point of a hop taken now: Feet + Velocity2D x AirSeconds (Z = Feet.Z). */
 	VELOX_API FVector HopLandingPoint(const FVector& Feet, const FVector2D& Velocity2D, float AirSeconds);
 
+	/**
+	 * ADR 0008 G2, task M7 H8 (review F5): the vertical window in which the ground under a hop's landing is searched. The
+	 * landing (at the take-off height LandingZ, Distance2D away) is traced down from LandingZ + ApexCm (ground up a ramp)
+	 * to LandingZ - Distance2D x tan(walkable slope) (ground down a chute); WalkableFloorZ is the movement's walkable floor
+	 * normal Z (cos of the steepest walkable slope). Out: TopZ > BottomZ.
+	 */
+	VELOX_API void HopGroundWindow(double LandingZ, float ApexCm, float Distance2D, float WalkableFloorZ, double& OutTopZ, double& OutBottomZ);
+
+	/**
+	 * ADR 0008 G7 / D55, task M7 H8 (review F8): a damage event the bot "hears" (turns to its instigator). Hazard damage is
+	 * not: a credited lava tick names the attacker as instigator without that attacker having fired.
+	 */
+	VELOX_API bool IsHeardDamage(const FGameplayTagContainer& DamageTags);
+
 	/** True with probability ChancePerSecond x Dt (clamped to [0, 1]). */
 	VELOX_API bool RollChance(float ChancePerSecond, float Dt, FRandomStream& Stream);
 }
@@ -419,6 +434,12 @@ struct FVeloxBotCombatState
 	 */
 	bool bEdgeHazardBack = false;
 	int32 EdgeHazardBackCount = 0;
+	/**
+	 * Task M7 H8 (review F7): the reversed wish of a hazard back-off probed unsafe too (lava or a ledge behind): the overlay
+	 * writes no wish (the path wish stays); cached with the edge probe.
+	 */
+	bool bEdgeNoWish = false;
+	int32 EdgeNoWishCount = 0;
 
 	double NextWeaponChoiceTime = -1.0;
 	EVeloxFireVerdict LastVerdict = EVeloxFireVerdict::NoTarget;
@@ -440,8 +461,25 @@ namespace VeloxBotCombatGlue
 	 */
 	VELOX_API bool IsEdgeAware(const UWorld* World);
 
+	/** velox.bots.EdgeAware is not 0 (the cvar alone; for setup that runs before the hazard volumes registered). */
+	VELOX_API bool IsEdgeAwareEnabled();
+
 	/** ADR 0008 3.6.1/2: Point projects onto the bot's nav data within Extent (bot's filter) at a point outside every hazard volume (H7); true without nav data. */
 	VELOX_API bool ProjectsOntoNav(const AVeloxBotController& Bot, const FVector& Point, const FVector& Extent, bool* bOutHazard = nullptr);
+
+	/**
+	 * ADR 0008 G2, task M7 H8 (review F5): the ground under a hop landing Landing (at the take-off height, Distance2D from the
+	 * take-off): one Pawn-channel trace (pawns ignored) over VeloxBotCombat::HopGroundWindow. False when there is no ground in
+	 * the window (void, a pit deeper than the walkable gradient).
+	 */
+	VELOX_API bool FindHopLandingGround(const AVeloxBotController& Bot, const FVector& Landing, float ApexCm, float Distance2D, float WalkableFloorZ, FVector& OutGround);
+
+	/**
+	 * 3.6.2 hop landing test (guard and own-hop landing): ground found in the window (FindHopLandingGround) and the ground
+	 * projects onto nav outside lava (ProjectsOntoNav, HopLandingProjectRadiusCm x HopLandingProjectHalfHeightCm).
+	 * bOutHazard: the landing's ground is lava.
+	 */
+	VELOX_API bool HopLandsSafely(const AVeloxBotController& Bot, const FVector& Landing, float ApexCm, float Distance2D, float WalkableFloorZ, bool* bOutHazard = nullptr);
 
 	/** Perceive phase: (re)binds the damage hearing per life, then every PerceptionIntervalSeconds (staggered by BotIndex) updates the enemy memory, the target and the projectile threat. */
 	VELOX_API void Perceive(AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, float Dt);

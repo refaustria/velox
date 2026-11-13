@@ -45,7 +45,7 @@ Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b] [--dm1-map NAME] 
 Runs, in order: FtItemPickup (L_ItemTest), FtNavigation (L_ItemTest), FtStrafeCorridor (L_MovementTest),
 FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (${DM1_MAP}, FT_Map_Reachability via the old command name),
 FtHazard (L_HazardTest, FT_Hazard: ADR 0008 3.7), FtBotEdge (L_HazardTest, FT_BotEdge: ADR 0008 3.6.1/2, 60 s fight),
-FtBotLavaEscape (L_HazardTest, FT_BotLavaEscape: ADR 0008 3.6.4), FtBotKnockOff (L_HazardTest, FT_BotKnockOff: ADR 0008 3.6.3, 10 trials + 10 pad crossings),
+FtBotLavaEscape (L_HazardTest, FT_BotLavaEscape: ADR 0008 3.6.4), FtBotKnockOff (L_HazardTest, FT_BotKnockOff: ADR 0008 3.6.3, 10 trials + 10 pad crossings + 10 pad crossings knocked sideways in the flight, M7 H8),
 FtBotLavaAvoid (L_HazardTest, FT_BotLavaAvoid: task M7 H7, 8 routes across the lava channel + 8 fights beside it, 0 lava entries),
 each as
   UnrealEditor-Cmd Velox.uproject <map> -game -nullrhi -unattended -nosound -UseFixedTimeStep -FPS=60 -log
