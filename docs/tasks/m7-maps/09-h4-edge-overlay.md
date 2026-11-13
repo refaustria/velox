@@ -54,6 +54,16 @@ dev-hard, 2026-11-13, branch `wip/m7-09-h4-edge-overlay` (base origin/m7-maps), 
   to the platform centre (strafe 250), 60 s, no death, target visible >= 50 %, shots > 0, probes > 0.
   Seeds 1/2/3: PASS, 0 deaths, probes 601, mirror 110/116/99, drop 14/12/16, hops refused 152/150/143, min edge -18/5/5 cm.
   A/B `velox.bots.EdgeAware 0`: void death at 1.7/1.1/1.1 s on all three seeds.
+- Verification (soak lock; raw logs /mnt/oldroot/velox-scratch/m7-h4/): `build.sh --targets VeloxEditor,Velox` green, automation
+  143/143; `fts.sh` OK 10/10 incl. FtBotEdge; `create_map.py --map dm1 --golden check` OK.
+  BotRun x 3 on L_DM1_Blockout (bands L_DM1): set PASS (behaviour PASS, cost PASS; r3 slow throughout, cost n/j), stuck 0,
+  left_arena none, world_kills 0. Default nettest list (18 scripts) once: 16/18 PASS; BotRun and BotDuel (L_ItemTest) FAIL on
+  D47 cost windows only (early windows 1-3, frame_other_ref ~2000 us vs 837-1187 on a quiet host, load 3-9 from other work),
+  behaviour clean. BotRun/BotDuel x 3 follow-up (M6-07 rule): BotRun behaviour PASS / cost FAIL; BotDuel cost FAIL and
+  JumpPad 29/33 = 87.9 % (the known marginal pad, cf. M6-02 G4 35/39). A/B with the base sources (origin/m7-maps) on the same
+  host, BotRun/BotDuel x 2: base BotDuel r2 also cost FAIL (windows 2,3,14,20 at frame_other_ref 1993 us), so the cost windows
+  are the host; per-category bot costs scale uniformly (overlay/perceive 0.41-0.49 in both builds). Off hazard maps the H4 code
+  is decision-identical to the base (IsEdgeAware false -> same wish, same jump).
 - Out of scope, noticed: after a death the bot respawns on the main floor and walked into the lava channel twice in one run
   (H5 hazard escape / nav cost of lava are not H4).
 
