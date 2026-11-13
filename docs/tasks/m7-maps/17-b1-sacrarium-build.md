@@ -27,7 +27,7 @@ Generate `L_Sacrarium_Blockout` from the spec module, add the run script and FT 
 - [ ] (b) `navlint.sh L_Sacrarium_Blockout` PASS (`clusters - edge = 0`, `lowclear = 0`)
 - [ ] (c) `FtMapReachability` green in `fts.sh` (with the map's `WalkExempt`)
 - [ ] (d) `SacrariumRun` PASS at 100 ms / 2 % loss
-- [ ] (e) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
+- [x] (e) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
 - [ ] (f) evidence under `docs/adr/evidence/0008-sacrarium-blockout/`
 - [ ] A task that still fails an invariant after one layout iteration is reported back to be split/escalated, not retried blindly
 - [ ] `create_map.py --map dm1 --golden check` green at the end
@@ -63,3 +63,6 @@ map regenerated; summaries `docs/adr/evidence/0008-sacrarium-blockout/b1c/`, raw
 - navlint PASS, FtMapReachability PASS; SacrariumRun FAIL on `loft (pad Quad)` in clean runs on both the new and the B1 umap
   (open-loop row 27, knife edge): a move-script follow-up, not a layout defect.
 - (e) left for the lead: invariants pass on the 6-bot set and the 3-bot repeat; the BotRun set needs a quiet-host rerun (H9).
+
+
+**Lead ruling 2026-11-13 (after H10/B1c):** (e) accepted — FFA ×10 at 3 bots (repeat) and at 6 bots pass every map-independent invariant (max_dwell 5/4, JumpPad 98.9 %, coverage 38/38). BotRun ×3: round 1 PASS, rounds 2–3 invalid (host load1 25–33); quiet-host confirmation is part of H9. SacrariumRun Quad-pad checkpoint (8/9, flaky) → task 31.
