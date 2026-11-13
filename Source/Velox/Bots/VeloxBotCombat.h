@@ -20,6 +20,7 @@
 
 class AVeloxBotController;
 class AVeloxCharacter;
+class UWorld;
 struct FVeloxBotInput;
 struct FVeloxBotNavOutput;
 
@@ -251,6 +252,22 @@ struct FVeloxCombatWishInput
 	/** Projectile dodge: the lateral component becomes DodgeDir (unit) at full weight. */
 	bool bDodge = false;
 	FVector2D DodgeDir = FVector2D::ZeroVector;
+	/**
+	 * ADR 0008 3.6.1 edge fallback: no lateral (strafe or dodge) and no retreat component; closing in and the blended
+	 * path stay.
+	 */
+	bool bNoLateralOrRetreat = false;
+};
+
+/** ADR 0008 3.6.1: what the edge-aware overlay does with this tick's combat wish. */
+enum class EVeloxEdgeChoice : uint8
+{
+	/** The wish's probe is on the nav mesh. */
+	Keep,
+	/** Only the mirrored lateral's probe is: strafe (or dodge) to the other side. */
+	Mirror,
+	/** Neither: drop the lateral and retreat components (the path wish remains). */
+	Drop,
 };
 
 struct FVeloxProjectileThreat
@@ -300,6 +317,15 @@ namespace VeloxBotCombat
 	 * HorizonSeconds is closer than DangerRadiusCm. AwayDir is perpendicular to the velocity, away from the line.
 	 */
 	VELOX_API FVeloxProjectileThreat ProjectileThreat(const FVector& Location, const FVector& Velocity, const FVector& Point, float DangerRadiusCm, float HorizonSeconds);
+
+	/** ADR 0008 3.6.1 probe point: Feet + Velocity2D x LookaheadSeconds + Wish x ProbeCm (Wish unit or zero; Z = Feet.Z). */
+	VELOX_API FVector EdgeProbePoint(const FVector& Feet, const FVector2D& Velocity2D, const FVector2D& Wish, float LookaheadSeconds, float ProbeCm);
+
+	/** ADR 0008 3.6.1 decision: Keep if the wish's probe is on nav, else Mirror if the mirrored one's is, else Drop. */
+	VELOX_API EVeloxEdgeChoice ChooseEdgeWish(bool bWishOnNav, bool bMirrorOnNav);
+
+	/** ADR 0008 3.6.2 landing point of a hop taken now: Feet + Velocity2D x AirSeconds (Z = Feet.Z). */
+	VELOX_API FVector HopLandingPoint(const FVector& Feet, const FVector2D& Velocity2D, float AirSeconds);
 
 	/** True with probability ChancePerSecond x Dt (clamped to [0, 1]). */
 	VELOX_API bool RollChance(float ChancePerSecond, float Dt, FRandomStream& Stream);
@@ -379,6 +405,14 @@ struct FVeloxBotCombatState
 	int32 HeardCount = 0;
 	int32 DodgeCount = 0;
 
+	/** ADR 0008 3.6.1: next edge probe time and the cached verdict (Keep or Drop; a Mirror flips StrafeSign / the dodge once). */
+	double NextEdgeProbeTime = -1.0;
+	bool bEdgeDrop = false;
+	/** 3.6.1 counters (FtBotEdge, debug line): probes run, mirrors, drops. */
+	int32 EdgeProbeCount = 0;
+	int32 EdgeMirrorCount = 0;
+	int32 EdgeDropCount = 0;
+
 	double NextWeaponChoiceTime = -1.0;
 	EVeloxFireVerdict LastVerdict = EVeloxFireVerdict::NoTarget;
 	/** D50: the fire rule's own verdict last tick was Fire / FireHeld (after the rocket-jump suppression, before maneuver fire). */
@@ -393,6 +427,15 @@ struct FVeloxBotCombatState
 
 namespace VeloxBotCombatGlue
 {
+	/**
+	 * ADR 0008 3.6: the edge and hazard behaviours run in this world: it has a hazard volume
+	 * (UVeloxHazardSubsystem::HasHazards) and velox.bots.EdgeAware is not 0 (A/B switch for the tests).
+	 */
+	VELOX_API bool IsEdgeAware(const UWorld* World);
+
+	/** ADR 0008 3.6.1/2: Point projects onto the bot's nav data within Extent (bot's filter); true without nav data. */
+	VELOX_API bool ProjectsOntoNav(const AVeloxBotController& Bot, const FVector& Point, const FVector& Extent);
+
 	/** Perceive phase: (re)binds the damage hearing per life, then every PerceptionIntervalSeconds (staggered by BotIndex) updates the enemy memory, the target and the projectile threat. */
 	VELOX_API void Perceive(AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, float Dt);
 

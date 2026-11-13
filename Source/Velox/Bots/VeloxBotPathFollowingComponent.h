@@ -141,6 +141,18 @@ public:
 	 */
 	bool HasHopHeadroom(double Now);
 
+	/**
+	 * ADR 0008 3.6.2 hop landing guard (extends D18): on a map with a hazard volume (VeloxBotCombatGlue::IsEdgeAware), a
+	 * hop taken from the ground now is refused when its landing point, Feet + Velocity2D x (the bot's own hop air time +
+	 * UVeloxBotSettings::HopLandingSlackSeconds), does not project onto the nav mesh. True in the air (the take-off tick
+	 * decides), off hazard maps, and without a pawn. Uncached: one projection per grounded tick that wants a hop.
+	 * Public for the overlay's dodge jump.
+	 */
+	bool HasHopLanding();
+
+	/** Hops refused by the landing guard (ticks; FtBotEdge, diagnostics). */
+	int32 GetHopLandingBlockedTicks() const { return HopLandingBlockedTicks; }
+
 	/** D35: the last line-of-walk check of the current plain segment found it blocked (cleared on a new segment / path). */
 	bool IsSegmentBlockedNow() const { return bSegmentBlocked; }
 	/** D35: details of the last blocked check (valid once a check was blocked). */
@@ -213,6 +225,7 @@ private:
 	double NextHopHeadroomCheckTime = -1.0;
 	bool bHopHeadroomClear = true;
 	int32 HopHeadroomBlockedTicks = 0;
+	int32 HopLandingBlockedTicks = 0;
 
 	double NextSegmentBlockCheckTime = -1.0;
 	bool bSegmentBlocked = false;
