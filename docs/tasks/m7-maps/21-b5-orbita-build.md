@@ -42,3 +42,12 @@ Standard format (result, what changed, verification, open issues). Note explicit
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+### B5 (dev-hard, 2026-11-13, branch `wip/m7-21-b5-orbita`)
+Summary in `docs/adr/evidence/0008-orbita-blockout/README.md`. (a) PASS, (b) PASS (bring-up: FILL_NAV_KINDS platform/wall, K1/K2/HO_Rack2
+moved, five clip caps), (d) OrbitaRun PASS 12/12 (every pad idle and forward held), two-client check 12/12 + 12/12 with 2 / 0
+corrections (max 1.75 cm). (c) FAIL and (e) FAIL: 5 of 6 pad links span 2-4 nav tiles (`VeloxNav link_span`, TileSizeUU 1000) and never
+connect, so Scopulus is unreachable for bots and only P3 is ever used; hazard_death_self 182 over FFA x10 at 4 (gate 10) and
+10/19/22 per BotDuel round (gate 2), credited 96 / 14; G1 JUMP gap 5 ok vs 137 aborted (H11). Layout iteration not spent (no
+layout cause). Out-of-scope edits: `infra/ci/nettest.sh` (OrbitaRun map + per-launch judging), `Tools/editor/mapgen.py`
+(`expected_counts` without `clip: 0`). Follow-ups: per-map nav tile size or split pad links (bot/nav), bot edge falls on 400 cm decks.

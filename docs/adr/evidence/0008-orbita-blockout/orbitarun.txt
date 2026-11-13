@@ -1,0 +1,31 @@
+OrbitaRun          moves=9138  C=1   echoes=1   gaps=50  repaired=108 repaired_extra=32  resent=4637  resent_extra=4630 strays_le_2_5=0  max=6.98   mean=6.98  PASS  Lexp=182.8 pads=['VeloxJumpPad_0#1', 'VeloxJumpPad_0#2', 'VeloxJumpPad_1#1', 'VeloxJumpPad_1#2', 'VeloxJumpPad_2#1', 'VeloxJumpPad_2#2', 'VeloxJumpPad_3#1', 'VeloxJumpPad_3#2', 'VeloxJumpPad_4#1', 'VeloxJumpPad_4#2', 'VeloxJumpPad_5#1', 'VeloxJumpPad_5#2'] replays=6 acks_ignored=0 rpcs=4651  VeloxAnomaly at=logout pid=256 shots=0(+0) switches=1(+0) rejects{} snaps=0(+0) clamps=0(+0) late_retargets=0(+0) fresh_retargets=0(+0) orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00 reject_share=0.00 rtt_ms=226 player=Player
+Rounds passed: 1/1 (requested 1)
+[ci] NET SOAK OK
+LogVeloxNet: VeloxScript: check 'Trabs node (P1) lap1 idle' PASS st=5.431 pos=V(X=3833.14, Y=-75.46, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Hortus (P6) lap1 idle' PASS st=12.487 pos=V(X=139.15, Y=3383.53, Z=-247.85) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Specula (P4) lap1 idle' PASS st=19.311 pos=V(X=114.85, Y=-211.77, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Armamentarium (P5) lap1 idle' PASS st=33.647 pos=V(X=-3789.75, Y=-184.18, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Scopulus (P2) lap1 idle' PASS st=41.898 pos=V(X=-2386.47, Y=3262.43, Z=232.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Nucleus north-west (P3) lap1 idle' PASS st=48.736 pos=V(X=-1294.33, Y=1272.25, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Trabs node (P1) lap2 fwd' PASS st=59.451 pos=V(X=3751.24, Y=61.91, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Hortus (P6) lap2 fwd' PASS st=67.305 pos=V(X=111.03, Y=3385.81, Z=-247.85) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Specula (P4) lap2 fwd' PASS st=74.938 pos=V(X=113.26, Y=-212.50, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Armamentarium (P5) lap2 fwd' PASS st=90.068 pos=V(X=-3786.51, Y=-183.24, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Scopulus (P2) lap2 fwd' PASS st=99.112 pos=V(X=-2381.65, Y=3262.51, Z=232.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxScript: check 'Nucleus north-west (P3) lap2 fwd' PASS st=106.753 pos=V(X=-1297.45, Y=1270.33, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+LogVeloxNet: VeloxNetSoak: script=OrbitaRun moves=9138 corrections=2 max=6.98 mean=3.49 checks=12/12 peak2d=2499.8 peak_t=8.160 result=PASS reason=-
+== Saved/CI/20261113-141248-3496629/nettest/OrbitaRun-client.log
+  total corrections 2 max 6.98
+  VeloxJumpPad_0               t=   2.75 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_5               t=   8.15 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_3               t=  12.51 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_4               t=  24.80 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_1               t=  30.63 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_2               t=  35.08 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_0               t=  44.04 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_5               t=  49.25 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_3               t=  53.38 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_4               t=  65.46 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_1               t=  71.09 corrections_in_flight=0 max=0.00
+  VeloxJumpPad_2               t=  75.33 corrections_in_flight=0 max=0.00
+  script=OrbitaRun moves=9138 corrections=2 max=6.98 mean=3.49 checks=12/12 peak2d=2499.8 peak_t=8.160 result=PASS reason=-
