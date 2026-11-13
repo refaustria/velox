@@ -29,6 +29,7 @@ FTS=(
   "FtDm1Reachability|@DM1|velox.bots.FtDm1Reachability"   # the alias of FtMapReachability (ADR 0008 1.6)
   "FtHazard|L_HazardTest|velox.combat.FtHazard"
   "FtMapReachability-L_Sacrarium_Blockout|L_Sacrarium_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Weapon_Railgun"   # M7 B1 (ADR 0008 5.3 c); the Railgun sits on the loft (pads / rocket jumps only)
+  "FtMapReachability-L_Nemus_Blockout|L_Nemus_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Weapon_Railgun"   # M7 B2 (ADR 0008 5.3 c); the Railgun sits on the Corona (pad P4 / rocket jumps only)
   "FtBotEdge|L_HazardTest|velox.bots.FtBotEdge"
   "FtBotLavaEscape|L_HazardTest|velox.bots.FtBotLavaEscape"
   "FtBotKnockOff|L_HazardTest|velox.bots.FtBotKnockOff"

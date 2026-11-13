@@ -1,0 +1,2 @@
+[navlint] L_Nemus_Blockout walkable_m2=3652.50 covered_pct=99.93 clusters=0 (walkin=0 isolated=0 edge=0) lowclear=1 hazard_m2=0.00 result=FAIL
+[navlint]   lowclear_poly i=0 center=(722,-2508,398) headroom=0 inside=1 actor=Hump3_Dn layout=Hump3_Dn
