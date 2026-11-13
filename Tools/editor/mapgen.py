@@ -303,6 +303,33 @@ def octs(L):
     return list(getattr(L, "OCTS", None) or ())
 
 
+# ---------------------------------------------------------------- M7 H12: per-map nav tile size
+DEFAULT_NAV_TILE_SIZE_UU = 1000.0   # Config/DefaultEngine.ini [/Script/NavigationSystem.RecastNavMesh] TileSizeUU
+NAV_LINK_SNAP_RADIUS = 60.0         # AVeloxNavLink::LinkSnapRadius (both ends snap within it)
+
+
+def nav_tile_size(L):
+    """The spec module's NAV_TILE_SIZE_UU, or None (the project default, no RecastNavMesh actor in the map: DM1 / Sacrarium / Nemus)."""
+    return getattr(L, "NAV_TILE_SIZE_UU", None)
+
+
+def nav_link_tile_span(L, k):
+    """Chebyshev distance in nav tiles between a link's start and end, the closest pair over both snap discs (the runtime
+    `VeloxNav link_span` judgement, UVeloxBotSubsystem::MarkNavReady). Detour connects an off-mesh link only when it is <= 1
+    (dtNavMesh::connectExtOffMeshLinks: the end must lie in the start's tile or one of its 8 neighbours). Tiles start at the origin of Recast's
+    axes (x_r = -x, z_r = -y, as ARecastNavMesh::GetNavMeshTileXY reports them)."""
+    t = float(nav_tile_size(L) or DEFAULT_NAV_TILE_SIZE_UU)
+    r = NAV_LINK_SNAP_RADIUS
+    offs = ((0.0, 0.0), (r, 0.0), (-r, 0.0), (0.0, r), (0.0, -r))
+    best = None
+    for a in offs:
+        for b in offs:
+            d = max(abs(math.floor(-(k.start[0] + a[0]) / t) - math.floor(-(k.end[0] + b[0]) / t)),
+                    abs(math.floor(-(k.start[1] + a[1]) / t) - math.floor(-(k.end[1] + b[1]) / t)))
+            best = d if best is None else min(best, d)
+    return best
+
+
 def hazards(L):
     return list(getattr(L, "HAZARDS", None) or ())
 
@@ -905,6 +932,12 @@ def validate_layout(L):
                 bad.append(f"{k.id}: unknown pad {k.pad}")
             elif math.hypot(k.end[0] - p.land[0], k.end[1] - p.land[1]) > 60.0 or abs(k.end[2] - p.land[2]) > 30.0:
                 bad.append(f"{k.id}: link end {k.end} is more than 60 cm from the pad landing {p.land}")
+    # M7 H12: a link Detour would never connect (ends more than one nav tile apart; NAV_TILE_SIZE_UU raises the tile)
+    for k in L.LINKS:
+        span = nav_link_tile_span(L, k)
+        if span > 1:
+            bad.append(f"{k.id}: link ends are {span} nav tiles apart at TileSizeUU {nav_tile_size(L) or DEFAULT_NAV_TILE_SIZE_UU:.0f}"
+                       " (Detour connects a link only within one tile; set NAV_TILE_SIZE_UU)")
     # link ends on ground (hard on every map) and drop rule E3 (d)
     for k in L.LINKS:
         for what, pt in (("start", k.start), ("end", k.end)):
@@ -1400,6 +1433,8 @@ def expected_counts(L):
         exp[o.kind] = exp.get(o.kind, 0) + 4
     if hazards(L):
         exp["hazardvolume"] = len(hazards(L))      # AVeloxHazardVolume actors (veloxmap.hazard(), task H2)
+    if nav_tile_size(L):
+        exp["navdata"] = 1                         # the RecastNavMesh actor carrying NAV_TILE_SIZE_UU (veloxmap.nav_data(), task H12)
     return exp
 
 
@@ -1416,6 +1451,8 @@ def build_map(L):
     spawn_starts_and_camera(L)
     vm.static_sun_and_sky()
     vm.nav_bounds(L.NAV_CENTER, L.NAV_SIZE)
+    if nav_tile_size(L):
+        vm.nav_data(nav_tile_size(L))
     vm.set_kill_z(L.KILL_Z)
     set_game_mode()
     vm.check_pads()
@@ -1498,6 +1535,8 @@ def build_art_map(L):
     spawn_kit(plan)
     spawn_lighting(L)
     vm.nav_bounds(L.NAV_CENTER, L.NAV_SIZE)
+    if nav_tile_size(L):
+        vm.nav_data(nav_tile_size(L))
     vm.set_kill_z(L.KILL_Z)
     set_game_mode()
     vm.check_pads()
