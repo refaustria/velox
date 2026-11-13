@@ -2523,4 +2523,193 @@ namespace VeloxBotCombatEventsFt
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
 }
 
+// ------------------------------------------------------------------------------------------ FT_BotTargetIdentity (task M7 H10)
+//   velox.bots.FtBotTargets   L_CombatTest (-game -nullrhi -UseFixedTimeStep -FPS=60): three bots get distinct, non-zero
+//                             PlayerIds; the watcher (Hard, forced point goal on its spot, facing +X) has one enemy in
+//                             sight at (-100, -300) and a second one hidden behind Cover_03 (x 400..600, y 100..500, 200
+//                             high) at (1000, 300), both frozen. Pass: over 1.5 s the watcher's target is visible on >= 30
+//                             ticks and is the visible enemy on every one of them (never the hidden one). A/B: with
+//                             PlayerId 0 for every bot (the pre-H10 state) the combat memory, keyed by PlayerId, merges
+//                             both enemies into one visible record whose pawn is the last one iterated (the hidden one).
+namespace VeloxBotTargetsFt
+{
+	const FVector WatcherSpot(-600.0, 300.0, 0.0);
+	const FVector SeenSpot(-100.0, -300.0, 0.0);
+	const FVector HiddenSpot(1000.0, 300.0, 0.0);
+	constexpr double SettleSeconds = 0.3;
+	constexpr double ObserveSeconds = 1.5;
+	constexpr int32 MinVisibleTicks = 30;
+
+	struct FTargetsFt : VeloxBotFt::FFtBase
+	{
+		TWeakObjectPtr<AVeloxBotController> Seen;
+		TWeakObjectPtr<AVeloxBotController> Hidden;
+		double Start = 0.0;
+		int32 VisibleTicks = 0;
+		int32 SeenTicks = 0;
+		int32 HiddenTicks = 0;
+		int32 OtherTicks = 0;
+	};
+
+	int32 IdOf(const AController* Controller)
+	{
+		return Controller && Controller->PlayerState ? Controller->PlayerState->GetPlayerId() : 0;
+	}
+
+	bool Setup(const TSharedRef<FTargetsFt>& Ft)
+	{
+		UWorld* World = Ft->World.Get();
+		UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+		if (!Bots)
+		{
+			return false;
+		}
+		// Add order = PlayerArray order: watcher, seen, hidden (the hidden one is iterated last).
+		AVeloxBotController* Watcher = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Hard")), TEXT("FtWatcher"));
+		AVeloxBotController* Seen = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Easy")), TEXT("FtSeen"));
+		AVeloxBotController* Hidden = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Easy")), TEXT("FtHidden"));
+		AVeloxCharacter* WatcherPawn = Watcher ? Cast<AVeloxCharacter>(Watcher->GetPawn()) : nullptr;
+		AVeloxCharacter* SeenPawn = Seen ? Cast<AVeloxCharacter>(Seen->GetPawn()) : nullptr;
+		AVeloxCharacter* HiddenPawn = Hidden ? Cast<AVeloxCharacter>(Hidden->GetPawn()) : nullptr;
+		if (!WatcherPawn || !SeenPawn || !HiddenPawn)
+		{
+			Ft->Check(false, TEXT("setup"), FString::Printf(TEXT("watcher=%s seen=%s hidden=%s"), *GetNameSafe(Watcher), *GetNameSafe(Seen), *GetNameSafe(Hidden)));
+			return false;
+		}
+		const int32 IdW = IdOf(Watcher);
+		const int32 IdS = IdOf(Seen);
+		const int32 IdH = IdOf(Hidden);
+		Ft->Check(IdW != 0 && IdS != 0 && IdH != 0 && IdW != IdS && IdW != IdH && IdS != IdH, TEXT("player_ids"),
+			FString::Printf(TEXT("watcher=%d seen=%d hidden=%d"), IdW, IdS, IdH));
+		Ft->Bot = Watcher;
+		Ft->Seen = Seen;
+		Ft->Hidden = Hidden;
+		Seen->SetFrozen(true);
+		Hidden->SetFrozen(true);
+		VeloxBotFt::PlaceAtStart(*SeenPawn, SeenSpot);
+		VeloxBotFt::PlaceAtStart(*HiddenPawn, HiddenSpot);
+		VeloxBotFt::PlaceAtStart(*WatcherPawn, WatcherSpot);
+		// The bot's aim starts at the pawn yaw on possession (OnPossess): re-possess so it faces +X (both enemies inside
+		// the 130 degree perception cone) whatever PlayerStart it spawned on.
+		Watcher->UnPossess();
+		Watcher->Possess(WatcherPawn);
+		Watcher->SetForcedPointGoal(WatcherSpot);
+		Ft->Start = Ft->Now();
+		return true;
+	}
+
+	bool Tick(const TSharedRef<FTargetsFt>& Ft)
+	{
+		const AVeloxBotController* Watcher = Ft->Bot.Get();
+		const AVeloxBotController* Seen = Ft->Seen.Get();
+		const AVeloxBotController* Hidden = Ft->Hidden.Get();
+		if (!Watcher || !Seen || !Hidden)
+		{
+			Ft->Check(false, TEXT("bots"), TEXT("a bot left"));
+			return false;
+		}
+		const double Since = Ft->Now() - Ft->Start;
+		if (Since < SettleSeconds)
+		{
+			return true;
+		}
+		const FVeloxBotEnemyInfo* Target = Watcher->GetCombatState().GetTarget();
+		if (Target && Target->bVisible)
+		{
+			const APawn* TargetPawn = Target->Pawn.Get();
+			++Ft->VisibleTicks;
+			if (TargetPawn && TargetPawn == Seen->GetPawn())
+			{
+				++Ft->SeenTicks;
+			}
+			else if (TargetPawn && TargetPawn == Hidden->GetPawn())
+			{
+				++Ft->HiddenTicks;
+			}
+			else
+			{
+				++Ft->OtherTicks;
+			}
+		}
+		if (Since < SettleSeconds + ObserveSeconds)
+		{
+			return true;
+		}
+		const FString Detail = FString::Printf(TEXT("visible_ticks=%d seen=%d hidden=%d other=%d records=%d"), Ft->VisibleTicks, Ft->SeenTicks, Ft->HiddenTicks,
+			Ft->OtherTicks, Watcher->GetCombatState().Enemies.Num());
+		Ft->Check(Ft->VisibleTicks >= MinVisibleTicks, TEXT("target_visible"), Detail);
+		Ft->Check(Ft->HiddenTicks == 0 && Ft->OtherTicks == 0 && Ft->SeenTicks == Ft->VisibleTicks, TEXT("target_is_the_visible_enemy"), Detail);
+		return false;
+	}
+
+	TSharedPtr<FTargetsFt> GTargetsFt;
+
+	void Command(const TArray<FString>& Args, UWorld* World)
+	{
+		UVeloxBotSubsystem* Bots = World && World->GetNetMode() != NM_Client ? UVeloxBotSubsystem::Get(World) : nullptr;
+		if (!Bots)
+		{
+			UE_LOG(LogVeloxBots, Warning, TEXT("velox.bots.FtBotTargets: needs the authority world of L_CombatTest (-game)."));
+			return;
+		}
+		if (IConsoleVariable* Peaceful = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.bots.Peaceful")))
+		{
+			Peaceful->Set(0, ECVF_SetByCode);
+		}
+		// Only the three bots are combatants: the arena's dummies and the -game local player's pawn go.
+		for (TActorIterator<AVeloxDummySpawner> It(World); It; ++It)
+		{
+			It->Destroy();
+		}
+		for (TActorIterator<AVeloxCharacter> It(World); It; ++It)
+		{
+			if (Cast<AVeloxDummyController>(It->GetController()) || Cast<APlayerController>(It->GetController()))
+			{
+				It->Destroy();
+			}
+		}
+		if (GEngine)
+		{
+			GEngine->Exec(World, TEXT("velox.match.Phase Live"));
+		}
+		TSharedRef<FTargetsFt> Ft = MakeShared<FTargetsFt>();
+		Ft->Name = TEXT("FT_BotTargetIdentity");
+		Ft->World = World;
+		Ft->bQuit = VeloxBotFt::ParseQuit(Args);
+		GTargetsFt = Ft;
+		TWeakPtr<FTargetsFt> Weak = Ft;
+		Bots->CallWhenNavReady([Weak]()
+		{
+			const TSharedPtr<FTargetsFt> F = Weak.Pin();
+			if (!F)
+			{
+				return;
+			}
+			if (!Setup(F.ToSharedRef()))
+			{
+				F->Finish();
+				return;
+			}
+			F->TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+			{
+				const TSharedPtr<FTargetsFt> Inner = Weak.Pin();
+				if (!Inner || Inner->bFinished)
+				{
+					return false;
+				}
+				if (!Tick(Inner.ToSharedRef()))
+				{
+					Inner->Finish();
+					return false;
+				}
+				return true;
+			}));
+		});
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtBotTargets"),
+		TEXT("velox.bots.FtBotTargets [quit]: FT_BotTargetIdentity on L_CombatTest (-game -nullrhi -UseFixedTimeStep -FPS=60): unique bot PlayerIds; the target is the visible enemy, never one behind cover. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
+}
+
 #endif // !UE_BUILD_SHIPPING

@@ -69,6 +69,16 @@ public:
 	 */
 	static FBox LavaNavAreaBox(const FBox& VolumeBox, double TopCm);
 
+	/**
+	 * Task M7 H10: gives an AI controller's PlayerState a unique PlayerId from the game session's counter (the one
+	 * AGameSession::RegisterPlayer uses for human players, so bots, dummies and humans never collide). The engine assigns
+	 * PlayerIds only in RegisterPlayer (login); without this every bot kept PlayerId 0, and the bot combat memory, keyed by
+	 * PlayerId, merged all bot enemies into one record (visible if any one was visible, pawn = the last one iterated): a bot
+	 * aimed at and closed in on an enemy behind a wall. Authority only; a PlayerState that already has an id keeps it.
+	 * Returns the id (or the existing one), INDEX_NONE without a PlayerState.
+	 */
+	static int32 AssignUniquePlayerId(AController& Controller);
+
 	/** H8: the lava nav area boxes this subsystem created (null entries skipped). Tests. */
 	TArray<UBoxComponent*> GetHazardNavAreas() const;
 

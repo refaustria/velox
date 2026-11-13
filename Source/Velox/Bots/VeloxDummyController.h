@@ -25,6 +25,8 @@ public:
 	//~AController interface
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void OnUnPossess() override;
+	/** Task M7 H10: a unique PlayerId, as the bots (UVeloxBotSubsystem::AssignUniquePlayerId). */
+	virtual void InitPlayerState() override;
 	//~End of AController interface
 
 	//~AActor interface

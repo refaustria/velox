@@ -29,3 +29,17 @@ Fresh build of origin/m7-maps with H7, no layout change. Raw: /mnt/oldroot/velox
 | BotRun x3 | behaviour PASS (stuck 1, dwell <= 4, majors 4/4, JumpPad 37/37); cost FAIL (host load, report-only band) | b1b/botrun-set.txt |
 
 Dwell >= 6 rows (class other) sit on the aisle side of the atrium ring wall within 38 cm of it; see the B1b notes in docs/tasks/m7-maps/17-b1-sacrarium-build.md.
+
+## B1c (after H10, 2026-11-13) - `b1c/`
+
+H10 fix (unique bot PlayerIds) + `BulletsAmmo` moved to (-1600,-1100). Raw: /mnt/oldroot/velox-scratch/m7-h10/. Host load1 9-33.
+
+| Set | Result | File |
+|---|---|---|
+| FFA x10 at 6 bots | all invariants PASS: max_dwell 5 (B1b 7/9), stuck 1, Drop 92.4 %, JumpPad 98.9 %, coverage 38/38, nav 1.49 s; kills 230 (B1b 101) | b1c/ffa6-set.txt |
+| FFA x10 at 3 bots | FAIL Drop 89.3 % (loft drops overshoot), else PASS (dwell 4, stuck 5, coverage 38/38) | b1c/ffa3-set.txt |
+| FFA x10 at 3 bots, repeat | all invariants PASS (Drop 92.9 %, dwell 4, stuck 5, coverage 38/38) | b1c/ffa3b-set.txt |
+| BotRun x3 | r1 PASS; r2/r3 INVALID (host frame deficit); behaviour clean | b1c/botrun-set.txt |
+| DM1 BotRun x3 | set PASS (stuck 1/1/0, dwell 3/3/3) | b1c/dm1-botrun-set.txt |
+| navlint / fts | PASS / OK 15/15 | b1c/navlint.txt, b1c/fts.txt |
+| SacrariumRun | FAIL `loft (pad Quad)` (also on the B1 umap in a clean run: script knife edge) | b1c/sacrariumrun.txt, b1c/sacrariumrun-base-umap.txt |

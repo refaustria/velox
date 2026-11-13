@@ -33,6 +33,7 @@ FTS=(
   "FtBotLavaEscape|L_HazardTest|velox.bots.FtBotLavaEscape"
   "FtBotKnockOff|L_HazardTest|velox.bots.FtBotKnockOff"
   "FtBotLavaAvoid|L_HazardTest|velox.bots.FtBotLavaAvoid"
+  "FtBotTargets|L_CombatTest|velox.bots.FtBotTargets"   # M7 H10: unique bot PlayerIds, the target is the visible enemy
 )
 # One row per M7 map (ADR 0008 1.6): the blockout maps are not in the default list (not cooked, no band yet) and are added with
 # --map-ft <Map>[:WalkExempt ids] (repeatable), e.g. --map-ft L_Sacrarium_Blockout:Quad,Railgun. Row name: FtMapReachability-<Map>.
