@@ -16,3 +16,16 @@ Probable cause (not verified by a probe): VeloxNavLink_23 (PadSouth, shrine pad 
 Loft kill share (killer's last 1 Hz sample on z >= 600): FFA3 3 of 33 kills (9.1 %), FFA6 2 of 103 (1.9 %); bots spend 6.3-6.6 % of their samples on the loft. See loft-share.txt.
 
 Layout iteration (the one allowed): the solid masses between aisles and chapels had meshed tops under the flush Ceil_* clips (29 lowclear polys, 3 clusters). Masses are now hollow 100 cm skins without floor inside, plus three ceiling clips over the 1200 cm wall ends.
+
+## B1b (after H7, 2026-11-13) - `b1b/`
+
+Fresh build of origin/m7-maps with H7, no layout change. Raw: /mnt/oldroot/velox-scratch/m7-sacrarium-b1b/. Host load1 10-20 throughout.
+
+| Set | Result | File |
+|---|---|---|
+| FFA x10 at 3 bots | invariants PASS except item_coverage 37/38 (Ammo_Bullets Crypt); JumpPad 100 % (163/163), Drop 91.9 %, stuck 5, dwell 3; per-run budget>300 only | b1b/ffa3-set.txt |
+| FFA x10 at 6 bots | FAIL max_dwell 7 (3 runs >= 6), nav_build 2.381 s (load); JumpPad 98.4 % (242/246), stuck 3, coverage 38/38 | b1b/ffa6-set.txt |
+| FFA x10 at 6 bots, repeat | FAIL max_dwell 9 (3 runs >= 6); nav 1.93 PASS; JumpPad 98.8 % (242/245), stuck 2, coverage 38/38 | b1b/ffa6b-set.txt |
+| BotRun x3 | behaviour PASS (stuck 1, dwell <= 4, majors 4/4, JumpPad 37/37); cost FAIL (host load, report-only band) | b1b/botrun-set.txt |
+
+Dwell >= 6 rows (class other) sit on the aisle side of the atrium ring wall within 38 cm of it; see the B1b notes in docs/tasks/m7-maps/17-b1-sacrarium-build.md.
