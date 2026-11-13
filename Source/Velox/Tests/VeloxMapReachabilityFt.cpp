@@ -1,6 +1,6 @@
 // Velox - FT_Map_Reachability (ADR 0006 section 7, task M5-05; map-generic since ADR 0008 section 1.6, task M7 P5).
 //
-//   velox.bots.FtMapReachability [WalkExempt=<item ids>] [quit]
+//   velox.bots.FtMapReachability [WalkExempt=<item ids>] [MinMajors=<n>] [quit]
 //                                  console FT on any map (`UnrealEditor-Cmd Velox.uproject <Map> -game -nullrhi
 //                                  -UseFixedTimeStep -FPS=60 -ExecCmds="velox.bots.Seed 1, velox.bots.FtMapReachability quit"`):
 //                                  once the runtime nav is built, a synchronous FindPath with the Full filter must succeed
@@ -122,7 +122,7 @@ namespace VeloxMapFt
 		return true;
 	}
 
-	void Run(TWeakObjectPtr<UWorld> WeakWorld, bool bQuit, TArray<FString> WalkExempt, bool bWalkCheck)
+	void Run(TWeakObjectPtr<UWorld> WeakWorld, bool bQuit, TArray<FString> WalkExempt, bool bWalkCheck, int32 MinMajors)
 	{
 		UWorld* World = WeakWorld.Get();
 		UVeloxBotSubsystem* Bots = World ? UVeloxBotSubsystem::Get(World) : nullptr;
@@ -178,7 +178,7 @@ namespace VeloxMapFt
 					Majors.Add(Pickup);
 				}
 			}
-			Run.Check(Majors.Num() >= 5, TEXT("major_items"), FString::Printf(TEXT("n=%d"), Majors.Num()));
+			Run.Check(Majors.Num() >= MinMajors, TEXT("major_items"), FString::Printf(TEXT("n=%d min=%d"), Majors.Num(), MinMajors));
 			const int32 FailedBefore = Run.Failed;
 			int32 MajorPairs = 0;
 			for (const AVeloxPickup* From : Majors)
@@ -292,11 +292,17 @@ namespace VeloxMapFt
 		}
 		bool bQuit = false;
 		bool bWalkCheck = false;
+		int32 MinMajors = 5;   // DM1: Quad, RA, Mega, YA, Railgun; MinMajors=<n> for maps with fewer (Fornax: no powerup, M7 B4)
 		TArray<FString> WalkExempt;
 		const FString WalkPrefix(TEXT("WalkExempt="));
+		const FString MinMajorsPrefix(TEXT("MinMajors="));
 		for (const FString& Arg : Args)
 		{
 			bQuit |= Arg.Equals(TEXT("quit"), ESearchCase::IgnoreCase);
+			if (Arg.StartsWith(MinMajorsPrefix, ESearchCase::IgnoreCase))
+			{
+				MinMajors = FMath::Max(1, FCString::Atoi(*Arg.Mid(MinMajorsPrefix.Len())));
+			}
 			if (Arg.StartsWith(WalkPrefix, ESearchCase::IgnoreCase))
 			{
 				bWalkCheck = true;
@@ -309,11 +315,11 @@ namespace VeloxMapFt
 		}
 		TWeakObjectPtr<UWorld> WeakWorld(World);
 		UE_LOG(LogVeloxBots, Log, TEXT("VeloxReachabilityFt test=%s waiting for the nav build map=%s walk_exempt=%d"), TestName, *World->GetMapName(), WalkExempt.Num());
-		Bots->CallWhenNavReady([WeakWorld, bQuit, WalkExempt, bWalkCheck]() { Run(WeakWorld, bQuit, WalkExempt, bWalkCheck); });
+		Bots->CallWhenNavReady([WeakWorld, bQuit, WalkExempt, bWalkCheck, MinMajors]() { Run(WeakWorld, bQuit, WalkExempt, bWalkCheck, MinMajors); });
 	}
 
 	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtMapReachability"),
-		TEXT("velox.bots.FtMapReachability [WalkExempt=<item ids>] [quit]: FT_Map_Reachability on the loaded map (-game -nullrhi -UseFixedTimeStep -FPS=60): Full-filter paths from every PlayerStart to every pickup and between the major items, link ends on the nav mesh, pad link ends at the landing points, Walk paths to every pickup not exempt. Non-shipping."),
+		TEXT("velox.bots.FtMapReachability [WalkExempt=<item ids>] [MinMajors=<n>, default 5] [quit]: FT_Map_Reachability on the loaded map (-game -nullrhi -UseFixedTimeStep -FPS=60): Full-filter paths from every PlayerStart to every pickup and between the major items, link ends on the nav mesh, pad link ends at the landing points, Walk paths to every pickup not exempt. Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
 
 	/** The pre-ADR 0008 name, kept as an alias (fts.sh rows, stored task notes). */

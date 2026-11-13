@@ -1,0 +1,12 @@
+FornaxRun          moves=5084  C=0   echoes=0   gaps=4   repaired=61  repaired_extra=19  resent=2607  resent_extra=2607 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=101.7 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1'] replays=4 acks_ignored=0 rpcs=2619  
+Rounds passed: 1/1 (requested 1)
+[ci] NET SOAK OK
+et: VeloxScript: check 'RA island (deck walk-off)' PASS st=2.800 pos=V(X=-1600.00, Y=20.02, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+et: VeloxScript: check 'south floor (slag bridge)' PASS st=4.100 pos=V(X=-1600.00, Y=-862.40, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+et: VeloxScript: check 'gutter hop onto the north bank' PASS st=11.300 pos=V(X=-1067.17, Y=-1049.18, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+et: VeloxScript: check 'gutter hop back onto the south bank' PASS st=13.150 pos=V(X=-1067.17, Y=-1650.92, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+et: VeloxScript: check 'Tap ramp up to the gallery' PASS st=20.800 pos=V(X=2262.40, Y=-1662.38, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+et: VeloxScript: check 'Tap pad onto the gallery' PASS st=31.700 pos=V(X=2224.73, Y=-922.77, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+et: VeloxScript: check 'Bellows pad onto the Crane Bridge' PASS st=46.501 pos=V(X=1478.06, Y=1068.57, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+et: VeloxScript: check 'Crane Bridge east end onto the gallery' PASS st=48.101 pos=V(X=2262.50, Y=1068.57, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+et: VeloxNetSoak: script=FornaxRun moves=5084 corrections=0 max=0.00 mean=0.00 checks=8/8 peak2d=841.4 peak_t=26.645 result=PASS reason=-

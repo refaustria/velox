@@ -38,6 +38,10 @@ WALL_T = 100.0
 LAVA_SURFACE_Z = -40.0
 LAVA_BED_Z = -60.0               # bed top = hazard z0 = rim 60 below the floor
 BED_THICK = 100.0
+# B4 (navlint): the thick solids whose tops sat flush under a Ceil_* clip (Furnace, Mass, Tunnel_Roof, Wall_N_F) rise through that clip
+# to its top, so the nav polys Recast builds on them have the headroom up to the roof clip instead of zero (lowclear). Only space above
+# the ceilings changes. (Rising above the nav bounds instead left nav inside the solids: their tops were clipped away.)
+CEIL_CLIP_T = 100.0
 
 # ---------------------------------------------------------------- records
 from maps.records import Room, Box, Opening, Wall, Stairs, Ramp, Pad, Item, Spawn, Link, Light, Clip, Hazard  # noqa: E402,F401
@@ -67,12 +71,13 @@ def _floor(i, x0, x1, y0, y1):
 
 BOXES = [
     # L0 floor slabs: the whole interior minus the lava (pool X -2000..-1200 Y -300..500, gutter X -1700..-700 Y -1450..-1250,
-    # trenches X 1000..1600 Y 700..900 and Y 1200..1400); vertical strips between the hole edges
+    # trenches X 1000..1600 Y 700..900 and, B4, X 900..1600 Y 1200..1400); vertical strips between the hole edges
     _floor("Ground_W", -2300, -2000, -1700, 1700),
     _floor("Ground_2a", -2000, -1700, -1700, -300), _floor("Ground_2b", -2000, -1700, 500, 1700),
     _floor("Ground_3a", -1700, -1200, -1700, -1450), _floor("Ground_3b", -1700, -1200, -1250, -300), _floor("Ground_3c", -1700, -1200, 500, 1700),
-    _floor("Ground_4a", -1200, -700, -1700, -1450), _floor("Ground_4b", -1200, -700, -1250, 1700),
-    _floor("Ground_5", -700, 1000, -1700, 1700),
+    _floor("Ground_4a", -1200, -700, -1700, -1450), _floor("Ground_4b", -1200, -800, -1250, 1700),
+    _floor("Ground_5a", -800, 900, -1250, 1700), _floor("Ground_5d", -700, 900, -1700, -1250),   # B4: one Hearth slab under the Chute foot
+    _floor("Ground_5b", 900, 1000, -1700, 1200), _floor("Ground_5c", 900, 1000, 1400, 1700),       # B4: T2 reaches the landing face (X 900)
     _floor("Ground_6a", 1000, 1600, -1700, 700), _floor("Ground_6b", 1000, 1600, 900, 1200), _floor("Ground_6c", 1000, 1600, 1400, 1700),
     _floor("Ground_7", 1600, 2300, -1700, 1700),
     _floor("RA_Island", -1750, -1450, -50, 250),                 # A.isle 300 x 300, 250 cm of lava on W, N and E
@@ -87,9 +92,10 @@ BOXES = [
     # L2
     Box("Crane_Bridge", "bridge", "Platform", 900, 1900, 850, 1250, 580, 640),         # 10 x 4 m deck, underside 580
     # solid masses
-    Box("Furnace", "wall", "Wall", -500, -100, -200, 200, 0, 640),                     # H.furnace, full height
-    Box("Mass", "wall", "Wall", 200, 1900, -300, 300, 0, 1240),                        # between Casting Hall and Tap Room
-    Box("Tunnel_Roof", "lintel", "Wall", 1900, 2300, -300, 300, 720, 1240),            # gallery tunnel: ceiling 400 over the gallery floor
+    Box("Furnace", "wall", "Wall", -500, -100, -200, 200, 0, 640 + CEIL_CLIP_T),       # H.furnace, full height (B4: through Ceil_H)
+    Box("Mass", "wall", "Wall", 200, 1900, -300, 300, 0, 1240 + CEIL_CLIP_T),          # between Casting Hall and Tap Room (B4: through Ceil_Mass)
+    Box("Chute_Cheek", "wall", "Wall", -800, -700, 446, 1000, 0, 720),                # B4: solid cheek west of the Chute (see RAMPS)
+    Box("Tunnel_Roof", "lintel", "Wall", 1900, 2300, -300, 300, 720, 1240 + CEIL_CLIP_T),  # gallery tunnel: ceiling 400 over the gallery floor (B4: through Ceil_Mass)
     Box("Flue_Mouth", "lintel", "Wall", 200, 300, 1000, 1400, 720, 1240),              # Flue opens onto the landing; 400 clear
 ]
 
@@ -102,7 +108,7 @@ HAZARDS = [
     Hazard("Pool_SE", "lava", -1500, -1450, -300, -50, LAVA_BED_Z, LAVA_SURFACE_Z),
     Hazard("Gutter", "lava", -1700, -700, -1450, -1250, LAVA_BED_Z, LAVA_SURFACE_Z),
     Hazard("Trench_T1", "lava", 1000, 1600, 700, 900, LAVA_BED_Z, LAVA_SURFACE_Z),
-    Hazard("Trench_T2", "lava", 1000, 1600, 1200, 1400, LAVA_BED_Z, LAVA_SURFACE_Z),
+    Hazard("Trench_T2", "lava", 900, 1600, 1200, 1400, LAVA_BED_Z, LAVA_SURFACE_Z),   # B4: from the landing face (X 900), no 1 m nook
 ]
 BOXES += [Box("Bed_" + h.id, "hazard", "Pit", h.x0, h.x1, h.y0, h.y1, h.z0 - BED_THICK, h.z0) for h in HAZARDS]
 
@@ -119,7 +125,7 @@ WALLS = [
     Wall("Wall_E_B", "y", 300, 1800, 2300, 2400, 1240, ()),
     Wall("Wall_S_Slag", "x", -2300, 200, -1800, -1700, 400, ()),
     Wall("Wall_S_C", "x", 200, 2300, -1800, -1700, 960, ()),
-    Wall("Wall_N_F", "x", -2300, 300, 1400, 1800, 720, ()),                # solid north of the Flue
+    Wall("Wall_N_F", "x", -2300, 200, 1400, 1800, 720 + CEIL_CLIP_T, ()),  # solid north of the Flue (B4: through Ceil_F)
     Wall("Wall_N_B", "x", 300, 2300, 1700, 1800, 1240, ()),
     # Crucible: A | Hearth (door Y -200..200), north (two Flue openings at the deck, z 320 sill), south (door to the Slag Run)
     Wall("Wall_AH", "y", -1000, 1000, -900, -800, 960, (O(-200, 200, 0, DOOR_H),)),
@@ -133,7 +139,7 @@ WALLS = [
     # Hearth | Casting Hall (door Y 400..800); the Flue mouth (Y 1000..1400) is a free opening closed above by Flue_Mouth
     Wall("Wall_C_B", "y", 300, 900, 200, 300, 1240, (O(400, 800, 0, DOOR_H),)),
     Wall("Wall_C_L1", "y", 900, 1000, 200, 300, 1240, ()),
-    Wall("Wall_C_L2", "y", 1400, 1700, 200, 300, 1240, ()),
+    Wall("Wall_C_L2", "y", 1400, 1800, 200, 300, 1240, ()),   # B4: to the outer wall (no 1 m pocket on Wall_N_F)
 ]
 
 STAIRS = [
@@ -142,7 +148,9 @@ STAIRS = [
 ]
 
 RAMPS = [
-    Ramp("Chute", 446.0, -800, -500, 320.0, "+y", 30.0),                # H.chute: 30 deg, 554 cm run, rises north through the Hearth north wall into the Flue
+    Ramp("Chute", 446.0, -700, -500, 320.0, "+y", 30.0),                # H.chute: 30 deg, 554 cm run, rises north through the Hearth north wall into the Flue
+    # B4: 200 wide (concept 300) beside a 100 cm cheek (Chute_Cheek): against the Hearth west wall the 30 deg slab left a nav strip whose
+    # polygon heights sat 40-100 cm above the floor at the foot (navlint walkin cluster at (-750, 450)).
     Ramp("Tap_Ramp", 705.8, -1700, -1400, 320.0, "+x"),                 # C.ramp: 15 deg, 1194 cm run, rises east to the gallery (top at X 1900)
 ]
 
@@ -257,7 +265,8 @@ LINKS = [
     # (mass 250 cm ahead), bridge east end (outer wall 200 cm ahead). No drop from the deck onto the island and none from the bridge's long edges.
     _drop("Drop_Landing_E", 900 - DROP_IN, 1050, 320, 900 + DROP_OUT_TALL, 1050, 0),
     _drop("Drop_Bridge_W", 900 + DROP_IN, 1050, 640, 900 - DROP_OUT_TALL, 1050, 320),
-    _drop("Drop_Gal_B", 1900 + DROP_IN, 1050, 320, 1900 - DROP_OUT_TALL, 1050, 0),
+    # B4 iteration: Drop_Gal_B (gallery -> mid strip under the bridge, Y 1050) removed: 9 of 25 ok in the first sets (bots land beside
+    # the 300 cm strip's nav between the trenches); no other gallery edge into B meets E3 (d) (stairs, trench T2, pad Bellows).
     _drop("Drop_Gal_C1", 1900 + DROP_IN, -700, 320, 1900 - DROP_OUT_TALL, -700, 0),
     _drop("Drop_Gal_C2", 1900 + DROP_IN, -1240, 320, 1900 - 300, -1240, 0),
 ]
@@ -292,7 +301,7 @@ INTERMISSION_LABEL = (0.0, 300.0, 2250.0)
 # ---------------------------------------------------------------- rules (docs/maps/fornax.md; every override cites its section)
 RULES = {
     "pad_count": 2,                                  # section 7: Pad 1 (Bellows), Pad 2 (Tap)
-    "link_counts": {"JUMP_PAD": 2, "ROCKET_JUMP": 1, "JUMP": 12, "DROP": 5},      # sections 7 and 13 (see the notes for the deviations)
+    "link_counts": {"JUMP_PAD": 2, "ROCKET_JUMP": 1, "JUMP": 12, "DROP": 4},      # sections 7 and 13 (see the notes for the deviations)
     "item_mix": {"Armor_Red": 1, "Health_Mega": 1, "Armor_Yellow": 1, "Weapon_RocketLauncher": 1, "Weapon_LightningGun": 1,
                  "Weapon_Railgun": 1, "Weapon_PlasmaGun": 1, "Weapon_Shotgun": 1, "Ammo_Rockets": 1, "Ammo_Lightning": 1,
                  "Ammo_Slugs": 1, "Ammo_Cells": 1, "Ammo_Shells": 1, "Health_Large": 1, "Health_Medium": 4, "Health_Small": 6,
@@ -301,6 +310,6 @@ RULES = {
 
 # Per-kind actor counts that do not depend on the geometry expansion (the geometry kinds are counted by the generator).
 EXPECTED = {
-    "pickup": 30, "playerstart": 5, "jumppad": 2, "targetpoint": 2, "navbounds": 1, "navlink": 20,
+    "pickup": 30, "playerstart": 5, "jumppad": 2, "targetpoint": 2, "navbounds": 1, "navlink": 19,
     "camera": 1, "text": 1, "light": 2,
 }

@@ -59,6 +59,7 @@ ITEM_SCRIPTS=" ItemRun "
 # Scripts on L_DM1_Blockout (M5 task 06, ADR 0006 section 7): the scripted map regression, judged like PadRun.
 DM1_SCRIPTS=" DM1Run "
 NEMUS_SCRIPTS=" NemusRun "   # M7 task B2 (ADR 0008 5.3 d): on L_Nemus_Blockout, judged like SacrariumRun; not in the default list (blockout not cooked)
+FORNAX_SCRIPTS=" FornaxRun "   # M7 task B4 (ADR 0008 5.3 d): on L_Fornax_Blockout, judged like SacrariumRun; not in the default list (blockout not cooked)
 SACRARIUM_SCRIPTS=" SacrariumRun "   # M7 task B1 (ADR 0008 5.3 d): on L_Sacrarium_Blockout, judged like PadRun/DM1Run; not in the default list (blockout not cooked)
 # Bot soaks (M4 task 07, ADR 0005 section 14 / D36), both on L_ItemTest with the server options in the map URL.
 BOT_SCRIPTS=" BotRun BotDuel "
@@ -310,6 +311,7 @@ run_one() {
   if [[ "$DM1_SCRIPTS" == *" $script "* ]]; then map="${MAP_OVERRIDE:-L_DM1_Blockout}"; fi   # task 07d: --map L_DM1 runs DM1Run on the art map
   if [[ "$SACRARIUM_SCRIPTS" == *" $script "* ]]; then map="L_Sacrarium_Blockout"; fi
   if [[ "$NEMUS_SCRIPTS" == *" $script "* ]]; then map="L_Nemus_Blockout"; fi
+  if [[ "$FORNAX_SCRIPTS" == *" $script "* ]]; then map="L_Fornax_Blockout"; fi
   local connect_url="127.0.0.1:$PORT" client_timeout="$CLIENT_TIMEOUT"
   case "$script" in
     BotRun)
@@ -344,6 +346,7 @@ run_one() {
     elif [[ "$DM1_SCRIPTS" == *" $script "* ]]; then :   # DM1Run honours --map (task 07d)
     elif [[ "$SACRARIUM_SCRIPTS" == *" $script "* ]]; then :   # SacrariumRun keeps its own map
     elif [[ "$NEMUS_SCRIPTS" == *" $script "* ]]; then :   # NemusRun keeps its own map
+    elif [[ "$FORNAX_SCRIPTS" == *" $script "* ]]; then :   # FornaxRun keeps its own map
     elif (( ! MAP_OVERRIDE_NOTED )); then
       echo "[ci] --map $MAP_OVERRIDE applies to BotRun/BotDuel/DM1Run only; $script and the other scripts keep their own map (logged once)"
       MAP_OVERRIDE_NOTED=1
@@ -1177,7 +1180,7 @@ if script == "StrafeRun":
     if bad:
         fails.append("correction > 5 cm within 0.5 s after the speed peak: %s" % fmt(bad))
 
-elif script in ("PadRun", "DM1Run", "SacrariumRun", "NemusRun"):
+elif script in ("PadRun", "DM1Run", "SacrariumRun", "NemusRun", "FornaxRun"):
     # ADR 0002 A28(iii)/A30(iii): per pad exactly one client line src=live applied=1 and exactly one server line, with equal
     # move time stamps ts (the launch is queued at the end of the same move on both ends). src=replay applied=1 lines (a
     # replay re-entering the trigger) are allowed once per pad and replay and must carry the server's ts; applied=0 lines
@@ -1198,7 +1201,7 @@ elif script in ("PadRun", "DM1Run", "SacrariumRun", "NemusRun"):
     for d in sl:
         srv.setdefault(d["pad"], []).append(d)
     detail.append("pads=%s" % sorted(live))
-    want_pads = {"NemusRun": int(os.environ.get("VELOX_NEMUS_PADS", "4"))}.get(script, 3)   # NemusRun: all five pads (M7 B2)
+    want_pads = {"NemusRun": int(os.environ.get("VELOX_NEMUS_PADS", "4")), "FornaxRun": 2}.get(script, 3)   # NemusRun: all five pads (M7 B2); FornaxRun: both pads (M7 B4)
     if len(live) != want_pads:
         fails.append("expected %d distinct pads launched live on the client, got %d: %s" % (want_pads, len(live), sorted(live)))
     def gap_at(ts):
@@ -1257,7 +1260,7 @@ elif script in ("PadRun", "DM1Run", "SacrariumRun", "NemusRun"):
     if final:
         # PadRun: 3 landing checkpoints; DM1Run (task m5-06): every marker of the script (the count is in the line itself).
         m_chk = re.search(r"checks=(\d+)/(\d+)", final)
-        want_chk = {"PadRun": 3, "SacrariumRun": int(os.environ.get("VELOX_SACRARIUM_CHECKS", "9")), "NemusRun": int(os.environ.get("VELOX_NEMUS_CHECKS", "5"))}.get(script, 7)
+        want_chk = {"PadRun": 3, "SacrariumRun": int(os.environ.get("VELOX_SACRARIUM_CHECKS", "9")), "NemusRun": int(os.environ.get("VELOX_NEMUS_CHECKS", "5")), "FornaxRun": int(os.environ.get("VELOX_FORNAX_CHECKS", "8"))}.get(script, 7)
         if not m_chk or m_chk.group(1) != m_chk.group(2) or int(m_chk.group(2)) != want_chk:
             fails.append("landing checkpoints: %s (want %d/%d)" % (kv(final).get("checks"), want_chk, want_chk))
 

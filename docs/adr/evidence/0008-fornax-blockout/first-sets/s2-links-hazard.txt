@@ -1,0 +1,88 @@
+== FFA x10 at 3 (s2, before the iteration): 10 rounds
+  round ffa3/ffa-10.log: RA taken 5, Mega taken 4, lava entries 2, lava deaths credited 0 self 0
+  round ffa3/ffa-1.log: RA taken 5, Mega taken 4, lava entries 5, lava deaths credited 1 self 0
+  round ffa3/ffa-2.log: RA taken 5, Mega taken 4, lava entries 0, lava deaths credited 0 self 0
+  round ffa3/ffa-3.log: RA taken 5, Mega taken 4, lava entries 6, lava deaths credited 1 self 0
+  round ffa3/ffa-4.log: RA taken 5, Mega taken 4, lava entries 3, lava deaths credited 0 self 0
+  round ffa3/ffa-5.log: RA taken 5, Mega taken 4, lava entries 1, lava deaths credited 0 self 0
+  round ffa3/ffa-6.log: RA taken 5, Mega taken 4, lava entries 7, lava deaths credited 0 self 1
+  round ffa3/ffa-7.log: RA taken 5, Mega taken 4, lava entries 1, lava deaths credited 0 self 1
+  round ffa3/ffa-8.log: RA taken 5, Mega taken 4, lava entries 6, lava deaths credited 2 self 0
+  round ffa3/ffa-9.log: RA taken 5, Mega taken 4, lava entries 6, lava deaths credited 0 self 0
+  RA taken every round: True (10/10); Mega every round: True (10/10); RA takes total 50, Mega 40
+  lava: damage ticks 44, entries 37 by piece {'Pool_W': 13, 'Pool_E': 11, 'Pool_N': 8, 'Trench_T1': 1, 'Gutter': 2, 'Trench_T2': 2}; deaths credited 4 self 2 (by piece {'Pool_E': 4, 'Gutter': 1, 'Pool_W': 1})
+  links (ok/(ok+failed), aborted):
+    PadLink_Bellows  42/42 = 100.0 %  aborted 8
+    PadLink_Tap      20/20 = 100.0 %  aborted 3
+    RJ_West          0/0  aborted 0
+    Isle_In          48/57 = 84.2 %  aborted 18
+    Isle_Out         41/43 = 95.3 %  aborted 4
+    Gutter1_N2S      0/0  aborted 0
+    Gutter1_S2N      0/0  aborted 0
+    Gutter2_N2S      0/0  aborted 0
+    Gutter2_S2N      0/0  aborted 0
+    Gutter3_N2S      0/0  aborted 0
+    Gutter3_S2N      3/4 = 75.0 %  aborted 1
+    T1a_N            3/3 = 100.0 %  aborted 0
+    T1a_S            27/27 = 100.0 %  aborted 1
+    T1b_N            0/0  aborted 0
+    T1b_S            7/8 = 87.5 %  aborted 2
+    Drop_Landing_E   7/7 = 100.0 %  aborted 2
+    Drop_Bridge_W    46/47 = 97.9 %  aborted 2
+    Drop_Gal_C1      53/53 = 100.0 %  aborted 9
+    Drop_Gal_C2      4/5 = 80.0 %  aborted 2
+    ?(1960,1050)     8/21 = 38.1 %  aborted 1
+== BotDuel x3 (s2): 3 rounds
+  round round-1/BotDuel-server.log: RA taken 6, Mega taken 5, lava entries 7, lava deaths credited 2 self 0
+  round round-2/BotDuel-server.log: RA taken 5, Mega taken 4, lava entries 7, lava deaths credited 2 self 0
+  round round-3/BotDuel-server.log: RA taken 6, Mega taken 5, lava entries 2, lava deaths credited 0 self 0
+  RA taken every round: True (3/3); Mega every round: True (3/3); RA takes total 17, Mega 14
+  lava: damage ticks 19, entries 16 by piece {'Pool_W': 11, 'Pool_E': 4, 'Trench_T1': 1}; deaths credited 4 self 0 (by piece {'Pool_W': 3, 'Pool_E': 1})
+  links (ok/(ok+failed), aborted):
+    PadLink_Bellows  16/16 = 100.0 %  aborted 2
+    PadLink_Tap      2/2 = 100.0 %  aborted 1
+    RJ_West          0/0  aborted 0
+    Isle_In          18/21 = 85.7 %  aborted 6
+    Isle_Out         12/12 = 100.0 %  aborted 2
+    Gutter1_N2S      0/0  aborted 0
+    Gutter1_S2N      0/0  aborted 0
+    Gutter2_N2S      0/0  aborted 0
+    Gutter2_S2N      0/0  aborted 0
+    Gutter3_N2S      0/0  aborted 0
+    Gutter3_S2N      0/0  aborted 0
+    T1a_N            0/0  aborted 0
+    T1a_S            2/2 = 100.0 %  aborted 0
+    T1b_N            0/0  aborted 0
+    T1b_S            16/16 = 100.0 %  aborted 1
+    Drop_Landing_E   14/16 = 87.5 %  aborted 0
+    Drop_Bridge_W    28/28 = 100.0 %  aborted 1
+    Drop_Gal_C1      11/11 = 100.0 %  aborted 2
+    Drop_Gal_C2      0/1 = 0.0 %  aborted 0
+    ?(1960,1050)     1/4 = 25.0 %  aborted 0
+== BotRun x3 (s2): 3 rounds
+  round round-1/BotRun-server.log: RA taken 4, Mega taken 4, lava entries 2, lava deaths credited 1 self 0
+  round round-2/BotRun-server.log: RA taken 5, Mega taken 4, lava entries 5, lava deaths credited 1 self 0
+  round round-3/BotRun-server.log: RA taken 4, Mega taken 4, lava entries 5, lava deaths credited 0 self 0
+  RA taken every round: True (3/3); Mega every round: True (3/3); RA takes total 13, Mega 12
+  lava: damage ticks 12, entries 12 by piece {'Pool_N': 3, 'Pool_W': 8, 'Pool_E': 1}; deaths credited 2 self 0 (by piece {'Pool_W': 2})
+  links (ok/(ok+failed), aborted):
+    PadLink_Bellows  15/15 = 100.0 %  aborted 1
+    PadLink_Tap      0/0  aborted 1
+    RJ_West          0/0  aborted 0
+    Isle_In          8/14 = 57.1 %  aborted 3
+    Isle_Out         10/10 = 100.0 %  aborted 0
+    Gutter1_N2S      0/0  aborted 0
+    Gutter1_S2N      0/0  aborted 0
+    Gutter2_N2S      0/0  aborted 0
+    Gutter2_S2N      0/0  aborted 0
+    Gutter3_N2S      0/0  aborted 0
+    Gutter3_S2N      0/0  aborted 0
+    T1a_N            1/1 = 100.0 %  aborted 0
+    T1a_S            5/5 = 100.0 %  aborted 0
+    T1b_N            0/0  aborted 0
+    T1b_S            2/2 = 100.0 %  aborted 0
+    Drop_Landing_E   3/3 = 100.0 %  aborted 0
+    Drop_Bridge_W    13/13 = 100.0 %  aborted 2
+    Drop_Gal_C1      11/11 = 100.0 %  aborted 4
+    Drop_Gal_C2      0/0  aborted 0
+    ?(1960,1050)     2/3 = 66.7 %  aborted 0

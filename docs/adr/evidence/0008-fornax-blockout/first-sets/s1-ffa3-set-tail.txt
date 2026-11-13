@@ -1,0 +1,18 @@
+SET speed strikes: -
+SET band=none (report-only): sum_kills=102 not judged; the per-run kills / pickups / Mega bands are not judged either
+SET hazard (report-only, ADR 0008 3.5): hazard_touch=45 hazard_death_credited=7 hazard_death_self=1 per bot touch/credited/self: Celer:13/2/0 Fulgur:14/2/0 Rapidus:18/3/1 per run self=[0,0,0,0,0,0,1,0,0,0]
+SET invariants (ADR 0006 section 7, every map):
+  left_arena                   0                                            limit 0        PASS
+  world_kill                   10                                           limit 0        FAIL
+  no_nav_point                 0                                            limit 0        PASS
+  giveup                       0                                            limit 0        PASS
+  sum_stuck                    0                                            limit <= 5     PASS
+  bursts                       0                                            limit 0        PASS
+  max_dwell_s                  24                                           limit <= 5     FAIL
+  nav_build_s                  1.143                                        limit <= 2.0   PASS
+  link_success[Drop]           81.8 % (117/143) aborted=20                  limit >= 90 %  FAIL
+  link_success[Jump]           91.5 % (130/142) aborted=18                  limit >= 90 %  PASS
+  link_success[JumpPad]        99.2 % (123/124) aborted=13                  limit >= 90 %  PASS
+  item_coverage                29/30 pickups (17 definitions)               limit all      FAIL
+  untaken items (layout or link defect): DA_Item_Health_Small@(-1500.00,-1125.00)
+Logs: /mnt/oldroot/velox-scratch/m7-fornax/s1/ffa3
