@@ -454,6 +454,12 @@ AVeloxBotController::AVeloxBotController(const FObjectInitializer& ObjectInitial
 	PrimaryActorTick.TickGroup = TG_PrePhysics;
 }
 
+void AVeloxBotController::InitPlayerState()
+{
+	Super::InitPlayerState();
+	UVeloxBotSubsystem::AssignUniquePlayerId(*this);
+}
+
 UVeloxBotPathFollowingComponent* AVeloxBotController::GetBotPathFollowing() const
 {
 	return Cast<UVeloxBotPathFollowingComponent>(GetPathFollowingComponent());

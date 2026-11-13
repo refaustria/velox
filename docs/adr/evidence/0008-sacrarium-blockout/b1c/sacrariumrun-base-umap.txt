@@ -1,0 +1,19 @@
+[ci] Server mode: dedicated
+[ci] Net soak: scripts=SacrariumRun rounds=1 port=17799 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/mnt/oldroot/velox-scratch/m7-h10/sacbase2/20261113-125209-3078824/nettest
+[ci] bands=L_ItemTest
+[ci] [SacrariumRun] load gate: gave up after 120s (load1=40.61, gate 2.0, previous processes alive=0); starting anyway
+[ci] [SacrariumRun] load gate: load1=40.61 at round start (gate 2.0, waited 120s)
+[ci] [SacrariumRun] starting dedicated server (60 Hz), log /mnt/oldroot/velox-scratch/m7-h10/sacbase2/20261113-125209-3078824/nettest/SacrariumRun-server.log
+[ci] [SacrariumRun] starting client (120 Hz, packet simulation 100 ms one way), log /mnt/oldroot/velox-scratch/m7-h10/sacbase2/20261113-125209-3078824/nettest/SacrariumRun-client.log
+Terminated
+[ci] [SacrariumRun] server (dedicated) rss_max_kb=1722496 rss_mean_kb=1705357 rss_last_kb=1722496 rss_samples=12
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+SacrariumRun       moves=3703  C=0   echoes=0   gaps=18  repaired=39  repaired_extra=11  resent=1894  resent_extra=1894 strays_le_2_5=0  max=0.00   mean=0.00  FAIL  Lexp=74.1 pads=['VeloxJumpPad_5', 'VeloxJumpPad_7'] replays=4 acks_ignored=0 rpcs=1908  
+    - client exit code 1
+    - script result=FAIL (1 of 9 checkpoints failed)
+    - expected 3 distinct pads launched live on the client, got 2: ['VeloxJumpPad_5', 'VeloxJumpPad_7']
+    - landing checkpoints: 8/9 (want 9/9)
+Rounds passed: 0/1 (requested 1)
+Logs: /mnt/oldroot/velox-scratch/m7-h10/sacbase2/20261113-125209-3078824/nettest
+NET SOAK FAILED

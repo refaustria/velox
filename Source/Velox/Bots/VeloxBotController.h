@@ -559,6 +559,8 @@ protected:
 	//~AController interface
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void OnUnPossess() override;
+	/** Task M7 H10: a unique PlayerId (UVeloxBotSubsystem::AssignUniquePlayerId). */
+	virtual void InitPlayerState() override;
 	//~End of AController interface
 
 	// --- Phases (ADR 0005 section 2) ---

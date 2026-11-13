@@ -16,6 +16,8 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/GameSession.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameModes/VeloxGameMode.h"
 #include "GameModes/VeloxGameModeDefinition.h"
@@ -595,6 +597,28 @@ const UVeloxBotDifficulty* UVeloxBotSubsystem::LoadDifficulty(const FString& Nam
 	return TSoftObjectPtr<UVeloxBotDifficulty>(FSoftObjectPath(Path)).LoadSynchronous();
 }
 
+int32 UVeloxBotSubsystem::AssignUniquePlayerId(AController& Controller)
+{
+	APlayerState* PS = Controller.PlayerState;
+	if (!PS)
+	{
+		return INDEX_NONE;
+	}
+	if (!Controller.HasAuthority() || PS->GetPlayerId() != 0)
+	{
+		return PS->GetPlayerId();
+	}
+	const UWorld* World = Controller.GetWorld();
+	AGameModeBase* GameMode = World ? World->GetAuthGameMode() : nullptr;
+	if (!GameMode || !GameMode->GameSession)
+	{
+		UE_LOG(LogVeloxBots, Warning, TEXT("VeloxBot player_id unassigned controller=%s reason=no_game_session"), *Controller.GetName());
+		return PS->GetPlayerId();
+	}
+	PS->SetPlayerId(GameMode->GameSession->GetNextPlayerID());
+	return PS->GetPlayerId();
+}
+
 AVeloxBotController* UVeloxBotSubsystem::AddBot(const UVeloxBotDifficulty* Difficulty, const FString& Name)
 {
 	UWorld* World = GetWorld();
@@ -646,8 +670,8 @@ AVeloxBotController* UVeloxBotSubsystem::AddBot(const UVeloxBotDifficulty* Diffi
 	PS->SetPlayerName(VeloxBotRules::NextBotName(UVeloxBotSettings::Get().BotNames, Taken, Name));
 	PS->SetIsABot(true);
 	GameMode->AssignPlayerColor(*PS);
-	UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot add name=%s difficulty=%s index=%d color=%d active=%d"), *PS->GetPlayerName(), *GetNameSafe(Difficulty), Bot->GetBotIndex(),
-		PS->HasPlayerColor() ? static_cast<int32>(PS->GetPlayerColorIndex()) : -1, Active + 1);
+	UE_LOG(LogVeloxBots, Log, TEXT("VeloxBot add name=%s difficulty=%s index=%d color=%d active=%d player_id=%d"), *PS->GetPlayerName(), *GetNameSafe(Difficulty), Bot->GetBotIndex(),
+		PS->HasPlayerColor() ? static_cast<int32>(PS->GetPlayerColorIndex()) : -1, Active + 1, PS->GetPlayerId());
 	GameMode->StartBot(Bot);
 	return Bot;
 }
