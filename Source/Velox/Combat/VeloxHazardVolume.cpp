@@ -2,6 +2,8 @@
 
 #include "Combat/VeloxHazardVolume.h"
 
+#include "Bots/VeloxBotSettings.h"
+#include "Bots/VeloxNavAreas.h"
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxCombatLog.h"
@@ -14,6 +16,7 @@
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
 #include "GameModes/VeloxPlayerState.h"
+#include "HAL/IConsoleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VeloxHazardVolume)
 
@@ -77,7 +80,38 @@ void AVeloxHazardVolume::PostInitializeComponents()
 		Box->OnComponentBeginOverlap.AddDynamic(this, &ThisClass::HandleBeginOverlap);
 		Box->OnComponentEndOverlap.AddDynamic(this, &ThisClass::HandleEndOverlap);
 		Box->SetGenerateOverlapEvents(true);
+		AddLavaNavArea();
 	}
+}
+
+void AVeloxHazardVolume::AddLavaNavArea()
+{
+	// Task M7 H7: lava gets a costly nav area (UVeloxNavArea_Hazard) over its box grown by HazardNavPaddingCm, so paths route
+	// around the channel and keep off its rim. Void needs none (nothing under it has nav). Server only (nav data lives
+	// there, ADR 0005 section 3); built with the runtime nav (Dynamic), so no map change. A/B: velox.bots.EdgeAware 0 at load.
+	if (Type != EVeloxHazardType::Lava || NavArea || !Box)
+	{
+		return;
+	}
+	static const IConsoleVariable* EdgeAware = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.bots.EdgeAware"));
+	if (EdgeAware && EdgeAware->GetInt() == 0)
+	{
+		return;
+	}
+	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+	const FVector Extent = Box->GetUnscaledBoxExtent();
+	NavArea = NewObject<UBoxComponent>(this, TEXT("LavaNavArea"));
+	NavArea->SetupAttachment(Box);
+	NavArea->SetMobility(EComponentMobility::Static);
+	NavArea->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	NavArea->SetGenerateOverlapEvents(false);
+	NavArea->SetHiddenInGame(true);
+	NavArea->InitBoxExtent(Extent + FVector(Settings.HazardNavPaddingCm, Settings.HazardNavPaddingCm, Settings.HazardNavPaddingZCm));
+	NavArea->bDynamicObstacle = true;
+	NavArea->SetAreaClassOverride(UVeloxNavArea_Hazard::StaticClass());
+	NavArea->SetCanEverAffectNavigation(true);
+	NavArea->RegisterComponent();
+	UE_LOG(LogVeloxCombat, Log, TEXT("VeloxHazardNav volume=%s extent=%s"), *GetName(), *NavArea->GetUnscaledBoxExtent().ToCompactString());
 }
 
 void AVeloxHazardVolume::BeginPlay()

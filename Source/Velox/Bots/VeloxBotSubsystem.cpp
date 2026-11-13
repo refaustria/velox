@@ -253,6 +253,42 @@ void UVeloxBotSubsystem::MarkNavReady()
 			Recast->AgentRadius, Recast->AgentHeight, Recast->GetAgentMaxStepHeight(Res), Recast->GetCellSize(Res), Recast->GetCellHeight(Res),
 			Recast->AgentMaxSlope, Recast->TileSizeUU);
 	}
+	if (Recast)
+	{
+		// Task M7 H7: Detour connects an off-mesh link's end only in the start's tile or one of its 8 neighbours
+		// (dtNavMesh::connectExtOffMeshLinks); a link whose ends are two or more tiles apart is silently absent from every path
+		// (L_HazardTest Pad_Gap: start tile x -1, end tile x 1 at TileSizeUU 1000).
+		// An end within its snap radius of a tile border may snap into the neighbour tile (Sacrarium PadWest starts at x -2000
+		// exactly), so the closest pair of tiles over both snap discs is judged.
+		for (const AVeloxNavLink* Link : GetNavLinks())
+		{
+			const double R = Link->GetSnapRadius();
+			const FVector Offsets[] = { FVector::ZeroVector, FVector(R, 0.0, 0.0), FVector(-R, 0.0, 0.0), FVector(0.0, R, 0.0), FVector(0.0, -R, 0.0) };
+			int32 SX = 0, SY = 0, EX = 0, EY = 0;
+			int32 Best = TNumericLimits<int32>::Max();
+			for (const FVector& A : Offsets)
+			{
+				for (const FVector& B : Offsets)
+				{
+					int32 AX = 0, AY = 0, BX = 0, BY = 0;
+					if (Recast->GetNavMeshTileXY(Link->GetStartWorld() + A, AX, AY) && Recast->GetNavMeshTileXY(Link->GetEndWorld() + B, BX, BY))
+					{
+						const int32 Dist = FMath::Max(FMath::Abs(AX - BX), FMath::Abs(AY - BY));
+						if (Dist < Best)
+						{
+							Best = Dist;
+							SX = AX; SY = AY; EX = BX; EY = BY;
+						}
+					}
+				}
+			}
+			if (Best != TNumericLimits<int32>::Max() && Best > 1)
+			{
+				UE_LOG(LogVeloxBots, Warning, TEXT("VeloxNav link_span link=%s type=%s start_tile=%d,%d end_tile=%d,%d: the ends are more than one nav tile apart, Detour never connects this link"),
+					*Link->GetName(), AVeloxNavLink::LinkTypeName(Link->GetLinkType()), SX, SY, EX, EY);
+			}
+		}
+	}
 	if (RelevantTriggers > 0)
 	{
 		UE_LOG(LogVeloxBots, Warning, TEXT("VeloxNav: %d pad/pickup trigger components are nav-relevant (ADR 0005 section 3 expects none)"), RelevantTriggers);

@@ -1358,6 +1358,9 @@ void AVeloxBotController::ApplyHazardBehaviours(double T)
 		State.bForeignFlight = false;
 		State.bAirRecoverySteered = false;
 		State.bAirRecoveryHasTarget = false;
+		State.bHazardLandingSteered = false;
+		State.bHazardLandingHasTarget = false;
+		State.LastGroundFeetZ = Feet.Z;
 		return;
 	}
 	const float HopAir = VeloxBotRules::HopAirSeconds(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), StuckProgressFlightSlackSeconds);
@@ -1386,6 +1389,7 @@ void AVeloxBotController::ApplyHazardBehaviours(double T)
 	}
 	if (!State.bForeignFlight)
 	{
+		UpdateHazardLanding(Feet, Movement->Velocity, Movement->GetGravityZ());
 		return;
 	}
 
@@ -1412,6 +1416,19 @@ void AVeloxBotController::ApplyHazardBehaviours(double T)
 		State.bAirRecoveryHasTarget = false;
 		return;
 	}
+	// Task M7 H7: a landing over lava projects onto the bed's mesh right under it ("on course"); steer to the nearest nav
+	// point outside every hazard instead.
+	const UVeloxHazardSubsystem* Hazards = UVeloxHazardSubsystem::Get(World);
+	if (Hazards && Hazards->IsInHazard(Point.Location + FVector(0.0, 0.0, HazardProbeUpCm)))
+	{
+		FVector Safe;
+		if (!FindHazardEscapeTarget(Point.Location, Safe))
+		{
+			State.bAirRecoveryHasTarget = false;
+			return;
+		}
+		Point.Location = Safe;
+	}
 	State.AirRecoveryTarget = Point.Location;
 	State.bAirRecoveryHasTarget = true;
 	const FVector2D Wish = VeloxBotRules::AirRecoveryWish(Landing, FVector2D(Point.Location), AirRecoveryOnCourseCm);
@@ -1429,6 +1446,51 @@ void AVeloxBotController::ApplyHazardBehaviours(double T)
 		++State.AirRecoveryFlights;
 		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotAirRecovery bot=%s at=%s vel=%s landing=%s target=%s flights=%d"), *GetBotName(), *Feet.ToCompactString(),
 			*Velocity.ToCompactString(), *Landing.ToString(), *Point.Location.ToCompactString(), State.AirRecoveryFlights);
+	}
+}
+
+void AVeloxBotController::UpdateHazardLanding(const FVector& Feet, const FVector& Velocity, float GravityZ)
+{
+	// Task M7 H7: the bot's own hop or dodge jump (the 3.6.3 recovery leaves those alone) whose predicted landing at the
+	// take-off level is in lava (the overlay's air wish can bend a hop over a channel corner into it): steer from that landing
+	// to the nearest nav point outside every hazard, like the airborne recovery.
+	const float Gravity = FMath::Abs(GravityZ);
+	const float Drop = FMath::Max(0.f, static_cast<float>(Feet.Z - State.LastGroundFeetZ));
+	const float Seconds = VeloxBotRules::FlightSecondsToLevel(static_cast<float>(Velocity.Z), Drop, Gravity);
+	const FVector2D Landing = FVector2D(Feet) + FVector2D(Velocity) * Seconds;
+	const FVector LandingAt(Landing, State.LastGroundFeetZ);
+	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+	bool bHazard = false;
+	if (!State.bHazardLandingHasTarget)
+	{
+		const FVector Extent(Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectRadiusCm, Settings.OnMeshHalfHeightCm);
+		if (VeloxBotCombatGlue::ProjectsOntoNav(*this, LandingAt, Extent, &bHazard) || !bHazard)
+		{
+			return;
+		}
+		FVector Target;
+		if (!FindHazardEscapeTarget(LandingAt, Target))
+		{
+			return;
+		}
+		State.HazardLandingTarget = Target;
+		State.bHazardLandingHasTarget = true;
+	}
+	const FVector2D Wish = VeloxBotRules::AirRecoveryWish(Landing, FVector2D(State.HazardLandingTarget), AirRecoveryOnCourseCm);
+	if (Wish.IsZero())
+	{
+		return;
+	}
+	State.Pending.WishDirWorld = Wish;
+	State.Pending.WishScale = 1.f;
+	State.Pending.bJumpHeld = false;
+	++State.HazardLandingTicks;
+	if (!State.bHazardLandingSteered)
+	{
+		State.bHazardLandingSteered = true;
+		++State.HazardLandingFlights;
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotHazardLanding bot=%s at=%s vel=%s landing=%s target=%s flights=%d"), *GetBotName(), *Feet.ToCompactString(),
+			*Velocity.ToCompactString(), *Landing.ToString(), *State.HazardLandingTarget.ToCompactString(), State.HazardLandingFlights);
 	}
 }
 

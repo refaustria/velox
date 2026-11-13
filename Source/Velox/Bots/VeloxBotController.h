@@ -138,6 +138,14 @@ struct FVeloxBotState
 	int32 AirRecoveryFlights = 0;
 	int32 AirRecoveryTicks = 0;
 	int32 PadDisciplineTicks = 0;
+	/** Task M7 H7: feet height of the last ground tick (the level the bot's own hop lands on). */
+	double LastGroundFeetZ = 0.0;
+	/** H7: in the bot's own hop the predicted landing lies in lava: steered to the nearest safe nav point (flights / ticks, this life). */
+	bool bHazardLandingSteered = false;
+	FVector HazardLandingTarget = FVector::ZeroVector;
+	bool bHazardLandingHasTarget = false;
+	int32 HazardLandingFlights = 0;
+	int32 HazardLandingTicks = 0;
 	/** 3.6.4: the hazard escape owns the input (feet in lava, until grounded outside it or HazardEscapeMaxSeconds). */
 	bool bHazardEscape = false;
 	double HazardEscapeSince = -1.0;
@@ -580,6 +588,8 @@ private:
 	bool UpdateHazardEscape(double Now);
 	/** Escape target search; false when neither a nav point nor the volume's side was found. */
 	bool FindHazardEscapeTarget(const FVector& Feet, FVector& OutTarget) const;
+	/** Task M7 H7: own hop / dodge jump with its predicted landing in lava: steer to the nearest safe nav point (ApplyHazardBehaviours). */
+	void UpdateHazardLanding(const FVector& Feet, const FVector& Velocity, float GravityZ);
 	/**
 	 * ADR 0008 3.6.3/4 on State.Pending after Act (inert off hazard maps): the hazard escape (face the target, forward,
 	 * jump), pad discipline (no move input in a JUMP_PAD flight; aim live), the airborne recovery (foreign flight, not on a

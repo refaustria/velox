@@ -412,6 +412,13 @@ struct FVeloxBotCombatState
 	int32 EdgeProbeCount = 0;
 	int32 EdgeMirrorCount = 0;
 	int32 EdgeDropCount = 0;
+	/**
+	 * Task M7 H7: after a Drop the remaining wish (closing in, path blend) still leads over a hazard (lava): the overlay backs
+	 * off (the remaining wish reversed) instead; cached with the edge probe. Only for hazard rejections, so void ledges keep
+	 * the H4 behaviour.
+	 */
+	bool bEdgeHazardBack = false;
+	int32 EdgeHazardBackCount = 0;
 
 	double NextWeaponChoiceTime = -1.0;
 	EVeloxFireVerdict LastVerdict = EVeloxFireVerdict::NoTarget;
@@ -433,8 +440,8 @@ namespace VeloxBotCombatGlue
 	 */
 	VELOX_API bool IsEdgeAware(const UWorld* World);
 
-	/** ADR 0008 3.6.1/2: Point projects onto the bot's nav data within Extent (bot's filter); true without nav data. */
-	VELOX_API bool ProjectsOntoNav(const AVeloxBotController& Bot, const FVector& Point, const FVector& Extent);
+	/** ADR 0008 3.6.1/2: Point projects onto the bot's nav data within Extent (bot's filter) at a point outside every hazard volume (H7); true without nav data. */
+	VELOX_API bool ProjectsOntoNav(const AVeloxBotController& Bot, const FVector& Point, const FVector& Extent, bool* bOutHazard = nullptr);
 
 	/** Perceive phase: (re)binds the damage hearing per life, then every PerceptionIntervalSeconds (staggered by BotIndex) updates the enemy memory, the target and the projectile threat. */
 	VELOX_API void Perceive(AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, float Dt);

@@ -679,6 +679,15 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 			NavOutput.WishDir = Arrive.WishDir;
 			NavOutput.WishScale = Arrive.WishDir.IsZero() ? 0.f : 1.f;
 		}
+		else if (Maneuver.Type == EVeloxManeuverType::JumpPad && !bOnGround && Maneuver.IsPadFlight() && Maneuver.bLaunchImpulseSeen)
+		{
+			// Task M7 H7: the pad's arc already ends near the link end; a plain wish at End air-accelerates a launch slower than
+			// AirMaxWishSpeed past it (Sacrarium PadSouth). Correct the horizontal velocity toward the ballistic one instead.
+			const FVeloxBallisticArrive Arrive = VeloxBotRocketJump::ArriveWish(Feet, Movement->Velocity, LinkEnd, Movement->GetGravityZ(),
+				UVeloxBotSettings::Get().PadArriveDeadbandCmS);
+			NavOutput.WishDir = Arrive.WishDir;
+			NavOutput.WishScale = Arrive.WishDir.IsZero() ? 0.f : 1.f;
+		}
 		break;
 	}
 	NavOutput.WishScale *= Out.WishScale;
