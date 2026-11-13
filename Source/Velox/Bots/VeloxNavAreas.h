@@ -59,3 +59,17 @@ class VELOX_API UVeloxNavArea_RocketJump : public UNavArea
 public:
 	UVeloxNavArea_RocketJump(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 };
+
+/**
+ * Lava (ADR 0008 3.6, task M7 H7): the nav polys under and around an AVeloxHazardVolume of type Lava (the volume's box grown by
+ * UVeloxBotSettings::HazardNavPaddingCm). Not excluded: a bot standing in it (H5 hazard escape) still paths out, and a goal
+ * that can only be reached through it stays reachable. The cost makes every other route cheaper.
+ */
+UCLASS()
+class VELOX_API UVeloxNavArea_Hazard : public UNavArea
+{
+	GENERATED_BODY()
+
+public:
+	UVeloxNavArea_Hazard(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+};

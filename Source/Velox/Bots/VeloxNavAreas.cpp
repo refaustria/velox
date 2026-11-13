@@ -43,3 +43,13 @@ UVeloxNavArea_RocketJump::UVeloxNavArea_RocketJump(const FObjectInitializer& Obj
 	FixedAreaEnteringCost = 400.f;
 	DrawColor = FColor(255, 40, 40);
 }
+
+UVeloxNavArea_Hazard::UVeloxNavArea_Hazard(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	// Per cm 50 x a floor poly plus 5000 on entering: a 300 cm channel costs ~20000, any walk around it on L_HazardTest
+	// (<= 2000 cm extra) is cheaper (task M7 H7).
+	DefaultCost = 50.f;
+	FixedAreaEnteringCost = 5000.f;
+	DrawColor = FColor(255, 90, 0);
+}

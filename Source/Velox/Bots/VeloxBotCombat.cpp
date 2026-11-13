@@ -615,8 +615,12 @@ namespace VeloxBotCombatGlue
 		return Hazards && Hazards->HasHazards() && VeloxBotCombatPrivate::CVarBotEdgeAware.GetValueOnGameThread() != 0;
 	}
 
-	bool ProjectsOntoNav(const AVeloxBotController& Bot, const FVector& Point, const FVector& Extent)
+	bool ProjectsOntoNav(const AVeloxBotController& Bot, const FVector& Point, const FVector& Extent, bool* bOutHazard)
 	{
+		if (bOutHazard)
+		{
+			*bOutHazard = false;
+		}
 		UWorld* World = Bot.GetWorld();
 		const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 		const UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
@@ -627,8 +631,33 @@ namespace VeloxBotCombatGlue
 			return true;
 		}
 		FNavLocation Projected;
-		return NavSys->ProjectPointToNavigation(Point, Projected, Extent, NavData,
+		const bool bProjected = NavSys->ProjectPointToNavigation(Point, Projected, Extent, NavData,
 			UNavigationQueryFilter::GetQueryFilter(*NavData, const_cast<AVeloxBotController*>(&Bot), Bot.GetNavFilter()));
+		// Task M7 H7: a point over a hazard volume is no safe ground for a wish or a hop, whether or not it projects. The
+		// projection may land on the bed's mesh in the volume, or on the rim next to the channel (and an airborne probe is far
+		// above the bed), so the static surface straight under the probe is tested too: a bridge over lava is safe, the lava
+		// top or its bed is not.
+		const UVeloxHazardSubsystem* Hazards = UVeloxHazardSubsystem::Get(World);
+		if (!Hazards || !Hazards->HasHazards())
+		{
+			return bProjected;
+		}
+		bool bHazard = bProjected && Hazards->IsInHazard(Projected.Location + FVector(0.0, 0.0, Bot.HazardProbeUpCm));
+		if (!bHazard)
+		{
+			FHitResult Hit;
+			const FVector Down = Point - FVector(0.0, 0.0, UVeloxBotSettings::Get().HazardTraceDepthCm);
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(VeloxBotHazardProbe), false, Bot.GetPawn());
+			// The hit is the volume's top (object queries see the hazard box) or the bed under it: 1 cm into the volume either
+			// way (the bed + HazardProbeUpCm lands exactly on a 20 cm lava top, a float tie).
+			bHazard = World->LineTraceSingleByObjectType(Hit, Point, Down, FCollisionObjectQueryParams(ECC_WorldStatic), Params) &&
+				(Hazards->IsInHazard(Hit.ImpactPoint + FVector(0.0, 0.0, 1.0)) || Hazards->IsInHazard(Hit.ImpactPoint - FVector(0.0, 0.0, 1.0)));
+		}
+		if (bOutHazard)
+		{
+			*bOutHazard = bHazard;
+		}
+		return bProjected && !bHazard;
 	}
 
 	void Overlay(const AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, const FVeloxBotNavOutput& Nav, FVeloxBotInput& Pending, float Dt)
@@ -731,10 +760,10 @@ namespace VeloxBotCombatGlue
 				++Combat.EdgeProbeCount;
 				const FVector ProbeFeet = Self->GetVeloxMovementComponent() ? Self->GetVeloxMovementComponent()->GetActorFeetLocation() : Feet;
 				const FVector2D Velocity2D(Self->GetVelocity());
-				auto OnNav = [&](const FVector2D& W)
+				auto OnNav = [&](const FVector2D& W, bool* bHazard = nullptr)
 				{
 					return ProjectsOntoNav(Bot, VeloxBotCombat::EdgeProbePoint(ProbeFeet, Velocity2D, W, BotSettings.EdgeProbeLookaheadSeconds, BotSettings.EdgeProbeCm),
-						UVeloxBotItemRouter::GetOnMeshExtent());
+						UVeloxBotItemRouter::GetOnMeshExtent(), bHazard);
 				};
 				const bool bWishOnNav = OnNav(Wish);
 				FVeloxCombatWishInput Mirrored = In;
@@ -758,6 +787,20 @@ namespace VeloxBotCombatGlue
 				{
 					++Combat.EdgeDropCount;
 				}
+				// H7: what the Drop leaves (closing in, the path blend) is probed too; over lava the overlay backs off.
+				Combat.bEdgeHazardBack = false;
+				if (Combat.bEdgeDrop)
+				{
+					FVeloxCombatWishInput Dropped = In;
+					Dropped.bNoLateralOrRetreat = true;
+					const FVector2D Remaining = VeloxBotCombat::CombatWish(Dropped);
+					bool bHazard = false;
+					if (!Remaining.IsZero() && !OnNav(Remaining, &bHazard) && bHazard)
+					{
+						Combat.bEdgeHazardBack = true;
+						++Combat.EdgeHazardBackCount;
+					}
+				}
 				if (Choice != EVeloxEdgeChoice::Keep)
 				{
 					UE_LOG(LogVeloxBots, Verbose, TEXT("VeloxBotEdge bot=%s choice=%s at=%s vel=%s wish=(%.2f,%.2f)"), *Bot.GetBotName(),
@@ -766,6 +809,10 @@ namespace VeloxBotCombatGlue
 			}
 			In.bNoLateralOrRetreat = Combat.bEdgeDrop;
 			Wish = VeloxBotCombat::CombatWish(In);
+			if (Combat.bEdgeHazardBack)
+			{
+				Wish = -Wish;
+			}
 		}
 		if (!Wish.IsZero())
 		{

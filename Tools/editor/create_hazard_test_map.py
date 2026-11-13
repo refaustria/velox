@@ -10,7 +10,9 @@ create_movement_test_map.py. Centimetres, floor top at Z=0, X forward. Layout:
   one lava channel cut into the floor: x -1500..-1200, y -600..600, bed (Box kind "hazard") top -60, AVeloxHazardVolume
     Lava from -60 to the surface at -40;
   the platform: 800 x 800 at x 1000..1800, y -400..400, top 0, open edges, 1000 cm of void gap west of it;
-  one jump pad on the main floor at (-300, 0) across the gap onto the platform (+ JUMP_PAD nav link to its centre);
+  a pier x 0..300, y -200..200 (top 0) east of the main floor; one jump pad on it at (150, 0) across the gap onto the platform
+    (+ JUMP_PAD nav link to its centre). Task M7 H7: Detour connects a link's end only within one nav tile (TileSizeUU 1000) of
+    its start's tile; the old pad at x -300 (tile -1) never reached the platform centre (tile 1), so no path used it;
   a void slab (AVeloxHazardVolume Void) z -1300..-500 under everything: footprint plus 4000 cm on every side, so any
     knockback lands in it (ADR 0008 3.1: KillZ -2600 stays the safety net, a KillZ death is a defect);
   one AVeloxDummySpawner on the platform (bAutoSpawn off; tests spawn it), four PlayerStarts on the main floor
@@ -42,11 +44,13 @@ PLATFORM_HALF = 400.0
 VOID_TOP, VOID_BOTTOM = -500.0, -1300.0
 VOID_MARGIN = 4000.0
 KILL_Z = -2600.0
-PAD_XY = (-300.0, 0.0)
+PIER_X0, PIER_X1, PIER_HALF_Y = 0.0, 300.0, 200.0
+PAD_XY = (150.0, 0.0)
 PLATFORM_CENTER = ((PLATFORM_X0 + PLATFORM_X1) / 2, 0.0)
-# AimAtTarget: the target is the apex. Apex 450 over x 500 (800 cm from the pad): |v| about 1790 cm/s at gravity 2000, landing
-# about x 1280 on the platform (x 1000..1800). The nav link still ends at the platform centre.
-PAD_APEX = (500.0, 0.0, 450.0)
+# AimAtTarget: the target is the apex. Apex 450 over x 750 (600 cm from the pad): launch (974, 0, 1233), |v| about 1570 cm/s at
+# gravity 2000, landing about x 1350 on the platform (x 1000..1800). The nav link ends at the platform centre (tile x 1, the
+# pad's tile x 0).
+PAD_APEX = (750.0, 0.0, 450.0)
 
 STARTS = [  # (label, x, y, yaw)
     ("PlayerStart_SW", -2100, -700, 0),
@@ -55,7 +59,7 @@ STARTS = [  # (label, x, y, yaw)
     ("PlayerStart_NE", -700, 700, 0),
 ]
 
-EXPECTED = {"ground": 4, "wall": 3, "hazard": 1, "platform": 1, "hazardvolume": 2, "jumppad": 1, "targetpoint": 1, "navlink": 1,
+EXPECTED = {"ground": 5, "wall": 3, "hazard": 1, "platform": 1, "hazardvolume": 2, "jumppad": 1, "targetpoint": 1, "navlink": 1,
             "dummyspawner": 1, "playerstart": 4, "light": 2, "navbounds": 1}
 
 
@@ -73,6 +77,8 @@ def build_floor_and_lava():
     ):
         (cx, sx), (cy, sy) = span(x0, x1), span(y0, y1)
         vm.box(name, (cx, cy, zc), (sx, sy, SLAB_T), "Floor", "ground", folder="Floor")
+    (cx, sx), (cy, sy) = span(PIER_X0, PIER_X1), span(-PIER_HALF_Y, PIER_HALF_Y)
+    vm.box("Floor_Pier", (cx, cy, zc), (sx, sy, SLAB_T), "Floor", "ground", folder="Floor")
     (cx, sx), (cy, sy) = span(LAVA_X0, LAVA_X1), span(-LAVA_HALF_Y, LAVA_HALF_Y)
     (bz, bs) = span(-SLAB_T, LAVA_BED_Z)
     vm.box("LavaBed", (cx, cy, bz), (sx, sy, bs), "RampBlocked", "hazard", folder="Hazards")
