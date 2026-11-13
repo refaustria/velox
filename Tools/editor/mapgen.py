@@ -23,7 +23,7 @@ except ImportError:      # pure-Python use (validate, golden) outside the editor
     unreal = None
     vm = None
 
-MATERIAL_KEYS = ("Floor", "Wall", "Platform", "Stairs", "RampWalkable", "Pad", "Target")
+MATERIAL_KEYS = ("Floor", "Wall", "Platform", "Stairs", "RampWalkable", "Pad", "Target", "Pit")   # Pit: lava beds (Box kind hazard, ADR 0008 1.3; M7 B4)
 STAIR_FOOT_EXTRA = 100.0
 RAMP_THICKNESS = 20.0
 RAMP_FILL_STEP = 200.0

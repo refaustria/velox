@@ -1,0 +1,11 @@
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botduel-set.log:BotDuel            PASS cost=n/j kills=10 frags=10 pickups=47 stuck=0 max_dwell_s=2 link_max_dt=1.09 budget_mean_us=276.1 clean=5/26 P=21
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botduel-set.log:BotDuel            PASS cost=PASS kills=10 frags=10 pickups=42 stuck=0 max_dwell_s=3 link_max_dt=1.26 budget_mean_us=76.2 clean=10/26 P=16
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botduel-set.log:BotDuel            PASS cost=n/j kills=8 frags=8 pickups=45 stuck=0 max_dwell_s=3 link_max_dt=1.24 budget_mean_us=328.0 clean=0/26 P=0
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botduel-set.log:Rounds passed: 3/3 (requested 3)
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botrun-set.log:BotRun             FAIL cost=PASS kills=12 frags=12 pickups=62 stuck=0 max_dwell_s=3 link_max_dt=1.09 budget_mean_us=76.8 clean=10/20 P=10
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botrun-set.log:    - 5 pawn(s) killed by the world (Player,Player,Player,Player,Player): left the arena through the 07f clip - content defect, not bot work
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botrun-set.log:BotRun             FAIL cost=n/j kills=13 frags=13 pickups=66 stuck=0 max_dwell_s=4 link_max_dt=1.17 budget_mean_us=289.6 clean=7/21 P=0
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botrun-set.log:    - 5 pawn(s) killed by the world (Player,Player,Player,Player,Player): left the arena through the 07f clip - content defect, not bot work
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botrun-set.log:BotRun             FAIL cost=PASS kills=11 frags=11 pickups=68 stuck=0 max_dwell_s=3 link_max_dt=1.11 budget_mean_us=75.6 clean=8/20 P=12
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botrun-set.log:    - 5 pawn(s) killed by the world (Player,Player,Player,Player,Player): left the arena through the 07f clip - content defect, not bot work
+/mnt/oldroot/velox-scratch/m7-fornax/s2/botrun-set.log:Rounds passed: 0/3 (requested 3)

@@ -31,6 +31,7 @@ FTS=(
   "FtMapReachability-L_Sacrarium_Blockout|L_Sacrarium_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Weapon_Railgun"   # M7 B1 (ADR 0008 5.3 c); the Railgun sits on the loft (pads / rocket jumps only)
   "FtMapReachability-L_Nemus_Blockout|L_Nemus_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Weapon_Railgun"   # M7 B2 (ADR 0008 5.3 c); the Railgun sits on the Corona (pad P4 / rocket jumps only)
   "FtMapReachability-L_Orbita_Blockout|L_Orbita_Blockout|velox.bots.FtMapReachability"   # M7 B5 (ADR 0008 5.3 c); no Walk check: decks joined by pads and gaps only, spawn S4 (Armamentarium) walks nowhere
+  "FtMapReachability-L_Fornax_Blockout|L_Fornax_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Health_Mega MinMajors=4"   # M7 B4 (ADR 0008 5.3 c); the Mega sits on the Crane Bridge (pad Bellows / rocket jump only); 4 majors (RA, Mega, YA, RG: no powerup)
   "FtBotEdge|L_HazardTest|velox.bots.FtBotEdge"
   "FtBotLavaEscape|L_HazardTest|velox.bots.FtBotLavaEscape"
   "FtBotKnockOff|L_HazardTest|velox.bots.FtBotKnockOff"

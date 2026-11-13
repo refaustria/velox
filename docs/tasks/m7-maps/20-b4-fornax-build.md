@@ -42,3 +42,11 @@ Standard format (result, what changed, verification, open issues). Note explicit
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+### B4 (dev-hard, 2026-11-13/14, branch `wip/m7-20-b4-fornax`, engine 5.8.4)
+Evidence `docs/adr/evidence/0008-fornax-blockout/` (README has the table and per-link numbers), raw /mnt/oldroot/velox-scratch/m7-fornax/.
+- (a) PASS, golden written (110 solids, 30 items, 5 spawns, 19 links). (b) navlint PASS clusters 0 / lowclear 0 / hazard_m2 96. (c) FtMapReachability PASS (`WalkExempt=DA_Item_Health_Mega MinMajors=4`). (d) FornaxRun PASS 8/8, both pads.
+- (e) after the one layout iteration: BotDuel x3 PASS 3/3; BotRun x3 fails only on the idle client's world kills (BotWatch.json parks it at (-2700,-1700,100), outside the 48 x 36 m footprint); FFA x10 at 3 fails link_success[Jump] 88.7 % (Isle_In 81 %, bots overshoot the 300 cm island at ~950 cm/s) and item coverage 27/30 (minor items on side routes, different ones per set). Hazard gate PASS: self 1 over FFA x10, per BotDuel round [0,0,1]; credited FFA 3 / Duel 1. RA and Mega taken every round in every set.
+- Chute (F5): the hop guard refuses hops on the 30 deg Chute (45 refusal ticks in 12 traversals, landing predicted at take-off height); bots walk it, no stuck or lava.
+- Out-of-list files touched: `mapgen.py` (`MATERIAL_KEYS` + "Pit": the lava bed material was never loaded, generation crashed), `Tests/VeloxMapReachabilityFt.cpp` (`MinMajors=<n>`, default 5: the FT required 5 majors, Fornax has 4), `infra/ci/nettest.sh` (FornaxRun on L_Fornax_Blockout, as B1/B2 did).
+- Escalation (rule): (e) still fails after one iteration; follow-ups: Isle_In (bot-side speed cap on short-landing gap hops, or drop the link), minor-item coverage ruling, BotWatch idle spot per map.
