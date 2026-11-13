@@ -100,9 +100,46 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm/s"))
 	float PadArriveDeadbandCmS = 30.f;
 
-	/** Distance before a link start at which the takeoff maneuver begins (cm). */
+	/**
+	 * JUMP / JUMP_FAST take-off window (task M7 H11): from this far before the link start (along the link) a ledge ahead
+	 * fires the jump (cm). Before H11 the jump fired at this radial distance from the start, up to 160 cm before the edge.
+	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
 	float TakeoffLeadCm = 100.f;
+
+	/**
+	 * Task M7 H11: without a ledge seen, the JUMP / JUMP_FAST take-off fires this far past the link start along the link
+	 * (cm; authored starts sit 60 cm before the edge, the way back of a both-ways link 100).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float TakeoffMaxPastStartCm = 40.f;
+
+	/**
+	 * Task M7 H11: the take-off ledge probe traces down this far beyond this tick's step ahead of the feet along the link
+	 * (cm): no floor there (within TakeoffLedgeDepthCm) is the edge, so the jump leaves about this much before it.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float TakeoffLedgeProbeCm = 25.f;
+
+	/**
+	 * Task M7 H11: a JUMP / JUMP_FAST take-off needs the along-link speed that lands this far short of the link end (cm;
+	 * the smaller authoring inset); slower, the bot backs up along the link for a run-up (JumpFastRunUpCm / JumpFastRetries,
+	 * clamped to the mesh behind the start).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float TakeoffLandInsetCm = 60.f;
+
+	/**
+	 * Task M7 H11: a JUMP / JUMP_FAST take-off with more speed across the link than this backs up for a straight run-up
+	 * like a slow one (cm/s; Nemus: 350-470 across from Log_Land drifted off the 400 cm log). Near the start (within
+	 * TakeoffLeadCm) an approach that is mostly across the link (more across than along, above this) backs up at once.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm/s"))
+	float TakeoffMaxLateralCmS = 250.f;
+
+	/** Task M7 H11: depth of the take-off ledge probe below the feet (cm; deeper than a stair step). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "1.0", Units = "cm"))
+	float TakeoffLedgeDepthCm = 60.f;
 
 	/**
 	 * ADR 0005 D28: a link traversal (or the wait for the ground before it) running this long is aborted with
