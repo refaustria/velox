@@ -18,6 +18,7 @@
 #include "Combat/VeloxHealthComponent.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Combat/VeloxHazardSubsystem.h"
+#include "Combat/VeloxHazardVolume.h"
 #include "Core/VeloxCollisionChannels.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
@@ -230,6 +231,20 @@ namespace VeloxBotCombat
 		return Feet + FVector(Velocity2D * FMath::Max(0.f, AirSeconds), 0.0);
 	}
 
+	void HopGroundWindow(double LandingZ, float ApexCm, float Distance2D, float WalkableFloorZ, double& OutTopZ, double& OutBottomZ)
+	{
+		const double FloorZ = FMath::Clamp(static_cast<double>(WalkableFloorZ), 0.05, 1.0);
+		const double TanSlope = FMath::Sqrt(FMath::Max(0.0, 1.0 - FloorZ * FloorZ)) / FloorZ;
+		OutTopZ = LandingZ + FMath::Max(0.f, ApexCm);
+		// At least 1 cm below the take-off height, so flat ground at exactly LandingZ is inside the window.
+		OutBottomZ = LandingZ - FMath::Max(1.0, FMath::Max(0.f, Distance2D) * TanSlope);
+	}
+
+	bool IsHeardDamage(const FGameplayTagContainer& DamageTags)
+	{
+		return !DamageTags.HasTag(VeloxGameplayTags::Damage_Hazard);
+	}
+
 	FVeloxProjectileThreat ProjectileThreat(const FVector& Location, const FVector& Velocity, const FVector& Point, float DangerRadiusCm, float HorizonSeconds)
 	{
 		FVeloxProjectileThreat Out;
@@ -377,6 +392,11 @@ namespace VeloxBotCombatGlueImpl
 
 	void HandleDamaged(AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, const FVeloxDamageEvent& Event)
 	{
+		if (!VeloxBotCombat::IsHeardDamage(Event.DamageTags))
+		{
+			// H8 (review F8): a credited lava tick names the attacker as instigator; it gives away no position.
+			return;
+		}
 		AVeloxCharacter* Attacker = PawnOf(Event.Instigator.Get());
 		if (!Attacker)
 		{
@@ -615,6 +635,11 @@ namespace VeloxBotCombatGlue
 		return Hazards && Hazards->HasHazards() && VeloxBotCombatPrivate::CVarBotEdgeAware.GetValueOnGameThread() != 0;
 	}
 
+	bool IsEdgeAwareEnabled()
+	{
+		return VeloxBotCombatPrivate::CVarBotEdgeAware.GetValueOnGameThread() != 0;
+	}
+
 	bool ProjectsOntoNav(const AVeloxBotController& Bot, const FVector& Point, const FVector& Extent, bool* bOutHazard)
 	{
 		if (bOutHazard)
@@ -642,22 +667,68 @@ namespace VeloxBotCombatGlue
 		{
 			return bProjected;
 		}
-		bool bHazard = bProjected && Hazards->IsInHazard(Projected.Location + FVector(0.0, 0.0, Bot.HazardProbeUpCm));
+		bool bHazard = bProjected && Hazards->IsInHazard(Projected.Location + FVector(0.0, 0.0, Bot.HazardProbeUpCm), EVeloxHazardType::Lava);
 		if (!bHazard)
 		{
+			// Task M7 H8 (review F13): the floor under the point is the first Pawn-blocking surface (overlap-only triggers, the
+			// hazard boxes and the void slab do not block; pawns are ignored); it is lava when 1 cm above it lies in a Lava
+			// volume (the bed). Void never counts here: void ledges keep the H4 projection result.
 			FHitResult Hit;
 			const FVector Down = Point - FVector(0.0, 0.0, UVeloxBotSettings::Get().HazardTraceDepthCm);
 			FCollisionQueryParams Params(SCENE_QUERY_STAT(VeloxBotHazardProbe), false, Bot.GetPawn());
-			// The hit is the volume's top (object queries see the hazard box) or the bed under it: 1 cm into the volume either
-			// way (the bed + HazardProbeUpCm lands exactly on a 20 cm lava top, a float tie).
-			bHazard = World->LineTraceSingleByObjectType(Hit, Point, Down, FCollisionObjectQueryParams(ECC_WorldStatic), Params) &&
-				(Hazards->IsInHazard(Hit.ImpactPoint + FVector(0.0, 0.0, 1.0)) || Hazards->IsInHazard(Hit.ImpactPoint - FVector(0.0, 0.0, 1.0)));
+			FCollisionResponseParams Response;
+			Response.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
+			bHazard = World->LineTraceSingleByChannel(Hit, Point, Down, ECC_Pawn, Params, Response) &&
+				Hazards->IsInHazard(Hit.ImpactPoint + FVector(0.0, 0.0, 1.0), EVeloxHazardType::Lava);
 		}
 		if (bOutHazard)
 		{
 			*bOutHazard = bHazard;
 		}
 		return bProjected && !bHazard;
+	}
+
+	bool FindHopLandingGround(const AVeloxBotController& Bot, const FVector& Landing, float ApexCm, float Distance2D, float WalkableFloorZ, FVector& OutGround)
+	{
+		UWorld* World = Bot.GetWorld();
+		if (!World)
+		{
+			return false;
+		}
+		double TopZ = 0.0;
+		double BottomZ = 0.0;
+		VeloxBotCombat::HopGroundWindow(Landing.Z, ApexCm, Distance2D, WalkableFloorZ, TopZ, BottomZ);
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(VeloxBotHopGround), false, Bot.GetPawn());
+		FCollisionResponseParams Response;
+		Response.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
+		if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World))
+		{
+			Bots->NoteTraces(1);
+		}
+		if (!World->LineTraceSingleByChannel(Hit, FVector(Landing.X, Landing.Y, TopZ), FVector(Landing.X, Landing.Y, BottomZ), ECC_Pawn, Params, Response) || Hit.bStartPenetrating)
+		{
+			return false;
+		}
+		OutGround = Hit.ImpactPoint;
+		return true;
+	}
+
+	bool HopLandsSafely(const AVeloxBotController& Bot, const FVector& Landing, float ApexCm, float Distance2D, float WalkableFloorZ, bool* bOutHazard)
+	{
+		if (bOutHazard)
+		{
+			*bOutHazard = false;
+		}
+		FVector Ground;
+		if (!FindHopLandingGround(Bot, Landing, ApexCm, Distance2D, WalkableFloorZ, Ground))
+		{
+			return false;
+		}
+		const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+		const FVector Extent(Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectHalfHeightCm);
+		// 1 cm above the hit: the hazard trace in ProjectsOntoNav must start above the bed to see it.
+		return ProjectsOntoNav(Bot, Ground + FVector(0.0, 0.0, 1.0), Extent, bOutHazard);
 	}
 
 	void Overlay(const AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, const FVeloxBotNavOutput& Nav, FVeloxBotInput& Pending, float Dt)
@@ -762,8 +833,9 @@ namespace VeloxBotCombatGlue
 				const FVector2D Velocity2D(Self->GetVelocity());
 				auto OnNav = [&](const FVector2D& W, bool* bHazard = nullptr)
 				{
+					// H8 (review F6, ADR 0008 G2): the agent radius, not GetOnMeshExtent's 100 cm (that accepts ~55 cm past a ledge).
 					return ProjectsOntoNav(Bot, VeloxBotCombat::EdgeProbePoint(ProbeFeet, Velocity2D, W, BotSettings.EdgeProbeLookaheadSeconds, BotSettings.EdgeProbeCm),
-						UVeloxBotItemRouter::GetOnMeshExtent(), bHazard);
+						FVector(BotSettings.EdgeProbeProjectRadiusCm, BotSettings.EdgeProbeProjectRadiusCm, BotSettings.OnMeshHalfHeightCm), bHazard);
 				};
 				const bool bWishOnNav = OnNav(Wish);
 				FVeloxCombatWishInput Mirrored = In;
@@ -789,6 +861,7 @@ namespace VeloxBotCombatGlue
 				}
 				// H7: what the Drop leaves (closing in, the path blend) is probed too; over lava the overlay backs off.
 				Combat.bEdgeHazardBack = false;
+				Combat.bEdgeNoWish = false;
 				if (Combat.bEdgeDrop)
 				{
 					FVeloxCombatWishInput Dropped = In;
@@ -797,8 +870,18 @@ namespace VeloxBotCombatGlue
 					bool bHazard = false;
 					if (!Remaining.IsZero() && !OnNav(Remaining, &bHazard) && bHazard)
 					{
-						Combat.bEdgeHazardBack = true;
-						++Combat.EdgeHazardBackCount;
+						// H8 (review F7): the reversal is probed as well; on a small island it can point at lava or a ledge
+						// too, and then the overlay writes nothing (the path wish stays).
+						if (OnNav(-Remaining))
+						{
+							Combat.bEdgeHazardBack = true;
+							++Combat.EdgeHazardBackCount;
+						}
+						else
+						{
+							Combat.bEdgeNoWish = true;
+							++Combat.EdgeNoWishCount;
+						}
 					}
 				}
 				if (Choice != EVeloxEdgeChoice::Keep)
@@ -812,6 +895,10 @@ namespace VeloxBotCombatGlue
 			if (Combat.bEdgeHazardBack)
 			{
 				Wish = -Wish;
+			}
+			else if (Combat.bEdgeNoWish)
+			{
+				Wish = FVector2D::ZeroVector;
 			}
 		}
 		if (!Wish.IsZero())

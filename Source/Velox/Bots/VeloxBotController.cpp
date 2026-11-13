@@ -1360,6 +1360,9 @@ void AVeloxBotController::ApplyHazardBehaviours(double T)
 		State.bAirRecoveryHasTarget = false;
 		State.bHazardLandingSteered = false;
 		State.bHazardLandingHasTarget = false;
+		State.bAirRecoveryHasSafeTarget = false;
+		State.NextAirRecoverySearchTime = -1.0;
+		State.NextHazardLandingProbeTime = -1.0;
 		State.LastGroundFeetZ = Feet.Z;
 		return;
 	}
@@ -1376,20 +1379,21 @@ void AVeloxBotController::ApplyHazardBehaviours(double T)
 		State.bForeignFlight = VeloxBotRules::IsForeignFlight(true, Movement->GetKnockbackGrace(), bIsFlight);
 	}
 
-	// 3.6.3 pad discipline: no move input in a JUMP_PAD flight (aim, weapon and fire stay as Act left them).
+	// 3.6.3 pad discipline (ADR 0008 G4, task M7 H8 ruling 3): in a JUMP_PAD flight the only move input is the path
+	// follower's ballistic arrive wish toward the link end, as on every map: zero while the flight is on course, a correction
+	// after a trigger-edge launch or a hit in mid-arc (review F10). Aim, weapon and fire stay as Act left them.
 	if (Follow->IsOnLink())
 	{
 		if (Follow->GetManeuver().IsPadFlight())
 		{
-			State.Pending.WishDirWorld = FVector2D::ZeroVector;
-			State.Pending.WishScale = 0.f;
 			++State.PadDisciplineTicks;
+			State.PadArriveTicks += State.Pending.WishDirWorld.IsZero() || State.Pending.WishScale <= 0.f ? 0 : 1;
 		}
 		return;
 	}
 	if (!State.bForeignFlight)
 	{
-		UpdateHazardLanding(Feet, Movement->Velocity, Movement->GetGravityZ());
+		UpdateHazardLanding(T, Feet, Movement->Velocity, Movement->GetGravityZ(), Movement->GetSimParams().JumpVelocity, Movement->GetWalkableFloorZ());
 		return;
 	}
 
@@ -1421,13 +1425,23 @@ void AVeloxBotController::ApplyHazardBehaviours(double T)
 	const UVeloxHazardSubsystem* Hazards = UVeloxHazardSubsystem::Get(World);
 	if (Hazards && Hazards->IsInHazard(Point.Location + FVector(0.0, 0.0, HazardProbeUpCm)))
 	{
-		FVector Safe;
-		if (!FindHazardEscapeTarget(Point.Location, Safe))
+		// H8 (review F4): the safe target is re-searched every HazardEscapeSearchSeconds, not per tick (65 projections).
+		if (!State.bAirRecoveryHasSafeTarget || T >= State.NextAirRecoverySearchTime)
+		{
+			State.NextAirRecoverySearchTime = T + HazardEscapeSearchSeconds;
+			FVector Safe;
+			State.bAirRecoveryHasSafeTarget = FindHazardEscapeTarget(Point.Location, Safe);
+			if (State.bAirRecoveryHasSafeTarget)
+			{
+				State.AirRecoverySafeTarget = Safe;
+			}
+		}
+		if (!State.bAirRecoveryHasSafeTarget)
 		{
 			State.bAirRecoveryHasTarget = false;
 			return;
 		}
-		Point.Location = Safe;
+		Point.Location = State.AirRecoverySafeTarget;
 	}
 	State.AirRecoveryTarget = Point.Location;
 	State.bAirRecoveryHasTarget = true;
@@ -1449,7 +1463,7 @@ void AVeloxBotController::ApplyHazardBehaviours(double T)
 	}
 }
 
-void AVeloxBotController::UpdateHazardLanding(const FVector& Feet, const FVector& Velocity, float GravityZ)
+void AVeloxBotController::UpdateHazardLanding(double Now, const FVector& Feet, const FVector& Velocity, float GravityZ, float JumpVelocity, float WalkableFloorZ)
 {
 	// Task M7 H7: the bot's own hop or dodge jump (the 3.6.3 recovery leaves those alone) whose predicted landing at the
 	// take-off level is in lava (the overlay's air wish can bend a hop over a channel corner into it): steer from that landing
@@ -1463,8 +1477,21 @@ void AVeloxBotController::UpdateHazardLanding(const FVector& Feet, const FVector
 	bool bHazard = false;
 	if (!State.bHazardLandingHasTarget)
 	{
-		const FVector Extent(Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectRadiusCm, Settings.OnMeshHalfHeightCm);
-		if (VeloxBotCombatGlue::ProjectsOntoNav(*this, LandingAt, Extent, &bHazard) || !bHazard)
+		// H8 (review F4): probed at most every EdgeProbeCheckSeconds; (F5) on the ground found under the landing within the
+		// slope window (a hop down a chute lands lower than the take-off).
+		if (State.NextHazardLandingProbeTime >= 0.0 && Now < State.NextHazardLandingProbeTime)
+		{
+			return;
+		}
+		State.NextHazardLandingProbeTime = Now + Settings.EdgeProbeCheckSeconds;
+		const float Apex = JumpVelocity * JumpVelocity / (2.f * FMath::Max(Gravity, 1.f));
+		bool bSafe = VeloxBotCombatGlue::HopLandsSafely(*this, LandingAt, Apex, static_cast<float>(FVector2D(Velocity).Size() * Seconds), WalkableFloorZ, &bHazard);
+		if (!bSafe && !bHazard)
+		{
+			// Late in the hop the slope window is shallow: the H7 test at the take-off level still sees a lava bed under it.
+			bSafe = VeloxBotCombatGlue::ProjectsOntoNav(*this, LandingAt, FVector(Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectRadiusCm, Settings.OnMeshHalfHeightCm), &bHazard);
+		}
+		if (bSafe || !bHazard)
 		{
 			return;
 		}

@@ -61,8 +61,8 @@ public:
 };
 
 /**
- * Lava (ADR 0008 3.6, task M7 H7): the nav polys under and around an AVeloxHazardVolume of type Lava (the volume's box grown by
- * UVeloxBotSettings::HazardNavPaddingCm). Not excluded: a bot standing in it (H5 hazard escape) still paths out, and a goal
+ * Lava (ADR 0008 3.6, task M7 H7): the nav polys inside an AVeloxHazardVolume of type Lava (its own footprint, from the bed
+ * to UVeloxBotSettings::HazardNavTopCm above the surface; ADR 0008 G5(b), task M7 H8). Created by UVeloxBotSubsystem. Not excluded: a bot standing in it (H5 hazard escape) still paths out, and a goal
  * that can only be reached through it stays reachable. The cost makes every other route cheaper.
  */
 UCLASS()

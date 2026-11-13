@@ -144,14 +144,17 @@ public:
 	/**
 	 * ADR 0008 3.6.2 hop landing guard (extends D18): on a map with a hazard volume (VeloxBotCombatGlue::IsEdgeAware), a
 	 * hop taken from the ground now is refused when its landing point, Feet + Velocity2D x (the bot's own hop air time +
-	 * UVeloxBotSettings::HopLandingSlackSeconds), does not project onto the nav mesh. True in the air (the take-off tick
-	 * decides), off hazard maps, and without a pawn. Uncached: one projection per grounded tick that wants a hop.
-	 * Public for the overlay's dodge jump.
+	 * UVeloxBotSettings::HopLandingSlackSeconds), has no safe ground (VeloxBotCombatGlue::HopLandsSafely: ground in the
+	 * slope window, on nav, not lava). True in the air (the take-off tick decides), off hazard maps, and without a pawn.
+	 * Task M7 H8 (review F4): the verdict is cached UVeloxBotSettings::EdgeProbeCheckSeconds within one grounded stretch
+	 * (every landing tests afresh) while the predicted landing stays within HopLandingRecheckCm of the tested one. Public for the overlay's dodge jump.
 	 */
 	bool HasHopLanding();
 
 	/** Hops refused by the landing guard (ticks; FtBotEdge, diagnostics). */
 	int32 GetHopLandingBlockedTicks() const { return HopLandingBlockedTicks; }
+	/** H8: hop landing tests run (cache misses). */
+	int32 GetHopLandingChecks() const { return HopLandingChecks; }
 
 	/** D35: the last line-of-walk check of the current plain segment found it blocked (cleared on a new segment / path). */
 	bool IsSegmentBlockedNow() const { return bSegmentBlocked; }
@@ -226,6 +229,12 @@ private:
 	bool bHopHeadroomClear = true;
 	int32 HopHeadroomBlockedTicks = 0;
 	int32 HopLandingBlockedTicks = 0;
+	/** H8 (review F4): the hop landing verdict's cache (reset whenever the bot is airborne). */
+	double NextHopLandingCheckTime = -1.0;
+	FVector CachedHopLanding = FVector::ZeroVector;
+	bool bHopLandingClear = true;
+	/** Landing tests actually run (not cached; diagnostics, cost). */
+	int32 HopLandingChecks = 0;
 
 	double NextSegmentBlockCheckTime = -1.0;
 	bool bSegmentBlocked = false;
