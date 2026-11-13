@@ -174,7 +174,16 @@ namespace VeloxHUDFormat
 			return FString();
 		}
 		const FString Leaf = TagLeaf(Entry.DamageTag.ToString());
-		return Leaf.Equals(TEXT("Self")) ? FString() : Leaf;
+		if (Leaf.Equals(TEXT("Self")))
+		{
+			return FString();
+		}
+		// ADR 0008 3.3: hazard tags read as "[LAVA]" / "[VOID]" ("A [LAVA] B"; uncredited: "B [LAVA] (suicide)").
+		if (Entry.DamageTag.ToString().StartsWith(TEXT("Velox.Damage.Hazard.")))
+		{
+			return Leaf.ToUpper();
+		}
+		return Leaf;
 	}
 
 	/** One feed line as plain text: "Killer [Rocket] Victim", "Victim [Rocket] (suicide)". */

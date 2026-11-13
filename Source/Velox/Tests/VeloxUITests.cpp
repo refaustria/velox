@@ -521,6 +521,15 @@ bool FVeloxUIHUDFormatTest::RunTest(const FString& Parameters)
 	{
 		AddWarning(TEXT("Velox.Damage.Rocket tag not registered; the weapon rows of the feed test were skipped"));
 	}
+	Entry.DamageTag = FGameplayTag::RequestGameplayTag(TEXT("Velox.Damage.Hazard.Lava"), false);
+	if (Entry.DamageTag.IsValid())
+	{
+		Entry.bSuicide = false;
+		Entry.KillerName = TEXT("Anarki");
+		TestEqual(TEXT("feed lava credited"), FeedLine(Entry), FString(TEXT("Anarki [LAVA] Sarge")));
+		Entry.bSuicide = true;
+		TestEqual(TEXT("feed lava suicide"), FeedLine(Entry), FString(TEXT("Sarge [LAVA] (suicide)")));
+	}
 	Entry.DamageTag = FGameplayTag();
 	Entry.bSuicide = false;
 	Entry.KillerName = TEXT("Anarki");

@@ -2107,6 +2107,9 @@ if script in ("BotRun", "BotDuel"):
     goal_changes = camp_episodes = 0              # D46 (4): VeloxBotRoute bot= goal= lines / episodes of camp=1
     camp_open = {}; camp_max_lead = 0.0
     left_arena = None; world_victims = []; fell_out_lines = 0   # D49 (b)
+    # ADR 0008 3.5: hazard metrics per victim label (report-only, never judged): touches = VeloxHazard lines, deaths = VeloxKill lines
+    # whose tags carry Damage.Hazard (credited: suicide=0, self: suicide=1).
+    hz_touch = collections.Counter(); hz_cred = collections.Counter(); hz_self = collections.Counter()
     # ADR 0005 D50 (4): near-human quantities, per bot, Live phase only (numerators and denominators; pooled as sums).
     #   hitscan: VeloxShot by=<bot> lines, a hit = hits >= 1 (an SG volley is one line, LG one line per 50 ms tick).
     #   projectile: VeloxProjectileExplode by=<bot> lines, a hit = direct != None (a pawn was struck) or confirm_victims >= 1
@@ -2174,6 +2177,11 @@ if script in ("BotRun", "BotDuel"):
                 if WEAPON_ABBR.get(wn_, wn_) == "RL" and not hit_ and (num(d, "splash") >= 1 or d.get("self") == "move_timed"):
                     nh_rl_so["n"] += 1
             continue
+        if "VeloxHazard type=" in l:
+            hm_ = re.search(r"victim=(\S+)", l)
+            if hm_:
+                hz_touch[hm_.group(1)] += 1
+            continue
         if "VeloxKill victim=" in l and "ignored" not in l:
             m = re.search(r"killer=(\S+) suicide=(\d)", l)
             if live and m and m.group(2) == "0" and m.group(1) in bots:
@@ -2182,6 +2190,8 @@ if script in ("BotRun", "BotDuel"):
             tm = re.search(r"tags=\[([^\]]*)\]", l)
             if vm and tm and "Damage.Environment" in tm.group(1):
                 world_victims.append(vm.group(1))
+            if vm and tm and "Damage.Hazard" in tm.group(1) and m:
+                (hz_self if m.group(2) == "1" else hz_cred)[vm.group(1)] += 1
             if vm:
                 kill_at[vm.group(1)].append(utc(l))
             if m and m.group(2) == "1":
@@ -2657,6 +2667,9 @@ if script in ("BotRun", "BotDuel"):
         detail_lines.append("FLAG no camp=1 route line in this round (fact of the round, D49; the set band judges)")
     detail_lines.append("left_arena=%s world_kills=%d [%s] fell_out_lines=%d" % (
         "%s@%s z=%.0f" % left_arena if left_arena else "none", len(world_victims), ",".join(world_victims), fell_out_lines))
+    detail_lines.append("hazard_touch=%d hazard_death_credited=%d hazard_death_self=%d (report-only; per victim: %s)" % (
+        sum(hz_touch.values()), sum(hz_cred.values()), sum(hz_self.values()),
+        " ".join("%s:%d/%d/%d" % (v_, hz_touch[v_], hz_cred[v_], hz_self[v_]) for v_ in sorted(set(hz_touch) | set(hz_cred) | set(hz_self))) or "-"))
     detail_lines.append("camp_lines=%d camp_episodes=%d camp_share_pct=%.1f (of %d goal changes) camp_max_lead_s=%.1f" % (
         camp_lines, camp_episodes, 100.0 * camp_episodes / goal_changes if goal_changes else 0.0, goal_changes, camp_max_lead))
     # ADR 0005 D50 (4)/(5): near-human quantities (Live), per bot and pooled, with the preset's report-only band.
@@ -2688,6 +2701,8 @@ if script in ("BotRun", "BotDuel"):
              "p_norm_mean_us": p_norm_mean, "cost_windows": len(cost_w), "cost_judged": cost_judged, "behaviour_fail": bool(behaviour_fails),
              "camp_episodes": camp_episodes, "camp_lines": camp_lines, "goal_changes": goal_changes, "camp_max_lead": camp_max_lead,
              "left_arena": left_arena[0] if left_arena else None, "world_kills": len(world_victims),
+             "hazard_touch": sum(hz_touch.values()), "hazard_death_credited": sum(hz_cred.values()), "hazard_death_self": sum(hz_self.values()),
+             "hazard_bots": dict((v_, [hz_touch[v_], hz_cred[v_], hz_self[v_]]) for v_ in sorted(set(hz_touch) | set(hz_cred) | set(hz_self))),
              "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w],
              "preset": preset, "calibration": calibration or None, "nh": nh_sum, "nh_bots": dict((b_, nh[b_]) for b_ in sorted(bots)),
              "nh_weapon": dict(nh_weapon), "rl_self_only": nh_rl_so["n"], "max_fire_us": max([w["fire"] for w in windows] or [0]), "mega_takes": len(mega), "link_max": link_max,
@@ -2905,7 +2920,11 @@ if script == "BotDuel":
         [r.get("camp_episodes", 0) for r in valid], sum(r.get("camp_episodes", 0) for r in valid), [r.get("camp_lines", 0) for r in valid],
         ["%.1f" % (100.0 * r.get("camp_episodes", 0) / r["goal_changes"]) if r.get("goal_changes") else "0.0" for r in valid], ["%.1f" % r.get("camp_max_lead", 0.0) for r in valid]))
 print("  left_arena=[%s] world_kills=[%s]" % (",".join(r.get("left_arena") or "none" for r in runs), ",".join(str(r.get("world_kills", 0)) for r in runs)))
-print("  %s" % ("bands=%s" % band_label if band_name != "none" else "band=none (report-only: the per-map set bands are printed, not judged; the map-independent invariants are judged)"))
+print("  hazard (report-only, ADR 0008 3.5): hazard_touch=%s hazard_death_credited=%s hazard_death_self=%s | sums touch=%d credited=%d self=%d" % (
+    [r.get("hazard_touch", 0) for r in runs], [r.get("hazard_death_credited", 0) for r in runs], [r.get("hazard_death_self", 0) for r in runs],
+    sum(r.get("hazard_touch", 0) for r in runs), sum(r.get("hazard_death_credited", 0) for r in runs), sum(r.get("hazard_death_self", 0) for r in runs)))
+has_band = band_name != "none" and any(k_.startswith("BAND_") and v_.strip() for k_, v_ in os.environ.items())   # ADR 0008 3.5: no BAND_* value = report-only
+print("  %s" % ("bands=%s" % band_label if has_band else "band=%s (report-only: the per-map set bands are printed, not judged; the map-independent invariants are judged)" % (band_label if band_name != "none" else "none")))
 # ADR 0006 section 7: link traversal success per link type over the valid rounds (ok / (ok + failed); "aborted" re-plans are not attempts).
 lt_ = {}
 lu_ = collections.Counter()
