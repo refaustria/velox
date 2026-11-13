@@ -90,6 +90,16 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
 	float LinkEndAcceptanceCm = 150.f;
 
+	/**
+	 * Task M7 H7: in the flight of a JUMP_PAD traversal (after the pad's own launch) the bot steers its horizontal velocity
+	 * toward the ballistic one that lands on the link end (the rocket jump's air braking); an error below this needs no
+	 * steering (cm/s). The old wish "toward End at scale 1" air-accelerated pads launched slower than AirMaxWishSpeed (800):
+	 * Sacrarium's PadSouth (679 cm/s) flew at 820-900 and overshot its 400 cm loft. On hazard maps the controller still
+	 * zeroes the input afterwards (ADR 0008 3.6.3 pad discipline).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm/s"))
+	float PadArriveDeadbandCmS = 30.f;
+
 	/** Distance before a link start at which the takeoff maneuver begins (cm). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
 	float TakeoffLeadCm = 100.f;
@@ -171,6 +181,26 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "1.0", Units = "cm"))
 	float HopLandingProjectRadiusCm = 20.f;
+
+	/**
+	 * Task M7 H7 lava avoidance: every Lava AVeloxHazardVolume marks the nav polys inside its box grown by this much
+	 * horizontally with UVeloxNavArea_Hazard (paths keep this far off the channel rim; the floor mesh at a ledge is only eroded
+	 * by the agent radius, 45) (cm). Applied at load when velox.bots.EdgeAware is on (A/B: -dpcvars=velox.bots.EdgeAware=0).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "cm"))
+	float HazardNavPaddingCm = 100.f;
+
+	/** H7: the hazard nav modifier reaches this far below the volume (the bed's polys sit on its bottom) and above it (the rim, cm). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "cm"))
+	float HazardNavPaddingZCm = 80.f;
+
+	/**
+	 * H7: the edge probe and the hop landing guard trace this far down from the probe point (WorldStatic) and reject it when
+	 * the first static surface under it is a hazard (lava top or bed); deep enough for a probe at hop apex (~110 cm above the
+	 * floor) over a bed 60 cm below it, shallow enough to stop above Orbita's void (cm).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "1.0", Units = "cm"))
+	float HazardTraceDepthCm = 300.f;
 
 	/** A bot tick above this controller time is logged once (microseconds). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Debug", Meta = (ClampMin = "0.0"))
