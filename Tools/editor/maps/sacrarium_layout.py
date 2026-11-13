@@ -280,7 +280,7 @@ ITEMS = [
     _it("LightningAmmo", "Ammo.Lightning", -1600, -700),
     _it("CellsAmmo", "Ammo.Cells", 1450, -1000),
     _it("ShellsAmmo", "Ammo.Shells", -1100, 1600),
-    _it("BulletsAmmo", "Ammo.Bullets", -2500, -1700),
+    _it("BulletsAmmo", "Ammo.Bullets", -1600, -1100),   # B1c (task M7 H10): out of the Crypt corner (-2500, -1700), on the W aisle route to the Crypt door
     _it("H50", "Health.Large", 0, 1000, 320),
     _it("H25_Red", "Health.Medium", -2400, 1700),
     _it("H25_Arm", "Health.Medium", 2500, 2500),

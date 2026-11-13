@@ -35,6 +35,7 @@ FTS=(
   "FtBotKnockOff|L_HazardTest|velox.bots.FtBotKnockOff"
   "FtBotLavaAvoid|L_HazardTest|velox.bots.FtBotLavaAvoid"
   "FtBotGapJump|L_GapTest|velox.bots.FtBotGapJump"   # M7 H11: JUMP gap links 300 / 400 cm, >= 9 of 10 each, hazard behaviours on and off
+  "FtBotTargets|L_CombatTest|velox.bots.FtBotTargets"   # M7 H10: unique bot PlayerIds, the target is the visible enemy
 )
 # One row per M7 map (ADR 0008 1.6): the blockout maps are not in the default list (not cooked, no band yet) and are added with
 # --map-ft <Map>[:WalkExempt ids] (repeatable), e.g. --map-ft L_Sacrarium_Blockout:Quad,Railgun. Row name: FtMapReachability-<Map>.

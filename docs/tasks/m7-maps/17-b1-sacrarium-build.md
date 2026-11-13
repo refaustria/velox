@@ -27,7 +27,7 @@ Generate `L_Sacrarium_Blockout` from the spec module, add the run script and FT 
 - [ ] (b) `navlint.sh L_Sacrarium_Blockout` PASS (`clusters - edge = 0`, `lowclear = 0`)
 - [ ] (c) `FtMapReachability` green in `fts.sh` (with the map's `WalkExempt`)
 - [ ] (d) `SacrariumRun` PASS at 100 ms / 2 % loss
-- [ ] (e) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
+- [x] (e) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
 - [ ] (f) evidence under `docs/adr/evidence/0008-sacrarium-blockout/`
 - [ ] A task that still fails an invariant after one layout iteration is reported back to be split/escalated, not retried blindly
 - [ ] `create_map.py --map dm1 --golden check` green at the end
@@ -51,3 +51,18 @@ Host load1 was 10-20 during all sets (other projects, B2 soaks); map has no band
 - BotRun x3 (map L_Sacrarium_Blockout, port 7791 because 7777 is taken): set behaviour PASS (stuck sum 1, max_dwell 3/3/4, majors 4/4, JumpPad 37/37, left_arena 0); round 1 behaviour miss (kills 2) on a round with 4 contended windows, round 3 one cost window: set FAIL on cost only (host load, band=none).
 - Dwell triage (`dwellwhy.py 6`, 7 runs of >= 6 s over the two 6-bot sets, all class=other): not the Rocket Launcher wait. All sit on the aisle side of the atrium ring wall within 38 cm of it ((444..861,1338) N aisle, (1338,-852/-1147) E aisle, (-1338,1254) W aisle; one at (2662,-1438), Mega chapel side): the bot hugs the wall with goal fight/item (Armor_Yellow, RL, LG, SG), enemy vis=1, fire=selfsplash/notready, z hopping 72..182 cm against the wall (a rocket user firing at an enemy it cannot reach, or jump-pressing the wall toward the YA_E / gallery goal). A cluster at the one structure, but the cause is bot behaviour at a wall (fight stall against an enemy on the other side / gallery), not a layout defect I can fix in `sacrarium_layout.py` with a justified, single change; no layout iteration was made (the one iteration stays unspent).
 - (e) is NOT ticked: 6-bot max_dwell_s 7 / 9 (limit 5) and 3-bot item coverage 37/38. Suggested follow-up: a bot task (fight against an enemy behind the atrium ring wall / wall-hugging hop; `dwellwhy` rows in the evidence) or an accepted-deviation ruling for max_dwell on 6-bot sets; optionally move `BulletsAmmo` out of the Crypt corner.
+
+### B1c - after H10 (dev-hard, 2026-11-13, task 29, branch `wip/m7-29-h10-wall-stall`)
+H10 root cause of the B1b dwell: all bots had PlayerId 0, so the combat memory merged every enemy into one record and bots
+fought pawns behind the atrium wall (details in 29-h10-wall-stall-dwell.md). `BulletsAmmo` moved to (-1600,-1100) (W aisle),
+map regenerated; summaries `docs/adr/evidence/0008-sacrarium-blockout/b1c/`, raw /mnt/oldroot/velox-scratch/m7-h10/.
+- FFA x10 at 6 bots: every invariant PASS (max_dwell 5, stuck 1, Drop 92.4 %, JumpPad 98.9 %, coverage 38/38, nav 1.49 s).
+- FFA x10 at 3 bots: first set Drop 89.3 % (109/122, loft drops overshooting the link end; rest PASS incl. coverage 38/38,
+  dwell 4); repeat: every invariant PASS (Drop 92.9 %, stuck 5, dwell 4, coverage 38/38).
+- BotRun x3: r1 PASS; r2/r3 INVALID (frame deficit, host load1 25-33), behaviour clean in every round (stuck 0/0/1, dwell <= 4).
+- navlint PASS, FtMapReachability PASS; SacrariumRun FAIL on `loft (pad Quad)` in clean runs on both the new and the B1 umap
+  (open-loop row 27, knife edge): a move-script follow-up, not a layout defect.
+- (e) left for the lead: invariants pass on the 6-bot set and the 3-bot repeat; the BotRun set needs a quiet-host rerun (H9).
+
+
+**Lead ruling 2026-11-13 (after H10/B1c):** (e) accepted — FFA ×10 at 3 bots (repeat) and at 6 bots pass every map-independent invariant (max_dwell 5/4, JumpPad 98.9 %, coverage 38/38). BotRun ×3: round 1 PASS, rounds 2–3 invalid (host load1 25–33); quiet-host confirmation is part of H9. SacrariumRun Quad-pad checkpoint (8/9, flaky) → task 31.
