@@ -1,0 +1,2 @@
+[navlint] L_Sacrarium_Blockout walkable_m2=2544.00 covered_pct=99.89 clusters=0 (walkin=0 isolated=0 edge=0) lowclear=0 result=PASS
+[navlint] log: /home/bojan/velox/.claude/worktrees/agent-a6b43cd6cc8061408/Saved/CI/20261113-012943-430511/navlint-L_Sacrarium_Blockout.log

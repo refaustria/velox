@@ -126,9 +126,10 @@ ROOMS = [
 ]
 
 # ---------------------------------------------------------------- solid boxes
-BOXES = [Box("Ground", "floor", "Floor", -2800, 2800, -2800, 2800, -100, 0)]
-
-# outer ring (100 cm) and the masses between aisles and chapels
+# outer ring (100 cm) and the masses between aisles and chapels. B1 layout iteration: the masses are HOLLOW (a 100 cm skin on the aisle side
+# and the chapel-side ends, no floor inside). A solid 600..800 cm mass has a meshed top under the flush Ceil_* clip (navlint: lowclear
+# inside=1 and isolated tops); a 100 cm wall top is eroded away by the 45 cm agent radius (DM1's rule), so no top is walkable.
+BOXES = []
 BOXES += [
     Box("Per_N", "wall", "Wall", -2800, 2800, 2700, 2800, 0, 800),
     Box("Per_E", "wall", "Wall", 2700, 2800, -2700, 2700, 0, 800),
@@ -137,13 +138,48 @@ BOXES += [
     Box("Per_S_W", "wall", "Wall", -2800, -1400, -2800, -2700, 0, 480),
     Box("Per_S_C", "wall", "Wall", -1400, 1400, -2800, -2700, 0, 1200),
     Box("Per_S_E", "wall", "Wall", 1400, 2800, -2800, -2700, 0, 800),
-    Box("Mass_N", "wall", "Wall", -1400, 1400, 1900, 2700, 0, 800),
-    Box("Mass_S", "wall", "Wall", -1400, 1400, -2700, -1900, 0, 1200),
-    Box("Mass_W_a", "wall", "Wall", -2700, -2100, -1300, 1300, 0, 800),          # west aisle's outer mass with the shrine niche cut out
-    Box("Mass_W_b", "wall", "Wall", -2100, -1900, 200, 1300, 0, 800),
-    Box("Mass_W_c", "wall", "Wall", -2100, -1900, -1300, -200, 0, 800),
-    Box("Mass_E", "wall", "Wall", 1900, 2700, -1300, 1300, 0, 800),
+    # north mass (x +-1400, y 1900..2700, 800): aisle face and two end caps
+    Box("Mass_N_Face", "wall", "Wall", -1300, 1300, 1900, 2000, 0, 800),
+    Box("Mass_N_CapW", "wall", "Wall", -1400, -1300, 1900, 2700, 0, 800),
+    Box("Mass_N_CapE", "wall", "Wall", 1300, 1400, 1900, 2700, 0, 800),
+    # south mass (x +-1400, y -2700..-1900, 1200)
+    Box("Mass_S_Face", "wall", "Wall", -1300, 1300, -2000, -1900, 0, 1200),
+    Box("Mass_S_CapW", "wall", "Wall", -1400, -1300, -2700, -1900, 0, 1200),
+    Box("Mass_S_CapE", "wall", "Wall", 1300, 1400, -2700, -1900, 0, 1200),
+    # east mass (x 1900..2700, y +-1300): the aisle face only (the ends are flush with Ch2_S / Ch3_N)
+    Box("Mass_E_Face", "wall", "Wall", 1900, 2000, -1300, 1300, 0, 800),
+    # west mass (x -2700..-1900, y +-1300) with the shrine niche (x -2100..-1900, y +-200): aisle faces, niche back and sides
+    Box("Mass_W_FaceN", "wall", "Wall", -2000, -1900, 200, 1300, 0, 800),
+    Box("Mass_W_FaceS", "wall", "Wall", -2000, -1900, -1300, -200, 0, 800),
+    Box("Mass_W_Back", "wall", "Wall", -2200, -2100, -300, 300, 0, 800),
+    Box("Mass_W_SideN", "wall", "Wall", -2100, -2000, 200, 300, 0, 800),
+    Box("Mass_W_SideS", "wall", "Wall", -2100, -2000, -300, -200, 0, 800),
 ]
+# the ground slab leaves out the hollow masses (no walkable floor inside them): a grid of strips cut at the void edges, merged along x
+_VOIDS = ((-1400, 1400, 1900, 2700), (-1400, 1400, -2700, -1900), (1900, 2700, -1300, 1300), (-2700, -1900, -1300, 1300))
+
+
+def _ground():
+    xs = sorted({-2800, 2800} | {v for r in _VOIDS for v in r[:2]})
+    ys = sorted({-2800, 2800} | {v for r in _VOIDS for v in r[2:]})
+    out = []
+    for j, (y0, y1) in enumerate(zip(ys, ys[1:])):
+        run = None
+        for x0, x1 in zip(xs, xs[1:]):
+            void = any(r[0] <= x0 and x1 <= r[1] and r[2] <= y0 and y1 <= r[3] for r in _VOIDS)
+            if void:
+                if run:
+                    out.append(Box(f"Ground_{j}_{len(out)}", "floor", "Floor", run[0], run[1], y0, y1, -100, 0))
+                    run = None
+            else:
+                run = (run[0], x1) if run else (x0, x1)
+        if run:
+            out.append(Box(f"Ground_{j}_{len(out)}", "floor", "Floor", run[0], run[1], y0, y1, -100, 0))
+    return out
+
+
+BOXES += _ground()
+BOXES.append(Box("Ground_Niche", "floor", "Floor", -2100, -1900, -200, 200, -100, 0))   # the shrine niche inside the west mass
 
 # atrium ring walls (inner +-1200, outer +-1300, 1600 high): ground arches 400 x 300 on the mid-sides; level-1 openings 300 x 300
 # (landings, 320 sill); the west window 400 x 380 (z 320..700) above the west arch; the shrine window 400 x 360 (z 640..1000) in the south wall
@@ -327,6 +363,10 @@ CLIPS = [
     Clip("Ceil_NE", 1300, 2800, 1300, 2800, 800, 900),
     Clip("Ceil_SE", 1300, 2800, -2800, -1300, 800, 900),
     Clip("Ceil_SW", -2800, -1300, -2800, -1300, 480, 580),
+    # B1 navlint: 1200 high wall tops (Mass_S caps, Ch4_E, Ch3_W) and the SW end of Per_W_N lie outside the neighbouring ceiling slabs
+    Clip("Ceil_CapSW", -1400, -1300, -2800, -1300, 1200, 1300),
+    Clip("Ceil_CapSE", 1300, 1400, -2800, -1300, 1200, 1300),
+    Clip("Ceil_PerW", -2800, -2700, -1400, -1300, 800, 900),
 ]
 
 NAV_CENTER = (0.0, 0.0, 600.0)
