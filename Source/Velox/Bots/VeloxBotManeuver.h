@@ -200,6 +200,12 @@ struct VELOX_API FVeloxBotManeuver
 	FVeloxManeuverOutput Tick(const FVeloxManeuverInput& In);
 
 	bool IsActive() const { return Phase != EVeloxManeuverPhase::Idle && Phase != EVeloxManeuverPhase::Finished; }
+	/**
+	 * ADR 0008 3.6.3 pad discipline: the airborne phase of a JUMP_PAD traversal. TickAirborne itself still wishes toward
+	 * End at scale 1 (the pre-M7 behaviour, kept for maps without hazards); on hazard maps the controller zeroes the move
+	 * input while this is true (the pad's arc is computed for a pawn without input), aim stays live.
+	 */
+	bool IsPadFlight() const { return Type == EVeloxManeuverType::JumpPad && Phase == EVeloxManeuverPhase::Airborne; }
 
 private:
 	void EnterPhase(EVeloxManeuverPhase NewPhase, double Time);

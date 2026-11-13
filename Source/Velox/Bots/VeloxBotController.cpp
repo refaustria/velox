@@ -17,6 +17,9 @@
 #include "Combat/VeloxAmmoSet.h"
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxGameplayEffects.h"
+#include "Combat/VeloxHazardSubsystem.h"
+#include "Combat/VeloxHazardVolume.h"
+#include "Components/BoxComponent.h"
 #include "Combat/VeloxHealthSet.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
@@ -301,6 +304,70 @@ namespace VeloxBotRules
 		}
 		OutTangent = FVector2D(-N2.Y, N2.X).GetSafeNormal();
 		return true;
+	}
+
+	bool IsForeignFlight(bool bJumpHeldAtTakeoff, float KnockbackGraceSeconds, bool bIsFlight)
+	{
+		return !bJumpHeldAtTakeoff || KnockbackGraceSeconds > 0.f || bIsFlight;
+	}
+
+	float FlightSecondsToLevel(float VelocityZ, float HeightAboveLevelCm, float Gravity)
+	{
+		if (Gravity <= UE_KINDA_SMALL_NUMBER)
+		{
+			return 0.f;
+		}
+		// z(t) = Vz t - g t^2 / 2 = -h  ->  t = (Vz + sqrt(Vz^2 + 2 g h)) / g (the later, descending root).
+		const float Disc = VelocityZ * VelocityZ + 2.f * Gravity * HeightAboveLevelCm;
+		if (Disc < 0.f)
+		{
+			return 0.f;
+		}
+		return FMath::Max(0.f, (VelocityZ + FMath::Sqrt(Disc)) / Gravity);
+	}
+
+	FVector2D AirRecoveryWish(const FVector2D& Landing, const FVector2D& Target, float OnCourseCm)
+	{
+		const FVector2D Delta = Target - Landing;
+		if (Delta.SizeSquared() <= FMath::Square(static_cast<double>(OnCourseCm)))
+		{
+			return FVector2D::ZeroVector;
+		}
+		return Delta.GetSafeNormal();
+	}
+
+	FVector2D HazardBoxExit(const FVector2D& Feet, const FVector2D& Center, const FVector2D& AxisX, float HalfX, float HalfY, float OutCm)
+	{
+		const FVector2D X = AxisX.GetSafeNormal().IsNearlyZero() ? FVector2D(1.0, 0.0) : AxisX.GetSafeNormal();
+		const FVector2D Y(-X.Y, X.X);
+		const FVector2D Rel = Feet - Center;
+		const double LX = FVector2D::DotProduct(Rel, X);
+		const double LY = FVector2D::DotProduct(Rel, Y);
+		// Distance to each side from inside; the smallest names the side to leave through.
+		const double ToPosX = HalfX - LX;
+		const double ToNegX = HalfX + LX;
+		const double ToPosY = HalfY - LY;
+		const double ToNegY = HalfY + LY;
+		const double Best = FMath::Min(FMath::Min(ToPosX, ToNegX), FMath::Min(ToPosY, ToNegY));
+		double OutX = LX;
+		double OutY = LY;
+		if (Best == ToPosX)
+		{
+			OutX = HalfX + OutCm;
+		}
+		else if (Best == ToNegX)
+		{
+			OutX = -HalfX - OutCm;
+		}
+		else if (Best == ToPosY)
+		{
+			OutY = HalfY + OutCm;
+		}
+		else
+		{
+			OutY = -HalfY - OutCm;
+		}
+		return Center + X * OutX + Y * OutY;
 	}
 
 	bool UpdateOffMesh(double& OffMeshSince, bool bOnMesh, bool bRecoveryMoveActive, double RecoveryMoveUntil, double Now, float GraceSeconds)
@@ -796,6 +863,16 @@ void AVeloxBotController::EnsureMove(double T)
 	bool bOffMeshActive = false;
 	{
 		const FVeloxBotCostScope Cost(GetWorld(), EVeloxBotCost::OffMesh);
+		// ADR 0008 3.6.4: the hazard escape runs ahead of the off-mesh recovery and owns the move while it lasts.
+		if (UpdateHazardEscape(T))
+		{
+			if (State.bMoveActive)
+			{
+				StopMove();
+			}
+			State.bRepathRequested = false;
+			return;
+		}
 		bOffMeshActive = UpdateOffMeshRecovery(T);
 	}
 	if (bOffMeshActive)
@@ -1111,6 +1188,248 @@ bool AVeloxBotController::UpdateOffMeshRecovery(double T)
 		*Point.Location.ToCompactString(), FVector::Dist(Feet, Point.Location), Kind, Tested, State.OffMeshAttempts,
 		State.bMoveActive ? TEXT("moving") : Result.Code == EPathFollowingRequestResult::AlreadyAtGoal ? TEXT("at_point") : TEXT("failed"), LexToString(State.Goal.Type));
 	return true;
+}
+
+bool AVeloxBotController::UpdateHazardEscape(double T)
+{
+	UWorld* World = GetWorld();
+	const AVeloxCharacter* Character = GetBotCharacter();
+	const UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
+	const UVeloxHazardSubsystem* Hazards = World ? UVeloxHazardSubsystem::Get(World) : nullptr;
+	if (!Movement || !Hazards || !VeloxBotCombatGlue::IsEdgeAware(World))
+	{
+		State.bHazardEscape = false;
+		return false;
+	}
+	const FVector Feet = Movement->GetActorFeetLocation();
+	// A hair above the capsule bottom: standing on a lava bed puts the bottom exactly on the volume's floor.
+	const bool bInLava = Hazards->IsInHazard(Feet + FVector(0.0, 0.0, 1.0), EVeloxHazardType::Lava);
+	if (!State.bHazardEscape)
+	{
+		if (!bInLava)
+		{
+			return false;
+		}
+		State.bHazardEscape = true;
+		State.HazardEscapeSince = T;
+		State.NextHazardEscapeSearchTime = 0.0;
+		State.bHazardEscapeHasTarget = false;
+		++State.HazardEscapes;
+	}
+	// Out: on the ground outside the lava (the jump out leaves the thin volume long before it lands on the rim).
+	const double Held = T - State.HazardEscapeSince;
+	const bool bOut = !bInLava && Movement->IsOnGround();
+	if (bOut || Held >= HazardEscapeMaxSeconds)
+	{
+		State.HazardEscapesOut += bOut ? 1 : 0;
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotHazardEscape bot=%s at=%s result=%s dt=%.2f target=%s escapes=%d"), *GetBotName(), *Feet.ToCompactString(),
+			bOut ? TEXT("out") : TEXT("timeout"), Held, State.bHazardEscapeHasTarget ? *State.HazardEscapeTarget.ToCompactString() : TEXT("none"), State.HazardEscapes);
+		State.bHazardEscape = false;
+		State.bHazardEscapeHasTarget = false;
+		// Path from where the escape left the bot.
+		State.NextMoveTime = T;
+		return false;
+	}
+	if (T >= State.NextHazardEscapeSearchTime)
+	{
+		State.NextHazardEscapeSearchTime = T + HazardEscapeSearchSeconds;
+		const bool bFirst = !State.bHazardEscapeHasTarget;
+		FVector Target;
+		if (FindHazardEscapeTarget(Feet, Target))
+		{
+			State.HazardEscapeTarget = Target;
+			State.bHazardEscapeHasTarget = true;
+		}
+		if (bFirst)
+		{
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotHazardEscape bot=%s at=%s result=start target=%s dist=%.0f goal=%s"), *GetBotName(), *Feet.ToCompactString(),
+				State.bHazardEscapeHasTarget ? *State.HazardEscapeTarget.ToCompactString() : TEXT("none"),
+				State.bHazardEscapeHasTarget ? FVector::Dist2D(Feet, State.HazardEscapeTarget) : -1.0, LexToString(State.Goal.Type));
+		}
+	}
+	return true;
+}
+
+bool AVeloxBotController::FindHazardEscapeTarget(const FVector& Feet, FVector& OutTarget) const
+{
+	UWorld* World = GetWorld();
+	const UVeloxHazardSubsystem* Hazards = World ? UVeloxHazardSubsystem::Get(World) : nullptr;
+	if (!Hazards)
+	{
+		return false;
+	}
+	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+	const UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+	ANavigationData* NavData = Bots ? Bots->GetNavData() : nullptr;
+	if (NavSys && NavData)
+	{
+		const FSharedConstNavQueryFilter Filter = UNavigationQueryFilter::GetQueryFilter(*NavData, this, GetNavFilter());
+		const FVector Up(0.0, 0.0, HazardProbeUpCm);
+		double BestDist = TNumericLimits<double>::Max();
+		auto Test = [&](const FVector& Probe, float Extent)
+		{
+			FNavLocation Loc;
+			if (!VeloxBotControllerPrivate::ProjectReachable(*NavSys, *NavData, Filter, Probe, Feet.Z, HazardEscapeUpCm, Extent, HazardEscapeDownCm, Loc))
+			{
+				return;
+			}
+			// A nav point on the lava bed (or in any other volume) is no way out.
+			if (Hazards->IsInHazard(Loc.Location + Up))
+			{
+				return;
+			}
+			const double Dist = FVector::Dist2D(Feet, Loc.Location);
+			if (Dist < BestDist)
+			{
+				BestDist = Dist;
+				OutTarget = Loc.Location;
+			}
+		};
+		// The nearest nav point within the extent first; then four rings of small projections, so a mesh on the bed
+		// under the feet (rejected above) does not shadow the rim.
+		Test(Feet, HazardEscapeExtentCm);
+		const int32 NumDirections = FMath::Max(HazardEscapeDirections, 1);
+		constexpr int32 NumRings = 4;
+		const float RingStep = HazardEscapeExtentCm / NumRings;
+		for (int32 Ring = 1; Ring <= NumRings; ++Ring)
+		{
+			for (int32 Dir = 0; Dir < NumDirections; ++Dir)
+			{
+				const double Angle = 2.0 * UE_DOUBLE_PI * Dir / NumDirections;
+				Test(Feet + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0) * (RingStep * Ring), RingStep * 0.5f);
+			}
+		}
+		if (BestDist < TNumericLimits<double>::Max())
+		{
+			return true;
+		}
+	}
+	// No nav point: the nearest side of the volume the feet are in.
+	const AVeloxHazardVolume* Volume = Hazards->FindHazardAt(Feet + FVector(0.0, 0.0, 1.0));
+	const UBoxComponent* Box = Volume ? Volume->GetBox() : nullptr;
+	if (!Box)
+	{
+		return false;
+	}
+	const FTransform& Xf = Box->GetComponentTransform();
+	const FVector Extent = Box->GetScaledBoxExtent();
+	const FVector2D Exit = VeloxBotRules::HazardBoxExit(FVector2D(Feet), FVector2D(Xf.GetLocation()), FVector2D(Xf.GetUnitAxis(EAxis::X)), static_cast<float>(Extent.X),
+		static_cast<float>(Extent.Y), HazardEscapeExtentCm * 0.25f);
+	OutTarget = FVector(Exit, Feet.Z);
+	return true;
+}
+
+void AVeloxBotController::ApplyHazardBehaviours(double T)
+{
+	UWorld* World = GetWorld();
+	const AVeloxCharacter* Character = GetBotCharacter();
+	const UVeloxMovementComponent* Movement = Character ? Character->GetVeloxMovementComponent() : nullptr;
+	const UVeloxBotPathFollowingComponent* Follow = GetBotPathFollowing();
+	if (!Movement || !Follow || !VeloxBotCombatGlue::IsEdgeAware(World))
+	{
+		return;
+	}
+	const bool bOnGround = Movement->IsOnGround();
+	const FVector Feet = Movement->GetActorFeetLocation();
+
+	// 3.6.4 hazard escape: face the target, forward and jump. Jump is pressed on the ground and released in the air, so the
+	// landing on the rim is a landing (a held key would auto-hop on and the escape would never see the ground).
+	if (State.bHazardEscape)
+	{
+		if (State.bHazardEscapeHasTarget)
+		{
+			const FVector2D Dir = (FVector2D(State.HazardEscapeTarget) - FVector2D(Feet)).GetSafeNormal();
+			if (!Dir.IsNearlyZero())
+			{
+				State.Pending.View.Yaw = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
+				State.Pending.WishDirWorld = Dir;
+				State.Pending.WishScale = 1.f;
+			}
+		}
+		State.Pending.bJumpHeld = bOnGround;
+		State.Pending.bCrouch = false;
+		return;
+	}
+
+	// Foreign-flight latch for 3.6.3 (the bot's own hops are left alone).
+	if (bOnGround)
+	{
+		State.bAirborneSeen = false;
+		State.bForeignFlight = false;
+		State.bAirRecoverySteered = false;
+		State.bAirRecoveryHasTarget = false;
+		return;
+	}
+	const float HopAir = VeloxBotRules::HopAirSeconds(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), StuckProgressFlightSlackSeconds);
+	const bool bIsFlight = VeloxBotRules::IsFlight(false, State.AirborneSince, T, HopAir);
+	if (!State.bAirborneSeen)
+	{
+		State.bAirborneSeen = true;
+		// bJumpApplied is the key the last ApplyInput sent: the one that started this airborne stretch, if any.
+		State.bForeignFlight = VeloxBotRules::IsForeignFlight(State.bJumpApplied, Movement->GetKnockbackGrace(), bIsFlight);
+	}
+	else if (!State.bForeignFlight)
+	{
+		State.bForeignFlight = VeloxBotRules::IsForeignFlight(true, Movement->GetKnockbackGrace(), bIsFlight);
+	}
+
+	// 3.6.3 pad discipline: no move input in a JUMP_PAD flight (aim, weapon and fire stay as Act left them).
+	if (Follow->IsOnLink())
+	{
+		if (Follow->GetManeuver().IsPadFlight())
+		{
+			State.Pending.WishDirWorld = FVector2D::ZeroVector;
+			State.Pending.WishScale = 0.f;
+			++State.PadDisciplineTicks;
+		}
+		return;
+	}
+	if (!State.bForeignFlight)
+	{
+		return;
+	}
+
+	// 3.6.3 airborne recovery: the predicted landing at the level of the last recovery point (first: the feet's own
+	// level), projected onto nav at or below the feet within AirRecoveryExtentCm; steer from the landing toward it.
+	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+	const UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+	ANavigationData* NavData = Bots ? Bots->GetNavData() : nullptr;
+	if (!NavSys || !NavData)
+	{
+		return;
+	}
+	const float Gravity = FMath::Abs(Movement->GetGravityZ());
+	const FVector Velocity = Movement->Velocity;
+	const float FeetZ = static_cast<float>(Feet.Z);
+	const float LevelZ = State.bAirRecoveryHasTarget ? FMath::Min(static_cast<float>(State.AirRecoveryTarget.Z), FeetZ) : FeetZ;
+	const float Seconds = VeloxBotRules::FlightSecondsToLevel(static_cast<float>(Velocity.Z), FeetZ - LevelZ, Gravity);
+	const FVector2D Landing = FVector2D(Feet) + FVector2D(Velocity) * Seconds;
+	const FSharedConstNavQueryFilter Filter = UNavigationQueryFilter::GetQueryFilter(*NavData, this, GetNavFilter());
+	FNavLocation Point;
+	if (!VeloxBotControllerPrivate::ProjectReachable(*NavSys, *NavData, Filter, FVector(Landing, Feet.Z), Feet.Z, AirRecoveryUpToleranceCm, AirRecoveryExtentCm, AirRecoveryDownCm, Point))
+	{
+		// Nothing at or below within reach (over the void, or already below the ledge): the path wish stays.
+		State.bAirRecoveryHasTarget = false;
+		return;
+	}
+	State.AirRecoveryTarget = Point.Location;
+	State.bAirRecoveryHasTarget = true;
+	const FVector2D Wish = VeloxBotRules::AirRecoveryWish(Landing, FVector2D(Point.Location), AirRecoveryOnCourseCm);
+	if (Wish.IsZero())
+	{
+		return;
+	}
+	State.Pending.WishDirWorld = Wish;
+	State.Pending.WishScale = 1.f;
+	State.Pending.bJumpHeld = false;
+	++State.AirRecoveryTicks;
+	if (!State.bAirRecoverySteered)
+	{
+		State.bAirRecoverySteered = true;
+		++State.AirRecoveryFlights;
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotAirRecovery bot=%s at=%s vel=%s landing=%s target=%s flights=%d"), *GetBotName(), *Feet.ToCompactString(),
+			*Velocity.ToCompactString(), *Landing.ToString(), *Point.Location.ToCompactString(), State.AirRecoveryFlights);
+	}
 }
 
 void AVeloxBotController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
@@ -1511,6 +1830,8 @@ void AVeloxBotController::Tick(float DeltaSeconds)
 			}
 			const FVeloxBotCostScope Cost(CostWorld, EVeloxBotCost::Act);
 			Act(DeltaSeconds);
+			// ADR 0008 3.6.3/4: the last word on the wish before it is applied (inert off hazard maps).
+			ApplyHazardBehaviours(Now());
 		}
 		{
 			SCOPE_CYCLE_COUNTER(STAT_VeloxBots_Apply);
