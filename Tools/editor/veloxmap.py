@@ -385,6 +385,31 @@ def nav_bounds(center, size, name="NavMeshBounds", tags=(), layout=None):
     return v
 
 
+def nav_data(tile_size_uu, name="RecastNavMesh_Velox", layout="NavData"):
+    """Task M7 H12: a placed RecastNavMesh with a per-map TileSizeUU (spec NAV_TILE_SIZE_UU). With one supported agent the runtime
+    nav system registers it in place of the auto-created RecastNavMesh-Default (UNavigationSystemV1::RegisterNavData), every other
+    property comes from the [/Script/NavigationSystem.RecastNavMesh] config. bForceRebuildOnLoad keeps the runtime build (ADR 0005
+    section 3: generated on the server at load), so whatever the editor stored with the actor is never used."""
+    # ARecastNavMesh is notplaceable (EditorActorSubsystem refuses it, and a commandlet editor world has no nav system to spawn its
+    # default): UVeloxNavDataLibrary spawns it in the persistent level.
+    world = unreal.EditorLevelLibrary.get_editor_world()
+    a = unreal.VeloxNavDataLibrary.spawn_map_nav_mesh(world, float(tile_size_uu))
+    if a is None:
+        fail(f"{name}: VeloxNavDataLibrary.spawn_map_nav_mesh returned None")
+        return None
+    a.set_actor_label(name)
+    a.set_folder_path("Navigation")
+    tag_actor(a, name, layout)
+    count("navdata")
+    a.set_editor_property("tile_size_uu", float(tile_size_uu))
+    a.set_editor_property("force_rebuild_on_load", True)
+    got = a.get_editor_property("tile_size_uu")
+    log(f"{name}: tile_size_uu={got:.0f} force_rebuild_on_load={a.get_editor_property('force_rebuild_on_load')}")
+    if abs(got - float(tile_size_uu)) > 0.5:
+        fail(f"{name}: tile_size_uu {got} differs from {tile_size_uu}")
+    return a
+
+
 def nav_link(name, link_type, start, end, pad=None, both_ways=False, required_speed=0.0, folder="NavLinks", tags=(), layout=None):
     """AVeloxNavLink at the start point (LinkStart = 0), LinkEnd relative to it (no rotation)."""
     a = spawn(unreal.VeloxNavLink, name, start, None, folder, "navlink", tags, layout)

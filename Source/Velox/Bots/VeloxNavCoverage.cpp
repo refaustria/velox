@@ -372,6 +372,16 @@ FVeloxNavCoverageReport VeloxNavCoverage::RunAndLog(UWorld* World, const FVeloxN
 		Edge += C.bEdge ? 1 : 0;
 		WalkIn += (C.bWalkIn && !C.bEdge) ? 1 : 0;
 	}
+	// Task M7 H12: nav memory beside the lint (a per-map TileSizeUU trades tile count for tile size). LogMemUsed also prints the
+	// engine's own LogNavigation line; the returned total is the Detour tile data plus the generator's caches.
+	if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World))
+	{
+		if (const ARecastNavMesh* Recast = Cast<ARecastNavMesh>(Bots->GetNavData()))
+		{
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxNavCoverage navmem navdata=%s tiles=%d tile_size=%.0f mem_kb=%.1f"), *Recast->GetName(), Recast->GetNumActiveTiles(),
+				Recast->TileSizeUU, static_cast<double>(Recast->LogMemUsed()) / 1024.0);
+		}
+	}
 	UE_LOG(LogVeloxBots, Log, TEXT("VeloxNavCoverage walkable_m2=%.2f covered_pct=%.2f clusters=%d walkin=%d isolated=%d edge=%d grid=%.0f min_cluster_m2=%.2f samples=%d covered=%d surfaces=%d dropped_headroom=%d dropped_outside=%d dropped_ignored=%d seconds=%.3f hazard_m2=%.2f"),
 		Report.WalkableM2, Report.CoveredPct, Report.Clusters.Num(), WalkIn, Report.Clusters.Num() - WalkIn - Edge, Edge, Params.GridCm, Params.MinClusterM2, Report.Samples, Report.Covered,
 		Report.Surfaces, Report.DroppedHeadroom, Report.DroppedOutsideBounds, Report.DroppedIgnored, Report.Seconds, VeloxNavCoverageMath::CellsToM2(Report.DroppedHazard, Params.GridCm));

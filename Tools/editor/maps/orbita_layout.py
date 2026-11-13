@@ -288,6 +288,9 @@ LIGHTMASS_VOLUME = ((-100.0, 200.0, -100.0), (9000.0, 7600.0, 2600.0))      # co
 
 NAV_CENTER = (-100.0, 200.0, 200.0)
 NAV_SIZE = (9000.0, 7600.0, 1800.0)       # concept 11.1: X -4600..4400, Y -3600..4000, Z -700..1100
+# Task M7 H12: the pad links run 22-35 m; Detour connects a link only within one nav tile, so at the project's 1000 cm tile five of
+# six never existed (VeloxNav link_span). 4000 cm covers every link below 40 m wherever it lies (mapgen.nav_link_tile_span checks it).
+NAV_TILE_SIZE_UU = 4000.0
 
 INTERMISSION_CAMERA = ((-100.0, -7000.0, 1500.0), (0.0, -12.0, 90.0))
 INTERMISSION_LABEL = (-100.0, -4600.0, 500.0)
