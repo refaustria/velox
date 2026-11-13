@@ -1,0 +1,44 @@
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+NemusRun           moves=5605  C=0   echoes=0   gaps=19  repaired=50  repaired_extra=14  resent=2854  resent_extra=2854 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=112.1 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_2', 'VeloxJumpPad_4'] replay
+Rounds passed: 1/1 (requested 1)
+Logs: /mnt/oldroot/velox-scratch/m7-nemus/run7/20261113-073347-1542283/nettest
+[ci] NET SOAK OK
+st=0.000 row=0 'settle' pos=V(X=2400.00, Z=712.00) vel=V(0)
+st=0.300 row=1 'Radix Magna downhill' pos=V(X=2400.00, Z=712.00) vel=V(0)
+check 'Radix Magna foot' PASS st=2.502 pos=V(X=692.12, Z=180.29) onGround=1
+st=2.502 row=2 'to P1 pad (until launched)' pos=V(X=692.12, Z=180.29) vel=V(X=-800.00)
+st=5.000 row=3 'P1 pad flight' pos=V(X=-230.25, Z=88.58) vel=V(X=-1666.75, Z=1963.23)
+check 'Templum gate (pad P1)' PASS st=8.001 pos=V(X=-3093.44, Z=712.15) onGround=1
+st=8.001 row=4 'gate east' pos=V(X=-3093.44, Z=712.15) vel=V(0)
+st=8.327 row=5 'gate east coast' pos=V(X=-2886.61, Z=712.15) vel=V(X=800.00)
+st=8.827 row=6 'podium north to the edge' pos=V(X=-2775.64, Z=712.15) vel=V(0)
+st=11.203 row=7 'podium north to the edge coast' pos=V(X=-2775.64, Y=1847.34, Z=712.15) vel=V(Y=800.00)
+st=11.705 row=8 'north off the edge' pos=V(X=-2775.64, Y=1958.29, Z=712.15) vel=V(0)
+st=11.822 row=9 'north drop fall' pos=V(X=-2775.64, Y=2000.61, Z=712.15) vel=V(Y=664.87)
+st=12.722 row=10 'anchor NW corner' pos=V(X=-2775.64, Y=2380.11, Z=392.15) vel=V(0)
+st=14.525 row=11 'anchor NW corner coast' pos=V(X=-3262.40, Y=2662.44, Z=392.15) vel=V(0)
+st=15.125 row=12 'to P2 pad (until launched)' pos=V(X=-3262.40, Y=2662.44, Z=392.15) vel=V(0)
+st=17.620 row=13 'P2 pad flight' pos=V(X=-3107.51, Y=2431.96, Z=403.01) vel=V(X=156.25, Y=-539.26, Z=1294.82)
+check 'Templum north wing (pad P2)' PASS st=20.621 pos=V(X=-2934.16, Y=1833.66, Z=712.15) onGround=1
+st=20.621 row=14 'wing east' pos=V(X=-2934.16, Y=1833.66, Z=712.15) vel=V(0)
+st=20.746 row=15 'wing east coast' pos=V(X=-2886.16, Y=1833.66, Z=712.15) vel=V(X=698.15)
+st=21.247 row=16 'podium south to the edge' pos=V(X=-2791.88, Y=1833.66, Z=712.15) vel=V(0)
+st=25.848 row=17 'podium south to the edge coast' pos=V(X=-2791.88, Y=-1793.71, Z=712.15) vel=V(Y=-800.00)
+st=26.348 row=18 'south off the edge' pos=V(X=-2791.88, Y=-1904.68, Z=712.15) vel=V(0)
+st=26.598 row=19 'south drop fall' pos=V(X=-2791.88, Y=-2051.26, Z=706.48) vel=V(Y=-800.00, Z=-66.67)
+st=27.498 row=20 'anchor SW corner' pos=V(X=-2791.88, Y=-2585.82, Z=392.15) vel=V(0)
+st=29.298 row=21 'anchor SW corner coast' pos=V(X=-3262.40, Y=-2662.46, Z=392.15) vel=V(0)
+st=29.898 row=22 'to P3 pad (until launched)' pos=V(X=-3262.40, Y=-2662.46, Z=392.15) vel=V(0)
+st=32.390 row=23 'P3 pad flight' pos=V(X=-3107.44, Y=-2431.87, Z=403.01) vel=V(X=156.25, Y=539.26, Z=1294.82)
+check 'Templum south wing (pad P3)' PASS st=35.393 pos=V(X=-2934.11, Y=-1833.63, Z=712.15) onGround=1
+st=35.393 row=24 'wing east 2' pos=V(X=-2934.11, Y=-1833.63, Z=712.15) vel=V(0)
+st=35.518 row=25 'wing east 2 coast' pos=V(X=-2886.11, Y=-1833.63, Z=712.15) vel=V(X=698.13)
+st=36.018 row=26 'south off the wing' pos=V(X=-2791.83, Y=-1833.63, Z=712.15) vel=V(0)
+st=36.518 row=27 'south drop fall 2' pos=V(X=-2791.83, Y=-2180.53, Z=672.76) vel=V(Y=-800.00, Z=-383.37)
+st=37.412 row=28 'anchor south wall' pos=V(X=-2791.83, Y=-2589.77, Z=392.15) vel=V(0)
+st=38.412 row=29 'south wall east' pos=V(X=-2791.83, Y=-2662.40, Z=392.15) vel=V(0)
+st=47.011 row=30 'SE corner coast' pos=V(X=3262.46, Y=-2662.40, Z=392.15) vel=V(0)
+st=47.614 row=31 'to P5 pad (until launched)' pos=V(X=3262.46, Y=-2662.40, Z=392.15) vel=V(0)
+st=50.110 row=32 'P5 pad flight' pos=V(X=1883.12, Y=-2454.49, Z=404.18) vel=V(X=-7.49, Y=703.88, Z=1261.70)
+check 'east log (pad P5)' PASS st=53.114 pos=V(X=1875.11, Y=-1702.23, Z=712.15) onGround=1
