@@ -111,7 +111,9 @@ def build_map():
     vm.static_sun_and_sky()
     vm.set_kill_z(KILL_Z)
     (nx, nsx) = span(FLOOR_X0 - WALL_T - 100, PLATFORM_X1 + 200)
-    vm.nav_bounds((nx, 0.0, 200.0), (nsx, 2 * (FLOOR_HALF_Y + WALL_T + 100), 800.0))
+    # top below the wall tops (WALL_H): the lint samples every pawn-blocking top inside the bounds, and the unreachable 100 cm wall tops would
+    # be isolated clusters (ADR 0008 3.5 task H3); flights above the bounds do not need nav
+    vm.nav_bounds((nx, 0.0, 90.0), (nsx, 2 * (FLOOR_HALF_Y + WALL_T + 100), WALL_H + 180.0 - 20.0))
     vm.check_pads()
 
     vm.assert_counts(EXPECTED)

@@ -8,6 +8,8 @@
 #include "Character/VeloxCharacter.h"
 #include "CollisionQueryParams.h"
 #include "Components/CapsuleComponent.h"
+#include "Combat/VeloxHazardSubsystem.h"
+#include "Combat/VeloxHazardVolume.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -48,6 +50,18 @@ namespace VeloxNavCoveragePrivate
 		for (const FBox& Box : Boxes)
 		{
 			if (Box.IsInsideOrOn(Point))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool TouchesAny(const TArray<FBox>& Boxes, const FBox& Other)
+	{
+		for (const FBox& Box : Boxes)
+		{
+			if (Box.ExpandBy(1.0).Intersect(Other))
 			{
 				return true;
 			}
@@ -140,9 +154,22 @@ FVeloxNavCoverageReport VeloxNavCoverage::Run(UWorld* World, const FVeloxNavCove
 		NavBounds.Add(It->GetComponentsBoundingBox(true));
 	}
 
+	// Hazard volumes (ADR 0008 3.5): samples and nav polys inside one are skipped and reported as hazard_m2.
+	TArray<FBox> HazardBoxes;
+	if (const UVeloxHazardSubsystem* Hazards = UVeloxHazardSubsystem::Get(World))
+	{
+		for (const AVeloxHazardVolume* Volume : Hazards->GetVolumes())
+		{
+			HazardBoxes.Add(Volume->GetComponentsBoundingBox(true));
+		}
+	}
+
 	// Exempt volumes and the surfaces to sample.
 	TArray<FBox> ExemptBoxes;
 	TArray<UPrimitiveComponent*> Surfaces;
+	// Hazard-only surfaces (the lava bed: pawn-blocking but invisible to navigation) inside a hazard volume: sampled only to be
+	// counted as hazard_m2, never judged.
+	TSet<const UPrimitiveComponent*> HazardOnly;
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
@@ -165,6 +192,12 @@ FVeloxNavCoverageReport VeloxNavCoverage::Run(UWorld* World, const FVeloxNavCove
 			else if (IsWalkableCandidate(*Comp))
 			{
 				Surfaces.Add(Comp);
+			}
+			else if (HazardBoxes.Num() && CollisionEnabledHasQuery(Comp->GetCollisionEnabled()) && Comp->GetCollisionResponseToChannel(ECC_Pawn) == ECR_Block &&
+				TouchesAny(HazardBoxes, Comp->Bounds.GetBox()))
+			{
+				Surfaces.Add(Comp);
+				HazardOnly.Add(Comp);
 			}
 		}
 	}
@@ -213,6 +246,15 @@ FVeloxNavCoverageReport VeloxNavCoverage::Run(UWorld* World, const FVeloxNavCove
 				if (InsideAny(ExemptBoxes, Sample))
 				{
 					++Report.DroppedIgnored;
+					continue;
+				}
+				if (InsideAny(HazardBoxes, Sample))
+				{
+					++Report.DroppedHazard;
+					continue;
+				}
+				if (HazardOnly.Contains(Comp))
+				{
 					continue;
 				}
 				if (NavBounds.Num() && !InsideAny(NavBounds, Sample))
@@ -276,7 +318,7 @@ FVeloxNavCoverageReport VeloxNavCoverage::Run(UWorld* World, const FVeloxNavCove
 		{
 			FVector Surface = Poly.Center;
 			Recast->GetClosestPointOnPoly(Poly.Ref, Poly.Center, Surface);  // detail-mesh height at the centre
-			if (InsideAny(ExemptBoxes, Surface + FVector(0, 0, Lift)))
+			if (InsideAny(ExemptBoxes, Surface + FVector(0, 0, Lift)) || InsideAny(HazardBoxes, Surface + FVector(0, 0, Lift)))
 			{
 				continue;
 			}
@@ -324,9 +366,9 @@ FVeloxNavCoverageReport VeloxNavCoverage::RunAndLog(UWorld* World, const FVeloxN
 		Edge += C.bEdge ? 1 : 0;
 		WalkIn += (C.bWalkIn && !C.bEdge) ? 1 : 0;
 	}
-	UE_LOG(LogVeloxBots, Log, TEXT("VeloxNavCoverage walkable_m2=%.2f covered_pct=%.2f clusters=%d walkin=%d isolated=%d edge=%d grid=%.0f min_cluster_m2=%.2f samples=%d covered=%d surfaces=%d dropped_headroom=%d dropped_outside=%d dropped_ignored=%d seconds=%.3f"),
+	UE_LOG(LogVeloxBots, Log, TEXT("VeloxNavCoverage walkable_m2=%.2f covered_pct=%.2f clusters=%d walkin=%d isolated=%d edge=%d grid=%.0f min_cluster_m2=%.2f samples=%d covered=%d surfaces=%d dropped_headroom=%d dropped_outside=%d dropped_ignored=%d seconds=%.3f hazard_m2=%.2f"),
 		Report.WalkableM2, Report.CoveredPct, Report.Clusters.Num(), WalkIn, Report.Clusters.Num() - WalkIn - Edge, Edge, Params.GridCm, Params.MinClusterM2, Report.Samples, Report.Covered,
-		Report.Surfaces, Report.DroppedHeadroom, Report.DroppedOutsideBounds, Report.DroppedIgnored, Report.Seconds);
+		Report.Surfaces, Report.DroppedHeadroom, Report.DroppedOutsideBounds, Report.DroppedIgnored, Report.Seconds, VeloxNavCoverageMath::CellsToM2(Report.DroppedHazard, Params.GridCm));
 	for (int32 i = 0; i < Report.Clusters.Num(); ++i)
 	{
 		const FVeloxNavCoverageCluster& C = Report.Clusters[i];

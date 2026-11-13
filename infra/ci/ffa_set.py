@@ -36,6 +36,7 @@ def band(key):
 
 
 band_name = os.environ.get('VELOX_BAND_NAME', 'none')
+has_band = band_name != 'none' and any(k.startswith('BAND_') and v.strip() for k, v in os.environ.items())   # ADR 0008 3.5: a band file with no BAND_* value is report-only
 band_label = os.environ.get('VELOX_BAND_LABEL', band_name)   # '<map> (file <F>)' when the map's band file sources another map's
 SUM_KILLS_MIN = band('FFA_KILLS_MIN')    # D51 (1)/(7): was 70 (D49); largest k with P(sum < k) <= 2.5 % at 10 runs
 
@@ -166,10 +167,22 @@ print(f"SET runs={len(runs)} {'PASS' if not fails else 'FAIL(' + ';'.join(fails)
       f"sum_repaths={rp} max_run_repaths={max((r['repaths'] for r in runs), default=0)} not_at_goal={sum(r.get('not_at_goal', 0) for r in runs)} rules={rules}")
 sp = [s for r in runs for s in r['speed_strikes']]
 print(f"SET speed strikes: {' '.join(sp) if sp else '-'}")
-if band_name == 'none':
-    print(f"SET band=none (report-only): sum_kills={ki} not judged; the per-run kills / pickups / Mega bands are not judged either")
+if not has_band:
+    print(f"SET band={'none' if band_name == 'none' else band_label + ' (no BAND_* value)'} (report-only): sum_kills={ki} not judged; the per-run kills / pickups / Mega bands are not judged either")
 else:
     print(f"SET bands={band_label}: sum_kills >= {SUM_KILLS_MIN}" + ('' if kills_judged else f' (judged for {D51_KILLS_RUNS} runs only; {len(runs)} run(s): reported)'))
+hz_t = sum(r.get('hazard_touch', 0) for r in runs)
+hz_c = sum(r.get('hazard_death_credited', 0) for r in runs)
+hz_s = sum(r.get('hazard_death_self', 0) for r in runs)
+hz_b = {}
+for r in runs:
+    for b, v in (r.get('hazard_bots') or {}).items():
+        a = hz_b.setdefault(b, [0, 0, 0])
+        for i in range(3):
+            a[i] += v[i]
+print(f"SET hazard (report-only, ADR 0008 3.5): hazard_touch={hz_t} hazard_death_credited={hz_c} hazard_death_self={hz_s}"
+      + (' per bot touch/credited/self: ' + ' '.join(f'{b}:{v[0]}/{v[1]}/{v[2]}' for b, v in sorted(hz_b.items())) if hz_b else '')
+      + f" per run self=[{','.join(str(r.get('hazard_death_self', 0)) for r in runs)}]")
 print('SET invariants (ADR 0006 section 7, every map):')
 for n, v, lim, ok in inv:
     print(f'  {n:<28} {v:<44} limit {lim:<8} {"PASS" if ok else "FAIL"}')
