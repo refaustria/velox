@@ -1,0 +1,21 @@
+=== BotRun set evaluation over 3 round(s) (D36/D46) ===
+  per round: kills=[7, 2, 2] frags=[7, 2, 2] stuck=[4, 3, 4] pickups=[45, 40, 39] max_dwell_s=[3, 5, 2] repaths=[47, 53, 48]
+  dwell waits (ADR 0006 E2): timed_waits=[2, 2, 1] wait_max_s=[4.6, 3.3, 2.0] wait_capped=0 flags=0
+  sums: stuck=11 kills=11 frags=11 pocket_strikes=0 major_covered=4/4 [Armor_Red,Armor_Yellow,Health_Mega,Powerup_Quad] not_at_goal=2
+  left_arena=[none,none,none] world_kills=[5,5,5]
+  hazard (report-only, ADR 0008 3.5): hazard_touch=[0, 0, 0] hazard_death_credited=[0, 0, 0] hazard_death_self=[0, 0, 0] | sums touch=0 credited=0 self=0
+  band=none (report-only: the per-map set bands are printed, not judged; the map-independent invariants are judged)
+  link success by type (invariant >= 90 %, min 30 attempts; failed = missed/timeout/noimpulse/tooslow, aborted = replaced/below_start/ineligible/air_start/relaunched): Drop=7/8 (87.5 %, aborted=0, < 30 attempts: not judged) Jump=0/11 (0.0 %, aborted=12, < 30 attempts: not judged) FLAG(Jump: aborted 12 >= ok 0, report-only) JumpPad=48/48 (100.0 %, aborted=7)
+  near-human (D51, Live, pooled over 3 round(s), preset=Medium; report-only): acc_hitscan_pct=9.7 acc_proj_pct=18.2 shots_per_kill=140.6 trigger_share_pct=32.0[>=30 IN] held_share_pct=38.0[20-50 IN] acc_mg_pct=6.6[10-24 OUT] acc_rg_pct=n/a[30-60 n/a] acc_rl_pct=18.8[15-45 IN] rl_self_only=2
+    acc_by_weapon={LG:16.7,MG:6.6,PG:18.1,RL:18.3,SG:100.0} camp_time_pct=0.0 (hitscan 106/1092 proj 57/314 kills 10 vis 428 fire 137 held 52 samples 773)
+  cost (D47): frame_other_ref per round ['2937', '3317', '2385'] (set min 2385); mean_ref ['303.8', '349.5', '255.2']; P windows [0, 0, 0]; rr_round ['-', '-', '-']; p_norm_mean_us ['-', '-', '-']
+  cost: windows clean/total per round ['15/21', '4/21', '18/21']; contended [5, 17, 3]; cost windows [1, 0, 0]; union of clean windows: 37 window(s) mean_us=278.3 max_fire_us=17150
+  - sum VeloxBotStuck 11 > 10
+  - cost: round 1: 1 cost window(s)
+  - cost: round 1: clean mean_us 317.6 > 300
+  cost judged on the other rounds; round 2 not judged (clean/process-slow share, or slow throughout)
+  set behaviour FAIL, cost FAIL
+  set FAIL
+Rounds passed: 0/3 (requested 3)
+Logs: /mnt/oldroot/velox-scratch/m7-nemus/s3/botrun/20261113-095532-2368466/nettest
+NET SOAK FAILED

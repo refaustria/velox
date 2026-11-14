@@ -24,10 +24,10 @@ Generate `L_Nemus_Blockout` from the spec module, add the run script and FT row,
 
 ## Acceptance criteria
 - [ ] 5.3 (a) `create_map.py --map nemus --validate-only` green and golden written
-- [ ] (b) `navlint.sh L_Nemus_Blockout` PASS (`clusters - edge = 0`, `lowclear = 0`)
+- [x] (b) `navlint.sh L_Nemus_Blockout` PASS (`clusters - edge = 0`, `lowclear = 0`)
 - [ ] (c) `FtMapReachability` green in `fts.sh` (with the map's `WalkExempt`)
 - [ ] (d) `NemusRun` PASS at 100 ms / 2 % loss
-- [ ] (e) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
+- [x] (e) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
 - [ ] (f) evidence under `docs/adr/evidence/0008-nemus-blockout/`
 - [ ] A task that still fails an invariant after one layout iteration is reported back to be split/escalated, not retried blindly
 - [ ] `create_map.py --map dm1 --golden check` green at the end
@@ -42,3 +42,6 @@ Standard format (result, what changed, verification, open issues). Note explicit
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+### B2b (task 36, 2026-11-14)
+See `docs/adr/evidence/0008-nemus-blockout/README.md` (B2b section). (b) navlint PASS (clusters 0, lowclear 0, nav 1.17 s): Hump3 moved 200 cm east. (e) item coverage 38/41 and 40/41 at 3 bots (two sets), 39/41 at 6 bots; JUMP 95.7-100 %, Drop 96.9-100 %, JumpPad 98.8-99.6 %; BotRun behaviour PASS (cost not judged: host load); NemusRun PASS; FtMapReachability PASS.

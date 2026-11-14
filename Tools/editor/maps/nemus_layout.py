@@ -160,7 +160,7 @@ BOXES = (
      # ---- B2: flat crests of the Rivus humps (120 cm between the up and down slabs; Hump1 moved 60 cm west so the gap to Hump2 stays 340)
      _b("Hump1_Crest", "platform", -1920, -1800, -2700, -2300, F, F + HUMP),
      _b("Hump2_Crest", "platform", -660, -540, -2700, -2300, F, F + HUMP),
-     _b("Hump3_Crest", "platform", 570, 690, -2700, -2300, F, F + HUMP),
+     _b("Hump3_Crest", "platform", 770, 890, -2700, -2300, F, F + HUMP),
     ]
 )
 
@@ -201,7 +201,7 @@ RAMPS = [
     # flat top as DM1's A_Ramp does (the ridge left nav gaps and polys inside the fill: navlint clusters / lowclear on Hump2 / Hump3).
     Ramp("Hump1_Up", -2320, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump1_Dn", -1400, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
     Ramp("Hump2_Up", -1060, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump2_Dn", -140, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
-    Ramp("Hump3_Up", 170, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump3_Dn", 1090, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
+    Ramp("Hump3_Up", 370, -2700, -2300, HUMP, "+x", 15.0, F, "solid"), Ramp("Hump3_Dn", 1290, -2700, -2300, HUMP, "-x", 15.0, F, "solid"),
 ]
 
 # ---------------------------------------------------------------- jump pads (AimAtTarget: the target is the capsule-centre apex, ADR 0002)
@@ -242,16 +242,17 @@ ITEMS = [
     _it("H25_ForN", "Health.Medium", -2100, 1300),
     _it("H25_ForS", "Health.Medium", -2100, -1300),
     _it("H25_Root", "Health.Medium", 2300, 0, U),
-    _it("H25_Via", "Health.Medium", 2400, 2350),
+    _it("H25_Via", "Health.Medium", 0, 2000),   # B2b: was (2400, 2350), never taken (east Via Sacra is off the bot routes); now north of the aqueduct arch on the LG lane,
     _it("H25_Tier", "Health.Medium", -700, 0, T2),
     _it("H25_Temple", "Health.Medium", -2900, 1300, U),
-    _it("H5_Aq1", "Health.Small", 1600, 1800, U),
-    _it("H5_Aq2", "Health.Small", 1900, 1800, U),
-    _it("H5_Aq3", "Health.Small", 2200, 1800, U),
-    _it("H5_Aq4", "Health.Small", 2500, 1800, U),
+        # B2b: the four aqueduct smalls (deck x 1600..2500 is only reachable over Pons N, never visited) moved to the aqueduct's south foot (x -600, -200) and the pit's south stair head (x -250, 250)
+    _it("H5_Aq1", "Health.Small", -600, 1400),
+    _it("H5_Aq2", "Health.Small", -200, 1400),
+    _it("H5_Aq3", "Health.Small", -250, -1250),
+    _it("H5_Aq4", "Health.Small", 250, -1250),
     _it("H5_Hump1", "Health.Small", -1860, -2500, F + HUMP),
     _it("H5_Hump2", "Health.Small", -600, -2500, F + HUMP),
-    _it("H5_Hump3", "Health.Small", 630, -2500, F + HUMP),
+    _it("H5_Hump3", "Health.Small", 830, -2500, F + HUMP),
     _it("Shard_Log1", "Armor.Shard", -1700, -1800, U),
     _it("Shard_Log2", "Armor.Shard", -1300, -1800, U),
     _it("Shard_Log3", "Armor.Shard", -900, -1800, U),
@@ -262,9 +263,9 @@ ITEMS = [
     _it("Shard_T3_SW", "Armor.Shard", -900, -900, T3),
     _it("RocketsAmmo", "Ammo.Rockets", -1300, 900),
     _it("SlugsAmmo", "Ammo.Slugs", 2600, -1000, U),
-    _it("LightningAmmo", "Ammo.Lightning", 1000, 2350),
+    _it("LightningAmmo", "Ammo.Lightning", 0, 1700),
     _it("CellsAmmo", "Ammo.Cells", 200, -2150),
-    _it("ShellsAmmo", "Ammo.Shells", 2700, 1450),
+    _it("ShellsAmmo", "Ammo.Shells", 1500, 1450),
     _it("BulletsAmmo", "Ammo.Bullets", 1300, 500),
 ]
 WEAPON_IDS = ("RL1", "RL2", "LG", "PG1", "PG2", "SG1", "SG2", "RG")

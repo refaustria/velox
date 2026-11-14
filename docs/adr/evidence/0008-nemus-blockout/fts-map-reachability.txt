@@ -1,3 +1,5 @@
-[fts] FtMapReachability-L_Nemus_Blockout PASS  ([2026.11.13-08.01.53:023][  3]LogVeloxBots: VeloxReachabilityFt test=FT_Map_Reachability result=PASS checks=7 failed=0)
-Logs: /home/bojan/velox/.claude/worktrees/agent-aa58ecbf8c22d3f23/Saved/CI/20261113-090139-2101343
+[ci] Functional tests: port=7835 timeout=240s logs=/mnt/oldroot/velox-scratch/m7-nemus-b2b/20261114-080934-963943
+[ci] [FtMapReachability-L_Nemus_Blockout] /opt/UnrealEngine-5.8/Engine/Binaries/Linux/UnrealEditor-Cmd /home/bojan/velox/.claude/worktrees/agent-aaaef1865a073cff5/Velox.uproject L_Nemus_Blockout -game -nullrhi -unattended -nosound -nopause -nosplash -UseFixedTimeStep -FPS=60 -log -port=7835 -ExecCmds=velox.bots.Seed\ 1\,\ velox.bots.FtMapReachability\ WalkExempt=DA_Item_Weapon_Railgun\ quit 
+[fts] FtMapReachability-L_Nemus_Blockout PASS  ([2026.11.14-07.09.45:714][  3]LogVeloxBots: VeloxReachabilityFt test=FT_Map_Reachability result=PASS checks=7 failed=0)
+Logs: /mnt/oldroot/velox-scratch/m7-nemus-b2b/20261114-080934-963943
 [fts] OK 1/1
