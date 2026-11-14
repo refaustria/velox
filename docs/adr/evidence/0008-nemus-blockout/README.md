@@ -1,4 +1,24 @@
-# Nemus blockout evidence (M7 B2, ADR 0008 5.3)
+# Nemus blockout evidence (M7 B2 / B2b, ADR 0008 5.3)
+
+## B2b (task 36, 2026-11-14): layout fix, item moves, re-soak
+Engine 5.8.4, origin/m7-maps incl. H9 / H11 / H12; raw logs /mnt/oldroot/velox-scratch/m7-nemus-b2b/ (set1/ = first full set on the first layout). The B2 evidence is kept in b2/.
+Layout (one iteration after the first full set): Hump3 moved 200 cm east (crest 770..890; the 6 B2 position probes had not removed the lowclear poly), H5_Hump3 with it; never-taken items moved onto bot routes (concept intent kept: same 41 pickups and types): Ammo_Shells (1500,1450), H25_Via (0,2000), Ammo_Lightning (0,1700), the four aqueduct-deck smalls to (-600,1400), (-200,1400), (-250,-1250), (250,-1250) (the east deck is only reachable over Pons N).
+
+| Check | Result | File |
+|---|---|---|
+| navlint | PASS clusters 0, lowclear 0, nav build 1.17 s (1.22-1.26 s in FFA) | navlint.txt |
+| FtMapReachability Nemus | PASS checks 7 | fts-map-reachability.txt |
+| NemusRun 100 ms / 2 % | PASS, 4 pads | nemusrun.txt |
+| FFA x10 at 3 (first set) | coverage 38/41 (untaken Shells, H25_Temple, H25_Root); JUMP 95.7 % (44/46), Drop 100 %, JumpPad 99.4 %, sum_stuck 1, dwell 4, nav 1.22 s | ffa3-set.txt |
+| FFA x10 at 3 (repeat, same build) | coverage 40/41 (untaken Shells); JUMP 100 % (37/37), Drop 96.9 %, JumpPad 98.8 %, sum_stuck 1, dwell 5, nav 1.22 s | ffa3-repeat-set.txt |
+| FFA x10 at 6 | coverage 39/41 (untaken Shard_Log1, H25_Root); JUMP 100 % (49/49), Drop 100 %, JumpPad 99.6 %, sum_stuck 3, dwell 4, nav 1.26 s | ffa6-set.txt |
+| BotRun x3 | behaviour PASS (stuck 0, majors 4/4, world_kills 0/0/0, JUMP 8/8, Drop 5/5), cost NOT JUDGED (host load) | botrun-set.txt |
+
+Every map-independent invariant is PASS in the three FFA sets except item coverage in the first 3-bot set (38 < 39). The set verdict line still reads FAIL because ffa.sh judges coverage against "all 41" and counts the per-run `allunreach_air` / `budget>300` flags (a bot in the air with no reachable goal after a pad launch; cost windows under host load) as per-run failures; neither is a set invariant. The first layout (set1/, before the item moves): 3 bots 36/41, 6 bots 41/41 with Drop 88.2 % (6 misses on three Drop links, none in the later 6-bot set) and one 9 s dwell (beside the Pons S east end, progress stall).
+
+corona-share.txt is from B2 (the Corona is unchanged).
+
+## B2 (original, files in b2/)
 
 Engine 5.8.4, merged with origin/m7-maps incl. H7. Raw logs: /mnt/oldroot/velox-scratch/m7-nemus/ (s1 = FFA x10 at 3, s3 = FFA x10 at 6 and BotRun x3, run9 = NemusRun, it* = navlint probes).
 
