@@ -32,8 +32,8 @@ class UVeloxBotDifficulty;
  */
 struct FVeloxStandoffWindow
 {
-	TArray<FVector2D, TInlineAllocator<24>> Positions;
-	TArray<double, TInlineAllocator<24>> Times;
+	TArray<FVector2D, TInlineAllocator<40>> Positions;
+	TArray<double, TInlineAllocator<40>> Times;
 	void Reset()
 	{
 		Positions.Reset();
@@ -96,6 +96,12 @@ struct FVeloxBotState
 	double FightSuppressedUntil = -1.0;
 	/** Task 06b: fight stand-off rule window (feet positions). */
 	FVeloxStandoffWindow FightStandoff;
+	/** Task M7 H15: fight dwell window (feet positions at 10 Hz over FightStandoffSeconds + FightDwellPeriodSeconds). */
+	FVeloxStandoffWindow FightDwell;
+	/** Task M7 H15: last time the fight dwell rule was watched (Fight goal); the window survives FightDwellGraceSeconds without it. */
+	double FightDwellWatchedAt = -1.0;
+	/** Task M7 H15: since when the bot stands under / over its item goal (VeloxBotRules::IsUnderGoal; -1 = not). */
+	double UnderGoalSince = -1.0;
 	/**
 	 * Task M7 H13: time of this Fight goal (Fight -> Fight kept) in which the void stopped the closing in (the overlay's
 	 * back-off / no wish, or the ground edge guard); FightEdgeYieldSeconds of it yields like a stand-off (an enemy across a gap).
@@ -287,11 +293,27 @@ namespace VeloxBotRules
 		float SampleSeconds = 0.25f);
 
 	/**
+	 * Task M7 H15 fight dwell rule (beside the 06b stand-off): true when, while bWatched, there is an anchor sample A at
+	 * least Seconds old whose positions at A + PeriodSeconds, A + 2 PeriodSeconds, ... up to Seconds all lie within
+	 * RadiusCm (2-D) of A's. That is the soak's 1 Hz dwell run (ADR 0006 section 7, D34: consecutive 1 Hz samples within
+	 * 150 cm of the run's first) at every sampling phase. A strafing fight in the open oscillates around a fixed point
+	 * with an amplitude above RadiusCm, so the 06b test (every sample within RadiusCm of now) never holds while the 1 Hz
+	 * samples stay inside the circle. Positions are sampled every SampleSeconds (a matched sample lies within that of its time);
+	 * not watched clears the window; a hit clears it too, unless !bMayFire (sampled, not judged: the window is kept and
+	 * false returned). PeriodSeconds <= 0 turns the rule off.
+	 */
+	VELOX_API bool UpdateFightDwell(FVeloxStandoffWindow& Window, bool bWatched, const FVector2D& Pos, double Now, float RadiusCm, float Seconds,
+		float PeriodSeconds, float SampleSeconds = 0.1f, bool bMayFire = true);
+
+	/**
 	 * Task 06b: 3-D arrival test at a goal target (item location, roam / chase point): within Radius2D horizontally and
 	 * within MaxDzCm vertically (feet vs target; the controller passes the nav agent height, so a bot on another floor
 	 * level - under or over the item - is not at it).
 	 */
 	VELOX_API bool IsAtGoal(const FVector& Feet, const FVector& Target, float Radius2D, float MaxDzCm);
+
+	/** Task M7 H15: within Radius2D of Target horizontally but more than MaxDzCm above or below it (the item on another level). */
+	VELOX_API bool IsUnderGoal(const FVector& Feet, const FVector& Target, float Radius2D, float MaxDzCm);
 
 	/**
 	 * D30 fight-stall predicate: the speed rule also watches a pathless fight (Goal == Fight, no active move, the goal's
@@ -482,6 +504,28 @@ public:
 	/** Task 06b: radius of the fight stand-off circle (cm, 2-D; the soak's dwell radius). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "cm"))
 	float FightStandoffRadiusCm = 150.f;
+
+	/**
+	 * Task M7 H15: sampling period of the fight dwell rule (VeloxBotRules::UpdateFightDwell): a Fight goal whose positions
+	 * PeriodSeconds apart stay within FightStandoffRadiusCm of one anchor for FightStandoffSeconds yields like a stand-off
+	 * (reason=dwell). 1 s = the soak's dwell sampling; 0 turns the rule off (s).
+	 */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float FightDwellPeriodSeconds = 1.f;
+
+	/**
+	 * Task M7 H15: the fight dwell window survives a Fight goal interrupted this long (a re-evaluation flicking to an item
+	 * and back reset it: Sacrarium 7 s fight dwell); a longer non-Fight stretch clears it (s).
+	 */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float FightDwellGraceSeconds = 1.f;
+
+	/**
+	 * Task M7 H15: a bot following its path that stands within the item's acceptance (2-D) but on another level (the path
+	 * ended under an item on a ledge or pedestal) this long drops the item for UnreachableRetrySeconds (s; 0 = off).
+	 */
+	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))
+	float UnderGoalSeconds = 1.f;
 
 	/** Task 06b: an airborne stretch longer than the bot's own hop (2 x JumpVelocity / |g|) plus this is a flight (s). */
 	UPROPERTY(Config, EditDefaultsOnly, Category = "Velox|Bot", Meta = (ClampMin = "0", Units = "s"))

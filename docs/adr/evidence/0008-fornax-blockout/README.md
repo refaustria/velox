@@ -49,3 +49,8 @@ Layout changes against S4/S4b (fornax_layout.py):
 `h14-isle-in.txt` (Isle_In before/after: 47/55 -> 57/61), `ffa3-set-b4b.txt` (FFA x10 at 3: Jump 92.4 %, hazard gate PASS; FAIL
 max_dwell 6 in one run, item coverage 28/30), `botduel-set-b4b.txt` (BotDuel x3 behaviour + cost PASS), `h14-gapft-isle.txt`
 (FT_BotGapJump island lane, A/B). Details in docs/tasks/m7-maps/34-h14-short-gap-takeoff-speed.md.
+
+## B4c (task M7 H15, fight dwell rule)
+`ffa3-set-h15.txt` (FFA x10 at 3, H15 final build): max_dwell 3 (B4b 6), hazard gate PASS (self 0), stuck 0, kills 157 (B4b 155);
+FAIL item_coverage 26/30 (Health_Small only, minors as in B4/B4b; no under_goal drop on this map); per-run FAILs budget>300 (host).
+Dwell classes: ../0008-orbita-blockout/h15-dwell-classes.txt. Details in docs/tasks/m7-maps/37-h15-open-fight-standoff.md.
