@@ -15,6 +15,7 @@ After H13, Orbita FFA ×10 at 4 bots fails only `max_dwell_s` 6 (limit 5) in 2 r
 ## Acceptance criteria
 - [ ] Root cause with log evidence (why the 4 Hz stand-off rule misses it)
 - [ ] Orbita FFA ×10 at 4 bots: max_dwell ≤ 5, all invariants PASS, hazard gate PASS, coverage ≥ 36/37 → tick B5 (e)
+- [ ] Fornax FFA ×10 at 3 bots: max_dwell ≤ 5 (H14 saw 6 s once, east gallery, item goal — check whether the same stall logic or a separate item-goal stall); hazard gate still PASS
 - [ ] Sacrarium FFA ×10 at 6 bots and DM1 BotRun ×3: no dwell/stuck regression vs H10/H13 numbers; kills per round not lower than before (bots must not become passive)
 - [ ] build + automation + fts.sh green
 
