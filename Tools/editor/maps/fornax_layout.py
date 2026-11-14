@@ -193,18 +193,20 @@ ITEMS = [
     _it("H25_2", "Health.Medium", 1300, 1050),
     _it("H25_3", "Health.Medium", 500, -450),
     _it("H25_4", "Health.Medium", 0, -1575),
-    _it("H5_S1", "Health.Small", -1500, -1125),
-    _it("H5_S2", "Health.Small", -1300, -1125),
+    _it("H5_S1", "Health.Small", -300, -1075),
+    _it("H5_S2", "Health.Small", 0, -1300),
     _it("H5_S3", "Health.Small", -1100, -1125),
     _it("H5_T1", "Health.Small", 1000, -1550, ramp_z(1000)),
-    _it("H5_T2", "Health.Small", 1300, -1550, ramp_z(1300)),
-    _it("H5_T3", "Health.Small", 1600, -1550, ramp_z(1600)),
+    _it("H5_T2", "Health.Small", 1300, -800),
+    _it("H5_T3", "Health.Small", 1300, -1200),
+    # M7 38: H5_S1/S2 (Slag north bank), H5_T2/T3 (Tap ramp), Shard_N1/N2 (north stairs) were the never/rarely taken minors in three FFA sets;
+    # moved onto routes: Hearth-Slag door / Slag Run to Tap, either side of Pad 2, West Landing on the Flue-to-Crane line.
     # shards on the stairs, at tread centres (the concept's x / y sit on tread edges): deck stairs treads 3, 8, 13; north stairs 4, 8, 12
     _it("Shard_D1", "Armor.Shard", -2150, -125, 80),
     _it("Shard_D2", "Armor.Shard", -2150, 125, 180),
     _it("Shard_D3", "Armor.Shard", -2150, 375, 280),
-    _it("Shard_N1", "Armor.Shard", 1475, 1550, 100),
-    _it("Shard_N2", "Armor.Shard", 1275, 1550, 180),
+    _it("Shard_N1", "Armor.Shard", 700, 1050, 320),
+    _it("Shard_N2", "Armor.Shard", 700, 1250, 320),
     _it("Shard_N3", "Armor.Shard", 1075, 1550, 260),
 ]
 WEAPON_IDS = ("PG", "SG", "LG", "RL", "RG")
