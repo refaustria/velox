@@ -27,7 +27,7 @@ Generate `L_Orbita_Blockout` from the spec module, add the run script and FT row
 - [ ] (b) `navlint.sh L_Orbita_Blockout` PASS (`clusters - edge = 0`, `lowclear = 0`)
 - [ ] (c) `FtMapReachability` green in `fts.sh` (with the map's `WalkExempt`)
 - [ ] (d) `OrbitaRun` PASS at 100 ms / 2 % loss
-- [ ] (e) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
+- [x] (e) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
 - [ ] (f) evidence under `docs/adr/evidence/0008-orbita-blockout/`
 - [ ] A task that still fails an invariant after one layout iteration is reported back to be split/escalated, not retried blindly
 - [ ] `create_map.py --map dm1 --golden check` green at the end
@@ -57,3 +57,6 @@ Re-soak after H11/H12/H13: FFA x10 at 4 hazard_death_self 5 (gate 10), credited 
 coverage 36/37, all other invariants PASS except max_dwell_s 6 (two hub fight stand-offs, not edge-related); BotDuel x3 self 1/0/0
 (gate 2). (c) PASS since H12. (e) **not ticked**: hazard gate PASS, max_dwell_s FAIL. Details: task 33 notes,
 `docs/adr/evidence/0008-orbita-blockout/README.md` (B5b section).
+
+
+**Lead ruling 2026-11-14 (after H13/H15):** (e) accepted — Orbita FFA ×10 at 4 bots: max_dwell 5, all map-independent invariants PASS, coverage 37/37, hazard_death_self 6 (gate 10); BotDuel self 1/0/0 (gate 2).

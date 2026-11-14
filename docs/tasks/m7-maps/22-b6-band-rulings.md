@@ -35,7 +35,7 @@ Standard format (result, what changed, verification, open issues). Note explicit
 ## Lead notes for B6
 - ffa.sh flags `allunreach_air` (bot airborne with no reachable goal after a launch) in about half the Nemus B2b runs; not an invariant — decide whether to band it (2026-11-14).
 
-- Fornax item coverage in FFA ×10 at 3 bots is 27–28/30 with different minor items missing per set (B4, B4b). Rule whether a Duel map's FFA coverage gate should count minor items, or move them (2026-11-14).
+- (superseded 2026-11-14: Fornax minor items are moved onto routes in task 38; no ruling needed) Fornax item coverage in FFA ×10 at 3 bots is 27–28/30 with different minor items missing per set (B4, B4b). Rule whether a Duel map's FFA coverage gate should count minor items, or move them (2026-11-14).
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
