@@ -1,0 +1,19 @@
+=== BotRun set evaluation over 3 round(s) (D36/D46) ===
+  per round: kills=[7, 12, 11] frags=[7, 12, 11] stuck=[1, 2, 0] pickups=[60, 68, 67] max_dwell_s=[4, 3, 2] repaths=[28, 24, 17]
+  dwell waits (ADR 0006 E2): timed_waits=[5, 1, 5] wait_max_s=[4.5, 3.7, 3.0] wait_capped=0 flags=0
+  sums: stuck=3 kills=30 frags=30 pocket_strikes=0 major_covered=4/4 [Armor_Red,Armor_Yellow,Health_Mega,Powerup_Quad] not_at_goal=1
+  left_arena=[none,none,none] world_kills=[0,0,0]
+  hazard (report-only, ADR 0008 3.5): hazard_touch=[0, 0, 0] hazard_death_credited=[0, 0, 0] hazard_death_self=[0, 0, 0] | sums touch=0 credited=0 self=0
+  bands=L_DM1_Blockout (file L_DM1)
+  link success by type (invariant >= 90 %, min 30 attempts; failed = missed/timeout/noimpulse/tooslow, aborted = replaced/below_start/ineligible/air_start/relaunched): Drop=38/38 (100.0 %, aborted=3) JumpPad=23/23 (100.0 %, aborted=1, < 30 attempts: not judged)
+  near-human (D51, Live, pooled over 3 round(s), preset=Medium; report-only): acc_hitscan_pct=25.9 acc_proj_pct=25.8 shots_per_kill=35.9 trigger_share_pct=30.3[>=30 IN] held_share_pct=21.1[20-50 IN] acc_mg_pct=11.7[10-24 IN] acc_rg_pct=48.0[30-60 IN] acc_rl_pct=41.9[15-45 IN] rl_self_only=6
+    acc_by_weapon={LG:31.1,MG:11.7,PG:14.2,RG:48.0,RL:39.1,SG:100.0} camp_time_pct=0.0 (hitscan 209/808 proj 51/198 kills 28 vis 314 fire 95 held 20 samples 725)
+  cost (D47): frame_other_ref per round ['913', '777', '923'] (set min 777); mean_ref ['87.7', '66.5', '77.0']; P windows [15, 16, 10]; rr_round ['1.21', '1.44', '1.49']; p_norm_mean_us ['107.2', '95.6', '115.0']
+  cost: windows clean/total per round ['5/20', '4/20', '10/20']; contended [0, 0, 0]; cost windows [0, 0, 0]; union of clean windows: 19 window(s) mean_us=84.2 max_fire_us=5027
+  union fallback (D46 5, the lead's call): 19 clean window(s) over the set (< 30: not enough), mean_us=84.2 -> would not pass
+  - cost NOT JUDGED: round(s) 1,2 not judged (< 6 clean windows, < 50 % clean + process-slow, or slow throughout; D46 5/D47 d: rerun this set after acting on the sidecar's cause; if it recurs, judge the union of the clean windows)
+  set behaviour PASS, cost NOT JUDGED
+  set FAIL
+Rounds passed: 2/3 (requested 3)
+Logs: /mnt/oldroot/velox-scratch/m7-h15/v2/ci/20261114-144732-1549637/nettest
+NET SOAK FAILED

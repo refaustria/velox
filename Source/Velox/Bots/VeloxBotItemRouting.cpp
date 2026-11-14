@@ -481,6 +481,17 @@ void UVeloxBotItemRouter::RequestEvaluation(const AVeloxBotController* Bot)
 	}
 }
 
+void UVeloxBotItemRouter::MarkUnreachable(const AVeloxBotController* Bot, AVeloxPickup* Pickup)
+{
+	FBotRouteState* S = Bot ? States.Find(TObjectKey<AVeloxBotController>(Bot)) : nullptr;
+	const UWorld* World = GetWorld();
+	if (S && Pickup && World)
+	{
+		S->Unreachable.Add(Pickup, World->GetTimeSeconds() + UnreachableRetrySeconds);
+		S->bEventPending = true;
+	}
+}
+
 void UVeloxBotItemRouter::OnPickupRespawned(AVeloxPickup* Pickup)
 {
 	// A bot camping (or waiting for) this item takes it at once instead of on the next cadence tick.
