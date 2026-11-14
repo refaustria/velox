@@ -32,5 +32,8 @@ Derive bands for each map from its blockout soak evidence by the E3 method, as s
 ## Report back
 Standard format (result, what changed, verification, open issues). Note explicitly if Unreal was not available to compile.
 
+## Lead notes for B6
+- ffa.sh flags `allunreach_air` (bot airborne with no reachable goal after a launch) in about half the Nemus B2b runs; not an invariant — decide whether to band it (2026-11-14).
+
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
