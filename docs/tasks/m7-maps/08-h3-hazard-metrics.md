@@ -2,7 +2,7 @@
 
 **Milestone:** M7 Maps (ADR 0008)
 **Agent:** dev
-**Status:** open
+**Status:** done (notes filled by M7 H9, 2026-11-14)
 **Depends on:** H2
 **Wave:** hazard track
 
@@ -23,10 +23,10 @@ Kill-feed labels for the hazard tags, runner metrics `hazard_touch`, `hazard_dea
 - ADR 0006 (map pipeline; its hard invariants and budgets stay in force) and `docs/tasks/m7-maps/README.md` (rules)
 
 ## Acceptance criteria
-- [ ] `navlint.sh L_HazardTest` PASS with `hazard_m2 > 0`; `NavLintIgnore` still forbidden
-- [ ] Runners print the three metrics
-- [ ] DM1 `--reeval` unchanged
-- [ ] `create_map.py --map dm1 --golden check` green at the end
+- [x] `navlint.sh L_HazardTest` PASS with `hazard_m2 > 0`; `NavLintIgnore` still forbidden
+- [x] Runners print the three metrics
+- [x] DM1 `--reeval` unchanged
+- [x] `create_map.py --map dm1 --golden check` green at the end
 
 ## Verification steps
 1. `create_map.py --map dm1 --golden check` green (pure Python).
@@ -37,4 +37,10 @@ Kill-feed labels for the hazard tags, runner metrics `hazard_touch`, `hazard_dea
 Standard format (result, what changed, verification, open issues). Note explicitly if Unreal was not available to compile.
 
 ## Notes / outcome
-(Filled by the agent or the lead after completion.)
+Code merged earlier (hazard review F15: the file was never filled). Recorded by M7 H9 (2026-11-14):
+- **DM1 `--reeval` unchanged.** Stored DM1 BotRun/BotDuel round `/mnt/oldroot/velox-scratch/m7-h4/20261113-004246-317275/nettest` re-evaluated with the
+  current `nettest.sh --reeval <dir> --map L_DM1_Blockout` and diffed against H3's stored pre-metrics output (`m7-h3/reeval-base.txt`): the only differences
+  are the new `hazard_touch=0 hazard_death_credited=0 hazard_death_self=0` lines (2 round lines, 2 set lines); every verdict, band and number is byte-identical
+  (the stored round still FAILs cost, as before). Output: `docs/adr/evidence/0008-hazard-track/h9-dm1-reeval.txt`.
+- Metrics print per round and per set (`nettest.sh`), per run and per set (`ffa_summary.py`, `ffa_set.py`), from `VeloxHazard` / `VeloxKill` lines, per victim label.
+  Judged since M7 H9 only when a band file sets `BAND_HAZARD_SELF_*` (ADR 0008 5.3 gate).

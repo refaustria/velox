@@ -1,0 +1,49 @@
+[ntdefault] quiet start load1=1.26 waited=0s 01:07:49
+[ntdefault] end rc=1 load1=2.54 01:56:02 free=15G
+[ci] [HasteRun] load gate: load1=1.46 at round start (gate 1.5, waited 97s)
+[ci] [BotRun] load gate: load1=1.49 at round start (gate 1.5, waited 30s)
+[ci] [BotDuel] load gate: load1=1.49 at round start (gate 1.5, waited 89s)
+[ci] [DeathSpectateRun] load gate: load1=1.47 at round start (gate 1.5, waited 62s)
+[ci] [RpcGateRun] load gate: load1=1.38 at round start (gate 1.5, waited 43s)
+[ci] [PasswordRun] load gate: gave up after 300s (load1=1.82, gate 1.5, previous processes alive=0); starting anyway
+[ci] [PasswordRun] load gate: load1=1.82 at round start (gate 1.5, waited 300s)
+[ci] [ItemGateSpectator] load gate: gave up after 300s (load1=5.71, gate 1.5, previous processes alive=0); starting anyway
+[ci] [ItemGateSpectator] load gate: load1=5.71 at round start (gate 1.5, waited 300s)
+[ci] [ItemGatePlayer] load gate: load1=1.47 at round start (gate 1.5, waited 128s)
+=== BotRun set evaluation over 1 round(s) (D36/D46; bands are defined for --repeat 3: reported, not judged) ===
+=== BotDuel set evaluation over 1 round(s) (D36/D46; bands are defined for --repeat 3: reported, not judged) ===
+[itembot] quiet start load1=1.38 waited=255s 02:00:17
+[itembot] end rc=1 load1=1.97 02:07:54 free=15G
+[ci] [BotRun] load gate: load1=1.38 at round start (gate 1.5, waited 0s)
+[ci] [BotDuel] load gate: load1=1.38 at round start (gate 1.5, waited 188s)
+=== BotRun set evaluation skipped: only 1 of 3 rounds ran ===
+=== BotDuel set evaluation skipped: only 1 of 3 rounds ran ===
+[dm1ffa] quiet start load1=1.49 waited=60s 02:08:54
+[dm1ffa] end rc=1 load1=1.89 02:32:23 free=15G
+SET runs=10 FAIL(per_run:run 1,run 2,run 3,run 4,run 6,run 7) sum_stuck=1 max_run_stuck=1 bursts=0 pocket=0 dwell_ge6_runs=0 max_dwell=5 wait_max_s=5.6 max_link_dt=1.55 sum_kills=82 min_kills=5 sum_repaths=239 max_run_repaths=31 not_at_goal=4 rules={'fight_sta
+SET speed strikes: -
+SET bands=L_DM1: sum_kills >= 36
+SET hazard (report-only, ADR 0008 3.5): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0 per run self=[0,0,0,0,0,0,0,0,0,0]
+SET invariants (ADR 0006 section 7, every map):
+[fornaxduel] quiet start load1=1.47 waited=676s 02:43:39
+[fornaxduel] end rc=1 load1=4.58 02:46:09 free=15G
+[ci] [BotDuel] load gate: load1=1.47 at round start (gate 1.5, waited 0s)
+=== BotDuel set evaluation skipped: only 1 of 3 rounds ran ===
+[fornaxrun] quiet start load1=1.45 waited=105s 02:47:54
+[fornaxrun] end rc=1 load1=2.24 02:53:43 free=15G
+[ci] [BotRun] load gate: load1=1.45 at round start (gate 1.5, waited 0s)
+[ci] [BotRun] load gate: load1=1.39 at round start (gate 1.5, waited 109s)
+=== BotRun set evaluation skipped: only 2 of 3 rounds ran ===
+[sacrun] quiet start load1=1.23 waited=76s 02:54:59
+[sacrun] end rc=1 load1=2.27 03:01:54 free=15G
+[ci] [BotRun] load gate: load1=1.23 at round start (gate 1.5, waited 0s)
+[ci] [BotRun] load gate: load1=1.44 at round start (gate 1.5, waited 174s)
+=== BotRun set evaluation skipped: only 2 of 3 rounds ran ===
+[nemusffa] quiet start load1=1.45 waited=45s 03:02:39
+[nemusffa] end rc=1 load1=1.66 03:26:11 free=15G
+SET runs=10 FAIL(per_run:run 1,run 2,run 3,run 4,run 5,run 6,run 7,run 8;inv:item_coverage) sum_stuck=1 max_run_stuck=1 bursts=0 pocket=0 dwell_ge6_runs=0 max_dwell=4 wait_max_s=6.1 max_link_dt=2.72 sum_kills=58 min_kills=4 sum_repaths=565 max_run_repaths=71 n
+SET speed strikes: -
+SET band=none (report-only): sum_kills=58 not judged; the per-run kills / pickups / Mega bands are not judged either
+SET hazard (report-only, ADR 0008 3.5): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0 per run self=[0,0,0,0,0,0,0,0,0,0]
+SET invariants (ADR 0006 section 7, every map):
+== all done 03:26:11
