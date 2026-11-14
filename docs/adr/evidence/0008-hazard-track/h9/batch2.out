@@ -1,0 +1,36 @@
+[itembot2] quiet start load1=1.25 waited=105s 03:28:12
+[itembot2] end rc=1 load1=1.73 03:52:35 free=15G
+[ci] [BotRun] load gate: load1=1.25 at round start (gate 1.5, waited 0s)
+[ci] [BotDuel] load gate: load1=1.38 at round start (gate 1.5, waited 287s)
+[ci] [BotRun] load gate: load1=1.49 at round start (gate 1.5, waited 39s)
+[ci] [BotDuel] load gate: load1=1.48 at round start (gate 1.5, waited 133s)
+[ci] [BotRun] load gate: load1=1.41 at round start (gate 1.5, waited 82s)
+[ci] [BotDuel] load gate: load1=1.48 at round start (gate 1.5, waited 105s)
+=== BotRun set evaluation over 3 round(s) (D36/D46) ===
+  set behaviour PASS, cost FAIL
+=== BotDuel set evaluation over 3 round(s) (D36/D46) ===
+  set behaviour PASS, cost FAIL
+[fornaxduel2] quiet start load1=1.49 waited=45s 03:53:20
+[fornaxduel2] end rc=1 load1=1.81 04:02:27 free=15G
+[ci] [BotDuel] load gate: load1=1.49 at round start (gate 1.5, waited 0s)
+    ~ 14 cost-class (X) window(s) on a round whose cost is not judged: not a FAIL (D51 9 ii); the set evaluation labels the round slow throughout (D47 d) or flags it
+[ci] [BotDuel] load gate: load1=1.48 at round start (gate 1.5, waited 31s)
+    ~ 15 cost-class (X) window(s) on a round whose cost is not judged: not a FAIL (D51 9 ii); the set evaluation labels the round slow throughout (D47 d) or flags it
+[ci] [BotDuel] load gate: load1=1.48 at round start (gate 1.5, waited 69s)
+=== BotDuel set evaluation over 3 round(s) (D36/D46) ===
+  set behaviour FAIL, cost NOT JUDGED
+[fornaxrun2] quiet start load1=1.18 waited=150s 04:04:57
+[fornaxrun2] end rc=1 load1=2.21 04:14:47 free=15G
+[ci] [BotRun] load gate: load1=1.18 at round start (gate 1.5, waited 0s)
+[ci] [BotRun] load gate: load1=1.42 at round start (gate 1.5, waited 128s)
+[ci] [BotRun] load gate: load1=1.44 at round start (gate 1.5, waited 98s)
+=== BotRun set evaluation over 3 round(s) (D36/D46) ===
+  set behaviour FAIL, cost FAIL
+[sacrun2] quiet start load1=1.41 waited=360s 04:20:47
+[sacrun2] end rc=0 load1=1.35 04:26:57 free=15G
+[ci] [BotRun] load gate: load1=1.41 at round start (gate 1.5, waited 0s)
+[ci] [BotRun] load gate: load1=1.43 at round start (gate 1.5, waited 0s)
+[ci] [BotRun] load gate: load1=1.49 at round start (gate 1.5, waited 18s)
+=== BotRun set evaluation over 3 round(s) (D36/D46) ===
+  set behaviour PASS, cost PASS
+== all done 04:26:57

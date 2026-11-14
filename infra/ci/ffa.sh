@@ -66,8 +66,21 @@ else
     LOG="$OUT/ffa-$r.log"
     timeout -k 10 $((SECS + 120)) "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$PROJECT" \
       "$URL" -server -nullrhi -unattended -nosound -nopause -nosplash \
-      -log -port="$PORT" -abslog="$LOG" -ExecCmds="velox.bots.Seed $r, velox.bots.Debug 1, velox.bots.After $SECS quit" >/dev/null 2>&1
-    echo "run $r exit=$?"
+      -log -port="$PORT" -abslog="$LOG" -ExecCmds="velox.bots.Seed $r, velox.bots.Debug 1, velox.bots.After $SECS quit" >"$LOG.stdout" 2>&1
+    rc=$?
+    echo "run $r exit=$rc"
+    # M7 H9: a start-up crash (exit 139 / 134 with no or a short log) was seen once (H11, Nemus); keep what the engine printed and the
+    # crash report path, then retry that run once (the retry is noted; the first attempt is kept as crash1-ffa-$r.*).
+    if [ "$rc" -ge 128 ] && [ "$rc" -ne 143 ]; then
+      echo "[ci] run $r crashed (exit $rc, $(wc -c < "$LOG" 2>/dev/null || echo 0) log bytes); kept as crash1-ffa-$r.*; retrying once"
+      mv -f "$LOG" "$OUT/crash1-ffa-$r.txt" 2>/dev/null; mv -f "$LOG.stdout" "$OUT/crash1-ffa-$r.stdout" 2>/dev/null
+      ls -dt "$W"/Saved/Crashes/* 2>/dev/null | head -1 | sed 's/^/[ci] latest crash dir: /'
+      sleep 5
+      timeout -k 10 $((SECS + 120)) "$UE_ROOT/Engine/Binaries/Linux/UnrealEditor-Cmd" "$PROJECT" \
+        "$URL" -server -nullrhi -unattended -nosound -nopause -nosplash \
+        -log -port="$PORT" -abslog="$LOG" -ExecCmds="velox.bots.Seed $r, velox.bots.Debug 1, velox.bots.After $SECS quit" >"$LOG.stdout" 2>&1
+      echo "run $r retry exit=$?"
+    fi
     sleep 5
   done
 fi
