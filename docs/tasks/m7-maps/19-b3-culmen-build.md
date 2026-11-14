@@ -42,3 +42,16 @@ Standard format (result, what changed, verification, open issues). Note explicit
 
 ## Notes / outcome
 (Filled by the agent or the lead after completion.)
+
+### B3 (dev-hard, 2026-11-14, branch `wip/m7-19-b3-culmen`, engine 5.8.4)
+Evidence `docs/adr/evidence/0008-culmen-blockout/README.md` (table, per-link numbers), raw /mnt/oldroot/velox-scratch/m7-culmen/.
+- (a) PASS, golden written. (b) navlint PASS clusters 0 / lowclear 0, nav 1.09-1.20 s (`NAV_TILE_SIZE_UU` 4000). (c) FtMapReachability
+  PASS (`WalkExempt=DA_Item_Weapon_Railgun`); all 11 pad landings within 29.1 cm of `DumpPadLandings` (roof pads <= 1.8 cm).
+  (d) CulmenRun PASS 8/8, 7 pads, corrections 0.
+- (e) NOT ticked: BotRun x3 set PASS; FFA x10 at 3 fails max_dwell_s 34 + coverage 40/46, at 6 fails max_dwell_s 11 (coverage 46/46);
+  every other invariant PASS. All >= 6 s dwells are bots stranded on the 250 cm kiosk tops after a jump/fall from the Viaduct (S3 D6).
+  Extra gate: Haste every round; both far 50 HP taken in the 6-bot set (H50_E not in the 3-bot s3 set). JUMP_FAST and RJ: 0 attempts.
+- Layout: S10 off the terrace edge, BrSE X-mirrored (bring-up defect), one item iteration (NW shards, T_H5_4). Escalation (rule):
+  kiosk fix (taller kiosks or drop links off their tops) + re-run of the FFA sets.
+- Haste DA regenerated (`DisabledInModes` Duel). Out-of-list: `infra/ci/nettest.sh` (CulmenRun on L_Culmen_Blockout, 7 pads / 8
+  checks, as B1/B2/B4/B5 did), `Content/Items/DA_Item_Powerup_Haste.uasset` (lead request).

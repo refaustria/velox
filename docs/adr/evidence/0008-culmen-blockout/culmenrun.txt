@@ -1,0 +1,18 @@
+CulmenRun          moves=3812  C=0   echoes=0   gaps=23  repaired=38  repaired_extra=13  resent=1962  resent_extra=1949 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=76.2 pads=['VeloxJumpPad_2', 'VeloxJumpPad_3', 'VeloxJumpPad_4', 'VeloxJumpPad_5', 'VeloxJumpPad_6', 'VeloxJumpPad_7', 'VeloxJumpPad_9'] replays=4 acks_ignored=0 rpcs=1977  VeloxAnomaly at=logout pid=256 shots=0(+0) switches=1(+1) rejects{} snaps=0(+0) clamps=0(+0) late_retargets=0(+0) fresh_retargets=0(+0) orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00 reject_share=0.00 rtt_ms=229 player=Player
+Rounds passed: 1/1 (requested 1)
+VeloxJumpPad: pad=VeloxJumpPad_6 role=autonomous t=2.610 ts=1.841979 src=live applied=1 launch=V(X=-777.23, Z=1296.92)
+VeloxScript: check 'car roof (P7)' PASS st=5.800 pos=V(X=419.61, Y=2000.00, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_7 role=autonomous t=5.384 ts=4.616527 src=live applied=1 launch=V(X=-1326.19, Y=-612.09, Z=1470.37)
+VeloxScript: check 'Terrace W (P8)' PASS st=12.300 pos=V(X=-2224.29, Y=1096.72, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_4 role=autonomous t=12.943 ts=12.174870 src=live applied=1 launch=V(X=1535.01, Y=-127.87, Z=1357.65)
+VeloxScript: check 'Spire NW (P5)' PASS st=23.150 pos=V(X=-425.83, Y=309.29, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_3 role=autonomous t=16.167 ts=15.399055 src=live applied=1 launch=V(X=2180.44, Y=85.89, Z=1443.75)
+VeloxScript: check 'East Roof (P4)' PASS st=29.650 pos=V(X=2829.43, Y=391.69, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_5 role=autonomous t=20.452 ts=19.684452 src=live applied=1 launch=V(X=-1535.01, Y=127.87, Z=1357.65)
+VeloxScript: check 'Spire SE (P6)' PASS st=37.600 pos=V(X=336.30, Y=-277.91, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_2 role=autonomous t=23.620 ts=22.851753 src=live applied=1 launch=V(X=-2180.44, Y=-85.89, Z=1443.75)
+VeloxScript: check 'West Roof (P3)' PASS st=44.100 pos=V(X=-2868.15, Y=-445.31, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxScript: check 'west pocket (two walk-offs)' PASS st=50.407 pos=V(X=-3762.40, Y=-2362.40, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_9 role=autonomous t=32.343 ts=31.575026 src=live applied=1 launch=V(X=196.59, Y=591.24, Z=1363.23)
+VeloxScript: check 'End Terrace SW (P10)' PASS st=56.700 pos=V(X=-3234.08, Y=-1097.39, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxNetSoak: script=CulmenRun moves=3812 corrections=0 max=0.00 mean=0.00 checks=8/8 peak2d=2182.1 peak_t=16.175 result=PASS reason=-

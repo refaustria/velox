@@ -1,0 +1,4 @@
+[navlint] L_Culmen_Blockout walkable_m2=3757.00 covered_pct=99.98 clusters=0 (walkin=0 isolated=0 edge=0) lowclear=0 hazard_m2=0.00 result=PASS
+[navlint] log: Saved/CI/20261114-123712-1356681/navlint-L_Culmen_Blockout.log
+VeloxNav built tiles=8 seconds=1.085 links=42 relevant_triggers=0 runtime=Dynamic agent_radius=45.0 agent_height=140.0 step=45.0 cell=19.0 cell_height=10.0 slope=45.5 tile_size=4000
+VeloxNavCoverage navmem navdata=RecastNavMesh_0 tiles=8 tile_size=4000 mem_kb=37.7

@@ -1,0 +1,49 @@
+== FFA x10 at 3 (final layout): 10 logs
+  kills 50 by weapon {'Rocket': 22, 'Plasma': 10, 'Shotgun': 7, 'Lightning': 5, 'Rail': 5, 'MachineGun': 1}; Railgun share 10.0 %
+  Trench lane (victim on the lane): 4 kills, Railgun 1 (25.0 %)
+  Viaduct lane (victim on the lane): 3 kills, Railgun 0 (0.0 %)
+  takes {'Haste': 10, 'H50_W': 1}; rounds without Haste 0, without H50_W 9, without H50_E 10
+  link types ok/(ok+failed): Drop 70/70, JumpPad 194/196
+  links (ok/(ok+failed), aborted):
+    PadLink_P1         JUMP_PAD     41/41  = 100.0 % aborted 2
+    PadLink_P2         JUMP_PAD     41/41  = 100.0 % aborted 5
+    PadLink_P3         JUMP_PAD      8/8   = 100.0 % aborted 1
+    PadLink_P4         JUMP_PAD      5/5   = 100.0 % aborted 2
+    PadLink_P5         JUMP_PAD      2/2   = 100.0 % aborted 0
+    PadLink_P6         JUMP_PAD      6/6   = 100.0 % aborted 1
+    PadLink_P7         JUMP_PAD     10/10  = 100.0 % aborted 0
+    PadLink_P8         JUMP_PAD      3/3   = 100.0 % aborted 0
+    PadLink_P9         JUMP_PAD     54/56  =  96.4 % aborted 9
+    PadLink_P10        JUMP_PAD      4/4   = 100.0 % aborted 1
+    PadLink_P11        JUMP_PAD     20/20  = 100.0 % aborted 0
+    RJ1                ROCKET_JUMP   0/0           aborted 0
+    RJ2                ROCKET_JUMP   0/0           aborted 0
+    RJ3                ROCKET_JUMP   0/0           aborted 0
+    RJ4                ROCKET_JUMP   0/0           aborted 0
+    Gap_TW_V           JUMP_FAST     0/0           aborted 0
+    Gap_V_TW           JUMP_FAST     0/0           aborted 0
+    Gap_TE_V           JUMP_FAST     0/0           aborted 0
+    Gap_V_TE           JUMP_FAST     0/0           aborted 0
+    Gap_ET_V           JUMP_FAST     0/0           aborted 0
+    Gap_V_ET           JUMP_FAST     0/0           aborted 0
+    Drop_TW_Forum_400  DROP          5/5   = 100.0 % aborted 1
+    Drop_TW_Forum_700  DROP          1/1   = 100.0 % aborted 0
+    Drop_TW_Forum_1000 DROP          0/0           aborted 0
+    Drop_TE_Forum_-400 DROP          1/1   = 100.0 % aborted 0
+    Drop_TE_Forum_-700 DROP          1/1   = 100.0 % aborted 0
+    Drop_TE_Forum_-1000 DROP          1/1   = 100.0 % aborted 0
+    Drop_TW_Trench     DROP          2/2   = 100.0 % aborted 0
+    Drop_TE_Trench     DROP          9/9   = 100.0 % aborted 0
+    Drop_Spire_NW      DROP          3/3   = 100.0 % aborted 0
+    Drop_Spire_SW      DROP          0/0           aborted 0
+    Drop_Spire_NE      DROP          0/0           aborted 2
+    Drop_Spire_SE      DROP          1/1   = 100.0 % aborted 0
+    Drop_Car_W         DROP          0/0           aborted 6
+    Drop_RoofW_S       DROP          9/9   = 100.0 % aborted 1
+    Drop_RoofW_N       DROP          0/0           aborted 3
+    Drop_RoofE_N       DROP         10/10  = 100.0 % aborted 0
+    Drop_RoofE_S       DROP          3/3   = 100.0 % aborted 0
+    Drop_TowerW_S      DROP          9/9   = 100.0 % aborted 1
+    Drop_TowerE_N      DROP          9/9   = 100.0 % aborted 0
+    Drop_Via_W         DROP          0/0           aborted 0
+    Drop_Via_E         DROP          6/6   = 100.0 % aborted 0

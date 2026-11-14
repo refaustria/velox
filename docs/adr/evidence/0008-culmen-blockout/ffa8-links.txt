@@ -1,0 +1,49 @@
+== FFA x10 at 8 (final layout): 1 logs
+  kills 0 by weapon {}; Railgun share 0.0 %
+  Trench lane (victim on the lane): 0 kills, Railgun 0 (0.0 %)
+  Viaduct lane (victim on the lane): 0 kills, Railgun 0 (0.0 %)
+  takes {}; rounds without Haste 1, without H50_W 1, without H50_E 1
+  link types ok/(ok+failed): JumpPad 6/7
+  links (ok/(ok+failed), aborted):
+    PadLink_P1         JUMP_PAD      1/1   = 100.0 % aborted 1
+    PadLink_P2         JUMP_PAD      1/1   = 100.0 % aborted 0
+    PadLink_P3         JUMP_PAD      0/0           aborted 0
+    PadLink_P4         JUMP_PAD      0/0           aborted 0
+    PadLink_P5         JUMP_PAD      0/0           aborted 0
+    PadLink_P6         JUMP_PAD      0/0           aborted 0
+    PadLink_P7         JUMP_PAD      1/1   = 100.0 % aborted 0
+    PadLink_P8         JUMP_PAD      1/1   = 100.0 % aborted 0
+    PadLink_P9         JUMP_PAD      1/2   =  50.0 % aborted 0
+    PadLink_P10        JUMP_PAD      0/0           aborted 0
+    PadLink_P11        JUMP_PAD      1/1   = 100.0 % aborted 0
+    RJ1                ROCKET_JUMP   0/0           aborted 0
+    RJ2                ROCKET_JUMP   0/0           aborted 0
+    RJ3                ROCKET_JUMP   0/0           aborted 0
+    RJ4                ROCKET_JUMP   0/0           aborted 0
+    Gap_TW_V           JUMP_FAST     0/0           aborted 0
+    Gap_V_TW           JUMP_FAST     0/0           aborted 0
+    Gap_TE_V           JUMP_FAST     0/0           aborted 0
+    Gap_V_TE           JUMP_FAST     0/0           aborted 0
+    Gap_ET_V           JUMP_FAST     0/0           aborted 0
+    Gap_V_ET           JUMP_FAST     0/0           aborted 0
+    Drop_TW_Forum_400  DROP          0/0           aborted 0
+    Drop_TW_Forum_700  DROP          0/0           aborted 0
+    Drop_TW_Forum_1000 DROP          0/0           aborted 0
+    Drop_TE_Forum_-400 DROP          0/0           aborted 0
+    Drop_TE_Forum_-700 DROP          0/0           aborted 0
+    Drop_TE_Forum_-1000 DROP          0/0           aborted 0
+    Drop_TW_Trench     DROP          0/0           aborted 0
+    Drop_TE_Trench     DROP          0/0           aborted 0
+    Drop_Spire_NW      DROP          0/0           aborted 0
+    Drop_Spire_SW      DROP          0/0           aborted 0
+    Drop_Spire_NE      DROP          0/0           aborted 0
+    Drop_Spire_SE      DROP          0/0           aborted 0
+    Drop_Car_W         DROP          0/0           aborted 0
+    Drop_RoofW_S       DROP          0/0           aborted 0
+    Drop_RoofW_N       DROP          0/0           aborted 0
+    Drop_RoofE_N       DROP          0/0           aborted 0
+    Drop_RoofE_S       DROP          0/0           aborted 0
+    Drop_TowerW_S      DROP          0/0           aborted 0
+    Drop_TowerE_N      DROP          0/0           aborted 0
+    Drop_Via_W         DROP          0/0           aborted 0
+    Drop_Via_E         DROP          0/0           aborted 0

@@ -87,7 +87,8 @@ BOXES = (
     + _pair(Box("x", "platform", "Platform", -2000, -1700, -221, 221, 0, 320), "LandW", "LandE")
     # glass bridges: opaque deck 40 thick, 280 clear below. BrW / BrE: Terrace landings to the Spire; BrSW / BrSE: terrace south end to Viaduct
     + _pair(Box("x", "bridge", "Platform", -1700, -600, -150, 150, 280, 320), "BrW", "BrE")
-    + _pair(Box("x", "bridge", "Platform", -2500, -2200, -1900, -1400, 280, 320), "BrSW", "BrSE")
+    + [Box("BrSW", "bridge", "Platform", -2500, -2200, -1900, -1400, 280, 320),
+       Box("BrSE", "bridge", "Platform", 2200, 2500, -1900, -1400, 280, 320)]   # B3: X mirror (the Viaduct is not point-mirrored); the point mirror spanned the Trench
     # 110 cm parapet stubs on the long sides of BrW / BrE (they float on the deck)
     + _pair(Box("x", "bridgewall", "Wall", -1700, -600, 150, 170, 320, 430), "BrW_ParN", "BrE_ParS")
     + _pair(Box("x", "bridgewall", "Wall", -1700, -600, -170, -150, 320, 430), "BrW_ParS", "BrE_ParN")
@@ -163,6 +164,8 @@ def ramp_z(r, x, y):
 
 
 _RNW, _RSE = RAMPS[0], RAMPS[1]
+# B3 item iteration (FFA x10 at 3: never taken): NW_Shard_2..4 off the NW roof ramp onto the P1 landing -> RA line (west of Bill_W);
+# T_H5_4 (2600, 1600) -> (2000, 1600), next to the Drop_TE_Trench landing. The SE shards stay on their ramp (taken).
 ITEMS = [
     _it("RA", "Armor.Red", -3300, -350, 640),
     _it("MH", "Health.Mega", 3300, 350, 640),
@@ -194,9 +197,10 @@ ITEMS = [
     _it("H25_5", "Health.Medium", -2300, -600, 320),
     _it("H25_6", "Health.Medium", 2300, 600, 320),
     _it("H25_7", "Health.Medium", 0, -400, 320),
-] + [_it(f"T_H5_{i + 1}", "Health.Small", x, 1600) for i, x in enumerate((1400, 1800, 2200, 2600))] \
+] + [_it(f"T_H5_{i + 1}", "Health.Small", x, 1600) for i, x in enumerate((1400, 1800, 2200, 2000))] \
   + [_it(f"C_H5_{i + 1}", "Health.Small", x, -1650) for i, x in enumerate((300, 500, 700, 900))] \
-  + [_it(f"NW_Shard_{i + 1}", "Armor.Shard", x, 1100, ramp_z(_RNW, x, 1100)) for i, x in enumerate((-2800, -3000, -3200, -3400))] \
+  + [_it("NW_Shard_1", "Armor.Shard", -2800, 1100, ramp_z(_RNW, -2800, 1100))] \
+  + [_it(f"NW_Shard_{i + 2}", "Armor.Shard", x, y, 640) for i, (x, y) in enumerate(((-3650, 600), (-3700, 0), (-3550, -300)))] \
   + [_it(f"SE_Shard_{i + 1}", "Armor.Shard", x, -1100, ramp_z(_RSE, x, -1100)) for i, x in enumerate((2800, 3000, 3200, 3400))]
 
 WEAPON_IDS = ("PG_W", "PG_E", "SG_E", "SG_W", "RL", "RG", "LG")
@@ -216,7 +220,7 @@ SPAWNS = [
     Spawn("S7", 3000, -1750, 180),    # PG-E
     Spawn("S8", -3300, -1250, 0, 320.0),    # End Terrace SW, east (PG-W 1.8 m)
     Spawn("S9", -2500, -2000, 0, 320.0),    # Viaduct, east (concept y -2150 sees RA over the open sky; moved 150 north; LG 7.2 m)
-    Spawn("S10", 2000, -1250, 90, 320.0),   # terrace, north (concept (2300, -1000) sees RA; moved 390 cm; PG-E 7.2 m)
+    Spawn("S10", 2500, 900, 180, 320.0),    # Terrace E north (B3: P6 spot (2000, -1250) sat on the terrace edge, nav could not reach it; every other Terrace E point sees RA or is < 10 m from S7; SG-E)
 ]
 SPAWN_MIN_APART = 1000.0
 SPAWN_MAX_WEAPON = 800.0
@@ -298,6 +302,7 @@ CLIPS = [
 
 NAV_CENTER = (0.0, 0.0, 500.0)
 NAV_SIZE = (7800.0, 5000.0, 1200.0)      # X -3900..3900, Y -2500..2500, Z -100..1100 (concept section 15)
+NAV_TILE_SIZE_UU = 4000.0                # ADR 0008 1.2 (H12): pad arcs P3-P6 / P8 span 2 tiles at 1000; Detour links neighbour tiles only
 
 INTERMISSION_CAMERA = ((0.0, 0.0, 3000.0), (0.0, -60.0, 90.0))
 INTERMISSION_LABEL = (0.0, 300.0, 2500.0)
