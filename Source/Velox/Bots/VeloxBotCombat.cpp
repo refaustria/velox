@@ -42,6 +42,10 @@ namespace VeloxBotCombatPrivate
 		TEXT("0 = the ADR 0008 3.6 edge behaviours (edge-aware overlay, hop landing guard) stay off even on maps with a hazard volume (A/B for FtBotEdge). Server."),
 		ECVF_Default);
 
+	TAutoConsoleVariable<int32> CVarBotEdgeGuard(TEXT("velox.bots.EdgeGuard"), 1,
+		TEXT("0 = the task M7 H13 void-edge additions stay off (ground edge guard, void back-off of the overlay, airborne hop guard, own-hop void recovery); the rest of the ADR 0008 3.6 behaviours stay (A/B). Server."),
+		ECVF_Default);
+
 	TAutoConsoleVariable<int32> CVarBotPeaceful(TEXT("velox.bots.Peaceful"), 0,
 		TEXT("1 = bots perceive no enemies and ignore damage (navigation functional tests; task 05). Server."), ECVF_Default);
 }
@@ -392,6 +396,11 @@ namespace VeloxBotCombatGlueImpl
 
 	void HandleDamaged(AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, const FVeloxDamageEvent& Event)
 	{
+		if (Event.DamageTags.HasTag(VeloxGameplayTags::Damage_Hazard_Void))
+		{
+			// Task M7 H13: soak diagnostics, the take-off that ended in the void.
+			Bot.NoteVoidDeath();
+		}
 		if (!VeloxBotCombat::IsHeardDamage(Event.DamageTags))
 		{
 			// H8 (review F8): a credited lava tick names the attacker as instigator; it gives away no position.
@@ -635,6 +644,11 @@ namespace VeloxBotCombatGlue
 		return Hazards && Hazards->HasHazards() && VeloxBotCombatPrivate::CVarBotEdgeAware.GetValueOnGameThread() != 0;
 	}
 
+	bool IsEdgeGuardOn(const UWorld* World)
+	{
+		return IsEdgeAware(World) && VeloxBotCombatPrivate::CVarBotEdgeGuard.GetValueOnGameThread() != 0;
+	}
+
 	bool IsEdgeAwareEnabled()
 	{
 		return VeloxBotCombatPrivate::CVarBotEdgeAware.GetValueOnGameThread() != 0;
@@ -729,6 +743,36 @@ namespace VeloxBotCombatGlue
 		const FVector Extent(Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectHalfHeightCm);
 		// 1 cm above the hit: the hazard trace in ProjectsOntoNav must start above the bed to see it.
 		return ProjectsOntoNav(Bot, Ground + FVector(0.0, 0.0, 1.0), Extent, bOutHazard);
+	}
+
+	bool IsUnsafeGround(const AVeloxBotController& Bot, const FVector& Point)
+	{
+		const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+		bool bHazard = false;
+		if (ProjectsOntoNav(Bot, Point, FVector(Settings.EdgeProbeProjectRadiusCm, Settings.EdgeProbeProjectRadiusCm, Settings.OnMeshHalfHeightCm), &bHazard))
+		{
+			return false;
+		}
+		if (bHazard)
+		{
+			return true;
+		}
+		UWorld* World = Bot.GetWorld();
+		if (!World)
+		{
+			return false;
+		}
+		// Off the mesh: a floor within EdgeGuardDropDepthCm under the point (a ledge onto a lower floor, the eroded band of the
+		// deck itself) is ground; nothing there is the void.
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(VeloxBotEdgeGuard), false, Bot.GetPawn());
+		FCollisionResponseParams Response;
+		Response.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
+		if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World))
+		{
+			Bots->NoteTraces(1);
+		}
+		return !World->LineTraceSingleByChannel(Hit, Point + FVector(0.0, 0.0, 20.0), Point - FVector(0.0, 0.0, Settings.EdgeGuardDropDepthCm), ECC_Pawn, Params, Response);
 	}
 
 	void Overlay(const AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, const FVeloxBotNavOutput& Nav, FVeloxBotInput& Pending, float Dt)
@@ -867,12 +911,20 @@ namespace VeloxBotCombatGlue
 					FVeloxCombatWishInput Dropped = In;
 					Dropped.bNoLateralOrRetreat = true;
 					const FVector2D Remaining = VeloxBotCombat::CombatWish(Dropped);
+					// H13: and over the void (Orbita: closing in on an enemy across the gap walked the bot off its deck).
 					bool bHazard = false;
-					if (!Remaining.IsZero() && !OnNav(Remaining, &bHazard) && bHazard)
+					const bool bUnsafe = !Remaining.IsZero() && (IsEdgeGuardOn(World)
+						? IsUnsafeGround(Bot, VeloxBotCombat::EdgeProbePoint(ProbeFeet, Velocity2D, Remaining, BotSettings.EdgeProbeLookaheadSeconds, BotSettings.EdgeProbeCm))
+						: !OnNav(Remaining, &bHazard) && bHazard);
+					if (bUnsafe)
 					{
 						// H8 (review F7): the reversal is probed as well; on a small island it can point at lava or a ledge
 						// too, and then the overlay writes nothing (the path wish stays).
-						if (OnNav(-Remaining))
+						// Task M7 H13: with an item path blended in, the reversal undid the path's progress too (B5b: 6 s
+						// dwells in Horreum's corner, the enemy across the gap): the path wish stays instead, and the ground
+						// edge guard keeps the momentum off the edge.
+						const bool bKeepPath = IsEdgeGuardOn(World) && In.bBlendPath && !Pending.WishDirWorld.IsZero();
+						if (!bKeepPath && OnNav(-Remaining))
 						{
 							Combat.bEdgeHazardBack = true;
 							++Combat.EdgeHazardBackCount;

@@ -1,6 +1,6 @@
 // Velox - FT_BotEdge (ADR 0008 sections 3.6.1, 3.6.2 and 3.7, task M7 H4).
 //
-//   velox.bots.FtBotEdge [quit] [seconds=N]
+//   velox.bots.FtBotEdge [quit] [seconds=N] [dummy=across]
 //       console, `UnrealEditor-Cmd Velox.uproject L_HazardTest -game -nullrhi -UseFixedTimeStep -FPS=60
 //       -ExecCmds="velox.bots.Seed 1, velox.bots.FtBotEdge quit"` (map: Tools/editor/create_hazard_test_map.py).
 //       A Hard bot (spawn loadout) is put on the 800 x 800 platform over the void slab and fights the invulnerable strafing
@@ -8,6 +8,8 @@
 //       the bot fought (target visible most of the time, shots pressed), and the edge-aware overlay ran (probes > 0).
 //       Reports the probe / mirror / drop counts, hops refused by the landing guard, and the closest the bot came to a
 //       platform edge. With `velox.bots.EdgeAware 0` (A/B) the same run shows what the behaviours prevent.
+//       Task M7 H13 `dummy=across`: the dummy strafes on the main floor across the void gap (closing in leads off the
+//       platform's west edge: the ground edge guard's case); same checks.
 //   Logs `VeloxBotEdgeFt test=FT_BotEdge check=... ok=` and `VeloxBotEdgeFt test=FT_BotEdge result=PASS|FAIL`; quit
 //   exits 0/1.
 
@@ -49,6 +51,13 @@ namespace VeloxBotEdgeFt
 	const FVector DummySpot(1400.0, 0.0, 110.0);
 	/** The dummy's strafe stays 150 cm inside the platform's Y edges. */
 	constexpr float DummyStrafeHalfWidthCm = 250.f;
+	/**
+	 * Task M7 H13 `dummy=across`: the dummy strafes on the main floor across the 1000 cm void gap (between the lava channel
+	 * at x -1200 and the floor's east edge at x 0), 1850+ cm from the bot: closing in leads over the platform's west edge
+	 * (the Orbita fight across a gap).
+	 */
+	const FVector DummyAcrossSpot(-700.0, 0.0, 110.0);
+	constexpr float DummyAcrossStrafeHalfWidthCm = 600.f;
 	/** A point below the platform edge that must be in the void slab (map sanity). */
 	const FVector VoidProbe(1900.0, 0.0, -800.0);
 
@@ -66,6 +75,7 @@ namespace VeloxBotEdgeFt
 		bool bPassed = true;
 		bool bFinished = false;
 		double FightSeconds = DefaultFightSeconds;
+		bool bAcross = false;
 		FTSTicker::FDelegateHandle TickHandle;
 		FDelegateHandle KillHandle;
 
@@ -138,8 +148,8 @@ namespace VeloxBotEdgeFt
 		}
 		// Test harness: the platform's dummy strafes through the centre, inside the edges, and cannot be killed (the
 		// fight lasts the whole run).
-		Spawner->SetActorLocation(DummySpot);
-		Spawner->StrafeHalfWidth = DummyStrafeHalfWidthCm;
+		Spawner->SetActorLocation(Ft->bAcross ? DummyAcrossSpot : DummySpot);
+		Spawner->StrafeHalfWidth = Ft->bAcross ? DummyAcrossStrafeHalfWidthCm : DummyStrafeHalfWidthCm;
 		Spawner->bInvulnerable = true;
 		AVeloxCharacter* Dummy = Spawner->SpawnDummy();
 
@@ -161,8 +171,8 @@ namespace VeloxBotEdgeFt
 		Ft->Bot = Bot;
 		Ft->BotPS = PS;
 		Ft->StartTime = Ft->Now();
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotEdgeFt test=FT_BotEdge start bot=%s dummy=%s seconds=%.0f edge_aware=%d"), *Bot->GetBotName(), *Dummy->GetName(),
-			Ft->FightSeconds, VeloxBotCombatGlue::IsEdgeAware(World) ? 1 : 0);
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotEdgeFt test=FT_BotEdge start bot=%s dummy=%s seconds=%.0f across=%d edge_aware=%d"), *Bot->GetBotName(), *Dummy->GetName(),
+			Ft->FightSeconds, Ft->bAcross ? 1 : 0, VeloxBotCombatGlue::IsEdgeAware(World) ? 1 : 0);
 		return true;
 	}
 
@@ -209,10 +219,11 @@ namespace VeloxBotEdgeFt
 			FString::Printf(TEXT("visible=%.2f shots=%d"), VisibleFraction, Combat.ShotsPressed));
 		const bool bEdgeAware = VeloxBotCombatGlue::IsEdgeAware(Ft->World.Get());
 		Ft->Check(!bEdgeAware || Combat.EdgeProbeCount > 0, TEXT("edge_probes"), FString::Printf(TEXT("probes=%d edge_aware=%d"), Combat.EdgeProbeCount, bEdgeAware ? 1 : 0));
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotEdgeFt test=FT_BotEdge summary seconds=%.1f probes=%d mirror=%d drop=%d hop_refused=%d min_edge=%.0f max_speed=%.0f dodges=%d hazard_back=%d no_wish=%d hop_checks=%d visible=%.2f"),
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotEdgeFt test=FT_BotEdge summary seconds=%.1f probes=%d mirror=%d drop=%d hop_refused=%d min_edge=%.0f max_speed=%.0f dodges=%d hazard_back=%d no_wish=%d hop_checks=%d visible=%.2f edge_guard=%d/%d air_hop_released=%d own_hop_recovery=%d"),
 			Elapsed, Combat.EdgeProbeCount, Combat.EdgeMirrorCount, Combat.EdgeDropCount, HopRefused,
 			Ft->MinEdgeCm == TNumericLimits<double>::Max() ? -1.0 : Ft->MinEdgeCm, Ft->MaxSpeed, Combat.DodgeCount, Combat.EdgeHazardBackCount, Combat.EdgeNoWishCount,
-			Follow ? Follow->GetHopLandingChecks() : 0, VisibleFraction);
+			Follow ? Follow->GetHopLandingChecks() : 0, VisibleFraction, Bot->GetBotState().EdgeGuardEpisodes, Bot->GetBotState().EdgeGuardTicks,
+			Follow ? Follow->GetAirHopReleasedTicks() : 0, Bot->GetBotState().OwnHopRecoveries);
 		return false;
 	}
 
@@ -234,6 +245,10 @@ namespace VeloxBotEdgeFt
 			if (Arg.Equals(TEXT("quit"), ESearchCase::IgnoreCase))
 			{
 				Ft->bQuit = true;
+			}
+			else if (Arg.Equals(TEXT("dummy=across"), ESearchCase::IgnoreCase))
+			{
+				Ft->bAcross = true;
 			}
 			else if (Arg.Split(TEXT("="), nullptr, &Value) && Arg.StartsWith(TEXT("seconds="), ESearchCase::IgnoreCase))
 			{
@@ -307,7 +322,7 @@ namespace VeloxBotEdgeFt
 	}
 
 	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtBotEdge"),
-		TEXT("velox.bots.FtBotEdge [quit] [seconds=N]: FT_BotEdge on L_HazardTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a Hard bot fights the dummy on the "
+		TEXT("velox.bots.FtBotEdge [quit] [seconds=N] [dummy=across]: FT_BotEdge on L_HazardTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a Hard bot fights the dummy on the "
 			 "void platform for 60 s with 0 hazard deaths (ADR 0008 3.6.1/2). Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
 }

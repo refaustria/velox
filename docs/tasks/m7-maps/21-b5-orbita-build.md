@@ -51,3 +51,9 @@ connect, so Scopulus is unreachable for bots and only P3 is ever used; hazard_de
 10/19/22 per BotDuel round (gate 2), credited 96 / 14; G1 JUMP gap 5 ok vs 137 aborted (H11). Layout iteration not spent (no
 layout cause). Out-of-scope edits: `infra/ci/nettest.sh` (OrbitaRun map + per-launch judging), `Tools/editor/mapgen.py`
 (`expected_counts` without `clip: 0`). Follow-ups: per-map nav tile size or split pad links (bot/nav), bot edge falls on 400 cm decks.
+
+### B5b (dev-hard, 2026-11-14, H13 branch `wip/m7-33-h13-void-edges`)
+Re-soak after H11/H12/H13: FFA x10 at 4 hazard_death_self 5 (gate 10), credited 21; Drop 31/31, Jump 94/94, JumpPad 102/102,
+coverage 36/37, all other invariants PASS except max_dwell_s 6 (two hub fight stand-offs, not edge-related); BotDuel x3 self 1/0/0
+(gate 2). (c) PASS since H12. (e) **not ticked**: hazard gate PASS, max_dwell_s FAIL. Details: task 33 notes,
+`docs/adr/evidence/0008-orbita-blockout/README.md` (B5b section).

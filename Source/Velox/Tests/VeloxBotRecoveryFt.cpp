@@ -68,6 +68,17 @@ bool FVeloxBotsHazardRulesTest::RunTest(const FString& Parameters)
 	const FVector2D Back = VeloxBotRules::AirRecoveryWish(FVector2D(120.0, 0.0), FVector2D(-10.0, 0.0), 20.f);
 	TestTrue(TEXT("overshoot: wish back"), Back.Equals(FVector2D(-1.0, 0.0), 1e-6));
 
+	// H13 ground edge guard: the edge runs along X, inward is -Y. A wish straight out turns straight in; a diagonal keeps its
+	// part along the edge; a zero wish is the inward direction; no inward direction, no wish.
+	TestTrue(TEXT("guard: straight out -> in"), VeloxBotRules::EdgeGuardWish(FVector2D(0.0, 1.0), FVector2D(0.0, -1.0)).Equals(FVector2D(0.0, -1.0), 1e-6));
+	const FVector2D Diag = VeloxBotRules::EdgeGuardWish(FVector2D(1.0, 1.0), FVector2D(0.0, -2.0));
+	TestTrue(TEXT("guard: diagonal keeps the edge part"), Diag.Equals(FVector2D(0.5774, -0.8165), 1e-3));
+	TestTrue(TEXT("guard: zero wish -> in"), VeloxBotRules::EdgeGuardWish(FVector2D::ZeroVector, FVector2D(0.0, -1.0)).Equals(FVector2D(0.0, -1.0), 1e-6));
+	TestTrue(TEXT("standoff kept Fight -> Fight"), VeloxBotRules::KeepsFightStandoff(EVeloxBotGoal::Fight, EVeloxBotGoal::Fight));
+	TestFalse(TEXT("standoff reset Fight -> Item"), VeloxBotRules::KeepsFightStandoff(EVeloxBotGoal::Fight, EVeloxBotGoal::Item));
+	TestFalse(TEXT("standoff reset Item -> Fight"), VeloxBotRules::KeepsFightStandoff(EVeloxBotGoal::Item, EVeloxBotGoal::Fight));
+	TestTrue(TEXT("guard: no inward"), VeloxBotRules::EdgeGuardWish(FVector2D(1.0, 0.0), FVector2D::ZeroVector).IsZero());
+
 	// Box exit: a 300 x 1200 channel (half 150 x 600), feet 40 cm west of the centre leave through the west side.
 	const FVector2D West = VeloxBotRules::HazardBoxExit(FVector2D(-40.0, 0.0), FVector2D::ZeroVector, FVector2D(1.0, 0.0), 150.f, 600.f, 100.f);
 	TestTrue(TEXT("exit west"), West.Equals(FVector2D(-250.0, 0.0), 1e-3));
