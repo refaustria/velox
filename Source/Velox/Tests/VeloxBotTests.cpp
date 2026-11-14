@@ -1524,6 +1524,49 @@ bool FVeloxBotsManeuverTest::RunTest(const FString& Parameters)
 		Far.Begin(JS, FVector::ZeroVector, FVector(560.0, 0.0, 0.0), T);
 		O = Far.Tick(Cross);
 		TestTrue(TEXT("Jump far before Start across the link: still approaching"), Far.Phase == EVeloxManeuverPhase::Approach);
+
+		// Task M7 H14: short landing zone (Fornax Isle_In: 410 cm link, nav 165 cm past End, 0.675 s flight).
+		TestNearlyEqual(TEXT("short-landing cap"), VeloxBotManeuverRules::GapTakeoffMaxSpeed(410.f, 40.f, 165.f, 40.f, 0.675f), 495.f / 0.675f, 0.01f);
+		TestNearlyEqual(TEXT("no cap: zone not short"), VeloxBotManeuverRules::GapTakeoffMaxSpeed(410.f, 40.f, -1.f, 40.f, 0.675f), 0.f, 1e-4f);
+		TestNearlyEqual(TEXT("no cap: no flight time"), VeloxBotManeuverRules::GapTakeoffMaxSpeed(410.f, 40.f, 165.f, 40.f, 0.f), 0.f, 1e-4f);
+		TestTrue(TEXT("shed above the cap"), VeloxBotManeuverRules::ShouldShedTakeoffSpeed(950.f, 733.f, 460.f));
+		TestFalse(TEXT("no shed at the cap"), VeloxBotManeuverRules::ShouldShedTakeoffSpeed(700.f, 733.f, 460.f));
+		TestFalse(TEXT("no shed when the cap is below the need"), VeloxBotManeuverRules::ShouldShedTakeoffSpeed(950.f, 400.f, 460.f));
+		FVeloxManeuverParams JI = J;
+		JI.LinkLengthCm = 410.f;
+		JI.GapAirSeconds = 0.675f;
+		JI.LandBeyondEndCm = 165.f;
+		JI.TakeoffLandFarInsetCm = 40.f;
+		JI.TakeoffMaxLateralCmS = 250.f;
+		FVeloxBotManeuver Isle;
+		T = 0.0;
+		Isle.Begin(JI, FVector::ZeroVector, FVector(410.0, 0.0, 0.0), T);
+		FVeloxManeuverInput IsleIn = ManeuverIn(T, 10.f, 400.f, true, 950.f);
+		IsleIn.ProgressCm = -10.f;
+		IsleIn.AlongSpeedCmS = 950.f;
+		O = Isle.Tick(IsleIn);
+		TestTrue(TEXT("Jump short landing, 950 along before the take-off: coast"), !O.bJumpHeld && O.WishScale == 0.f && Isle.Phase == EVeloxManeuverPhase::Approach);
+		T += Dt;
+		IsleIn.Time = T;
+		IsleIn.AlongSpeedCmS = 700.f;
+		O = Isle.Tick(IsleIn);
+		TestTrue(TEXT("Jump short landing, under the cap: run on"), !O.bJumpHeld && O.WishScale == 1.f);
+		T += Dt;
+		IsleIn = AtLedge(ManeuverIn(T, 40.f, 370.f, true, 950.f));
+		IsleIn.ProgressCm = 40.f;
+		IsleIn.AlongSpeedCmS = 950.f;
+		O = Isle.Tick(IsleIn);
+		TestTrue(TEXT("Jump short landing, still fast at the take-off: jump (air braking)"), O.bJumpHeld);
+		FVeloxManeuverParams JL = JI;
+		JL.LandBeyondEndCm = -1.f;
+		FVeloxBotManeuver Long;
+		T = 0.0;
+		Long.Begin(JL, FVector::ZeroVector, FVector(410.0, 0.0, 0.0), T);
+		IsleIn = ManeuverIn(T, 10.f, 400.f, true, 950.f);
+		IsleIn.ProgressCm = -10.f;
+		IsleIn.AlongSpeedCmS = 950.f;
+		O = Long.Tick(IsleIn);
+		TestTrue(TEXT("Jump long landing, 950 along: no coasting"), O.WishScale == 1.f);
 	}
 
 	// Jump pad: to the pad centre, never jump, done on landing near End.

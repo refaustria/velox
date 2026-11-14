@@ -44,3 +44,8 @@ Layout changes against S4/S4b (fornax_layout.py):
 - The one iteration (after s2): Drop_Gal_B removed (gallery -> 300 cm mid strip under the bridge, 9/25 ok in s2; bots land
   beside the strip's nav); no other gallery edge into the Casting Hall meets E3 (d). Drop 88.7 % -> 96.0 %.
 - s1 is invalid: a comment swallowed the X 900..1000 floor strip (Ground_5b/5c), 10 bot world kills there; fixed before s2.
+
+## B4b (task M7 H14, take-off speed / direction control on short gap landings)
+`h14-isle-in.txt` (Isle_In before/after: 47/55 -> 57/61), `ffa3-set-b4b.txt` (FFA x10 at 3: Jump 92.4 %, hazard gate PASS; FAIL
+max_dwell 6 in one run, item coverage 28/30), `botduel-set-b4b.txt` (BotDuel x3 behaviour + cost PASS), `h14-gapft-isle.txt`
+(FT_BotGapJump island lane, A/B). Details in docs/tasks/m7-maps/34-h14-short-gap-takeoff-speed.md.

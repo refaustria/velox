@@ -1,0 +1,11 @@
+BotDuel            PASS cost=PASS kills=12 frags=12 pickups=54 stuck=0 max_dwell_s=2 link_max_dt=1.80 budget_mean_us=105.7 clean=7/26 P=19
+    . budget cost=PASS (clean windows 7/26 P=19) mean_us=105.7 run_mean_us=302.3 max_us=1350 max_path_us=1367 max_fire_us=1584 (clean windows over 2000 us: 0/7) paths/s=9.8 max_deferred_frames=4 over_share_pct=[0,0,0,0,0,0,2,6,11,15,12,14,8,10,10,12,13,17,11,9,15,10,14,15,8,8]
+BotDuel            PASS cost=PASS kills=9 frags=9 pickups=48 stuck=0 max_dwell_s=3 link_max_dt=1.09 budget_mean_us=87.1 clean=10/26 P=16
+    . budget cost=PASS (clean windows 10/26 P=16) mean_us=87.1 run_mean_us=248.6 max_us=428 max_path_us=1462 max_fire_us=2076 (clean windows over 2000 us: 1/10) paths/s=8.8 max_deferred_frames=8 over_share_pct=[0,0,0,0,0,0,0,0,0,0,12,18,15,14,12,11,12,14,9,2,11,10,9,14,14,11]
+BotDuel            PASS cost=n/j kills=11 frags=11 pickups=53 stuck=0 max_dwell_s=2 link_max_dt=1.09 budget_mean_us=379.3 clean=0/27 P=0
+    ~ 27 cost-class (X) window(s) on a round whose cost is not judged: not a FAIL (D51 9 ii); the set evaluation labels the round slow throughout (D47 d) or flags it
+  hazard (GATE per round <= 1 (ADR 0008 5.3)): hazard_touch=[6, 4, 11] hazard_death_credited=[2, 0, 1] hazard_death_self=[0, 0, 0] | sums touch=21 credited=3 self=0
+  link success by type (invariant >= 90 %, min 30 attempts; failed = missed/timeout/noimpulse/tooslow, aborted = replaced/below_start/ineligible/air_start/relaunched): Drop=48/49 (98.0 %, aborted=7) Jump=35/38 (92.1 %, aborted=9) JumpPad=18/18 (100.0 %, aborted=3, < 30 attempts: not judged) RocketJump=0/2 (0.0 %, aborted=0, < 30 attempts: not judged)
+  round 3 (slow throughout, D47 d; .result rewritten to the behaviour verdict): BotDuel            PASS cost=n/j cost_windows=n/a (slow throughout, D47 d) kills=11 frags=11 pickups=53 stuck=0 max_dwell_s=2 link_max_dt=1.09 budget_mean_us=379.3 clean=0/27 P=27
+  set behaviour PASS, cost PASS
+  set PASS

@@ -159,6 +159,8 @@ public:
 
 	/** Task M7 H11: plain-segment hops refused because they would land past the take-off of the JUMP link ahead (ticks). */
 	int32 GetGapHopRefusedTicks() const { return GapHopRefusedTicks; }
+	/** Task M7 H14: ticks coasted to shed take-off speed before a short-landing gap link (cumulative). */
+	int32 GetTakeoffBrakeTicks() const { return TakeoffBrakeTicks; }
 
 	/** Task M7 H13: the current plain segment leads into a nav link whose start lies within RadiusCm of Feet (2D). */
 	bool IsNearLinkAhead(const FVector& Feet, float RadiusCm) const;
@@ -245,6 +247,48 @@ private:
 	/** XY length of that link (cm). */
 	double GapLinkLength = 0.0;
 	int32 GapHopRefusedTicks = 0;
+	/**
+	 * Task M7 H14: that link's short-landing take-off speed cap at TakeoffMaxPastStartCm (cm/s; 0 = none) and the speed
+	 * its flight needs there. From TakeoffBrakeLeadCm before its start the bot does not hop and coasts above the cap.
+	 */
+	float GapLinkMaxAlongCmS = 0.f;
+	float GapLinkNeedAlongCmS = 0.f;
+	/** Task M7 H14: ticks the follower coasted (plain segment or approach) to shed take-off speed (1 Hz line). */
+	int32 TakeoffBrakeTicks = 0;
+
+	/**
+	 * Task M7 H14: how far the nav of a gap link's landing zone reaches past End along Start -> End (cm), by one nav
+	 * raycast of UVeloxBotSettings::TakeoffLandProbeCm; -1 when it reaches that far (not short) or without a nav system.
+	 */
+	float ProbeLandBeyondEnd(const FVector& Start, const FVector& End) const;
+	/**
+	 * Task M7 H14: on the plain segment into a short-landing gap link (cap above the needed speed), within
+	 * TakeoffBrakeLeadCm before its start: no hops, coast above GapLinkMaxAlongCmS.
+	 */
+	bool InShortGapBrakeZone(const FVector& Feet) const;
+	/**
+	 * Task M7 H14: a hop now (from this segment or the one before the link's) would start or land within
+	 * TakeoffBrakeLeadCm of a short-landing gap link's start: the hop's speed and direction would go into the take-off.
+	 */
+	bool HopIntoShortGap(const FVector& Feet, const FVector& Velocity) const;
+	/** Task M7 H14: the take-off speed cap and need of the JUMP link Start -> End; true when it is a short landing (cap > need). */
+	bool ShortGapCap(const FVector& Start, const FVector& End, float& OutMax, float& OutNeed) const;
+	/** Task M7 H14: a short-landing gap link starts at the end of this segment or of the next one (SetMoveSegment). */
+	bool bShortGapAhead = false;
+	FVector ShortGapStart = FVector::ZeroVector;
+	/**
+	 * Task M7 H14: the ground wish that turns Velocity into the take-off velocity of a short-landing gap link: along Axis
+	 * at its along speed clamped to [NeedAlong, MaxAlong], nothing across (Q3 ground acceleration against the error:
+	 * ~130 cm/s per 60 Hz tick plus friction). False (no correction) when the error is within PadArriveDeadbandCmS.
+	 */
+	static bool ShortGapGroundWish(const FVector2D& Velocity, const FVector2D& Axis, float NeedAlong, float MaxAlong, FVector2D& OutWish);
+	/**
+	 * Task M7 H14: the air wish of a short-landing gap flight: the ballistic arrive at End across the link (all of the
+	 * sideways error), but along it only what leaves the landing zone [End - TakeoffLandInsetCm, End + LandBeyondEndCm -
+	 * TakeoffLandFarInsetCm]: the plain arrive at End spent most of the ~800 cm/s^2 air braking on the along speed, and a
+	 * diagonal take-off (830 along + 360 across) drifted onto the 300 cm island's side edge. Zero = on course.
+	 */
+	FVector2D ShortGapAirWish(const FVector& Feet, const FVector& Velocity) const;
 
 	/** Knockback grace of the previous step (an impulse = the grace rising from 0). */
 	float LastKnockbackGrace = 0.f;

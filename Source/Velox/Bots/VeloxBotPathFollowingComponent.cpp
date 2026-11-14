@@ -191,6 +191,7 @@ void UVeloxBotPathFollowingComponent::Reset()
 	bHopHeadroomClear = true;
 	bSegmentBlocked = false;
 	bGapLinkAhead = false;
+	bShortGapAhead = false;
 }
 
 bool UVeloxBotPathFollowingComponent::IsLedgeAhead(const FVector& Feet, const FVector2D& Axis, float StepCm) const
@@ -228,6 +229,104 @@ bool UVeloxBotPathFollowingComponent::HopOverrunsGapTakeoff(const FVector& Feet,
 	// pending traversal ends Ok on the end's surface. Anything between lands in the gap or on its edge.
 	const float PlainAir = VeloxBotRules::HopAirSeconds(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), 0.f);
 	return FeetPast + Along * PlainAir < GapLinkLength;
+}
+
+float UVeloxBotPathFollowingComponent::ProbeLandBeyondEnd(const FVector& Start, const FVector& End) const
+{
+	const FVector2D Axis = FVector2D(End - Start).GetSafeNormal();
+	UWorld* World = GetWorld();
+	const float Probe = UVeloxBotSettings::Get().TakeoffLandProbeCm;
+	if (Axis.IsZero() || !World || Probe <= 0.f)
+	{
+		return -1.f;
+	}
+	// NavigationRaycast is true when the ray leaves the mesh (the island's eroded edge, a wall): Hit is the exit point.
+	FVector Hit;
+	AVeloxBotController* Bot = GetBotController();
+	const FVector Far = End + FVector(Axis, 0.0) * Probe;
+	if (!UNavigationSystemV1::NavigationRaycast(World, End, Far, Hit, Bot ? Bot->GetNavFilter() : TSubclassOf<UNavigationQueryFilter>(), Bot))
+	{
+		return -1.f;
+	}
+	return static_cast<float>(FMath::Max(0.0, FVector2D::DotProduct(FVector2D(Hit - End), Axis)));
+}
+
+bool UVeloxBotPathFollowingComponent::ShortGapCap(const FVector& Start, const FVector& End, float& OutMax, float& OutNeed) const
+{
+	OutMax = 0.f;
+	OutNeed = 0.f;
+	const UVeloxMovementComponent* Moves = GetBotMovement();
+	if (!Moves)
+	{
+		return false;
+	}
+	const float Beyond = ProbeLandBeyondEnd(Start, End);
+	const float Air = VeloxBotManeuverRules::JumpAirSeconds(Moves->GetSimParams().JumpVelocity, Moves->GetGravityZ(), static_cast<float>(Start.Z - End.Z));
+	const UVeloxBotSettings& Tune = UVeloxBotSettings::Get();
+	const float Length = static_cast<float>(FVector::Dist2D(Start, End));
+	OutMax = VeloxBotManeuverRules::GapTakeoffMaxSpeed(Length, Tune.TakeoffMaxPastStartCm, Beyond, Tune.TakeoffLandFarInsetCm, Air);
+	OutNeed = VeloxBotManeuverRules::GapTakeoffSpeed(Length, Tune.TakeoffMaxPastStartCm, Tune.TakeoffLandInsetCm, Air);
+	return OutMax > 0.f && OutMax > OutNeed;
+}
+
+bool UVeloxBotPathFollowingComponent::InShortGapBrakeZone(const FVector& Feet) const
+{
+	return bShortGapAhead && bGapLinkAhead && FVector::Dist2D(Feet, ShortGapStart) <= UVeloxBotSettings::Get().TakeoffBrakeLeadCm;
+}
+
+bool UVeloxBotPathFollowingComponent::HopIntoShortGap(const FVector& Feet, const FVector& Velocity) const
+{
+	const UVeloxMovementComponent* Movement = GetBotMovement();
+	if (!bShortGapAhead || !Movement)
+	{
+		return false;
+	}
+	const float Lead = UVeloxBotSettings::Get().TakeoffBrakeLeadCm;
+	if (FVector::Dist2D(Feet, ShortGapStart) <= Lead)
+	{
+		return true;
+	}
+	const float Air = VeloxBotRules::HopAirSeconds(Movement->GetSimParams().JumpVelocity, Movement->GetGravityZ(), 0.f);
+	return FVector2D::Distance(FVector2D(Feet) + FVector2D(Velocity) * Air, FVector2D(ShortGapStart)) <= Lead;
+}
+
+bool UVeloxBotPathFollowingComponent::ShortGapGroundWish(const FVector2D& Velocity, const FVector2D& Axis, float NeedAlong, float MaxAlong, FVector2D& OutWish)
+{
+	const float Along = static_cast<float>(FVector2D::DotProduct(Velocity, Axis));
+	const FVector2D Desired = Axis * FMath::Clamp(Along, NeedAlong, FMath::Max(NeedAlong, MaxAlong));
+	const FVector2D Error = Desired - Velocity;
+	if (Error.Size() <= UVeloxBotSettings::Get().PadArriveDeadbandCmS)
+	{
+		return false;
+	}
+	OutWish = Error.GetSafeNormal();
+	return true;
+}
+
+FVector2D UVeloxBotPathFollowingComponent::ShortGapAirWish(const FVector& Feet, const FVector& Velocity) const
+{
+	const UVeloxMovementComponent* Movement = GetBotMovement();
+	const FVector2D Axis = FVector2D(LinkEnd - LinkStart).GetSafeNormal();
+	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+	if (!Movement || Axis.IsZero())
+	{
+		return FVector2D::ZeroVector;
+	}
+	const FVeloxBallisticArrive Arrive = VeloxBotRocketJump::ArriveWish(Feet, Velocity, LinkEnd, Movement->GetGravityZ(), Settings.PadArriveDeadbandCmS);
+	if (Arrive.TimeToTarget <= UE_KINDA_SMALL_NUMBER)
+	{
+		return Arrive.WishDir;
+	}
+	const double T = Arrive.TimeToTarget;
+	const FVector2D Vel(Velocity);
+	const double ToEndAlong = FVector2D::DotProduct(FVector2D(LinkEnd - Feet), Axis);
+	const double MinAlong = (ToEndAlong - Maneuver.Params.TakeoffLandInsetCm) / T;
+	const double MaxAlong = FMath::Max(MinAlong, (ToEndAlong + Maneuver.Params.LandBeyondEndCm - Maneuver.Params.TakeoffLandFarInsetCm) / T);
+	const double Along = FVector2D::DotProduct(Vel, Axis);
+	const FVector2D NeededAcross = Arrive.NeededVelocity - Axis * FVector2D::DotProduct(Arrive.NeededVelocity, Axis);
+	const FVector2D Desired = Axis * FMath::Clamp(Along, MinAlong, MaxAlong) + NeededAcross;
+	const FVector2D Error = Desired - Vel;
+	return Error.Size() > Settings.PadArriveDeadbandCmS ? Error.GetSafeNormal() : FVector2D::ZeroVector;
 }
 
 bool UVeloxBotPathFollowingComponent::HasHopHeadroom(double Now)
@@ -421,6 +520,7 @@ void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 	// D35: a new segment (or a new path) starts unblocked; the next check decides.
 	bSegmentBlocked = false;
 	bGapLinkAhead = false;
+	bShortGapAhead = false;
 	bLinkAhead = false;
 	if (IsOnLink())
 	{
@@ -453,6 +553,9 @@ void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 	const UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(GetWorld());
 	// Task M7 H11: a plain segment into a JUMP / JUMP_FAST link start (the hop overrun guard in FollowPathSegment).
 	bGapLinkAhead = false;
+	bShortGapAhead = false;
+	GapLinkMaxAlongCmS = 0.f;
+	GapLinkNeedAlongCmS = 0.f;
 	const FNavPathPoint& EndPoint = Points[MoveSegmentEndIndex];
 	if (Bots && !FNavMeshNodeFlags(StartPoint.Flags).IsNavLink() && FNavMeshNodeFlags(EndPoint.Flags).IsNavLink() && Points.IsValidIndex(MoveSegmentEndIndex + 1))
 	{
@@ -466,6 +569,29 @@ void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 			GapLinkStart = EndPoint.Location;
 			GapLinkLength = FVector::Dist2D(Points[MoveSegmentEndIndex + 1].Location, EndPoint.Location);
 			bGapLinkAhead = (AheadType == EVeloxManeuverType::Jump || AheadType == EVeloxManeuverType::JumpFast) && !GapLinkAxis.IsZero();
+			// Task M7 H14: a short landing zone ahead caps the take-off speed (the same numbers the traversal uses).
+			if (bGapLinkAhead && ShortGapCap(EndPoint.Location, Points[MoveSegmentEndIndex + 1].Location, GapLinkMaxAlongCmS, GapLinkNeedAlongCmS))
+			{
+				bShortGapAhead = true;
+				ShortGapStart = EndPoint.Location;
+			}
+		}
+	}
+	else if (Bots && !FNavMeshNodeFlags(EndPoint.Flags).IsNavLink() && Points.IsValidIndex(MoveSegmentEndIndex + 2) &&
+		FNavMeshNodeFlags(Points[MoveSegmentEndIndex + 1].Flags).IsNavLink())
+	{
+		// Task M7 H14: the segment before the plain one into a short-landing gap link (Fornax Isle_In: bots hopped at the
+		// corner before the take-off segment and landed on the take-off with the hop's 850-1000 cm/s and its direction).
+		const FVector NextStart = Points[MoveSegmentEndIndex + 1].Location;
+		const FVeloxNavLinkMatch Next = Bots->FindLinkByStart(NextStart, TNumericLimits<float>::Max());
+		const EVeloxManeuverType NextType = Next.Link ? VeloxBotFollow::ManeuverTypeFor(Next.Link->GetLinkType()) : EVeloxManeuverType::Drop;
+		float Max = 0.f;
+		float Need = 0.f;
+		if (Next.Link && Next.Distance2D <= Next.Link->GetSnapRadius() && (NextType == EVeloxManeuverType::Jump || NextType == EVeloxManeuverType::JumpFast) &&
+			ShortGapCap(NextStart, Points[MoveSegmentEndIndex + 2].Location, Max, Need))
+		{
+			bShortGapAhead = true;
+			ShortGapStart = NextStart;
 		}
 	}
 	if (!FNavMeshNodeFlags(StartPoint.Flags).IsNavLink())
@@ -516,6 +642,8 @@ void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 		PendingParams.LinkLengthCm = static_cast<float>(FVector::Dist2D(LinkStart, LinkEnd));
 		PendingParams.TakeoffLandInsetCm = Settings.TakeoffLandInsetCm;
 		PendingParams.TakeoffMaxLateralCmS = Settings.TakeoffMaxLateralCmS;
+		PendingParams.LandBeyondEndCm = ProbeLandBeyondEnd(LinkStart, LinkEnd);
+		PendingParams.TakeoffLandFarInsetCm = Settings.TakeoffLandFarInsetCm;
 		if (const UVeloxMovementComponent* Moves = GetBotMovement())
 		{
 			PendingParams.GapAirSeconds = VeloxBotManeuverRules::JumpAirSeconds(Moves->GetSimParams().JumpVelocity, Moves->GetGravityZ(),
@@ -787,12 +915,15 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 	if ((Maneuver.Type == EVeloxManeuverType::Jump || Maneuver.Type == EVeloxManeuverType::JumpFast) && bOnGround &&
 		(Out.bJumpHeld || (Maneuver.Phase == EVeloxManeuverPhase::BackUp && PhaseBefore != EVeloxManeuverPhase::BackUp)))
 	{
-		// Task M7 H11: one line per take-off decision (soak diagnostics for gap links).
+		// Task M7 H11: one line per take-off decision (soak diagnostics for gap links). H14: the short-landing cap (max=0:
+		// none), how far the landing zone's nav reaches past End (beyond=-1: not short) and the coasted ticks so far.
 		const AVeloxBotController* Bot = GetBotController();
-		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotTakeoff bot=%s link=%s action=%s past_start=%.0f along=%.0f speed=%.0f need=%.0f ledge=%d retries=%d run_up=%.0f"),
+		UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotTakeoff bot=%s link=%s action=%s past_start=%.0f along=%.0f speed=%.0f need=%.0f max=%.0f beyond=%.0f brake=%d ledge=%d retries=%d run_up=%.0f"),
 			Bot ? *Bot->GetBotName() : TEXT("-"), *GetNameSafe(CurrentLink.Get()), Out.bJumpHeld ? TEXT("jump") : TEXT("backup"), In.ProgressCm, In.AlongSpeedCmS, In.Speed2D,
 			VeloxBotManeuverRules::GapTakeoffSpeed(Maneuver.Params.LinkLengthCm, In.ProgressCm, Maneuver.Params.TakeoffLandInsetCm, Maneuver.Params.GapAirSeconds),
-			In.bLedgeAhead ? 1 : 0, Maneuver.Retries, Maneuver.Params.RunUpCm);
+			VeloxBotManeuverRules::GapTakeoffMaxSpeed(Maneuver.Params.LinkLengthCm, In.ProgressCm, Maneuver.Params.LandBeyondEndCm, Maneuver.Params.TakeoffLandFarInsetCm,
+				Maneuver.Params.GapAirSeconds),
+			Maneuver.Params.LandBeyondEndCm, TakeoffBrakeTicks, In.bLedgeAhead ? 1 : 0, Maneuver.Retries, Maneuver.Params.RunUpCm);
 	}
 
 	if (Out.bDone || Out.bAbort)
@@ -818,6 +949,8 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 		break;
 	}
 	const float Remaining = static_cast<float>(FVector::Dist2D(Feet, Target));
+	// Task M7 H14: the short-landing ground correction owns the wish scale (it replaces the maneuver's coast).
+	bool bGroundArrive = false;
 	switch (Maneuver.Type)
 	{
 	case EVeloxManeuverType::Jump:
@@ -842,6 +975,14 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 			const FVeloxSteerOutput Air = VeloxBotSteering::Steer(AirIn, AirParams);
 			Steered.WishDir = Air.WishDir;
 			Steered.WishScale = Air.WishScale;
+			if (Maneuver.Params.LandBeyondEndCm >= 0.f)
+			{
+				// Task M7 H14: a short landing zone: no strafe gain on the take-off tick; brake toward the ballistic velocity
+				// that lands on End from the first air tick (the jump's own lift: JumpVelocity).
+				const FVector Launch(Movement->Velocity.X, Movement->Velocity.Y, Movement->GetSimParams().JumpVelocity);
+				Steered.WishDir = ShortGapAirWish(Feet, Launch);
+				Steered.WishScale = Steered.WishDir.IsZero() ? 0.f : 1.f;
+			}
 		}
 		else if (!bOnGround && Maneuver.Phase == EVeloxManeuverPhase::Airborne)
 		{
@@ -851,11 +992,32 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 			// 400 cm log. Q3 air acceleration against the velocity brakes up to AirAcceleration x AirMaxWishSpeed.
 			const FVeloxBallisticArrive Arrive = VeloxBotRocketJump::ArriveWish(Feet, Movement->Velocity, LinkEnd, Movement->GetGravityZ(),
 				UVeloxBotSettings::Get().PadArriveDeadbandCmS);
-			Steered.WishDir = Arrive.WishDir;
-			Steered.WishScale = Arrive.WishDir.IsZero() ? 0.f : 1.f;
+			// Task M7 H14: a short landing zone: the sideways error first, along only out of the zone (ShortGapAirWish).
+			Steered.WishDir = Maneuver.Params.LandBeyondEndCm >= 0.f ? ShortGapAirWish(Feet, Movement->Velocity) : Arrive.WishDir;
+			Steered.WishScale = Steered.WishDir.IsZero() ? 0.f : 1.f;
 		}
 		NavOutput = Steered;
 		NavOutput.bJumpHeld = Out.bJumpHeld;
+		if (bOnGround && !Out.bJumpHeld && Maneuver.Phase == EVeloxManeuverPhase::Approach && Maneuver.Params.LandBeyondEndCm >= 0.f)
+		{
+			// Task M7 H14: a short landing zone (Fornax Isle_In): on the ground before the take-off turn the velocity into the
+			// take-off velocity, along the link within [need, cap], nothing across (B4/H13 misses: 830 cm/s along plus
+			// 300-400 across off a diagonal approach landed on the 300 cm island's side edge, or past its far edge).
+			const FVector2D Axis = FVector2D(LinkEnd - LinkStart).GetSafeNormal();
+			const float TakeoffAt = FMath::Max(In.ProgressCm, Maneuver.Params.TakeoffMaxPastStartCm);
+			const float MaxAlong = VeloxBotManeuverRules::GapTakeoffMaxSpeed(Maneuver.Params.LinkLengthCm, TakeoffAt, Maneuver.Params.LandBeyondEndCm,
+				Maneuver.Params.TakeoffLandFarInsetCm, Maneuver.Params.GapAirSeconds);
+			const float NeedAlong = VeloxBotManeuverRules::GapTakeoffSpeed(Maneuver.Params.LinkLengthCm, TakeoffAt, Maneuver.Params.TakeoffLandInsetCm,
+				Maneuver.Params.GapAirSeconds);
+			FVector2D Wish;
+			if (MaxAlong > NeedAlong && ShortGapGroundWish(FVector2D(Movement->Velocity), Axis, NeedAlong, MaxAlong, Wish))
+			{
+				NavOutput.WishDir = Wish;
+				NavOutput.WishScale = 1.f;
+				bGroundArrive = true;
+				++TakeoffBrakeTicks;
+			}
+		}
 		break;
 	}
 	default:
@@ -894,7 +1056,10 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 		}
 		break;
 	}
-	NavOutput.WishScale *= Out.WishScale;
+	if (!bGroundArrive)
+	{
+		NavOutput.WishScale *= Out.WishScale;
+	}
 	NavOutput.bFaceEnd = Out.bFaceEnd;
 	NavOutput.FaceTarget = LinkEnd;
 	NavOutput.bForcePitch = Out.bForcePitch;
@@ -955,7 +1120,38 @@ void UVeloxBotPathFollowingComponent::FollowPathSegment(float DeltaTime)
 		}
 		return;
 	}
+	if (InShortGapBrakeZone(Feet))
+	{
+		// Task M7 H14: a short landing zone ahead (Fornax Isle_In): no hop (one landing at the take-off carried 850-1000 cm/s
+		// into the jump, past the 300 cm island) and, on the ground above the take-off speed cap, coast (ground friction).
+		NavOutput = SteerToward(Target, Remaining, Corner, bFinal, false, true);
+		NavOutput.bJumpHeld = false;
+		const float Along = static_cast<float>(FVector2D::DotProduct(FVector2D(Movement->Velocity), GapLinkAxis));
+		const double FeetPast = FVector2D::DotProduct(FVector2D(Feet) - FVector2D(GapLinkStart), GapLinkAxis);
+		FVector2D Wish;
+		if (Movement->IsOnGround() && FeetPast >= -UVeloxBotSettings::Get().TakeoffLeadCm &&
+			ShortGapGroundWish(FVector2D(Movement->Velocity), GapLinkAxis, GapLinkNeedAlongCmS, GapLinkMaxAlongCmS, Wish))
+		{
+			// The last TakeoffLeadCm before the start: line the velocity up with the link already (the take-off follows).
+			NavOutput.WishDir = Wish;
+			NavOutput.WishScale = 1.f;
+			++TakeoffBrakeTicks;
+		}
+		else if (Movement->IsOnGround() && Along > GapLinkMaxAlongCmS)
+		{
+			NavOutput.WishScale = 0.f;
+			++TakeoffBrakeTicks;
+		}
+		return;
+	}
 	NavOutput = SteerToward(Target, Remaining, Corner, bFinal, true, true);
+	if (NavOutput.bJumpHeld && HopIntoShortGap(Feet, Movement->Velocity))
+	{
+		// Task M7 H14: a hop landing near a short-landing take-off (from the corner before its segment, too).
+		NavOutput = SteerToward(Target, Remaining, Corner, bFinal, false, true);
+		++GapHopRefusedTicks;
+		return;
+	}
 	if (NavOutput.bJumpHeld && HopOverrunsGapTakeoff(Feet, Movement->Velocity))
 	{
 		// Task M7 H11: the hop would land past the take-off of the gap link ahead: run the rest on the ground (every map).

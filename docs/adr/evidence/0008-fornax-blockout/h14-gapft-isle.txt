@@ -1,0 +1,41 @@
+== ft7-off.log (velox.bots.FtBotGapJump gaps=0 difficulty=Medium; off = -ini TakeoffLandProbeCm=0, i.e. the H13 behaviour)
+test=FT_BotGapJump check=map ok=1 lava_in_gap=1 volumes=3 (L_GapTest)
+test=FT_BotGapJump start bot=FtGapBot difficulty=Medium trials=10 per gap and mode plain=1 gaps=0 isle=1 edge_aware=1
+test=FT_BotGapJump trial=0 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.73 takeoff_before_edge=23 takeoff_speed=852 entry_speed=1059 entry_before_edge=80 launch=1059 lateral=-332 brake_ticks=0 at=V(X=388.64, Y=3382.04, Z=2.15) start=V(X=-80.50, Y=3450.93) goal=V(X=448.80, Y=3455.61)
+test=FT_BotGapJump trial=1 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.73 takeoff_before_edge=19 takeoff_speed=844 entry_speed=1048 entry_before_edge=76 launch=1048 lateral=-351 brake_ticks=0 at=V(X=400.11, Y=3362.91, Z=2.15) start=V(X=-75.61, Y=3427.85) goal=V(X=432.63, Y=3340.91)
+test=FT_BotGapJump trial=2 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.72 takeoff_before_edge=15 takeoff_speed=906 entry_speed=1016 entry_before_edge=59 launch=1016 lateral=345 brake_ticks=0 at=V(X=432.20, Y=3467.22, Z=2.15) start=V(X=-59.22, Y=3382.44) goal=V(X=382.31, Y=3370.15)
+test=FT_BotGapJump trial=3 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.73 takeoff_before_edge=11 takeoff_speed=841 entry_speed=1003 entry_before_edge=66 launch=1003 lateral=336 brake_ticks=0 at=V(X=411.98, Y=3452.08, Z=2.15) start=V(X=-66.25, Y=3399.28) goal=V(X=444.12, Y=3364.11)
+test=FT_BotGapJump trial=4 mode=isle gap=250 dir=east result=failed link=missed reports=1 on_far=1 fell=0 dt=0.72 takeoff_before_edge=7 takeoff_speed=979 entry_speed=1097 entry_before_edge=55 launch=1097 lateral=349 brake_ticks=0 at=V(X=479.26, Y=3497.66, Z=2.15) start=V(X=-54.58, Y=3396.75) goal=V(X=469.93, Y=3343.69)
+test=FT_BotGapJump trial=5 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.80 takeoff_before_edge=11 takeoff_speed=821 entry_speed=1093 entry_before_edge=123 launch=1093 lateral=360 brake_ticks=0 at=V(X=394.19, Y=3421.00, Z=2.15) start=V(X=-122.71, Y=3392.47) goal=V(X=464.87, Y=3391.60)
+test=FT_BotGapJump trial=6 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.80 takeoff_before_edge=16 takeoff_speed=801 entry_speed=1093 entry_before_edge=126 launch=1093 lateral=-343 brake_ticks=0 at=V(X=363.86, Y=3403.96, Z=2.15) start=V(X=-125.96, Y=3456.88) goal=V(X=437.50, Y=3451.81)
+test=FT_BotGapJump trial=7 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.78 takeoff_before_edge=16 takeoff_speed=807 entry_speed=1042 entry_before_edge=112 launch=1042 lateral=306 brake_ticks=0 at=V(X=374.15, Y=3403.24, Z=2.15) start=V(X=-111.85, Y=3373.08) goal=V(X=415.45, Y=3423.70)
+test=FT_BotGapJump trial=8 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.72 takeoff_before_edge=17 takeoff_speed=952 entry_speed=1068 entry_before_edge=63 launch=1068 lateral=328 brake_ticks=0 at=V(X=449.93, Y=3466.60, Z=2.15) start=V(X=-63.35, Y=3375.08) goal=V(X=389.76, Y=3375.57)
+test=FT_BotGapJump trial=9 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.75 takeoff_before_edge=16 takeoff_speed=820 entry_speed=1025 entry_before_edge=85 launch=1025 lateral=-336 brake_ticks=0 at=V(X=389.63, Y=3378.59, Z=2.15) start=V(X=-85.05, Y=3426.32) goal=V(X=463.28, Y=3427.90)
+test=FT_BotGapJump check=isle_short_landing ok=1 gap=250 island=300 ok=9 of 10 (need 9)
+test=FT_BotGapJump check=isle_entry_speed ok=1 min_entry=1003 (need >= 900)
+test=FT_BotGapJump result=PASS
+== ft7-on.log (velox.bots.FtBotGapJump gaps=0 difficulty=Medium; off = -ini TakeoffLandProbeCm=0, i.e. the H13 behaviour)
+test=FT_BotGapJump check=map ok=1 lava_in_gap=1 volumes=3 (L_GapTest)
+test=FT_BotGapJump start bot=FtGapBot difficulty=Medium trials=10 per gap and mode plain=1 gaps=0 isle=1 edge_aware=1
+test=FT_BotGapJump trial=0 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.75 takeoff_before_edge=22 takeoff_speed=611 entry_speed=1059 entry_before_edge=80 launch=1059 lateral=-332 brake_ticks=3 at=V(X=382.87, Y=3395.96, Z=2.15) start=V(X=-80.50, Y=3450.93) goal=V(X=448.80, Y=3455.61)
+test=FT_BotGapJump trial=1 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.75 takeoff_before_edge=17 takeoff_speed=608 entry_speed=1048 entry_before_edge=76 launch=1048 lateral=-351 brake_ticks=6 at=V(X=385.63, Y=3397.01, Z=2.15) start=V(X=-75.61, Y=3427.85) goal=V(X=432.63, Y=3340.91)
+test=FT_BotGapJump trial=2 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.72 takeoff_before_edge=19 takeoff_speed=799 entry_speed=1016 entry_before_edge=59 launch=1016 lateral=345 brake_ticks=7 at=V(X=457.70, Y=3397.32, Z=2.15) start=V(X=-59.22, Y=3382.44) goal=V(X=382.31, Y=3370.15)
+test=FT_BotGapJump trial=3 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.73 takeoff_before_edge=18 takeoff_speed=655 entry_speed=1003 entry_before_edge=66 launch=1003 lateral=336 brake_ticks=9 at=V(X=415.84, Y=3397.71, Z=2.15) start=V(X=-66.25, Y=3399.28) goal=V(X=444.12, Y=3364.11)
+test=FT_BotGapJump trial=4 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.72 takeoff_before_edge=11 takeoff_speed=859 entry_speed=1097 entry_before_edge=55 launch=1097 lateral=349 brake_ticks=10 at=V(X=454.77, Y=3393.02, Z=2.15) start=V(X=-54.58, Y=3396.75) goal=V(X=469.93, Y=3343.69)
+test=FT_BotGapJump trial=5 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.83 takeoff_before_edge=25 takeoff_speed=491 entry_speed=1093 entry_before_edge=123 launch=1093 lateral=360 brake_ticks=18 at=V(X=310.37, Y=3398.42, Z=2.15) start=V(X=-122.71, Y=3392.47) goal=V(X=464.87, Y=3391.60)
+test=FT_BotGapJump trial=6 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.85 takeoff_before_edge=22 takeoff_speed=453 entry_speed=1093 entry_before_edge=126 launch=1093 lateral=-343 brake_ticks=27 at=V(X=310.61, Y=3395.24, Z=2.15) start=V(X=-125.96, Y=3456.88) goal=V(X=437.50, Y=3451.81)
+test=FT_BotGapJump trial=7 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.82 takeoff_before_edge=25 takeoff_speed=481 entry_speed=1042 entry_before_edge=112 launch=1042 lateral=306 brake_ticks=34 at=V(X=310.47, Y=3403.58, Z=2.15) start=V(X=-111.85, Y=3373.08) goal=V(X=415.45, Y=3423.70)
+test=FT_BotGapJump trial=8 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.72 takeoff_before_edge=21 takeoff_speed=834 entry_speed=1068 entry_before_edge=63 launch=1068 lateral=328 brake_ticks=35 at=V(X=457.27, Y=3397.97, Z=2.15) start=V(X=-63.35, Y=3375.08) goal=V(X=389.76, Y=3375.57)
+test=FT_BotGapJump trial=9 mode=isle gap=250 dir=east result=ok link=ok reports=1 on_far=1 fell=0 dt=0.77 takeoff_before_edge=20 takeoff_speed=543 entry_speed=1025 entry_before_edge=85 launch=1025 lateral=-336 brake_ticks=39 at=V(X=341.25, Y=3400.65, Z=2.15) start=V(X=-85.05, Y=3426.32) goal=V(X=463.28, Y=3427.90)
+test=FT_BotGapJump check=isle_short_landing ok=1 gap=250 island=300 ok=10 of 10 (need 9)
+test=FT_BotGapJump check=isle_entry_speed ok=1 min_entry=1003 (need >= 900)
+test=FT_BotGapJump result=PASS
+== fts row FtBotGapJump (full FT, Hard)
+check=map ok=1 lava_in_gap=1 volumes=3 (L_GapTest)
+check=gap_edge_aware ok=1 gap=300 ok=10 of 10 (need 9) edge_aware=1
+check=gap_edge_aware ok=1 gap=400 ok=10 of 10 (need 9) edge_aware=1
+check=gap_plain ok=1 gap=300 ok=10 of 10 (need 9) edge_aware=0
+check=gap_plain ok=1 gap=400 ok=10 of 10 (need 9) edge_aware=0
+check=isle_short_landing ok=1 gap=250 island=300 ok=10 of 10 (need 9)
+check=isle_entry_speed ok=1 min_entry=1003 (need >= 900)
+result=PASS
