@@ -33,6 +33,7 @@ FTS=(
   "FtMapReachability-L_Orbita_Blockout|L_Orbita_Blockout|velox.bots.FtMapReachability"   # M7 B5 (ADR 0008 5.3 c); no Walk check: decks joined by pads and gaps only, spawn S4 (Armamentarium) walks nowhere
   "FtMapReachability-L_Fornax_Blockout|L_Fornax_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Health_Mega MinMajors=4"   # M7 B4 (ADR 0008 5.3 c); the Mega sits on the Crane Bridge (pad Bellows / rocket jump only); 4 majors (RA, Mega, YA, RG: no powerup)
   "FtBotEdge|L_HazardTest|velox.bots.FtBotEdge"
+  "FtBotEdgeAcross|L_HazardTest|velox.bots.FtBotEdge dummy=across"   # M7 H13: the enemy across the void gap; closing in must not walk the bot off
   "FtBotLavaEscape|L_HazardTest|velox.bots.FtBotLavaEscape"
   "FtBotKnockOff|L_HazardTest|velox.bots.FtBotKnockOff"
   "FtBotLavaAvoid|L_HazardTest|velox.bots.FtBotLavaAvoid"
@@ -50,6 +51,7 @@ Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b] [--dm1-map NAME] 
 Runs, in order: FtItemPickup (L_ItemTest), FtNavigation (L_ItemTest), FtStrafeCorridor (L_MovementTest),
 FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (${DM1_MAP}, FT_Map_Reachability via the old command name),
 FtHazard (L_HazardTest, FT_Hazard: ADR 0008 3.7), FtBotEdge (L_HazardTest, FT_BotEdge: ADR 0008 3.6.1/2, 60 s fight),
+FtBotEdgeAcross (L_HazardTest, FT_BotEdge dummy=across: task M7 H13, 60 s fight against an enemy across the void gap),
 FtBotLavaEscape (L_HazardTest, FT_BotLavaEscape: ADR 0008 3.6.4), FtBotKnockOff (L_HazardTest, FT_BotKnockOff: ADR 0008 3.6.3, 10 trials + 10 pad crossings + 10 pad crossings knocked sideways in the flight, M7 H8),
 FtBotLavaAvoid (L_HazardTest, FT_BotLavaAvoid: task M7 H7, 8 routes across the lava channel + 8 fights beside it, 0 lava entries),
 FtBotGapJump (L_GapTest, FT_BotGapJump: task M7 H11, 300 and 400 cm JUMP gap links, >= 9 of 10 crossings each, EdgeAware on and off),

@@ -260,6 +260,42 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "1.0", Units = "cm"))
 	float HazardTraceDepthCm = 300.f;
 
+	/**
+	 * Task M7 H13 ground edge guard (hazard maps): every grounded tick off a link the point Feet + Velocity2D x this +
+	 * Wish x EdgeGuardWishCm is tested (VeloxBotCombatGlue::IsUnsafeGround); unsafe -> the wish turns inward (toward the
+	 * nearest nav point) and no hop. At 880 cm/s the guard acts about 130 cm before the deck edge; VQ3 ground braking
+	 * (friction 6, accel 10) stops that speed within about 50 cm (s).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "s"))
+	float EdgeGuardLookaheadSeconds = 0.15f;
+
+	/** H13: the wish's share of the guard probe (a bot at rest accelerating toward the edge; cm). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "cm"))
+	float EdgeGuardWishCm = 40.f;
+
+	/** H13: the guard is off within this distance of the start of a nav link the current segment leads into (drop / gap take-offs; cm). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "cm"))
+	float EdgeGuardLinkExemptCm = 300.f;
+
+	/**
+	 * H13: IsUnsafeGround's void test: a point off the mesh with Pawn-blocking floor within this depth under it is a ledge,
+	 * not the void (Orbita: the pylon tops 460 cm over the hub floor; the decks lie 1100+ cm above the void's kill depth; cm).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "1.0", Units = "cm"))
+	float EdgeGuardDropDepthCm = 800.f;
+
+	/** H13: the guard's inward search: the nearest nav point to the probe within this horizontal extent (cm). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "1.0", Units = "cm"))
+	float EdgeGuardInwardExtentCm = 300.f;
+
+	/**
+	 * H13 airborne hop guard: in the bot's own hop with jump held, the re-jump of the landing frame (bAutoHop) is released
+	 * when the next hop's landing (touchdown + Velocity2D x hop air time) is unsafe; judged once the touchdown is within
+	 * this time (s).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Hazard", Meta = (ClampMin = "0.0", Units = "s"))
+	float AirHopGuardSeconds = 0.25f;
+
 	/** A bot tick above this controller time is logged once (microseconds). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Debug", Meta = (ClampMin = "0.0"))
 	float BudgetWarnMicroseconds = 600.f;

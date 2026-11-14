@@ -144,6 +144,8 @@ void UVeloxBotPathFollowingComponent::StepFollow(float DeltaTime)
 		if (Movement->IsOnGround())
 		{
 			AirborneSince = -1.0;
+			LastGroundFeetZ = Movement->GetActorFeetLocation().Z;
+			NextAirHopCheckTime = -1.0;
 		}
 		else
 		{
@@ -271,10 +273,15 @@ bool UVeloxBotPathFollowingComponent::HasHopLanding()
 {
 	const AVeloxBotController* Bot = GetBotController();
 	const UVeloxMovementComponent* Movement = GetBotMovement();
-	if (!Bot || !Movement || !Movement->IsOnGround() || !VeloxBotCombatGlue::IsEdgeAware(GetWorld()))
+	if (!Bot || !Movement || !VeloxBotCombatGlue::IsEdgeAware(GetWorld()))
 	{
 		NextHopLandingCheckTime = -1.0;
 		return true;
+	}
+	if (!Movement->IsOnGround())
+	{
+		NextHopLandingCheckTime = -1.0;
+		return IsOnLink() || !VeloxBotCombatGlue::IsEdgeGuardOn(GetWorld()) || HasAirHopLanding();
 	}
 	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
 	const double Now = GetWorld()->GetTimeSeconds();
@@ -305,6 +312,51 @@ bool UVeloxBotPathFollowingComponent::HasHopLanding()
 	UE_LOG(LogVeloxBots, Verbose, TEXT("VeloxBotHopLanding bot=%s refused at=%s landing=%s"), *Bot->GetBotName(), *Movement->GetActorFeetLocation().ToCompactString(),
 		*Landing.ToCompactString());
 	return false;
+}
+
+bool UVeloxBotPathFollowingComponent::HasAirHopLanding()
+{
+	// Task M7 H13: a held jump re-jumps in the landing frame itself (bAutoHop), so a bunny-hop chain never shows the bot a
+	// grounded tick and the take-off guard above ran only for its first hop. Judge the re-jump from the air: touchdown at
+	// the last ground level, then one more hop with the same horizontal speed.
+	const AVeloxBotController* Bot = GetBotController();
+	const UVeloxMovementComponent* Movement = GetBotMovement();
+	const UWorld* World = GetWorld();
+	if (!Bot || !Movement || !World || Movement->Velocity.Z > 0.0)
+	{
+		return true;
+	}
+	const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+	const float Gravity = FMath::Max(FMath::Abs(Movement->GetGravityZ()), 1.f);
+	const FVector Feet = Movement->GetActorFeetLocation();
+	const float Touchdown = VeloxBotRules::FlightSecondsToLevel(static_cast<float>(Movement->Velocity.Z), static_cast<float>(Feet.Z - LastGroundFeetZ), Gravity);
+	if (Touchdown > Settings.AirHopGuardSeconds)
+	{
+		return true;
+	}
+	const float JumpVelocity = Movement->GetSimParams().JumpVelocity;
+	const float AirSeconds = VeloxBotRules::HopAirSeconds(JumpVelocity, Movement->GetGravityZ(), Settings.HopLandingSlackSeconds);
+	const FVector2D Velocity2D(Movement->Velocity);
+	const FVector TouchdownAt(FVector2D(Feet) + Velocity2D * Touchdown, LastGroundFeetZ);
+	const FVector Landing = VeloxBotCombat::HopLandingPoint(TouchdownAt, Velocity2D, AirSeconds);
+	const double Now = World->GetTimeSeconds();
+	if (NextAirHopCheckTime >= 0.0 && Now < NextAirHopCheckTime && FVector::DistSquared2D(Landing, CachedAirHopLanding) <= FMath::Square(Settings.HopLandingRecheckCm))
+	{
+		AirHopReleasedTicks += bAirHopClear ? 0 : 1;
+		return bAirHopClear;
+	}
+	NextAirHopCheckTime = Now + Settings.EdgeProbeCheckSeconds;
+	CachedAirHopLanding = Landing;
+	++AirHopChecks;
+	bAirHopClear = VeloxBotCombatGlue::HopLandsSafely(*Bot, Landing, JumpVelocity * JumpVelocity / (2.f * Gravity), static_cast<float>(Velocity2D.Size() * AirSeconds),
+		Movement->GetWalkableFloorZ());
+	AirHopReleasedTicks += bAirHopClear ? 0 : 1;
+	return bAirHopClear;
+}
+
+bool UVeloxBotPathFollowingComponent::IsNearLinkAhead(const FVector& Feet, float RadiusCm) const
+{
+	return bLinkAhead && FVector::DistSquared2D(Feet, LinkAheadStart) <= FMath::Square(static_cast<double>(RadiusCm));
 }
 
 bool UVeloxBotPathFollowingComponent::UpdateSegmentBlocked(const FVector& Feet, const FVector& Target, double Now)
@@ -369,6 +421,7 @@ void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 	// D35: a new segment (or a new path) starts unblocked; the next check decides.
 	bSegmentBlocked = false;
 	bGapLinkAhead = false;
+	bLinkAhead = false;
 	if (IsOnLink())
 	{
 		// A repath replaced the segment under a running traversal.
@@ -406,6 +459,8 @@ void UVeloxBotPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 		const FVeloxNavLinkMatch Ahead = Bots->FindLinkByStart(EndPoint.Location, TNumericLimits<float>::Max());
 		if (Ahead.Link && Ahead.Distance2D <= Ahead.Link->GetSnapRadius())
 		{
+			bLinkAhead = true;
+			LinkAheadStart = EndPoint.Location;
 			const EVeloxManeuverType AheadType = VeloxBotFollow::ManeuverTypeFor(Ahead.Link->GetLinkType());
 			GapLinkAxis = FVector2D(Points[MoveSegmentEndIndex + 1].Location - EndPoint.Location).GetSafeNormal();
 			GapLinkStart = EndPoint.Location;
@@ -815,6 +870,16 @@ bool UVeloxBotPathFollowingComponent::TickManeuver(float DeltaTime, double Now)
 			// speed). Steer the horizontal velocity toward the ballistic one that lands on the end (air braking).
 			const FVeloxBallisticArrive Arrive = VeloxBotRocketJump::ArriveWish(Feet, Movement->Velocity, LinkEnd, Movement->GetGravityZ(),
 				UVeloxBotCombatSettings::Get().RocketJumpArriveDeadbandCmS);
+			NavOutput.WishDir = Arrive.WishDir;
+			NavOutput.WishScale = Arrive.WishDir.IsZero() ? 0.f : 1.f;
+		}
+		else if (Maneuver.Type == EVeloxManeuverType::Drop && !bOnGround && Maneuver.Phase == EVeloxManeuverPhase::Airborne)
+		{
+			// Task M7 H13: a drop walked off at 800 cm/s flies ~450 cm past a 320 cm drop's edge; the plain wish at End only
+			// adds speed (Orbita: the hub tower's 650 -> 330 drops landed past End, 14 of 17 missed in H12). Brake toward
+			// the ballistic velocity that lands on End, as the pad and gap flights do.
+			const FVeloxBallisticArrive Arrive = VeloxBotRocketJump::ArriveWish(Feet, Movement->Velocity, LinkEnd, Movement->GetGravityZ(),
+				UVeloxBotSettings::Get().PadArriveDeadbandCmS);
 			NavOutput.WishDir = Arrive.WishDir;
 			NavOutput.WishScale = Arrive.WishDir.IsZero() ? 0.f : 1.f;
 		}

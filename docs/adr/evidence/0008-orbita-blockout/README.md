@@ -43,3 +43,17 @@ Specula -> off Specula/Corona west -> hub south-west -> Pons Australis -> Horreu
 north-west -> P1, twice. Rest points (cm): P1 (3833,-75), P6 (139,3384), P4 (115,-212), P5 (-3790,-184), P2 (-2386,3262),
 P3 (-1294,1272); run-outs 130-375 cm (P3 stops at Pylon_NW, P4 at the dish), all inside the landing decks. `nettest.sh` judges it per launch
 ("pad#k"), 12 launches and 12 checks.
+
+## B5b re-soak (M7 H13, 2026-11-14)
+
+Engine 5.8.4, branch `wip/m7-33-h13-void-edges` (H11 JUMP fix, H12 per-map nav tile size, H13 edge guard). Raw logs:
+/mnt/oldroot/velox-scratch/m7-h13/.
+
+| 5.3 | Result | File |
+|---|---|---|
+| (c) FtMapReachability | PASS checks 6 failed 0 (since H12) | fts.sh row |
+| (e) FFA x10 at 4 | hazard gate PASS: self 5 (B5 182, H12 128), credited 21; Drop 100 % (31/31), Jump 100 % (94/94), JumpPad 100 % (102/102), coverage 36/37 (Armor_Shard (-300,-1000,239.6)); stuck 0, nav 0.90 s; **max_dwell_s 6 FAIL** (hub fight stand-offs at (36,32) / (-1298,1351)) | ffa4-set-b5b.txt, void-deaths-b5b.txt |
+| (e) BotDuel x3 | behaviour PASS, self 1/0/0 (gate 2), credited 2/1/1; cost not judged (host) | botduel-set-b5b.txt |
+
+Before/after classes: `void-deaths-h12-classified.txt` (H12: 97 ground walk/strafe off a deck edge, 31 own hops, 0 gap, 0 knockback)
+vs `void-deaths-b5b.txt` (per death `VeloxBotFall` cause: walk 3, dodge 1, pad_offlink 1).

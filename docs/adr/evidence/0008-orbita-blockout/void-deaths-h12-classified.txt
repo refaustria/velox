@@ -1,0 +1,10 @@
+# H13 classification of the H12 FFA x10 at 4 self void deaths (logs /mnt/oldroot/velox-scratch/m7-h12/ffa4, before H13)
+# recstat.py: first airborne tick of the last VeloxBotAirRecovery flight (vz=0: walked off on the ground), hits within 3 s
+[('below_tgt 000', 124), ('norec', 4), ('tgt dist<100', 73), ('tgt<300', 41), ('tgt>=300', 10), ('vz small', 8), ('vz=0 (walk-off)', 97), ('vz>300 (jump start)', 19)]
+hits within 3s: Counter({'none': 128})
+# classify.py (no VeloxBotFall lines yet: flight kind from the recovery line, goal from the 1 Hz line)
+self void deaths 128
+cause: {'walked_off': 105, 'jump_latched_foreign': 19, 'own_hop_unrecovered': 4}
+zone: {'Horreum': 23, 'N0 hub': 18, 'Trabs': 16, 'Armamentarium': 15, 'Hortus': 11, 'Clivus ramp': 10, 'Clivus Orientis': 8, 'PF west bridge': 7, 'Semita': 7, 'Scopulus': 7, 'PA bridge': 5, 'PF east bridge': 1}
+goal/fight: {'fight': 103, 'item': 24, 'none': 1}
+cause x goal: {('walked_off', 'fight'): 89, ('walked_off', 'item'): 15, ('jump_latched_foreign', 'fight'): 11, ('jump_latched_foreign', 'item'): 8, ('own_hop_unrecovered', 'fight'): 3, ('own_hop_unrecovered', 'item'): 1, ('walked_off', 'none'): 1}

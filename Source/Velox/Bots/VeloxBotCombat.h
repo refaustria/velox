@@ -461,6 +461,9 @@ namespace VeloxBotCombatGlue
 	 */
 	VELOX_API bool IsEdgeAware(const UWorld* World);
 
+	/** Task M7 H13: IsEdgeAware and velox.bots.EdgeGuard is not 0 (A/B switch for the H13 void-edge additions alone). */
+	VELOX_API bool IsEdgeGuardOn(const UWorld* World);
+
 	/** velox.bots.EdgeAware is not 0 (the cvar alone; for setup that runs before the hazard volumes registered). */
 	VELOX_API bool IsEdgeAwareEnabled();
 
@@ -480,6 +483,13 @@ namespace VeloxBotCombatGlue
 	 * bOutHazard: the landing's ground is lava.
 	 */
 	VELOX_API bool HopLandsSafely(const AVeloxBotController& Bot, const FVector& Landing, float ApexCm, float Distance2D, float WalkableFloorZ, bool* bOutHazard = nullptr);
+
+	/**
+	 * Task M7 H13: Point (feet level) is no ground to run onto: it does not project onto nav within EdgeProbeProjectRadiusCm
+	 * x OnMeshHalfHeightCm and is over lava (ProjectsOntoNav) or has no Pawn-blocking floor within EdgeGuardDropDepthCm under
+	 * it (void, a deep pit). A ledge onto a floor less than EdgeGuardDropDepthCm lower is not unsafe.
+	 */
+	VELOX_API bool IsUnsafeGround(const AVeloxBotController& Bot, const FVector& Point);
 
 	/** Perceive phase: (re)binds the damage hearing per life, then every PerceptionIntervalSeconds (staggered by BotIndex) updates the enemy memory, the target and the projectile threat. */
 	VELOX_API void Perceive(AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, float Dt);

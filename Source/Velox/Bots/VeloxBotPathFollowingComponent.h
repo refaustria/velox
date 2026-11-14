@@ -145,7 +145,8 @@ public:
 	 * ADR 0008 3.6.2 hop landing guard (extends D18): on a map with a hazard volume (VeloxBotCombatGlue::IsEdgeAware), a
 	 * hop taken from the ground now is refused when its landing point, Feet + Velocity2D x (the bot's own hop air time +
 	 * UVeloxBotSettings::HopLandingSlackSeconds), has no safe ground (VeloxBotCombatGlue::HopLandsSafely: ground in the
-	 * slope window, on nav, not lava). True in the air (the take-off tick decides), off hazard maps, and without a pawn.
+	 * slope window, on nav, not lava). Off hazard maps and without a pawn true. Task M7 H13: in the air (own hop, jump held)
+	 * HasAirHopLanding decides the landing frame's re-jump.
 	 * Task M7 H8 (review F4): the verdict is cached UVeloxBotSettings::EdgeProbeCheckSeconds within one grounded stretch
 	 * (every landing tests afresh) while the predicted landing stays within HopLandingRecheckCm of the tested one. Public for the overlay's dodge jump.
 	 */
@@ -158,6 +159,12 @@ public:
 
 	/** Task M7 H11: plain-segment hops refused because they would land past the take-off of the JUMP link ahead (ticks). */
 	int32 GetGapHopRefusedTicks() const { return GapHopRefusedTicks; }
+
+	/** Task M7 H13: the current plain segment leads into a nav link whose start lies within RadiusCm of Feet (2D). */
+	bool IsNearLinkAhead(const FVector& Feet, float RadiusCm) const;
+	/** H13: airborne re-jumps released by the airborne hop guard (ticks) / guard tests run. */
+	int32 GetAirHopReleasedTicks() const { return AirHopReleasedTicks; }
+	int32 GetAirHopChecks() const { return AirHopChecks; }
 
 	/** D35: the last line-of-walk check of the current plain segment found it blocked (cleared on a new segment / path). */
 	bool IsSegmentBlockedNow() const { return bSegmentBlocked; }
@@ -259,6 +266,22 @@ private:
 	bool bHopLandingClear = true;
 	/** Landing tests actually run (not cached; diagnostics, cost). */
 	int32 HopLandingChecks = 0;
+
+	/**
+	 * Task M7 H13 airborne hop guard (in HasHopLanding while airborne): the next hop's landing from the predicted touchdown;
+	 * cached EdgeProbeCheckSeconds while the tested landing stays within HopLandingRecheckCm.
+	 */
+	bool HasAirHopLanding();
+	double NextAirHopCheckTime = -1.0;
+	FVector CachedAirHopLanding = FVector::ZeroVector;
+	bool bAirHopClear = true;
+	int32 AirHopReleasedTicks = 0;
+	int32 AirHopChecks = 0;
+	/** H13: feet height of the last grounded step (the level the current hop touches down on). */
+	double LastGroundFeetZ = 0.0;
+	/** H13: the current plain segment ends at a nav link start (any type; set in SetMoveSegment). */
+	bool bLinkAhead = false;
+	FVector LinkAheadStart = FVector::ZeroVector;
 
 	double NextSegmentBlockCheckTime = -1.0;
 	bool bSegmentBlocked = false;
