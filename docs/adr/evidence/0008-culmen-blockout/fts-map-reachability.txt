@@ -1,0 +1,9 @@
+VeloxReachabilityFt test=FT_Map_Reachability waiting for the nav build map=L_Culmen_Blockout walk_exempt=1
+VeloxReachabilityFt check=playerstarts ok=1 map=L_Culmen_Blockout n=10 min=2
+VeloxReachabilityFt check=pickups ok=1 n=46 min=8
+VeloxReachabilityFt check=start_to_pickup_all ok=1 pairs=460 failed=0
+VeloxReachabilityFt check=major_items ok=1 n=7 min=5
+VeloxReachabilityFt check=major_to_major_all ok=1 pairs=42 failed=0
+VeloxReachabilityFt check=links_all ok=1 links=42 pad_links=11 failed=0
+VeloxReachabilityFt check=walk_all ok=1 pairs=450 exempt_pickups=1 failed=0
+VeloxReachabilityFt test=FT_Map_Reachability result=PASS checks=7 failed=0

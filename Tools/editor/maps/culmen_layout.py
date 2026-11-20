@@ -73,6 +73,12 @@ def _pair(b, wid, eid):
     return [b._replace(id=wid), _mir(b)._replace(id=eid)]
 
 
+# Kiosk top (B3 layout iteration). Jump apex = JumpVelocity^2 / (2 |GravityZ|) = 675^2 / 4000 = 114 cm (VeloxMovementSettings), so
+# feet reach 434 from the 320 decks (Viaduct, terraces) and 594 from the flat 480 Porticus S top that Kiosk2 / Kiosk4 abut; 700 keeps
+# >= 100 cm margin. The nearest 640 surface (roof corners) is >= 840 cm away horizontally (TowerE corner to Kiosk4), out of reach above 700. Rocket jumps can still
+# reach it (humans only; bots do not rocket jump onto tops).
+KIOSK_TOP_Z = 700
+
 BOXES = (
     [Box("Ground", "floor", "Floor", -3800, 3800, -2400, 2400, -100, 0)]
     # the two roofs (Tower), the roof-ramp heads (L2) and the sealed bases under the roof ramps (L1) with the End Terraces
@@ -87,7 +93,8 @@ BOXES = (
     + _pair(Box("x", "platform", "Platform", -2000, -1700, -221, 221, 0, 320), "LandW", "LandE")
     # glass bridges: opaque deck 40 thick, 280 clear below. BrW / BrE: Terrace landings to the Spire; BrSW / BrSE: terrace south end to Viaduct
     + _pair(Box("x", "bridge", "Platform", -1700, -600, -150, 150, 280, 320), "BrW", "BrE")
-    + _pair(Box("x", "bridge", "Platform", -2500, -2200, -1900, -1400, 280, 320), "BrSW", "BrSE")
+    + [Box("BrSW", "bridge", "Platform", -2500, -2200, -1900, -1400, 280, 320),
+       Box("BrSE", "bridge", "Platform", 2200, 2500, -1900, -1400, 280, 320)]   # B3: X mirror (the Viaduct is not point-mirrored); the point mirror spanned the Trench
     # 110 cm parapet stubs on the long sides of BrW / BrE (they float on the deck)
     + _pair(Box("x", "bridgewall", "Wall", -1700, -600, 150, 170, 320, 430), "BrW_ParN", "BrE_ParS")
     + _pair(Box("x", "bridgewall", "Wall", -1700, -600, -170, -150, 320, 430), "BrW_ParS", "BrE_ParN")
@@ -95,11 +102,12 @@ BOXES = (
     + [Box("Viaduct", "platform", "Platform", -3000, 3000, -2400, -1900, 0, 320),
        Box("Car", "platform", "Platform", -600, 600, 1800, 2200, 0, 320),
        Box("Wall_N", "wall", "Wall", -3800, 3800, 2200, 2400, 0, 1000)]       # skyline wall: keeps the footprint symmetric, nothing climbs it
-    # concourse kiosks (cover): blockout boxes, the 50 deg ridge cap of the art pass makes them unwalkable (section 4)
-    + [Box("Kiosk1", "wall", "Wall", -2000, -1800, -1900, -1700, 0, 250),
-       Box("Kiosk2", "wall", "Wall", -1200, -1000, -1600, -1400, 0, 250),
-       Box("Kiosk3", "wall", "Wall", 1000, 1200, -1900, -1700, 0, 250),
-       Box("Kiosk4", "wall", "Wall", 1800, 2000, -1600, -1400, 0, 250)]
+    # concourse kiosks (cover). B3 iteration: KIOSK_TOP_Z 700 instead of 250 + art ridge (S3 D6): a 250 top was reachable by a jump / fall
+    # from the Viaduct, a no-nav island where bots stranded (FFA dwell 34 / 12 / 11 s). See KIOSK_TOP_Z.
+    + [Box("Kiosk1", "wall", "Wall", -2000, -1800, -1900, -1700, 0, KIOSK_TOP_Z),
+       Box("Kiosk2", "wall", "Wall", -1200, -1000, -1600, -1400, 0, KIOSK_TOP_Z),
+       Box("Kiosk3", "wall", "Wall", 1000, 1200, -1900, -1700, 0, KIOSK_TOP_Z),
+       Box("Kiosk4", "wall", "Wall", 1800, 2000, -1600, -1400, 0, KIOSK_TOP_Z)]
     # roofs: one holo-billboard wall across the middle (20 thick, 300 high) and the 120 cm glass parapet on the Forum edge with 400 gaps on the pad lines
     + _pair(Box("x", "wall", "Wall", -3600, -2800, -10, 10, 640, 940), "Bill_W", "Bill_E")
     + _pair(Box("x", "wall", "Wall", -2620, -2600, -800, -650, 640, 760), "ParRoof_W1", "ParRoof_E1")
@@ -163,6 +171,10 @@ def ramp_z(r, x, y):
 
 
 _RNW, _RSE = RAMPS[0], RAMPS[1]
+# B3 item iteration (FFA x10 at 3: never taken): NW_Shard_2..4 off the NW roof ramp onto the P1 landing -> RA line (west of Bill_W);
+# T_H5_4 (2600, 1600) -> (2000, 1600), next to the Drop_TE_Trench landing. The SE shards stay on their ramp (taken).
+# B3b item iteration (FFA x10 at 3: 43/46, east Trench health never taken): T_H5_1..3 onto the Drop_TE_Trench landing (2300, 1650) -> P11 (3400, 1650)
+# line (x 2500 / 2800 / 3100, y 1650), H50_E (3600, 2000) -> (3000, 1850) beside it. Items only, no geometry.
 ITEMS = [
     _it("RA", "Armor.Red", -3300, -350, 640),
     _it("MH", "Health.Mega", 3300, 350, 640),
@@ -186,7 +198,7 @@ ITEMS = [
     _it("ShellsAmmo_W", "Ammo.Shells", -3400, 2000),
     _it("BulletsAmmo", "Ammo.Bullets", 1500, 900),
     _it("H50_W", "Health.Large", -3400, -2100),
-    _it("H50_E", "Health.Large", 3600, 2000),
+    _it("H50_E", "Health.Large", 3000, 1850),
     _it("H25_1", "Health.Medium", -1300, 400),
     _it("H25_2", "Health.Medium", 1300, -400),
     _it("H25_3", "Health.Medium", -3000, 1600),
@@ -194,9 +206,10 @@ ITEMS = [
     _it("H25_5", "Health.Medium", -2300, -600, 320),
     _it("H25_6", "Health.Medium", 2300, 600, 320),
     _it("H25_7", "Health.Medium", 0, -400, 320),
-] + [_it(f"T_H5_{i + 1}", "Health.Small", x, 1600) for i, x in enumerate((1400, 1800, 2200, 2600))] \
+] + [_it(f"T_H5_{i + 1}", "Health.Small", x, 1650) for i, x in enumerate((2500, 2800, 3100, 2000))] \
   + [_it(f"C_H5_{i + 1}", "Health.Small", x, -1650) for i, x in enumerate((300, 500, 700, 900))] \
-  + [_it(f"NW_Shard_{i + 1}", "Armor.Shard", x, 1100, ramp_z(_RNW, x, 1100)) for i, x in enumerate((-2800, -3000, -3200, -3400))] \
+  + [_it("NW_Shard_1", "Armor.Shard", -2800, 1100, ramp_z(_RNW, -2800, 1100))] \
+  + [_it(f"NW_Shard_{i + 2}", "Armor.Shard", x, y, 640) for i, (x, y) in enumerate(((-3650, 600), (-3700, 0), (-3550, -300)))] \
   + [_it(f"SE_Shard_{i + 1}", "Armor.Shard", x, -1100, ramp_z(_RSE, x, -1100)) for i, x in enumerate((2800, 3000, 3200, 3400))]
 
 WEAPON_IDS = ("PG_W", "PG_E", "SG_E", "SG_W", "RL", "RG", "LG")
@@ -216,7 +229,7 @@ SPAWNS = [
     Spawn("S7", 3000, -1750, 180),    # PG-E
     Spawn("S8", -3300, -1250, 0, 320.0),    # End Terrace SW, east (PG-W 1.8 m)
     Spawn("S9", -2500, -2000, 0, 320.0),    # Viaduct, east (concept y -2150 sees RA over the open sky; moved 150 north; LG 7.2 m)
-    Spawn("S10", 2000, -1250, 90, 320.0),   # terrace, north (concept (2300, -1000) sees RA; moved 390 cm; PG-E 7.2 m)
+    Spawn("S10", 2500, 900, 180, 320.0),    # Terrace E north (B3: P6 spot (2000, -1250) sat on the terrace edge, nav could not reach it; every other Terrace E point sees RA or is < 10 m from S7; SG-E)
 ]
 SPAWN_MIN_APART = 1000.0
 SPAWN_MAX_WEAPON = 800.0
@@ -298,6 +311,7 @@ CLIPS = [
 
 NAV_CENTER = (0.0, 0.0, 500.0)
 NAV_SIZE = (7800.0, 5000.0, 1200.0)      # X -3900..3900, Y -2500..2500, Z -100..1100 (concept section 15)
+NAV_TILE_SIZE_UU = 4000.0                # ADR 0008 1.2 (H12): pad arcs P3-P6 / P8 span 2 tiles at 1000; Detour links neighbour tiles only
 
 INTERMISSION_CAMERA = ((0.0, 0.0, 3000.0), (0.0, -60.0, 90.0))
 INTERMISSION_LABEL = (0.0, 300.0, 2500.0)

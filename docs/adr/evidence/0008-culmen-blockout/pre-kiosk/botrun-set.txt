@@ -1,0 +1,16 @@
+=== Velox net soak round 1/3 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+BotRun             FAIL cost=PASS kills=5 frags=5 pickups=47 stuck=1 max_dwell_s=4 link_max_dt=1.56 budget_mean_us=85.5 clean=9/20 P=11
+=== Velox net soak round 2/3 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+BotRun             PASS cost=PASS kills=5 frags=5 pickups=57 stuck=0 max_dwell_s=3 link_max_dt=1.78 budget_mean_us=74.3 clean=10/20 P=10
+=== Velox net soak round 3/3 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+BotRun             FAIL cost=FAIL kills=4 frags=4 pickups=55 stuck=0 max_dwell_s=2 link_max_dt=1.60 budget_mean_us=243.0 clean=12/21 P=0
+  per round: kills=[5, 5, 4] frags=[5, 5, 4] stuck=[1, 0, 0] pickups=[47, 57, 55] max_dwell_s=[4, 3, 2] repaths=[31, 25, 22]
+  sums: stuck=1 kills=14 frags=14 pocket_strikes=0 major_covered=5/5 [Armor_Red,Armor_Yellow,Health_Mega,Powerup_Haste,Powerup_Quad] not_at_goal=0
+  left_arena=[none,none,none] world_kills=[0,0,0]
+  cost (D47): frame_other_ref per round ['910', '849', '2380'] (set min 849); mean_ref ['87.1', '75.0', '262.2']; P windows [11, 10, 0]; rr_round ['1.09', '1.24', '-']; p_norm_mean_us ['95.4', '93.2', '-']; round(s) 3 slow throughout (frame_other_ref > 2.0 x set min: all windows process-slow, cost not judged)
+  cost: windows clean/total per round ['9/20', '10/20', '12/21']; contended [0, 0, 0]; cost windows [0, 0, 'n/a (slow throughout, D47 d)']; union of clean windows: 19 window(s) mean_us=79.6 max_fire_us=3796
+  round 3 (slow throughout, D47 d; .result rewritten to the behaviour verdict): BotRun             FAIL cost=n/j cost_windows=n/a (slow throughout, D47 d) kills=4 frags=4 pickups=55 stuck=0 max_dwell_s=2 link_max_dt=1.60 budget_mean_us=243.0 clean=12/21 P=9
+  cost judged on the other rounds; round 3 not judged (clean/process-slow share, or slow throughout)
+  set behaviour PASS, cost PASS
+  set PASS
+Rounds passed: 1/3 (requested 3)
