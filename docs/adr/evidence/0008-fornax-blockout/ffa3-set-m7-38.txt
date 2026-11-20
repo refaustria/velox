@@ -1,0 +1,60 @@
+[ci] bands=L_Fornax_Blockout
+run 1 exit=0
+run 2 exit=0
+run 3 exit=0
+run 4 exit=0
+run 5 exit=0
+run 6 exit=0
+run 7 exit=0
+run 8 exit=0
+run 9 exit=0
+run 10 exit=0
+run 1: FAIL(budget>300) stuck=0 pocket=0 repaths=26 [Celer=6 Fulgur=7 Rapidus=13] rules=[] max_dwell_s=3 [Rapidus@(114,-163),goal=item] timed_waits=16 wait_samples=18 wait_max_s=4.4 [Celer:Health_Mega:R=4.9,lead=0.2] wait_capped=0 link_max_dt=1.09 [Fulgur:VeloxNavLink_0:ok] link_fail_reasons=[relaunched=2 replaced=4] long_links_not_timeout=[] bursts=[] pickups=89 mega=4 kills=11 suicides=0 refused=0 giveup=0 errors=0 supp1=3.5% fight_yields=3 fight_share=33.3% armed_fight_share=50.3% (73/145) allunreach_air=0 allunreach_ground=0 budget_mean_us=340.1 run_mean_us=334.2 nav_s=1.237 world_kills=0 no_nav_point=0 not_at_goal=3 left_arena=none
+  hazard (report-only): hazard_touch=4 hazard_death_credited=0 hazard_death_self=0 per bot: Celer:2/0/0 Rapidus:2/0/0
+  strikes: -
+run 2: FAIL(budget>300) stuck=0 pocket=0 repaths=18 [Celer=4 Fulgur=5 Rapidus=9] rules=[] max_dwell_s=3 [Rapidus@(-1733,154),goal=fight] timed_waits=16 wait_samples=21 wait_max_s=4.1 [Celer:Health_Mega:R=4.5,lead=0.7] wait_capped=0 link_max_dt=1.23 [Rapidus:VeloxNavLink_4:ok] link_fail_reasons=[missed=1 relaunched=6 replaced=1] long_links_not_timeout=[] bursts=[] pickups=90 mega=4 kills=18 suicides=0 refused=0 giveup=0 errors=0 supp1=3.5% fight_yields=3 fight_share=30.7% armed_fight_share=51.7% (78/151) allunreach_air=0 allunreach_ground=0 budget_mean_us=333.1 run_mean_us=325.8 nav_s=1.188 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=6 hazard_death_credited=0 hazard_death_self=0 per bot: Celer:4/0/0 Fulgur:2/0/0
+  strikes: -
+run 3: FAIL(budget>300) stuck=0 pocket=0 repaths=26 [Celer=8 Fulgur=10 Rapidus=8] rules=[] max_dwell_s=2 [Fulgur@(-644,-212),goal=fight] timed_waits=13 wait_samples=17 wait_max_s=5.6 [Rapidus:Armor_Red:R=5.9,lead=0.9] wait_capped=0 link_max_dt=1.72 [Celer:VeloxNavLink_11:ok] link_fail_reasons=[below_start=1 relaunched=5 replaced=1] long_links_not_timeout=[] bursts=[] pickups=90 mega=4 kills=15 suicides=0 refused=0 giveup=0 errors=0 supp1=1.5% fight_yields=2 fight_share=26.4% armed_fight_share=38.3% (62/162) allunreach_air=0 allunreach_ground=0 budget_mean_us=334.4 run_mean_us=330.0 nav_s=1.162 world_kills=0 no_nav_point=0 not_at_goal=2 left_arena=none
+  hazard (report-only): hazard_touch=4 hazard_death_credited=1 hazard_death_self=0 per bot: Celer:3/1/0 Rapidus:1/0/0
+  strikes: -
+run 4: FAIL(budget>300) stuck=0 pocket=0 repaths=20 [Celer=9 Fulgur=5 Rapidus=6] rules=[] max_dwell_s=4 [Rapidus@(769,639),goal=item] timed_waits=5 wait_samples=5 wait_max_s=3.8 [Rapidus:Health_Mega:R=5.4,lead=-0.9] wait_capped=0 link_max_dt=1.63 [Fulgur:VeloxNavLink_11:ok] link_fail_reasons=[below_start=1 missed=1 relaunched=1 replaced=2] long_links_not_timeout=[] bursts=[] pickups=75 mega=4 kills=15 suicides=0 refused=0 giveup=0 errors=0 supp1=1.7% fight_yields=2 fight_share=34.6% armed_fight_share=53.8% (91/169) allunreach_air=0 allunreach_ground=0 budget_mean_us=341.2 run_mean_us=337.5 nav_s=1.1 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=6 hazard_death_credited=0 hazard_death_self=0 per bot: Celer:1/0/0 Fulgur:1/0/0 Rapidus:4/0/0
+  strikes: -
+run 5: FAIL(budget>300) stuck=0 pocket=0 repaths=23 [Celer=9 Fulgur=4 Rapidus=10] rules=[] max_dwell_s=3 [Celer@(183,477),goal=fight] timed_waits=11 wait_samples=15 wait_max_s=4.2 [Rapidus:Armor_Red:R=5.0,lead=0.8] wait_capped=0 link_max_dt=1.66 [Celer:VeloxNavLink_11:ok] link_fail_reasons=[relaunched=3 replaced=1] long_links_not_timeout=[] bursts=[] pickups=90 mega=4 kills=14 suicides=0 refused=0 giveup=0 errors=0 supp1=0.9% fight_yields=1 fight_share=29.5% armed_fight_share=51.3% (81/158) allunreach_air=0 allunreach_ground=0 budget_mean_us=357.3 run_mean_us=353.8 nav_s=1.134 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=6 hazard_death_credited=2 hazard_death_self=0 per bot: Celer:1/0/0 Fulgur:1/1/0 Rapidus:4/1/0
+  strikes: -
+run 6: FAIL(budget>300) stuck=0 pocket=0 repaths=17 [Celer=8 Fulgur=3 Rapidus=6] rules=[] max_dwell_s=3 [Fulgur@(-884,20),goal=fight] timed_waits=12 wait_samples=14 wait_max_s=4.2 [Rapidus:Armor_Red:R=5.2,lead=0.6] wait_capped=0 link_max_dt=1.23 [Fulgur:VeloxNavLink_0:ok] link_fail_reasons=[missed=1 relaunched=4 replaced=1] long_links_not_timeout=[] bursts=[] pickups=83 mega=4 kills=16 suicides=0 refused=0 giveup=0 errors=0 supp1=1.2% fight_yields=1 fight_share=38.3% armed_fight_share=60.6% (100/165) allunreach_air=0 allunreach_ground=0 budget_mean_us=365.1 run_mean_us=361.9 nav_s=1.143 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=7 hazard_death_credited=0 hazard_death_self=0 per bot: Celer:2/0/0 Fulgur:1/0/0 Rapidus:4/0/0
+  strikes: -
+run 7: FAIL(budget>300) stuck=0 pocket=0 repaths=26 [Celer=8 Fulgur=6 Rapidus=12] rules=[] max_dwell_s=3 [Fulgur@(2188,-1045),goal=fight] timed_waits=11 wait_samples=12 wait_max_s=4.5 [Rapidus:Armor_Red:R=4.9,lead=0.1] wait_capped=0 link_max_dt=1.09 [Rapidus:VeloxNavLink_0:ok] link_fail_reasons=[relaunched=2 replaced=2] long_links_not_timeout=[] bursts=[] pickups=87 mega=4 kills=14 suicides=0 refused=0 giveup=0 errors=0 supp1=1.2% fight_yields=1 fight_share=36.0% armed_fight_share=55.6% (89/160) allunreach_air=0 allunreach_ground=0 budget_mean_us=346.1 run_mean_us=342.5 nav_s=1.16 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 8: FAIL(budget>300) stuck=0 pocket=0 repaths=18 [Celer=7 Fulgur=4 Rapidus=7] rules=[] max_dwell_s=3 [Fulgur@(187,-559),goal=fight] timed_waits=16 wait_samples=20 wait_max_s=5.7 [Fulgur:Health_Mega:R=6.2,lead=-0.0] wait_capped=0 link_max_dt=1.33 [Celer:VeloxNavLink_11:ok] link_fail_reasons=[missed=1 relaunched=4 replaced=3] long_links_not_timeout=[] bursts=[] pickups=81 mega=4 kills=14 suicides=0 refused=0 giveup=0 errors=0 supp1=2.6% fight_yields=3 fight_share=31.4% armed_fight_share=46.6% (81/174) allunreach_air=0 allunreach_ground=0 budget_mean_us=331.1 run_mean_us=329.7 nav_s=1.149 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=2 hazard_death_credited=0 hazard_death_self=0 per bot: Fulgur:1/0/0 Rapidus:1/0/0
+  strikes: -
+run 9: FAIL(budget>300) stuck=0 pocket=0 repaths=30 [Celer=8 Fulgur=12 Rapidus=10] rules=[] max_dwell_s=4 [Celer@(-104,687),goal=fight] timed_waits=12 wait_samples=15 wait_max_s=4.0 [Celer:Armor_Red:R=4.1,lead=0.3] wait_capped=0 link_max_dt=1.80 [Celer:VeloxNavLink_11:ok] link_fail_reasons=[missed=2] long_links_not_timeout=[] bursts=[] pickups=77 mega=4 kills=13 suicides=0 refused=0 giveup=0 errors=0 supp1=3.2% fight_yields=3 fight_share=35.2% armed_fight_share=59.3% (89/150) allunreach_air=0 allunreach_ground=0 budget_mean_us=329.9 run_mean_us=325.3 nav_s=1.148 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=5 hazard_death_credited=0 hazard_death_self=0 per bot: Celer:2/0/0 Fulgur:1/0/0 Rapidus:2/0/0
+  strikes: -
+run 10: FAIL(budget>300) stuck=0 pocket=0 repaths=28 [Celer=7 Fulgur=11 Rapidus=10] rules=[] max_dwell_s=3 [Fulgur@(-169,1131),goal=fight] timed_waits=12 wait_samples=20 wait_max_s=5.8 [Rapidus:Armor_Red:R=6.2,lead=-0.1] wait_capped=0 link_max_dt=1.21 [Rapidus:VeloxNavLink_1:ok] link_fail_reasons=[missed=1 relaunched=4] long_links_not_timeout=[] bursts=[] pickups=89 mega=4 kills=11 suicides=0 refused=0 giveup=0 errors=0 supp1=1.1% fight_yields=1 fight_share=29.6% armed_fight_share=47.2% (59/125) allunreach_air=0 allunreach_ground=0 budget_mean_us=337.3 run_mean_us=338.3 nav_s=1.203 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=4 hazard_death_credited=0 hazard_death_self=0 per bot: Celer:1/0/0 Fulgur:1/0/0 Rapidus:2/0/0
+  strikes: -
+SET runs=10 FAIL(per_run:run 1,run 2,run 3,run 4,run 5,run 6,run 7,run 8,run 9,run 10) sum_stuck=0 max_run_stuck=0 bursts=0 pocket=0 dwell_ge6_runs=0 max_dwell=4 wait_max_s=5.8 max_link_dt=1.80 sum_kills=141 min_kills=11 sum_repaths=232 max_run_repaths=30 not_at_goal=5 rules={}
+SET speed strikes: -
+SET band=L_Fornax_Blockout (no BAND_* value) (report-only): sum_kills=141 not judged; the per-run kills / pickups / Mega bands are not judged either
+SET hazard (GATE set sum <= 6 (ADR 0008 5.3)): hazard_touch=44 hazard_death_credited=3 hazard_death_self=0 per bot touch/credited/self: Celer:16/1/0 Fulgur:8/1/0 Rapidus:20/1/0 per run self=[0,0,0,0,0,0,0,0,0,0]
+SET invariants (ADR 0006 section 7, every map):
+  left_arena                   0                                            limit 0        PASS
+  world_kill                   0                                            limit 0        PASS
+  no_nav_point                 0                                            limit 0        PASS
+  giveup                       0                                            limit 0        PASS
+  sum_stuck                    0                                            limit <= 5     PASS
+  bursts                       0                                            limit 0        PASS
+  max_dwell_s                  4                                            limit <= 5     PASS
+  nav_build_s                  1.237                                        limit <= 2.0   PASS
+  link_success[Drop]           100.0 % (128/128) aborted=23                 limit >= 90 %  PASS
+  link_success[Jump]           93.3 % (97/104) aborted=13                   limit >= 90 %  PASS
+  link_success[JumpPad]        100.0 % (58/58) aborted=12                   limit >= 90 %  PASS
+  item_coverage                30/30 pickups (17 definitions)               limit all      PASS
+Logs: /mnt/oldroot/velox-scratch/38-fornax-items/ffa-b
+rc=1

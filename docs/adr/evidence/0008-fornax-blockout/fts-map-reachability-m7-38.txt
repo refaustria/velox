@@ -1,0 +1,6 @@
+[ci] Functional tests: port=7941 timeout=240s logs=/mnt/oldroot/velox-scratch/38-fornax-items/ci/20261120-170743-700251
+[ci] [FtMapReachability-L_Fornax_Blockout] /opt/UnrealEngine-5.8/Engine/Binaries/Linux/UnrealEditor-Cmd /home/bojan/velox/.claude/worktrees/agent-a795df621cf4b7698/Velox.uproject L_Fornax_Blockout -game -nullrhi -unattended -nosound -nopause -nosplash -UseFixedTimeStep -FPS=60 -log -port=7941 -ExecCmds=velox.bots.Seed\ 1\,\ velox.bots.FtMapReachability\ WalkExempt=DA_Item_Health_Mega\ MinMajors=4\ quit 
+[fts] FtMapReachability-L_Fornax_Blockout PASS  ([2026.11.20-16.07.56:932][  1]LogVeloxBots: VeloxReachabilityFt test=FT_Map_Reachability result=PASS checks=7 failed=0)
+Logs: /mnt/oldroot/velox-scratch/38-fornax-items/ci/20261120-170743-700251
+[fts] OK 1/1
+rc=0

@@ -27,7 +27,7 @@ Generate `L_Fornax_Blockout` from the spec module, add the run script and FT row
 - [ ] (b) `navlint.sh L_Fornax_Blockout` PASS (`clusters - edge = 0`, `lowclear = 0`)
 - [ ] (c) `FtMapReachability` green in `fts.sh` (with the map's `WalkExempt`)
 - [ ] (d) `FornaxRun` PASS at 100 ms / 2 % loss
-- [ ] (e) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
+- [x] (e) (after M7 task 38: FFA x10 at 3 coverage 30/30, Jump 93.3 %, hazard gate PASS, BotDuel x3 PASS; BotRun x3 only idle-client world kills, task 36/H9 park point) the soak sets above with every map-independent invariant PASS (stuck sum <= 5 per three bots, pro rata) and the map's extra gate
 - [ ] (f) evidence under `docs/adr/evidence/0008-fornax-blockout/`
 - [ ] A task that still fails an invariant after one layout iteration is reported back to be split/escalated, not retried blindly
 - [ ] `create_map.py --map dm1 --golden check` green at the end
@@ -50,3 +50,6 @@ Evidence `docs/adr/evidence/0008-fornax-blockout/` (README has the table and per
 - Chute (F5): the hop guard refuses hops on the 30 deg Chute (45 refusal ticks in 12 traversals, landing predicted at take-off height); bots walk it, no stuck or lava.
 - Out-of-list files touched: `mapgen.py` (`MATERIAL_KEYS` + "Pit": the lava bed material was never loaded, generation crashed), `Tests/VeloxMapReachabilityFt.cpp` (`MinMajors=<n>`, default 5: the FT required 5 majors, Fornax has 4), `infra/ci/nettest.sh` (FornaxRun on L_Fornax_Blockout, as B1/B2 did).
 - Escalation (rule): (e) still fails after one iteration; follow-ups: Isle_In (bot-side speed cap on short-landing gap hops, or drop the link), minor-item coverage ruling, BotWatch idle spot per map.
+
+### M7 task 38 (dev, 2026-11-20)
+Minor items moved onto routes; FFA x10 at 3: 30/30 coverage, all invariants PASS, Jump 93.3 %; BotDuel x3 PASS. Details: docs/tasks/m7-maps/38-fornax-minor-items.md, evidence `*-m7-38*.txt`.
