@@ -1,50 +1,39 @@
 # Culmen blockout evidence (M7 B3, ADR 0008 5.3)
 
-Engine 5.8.4, base origin/m7-maps (725c438). Raw logs: /mnt/oldroot/velox-scratch/m7-culmen/ (r2-r4 = regen + navlint + FT per
-layout state, d1-d4 = pad dump + CulmenRun, s1 = aborted first set (BrSE defect), s2 = first full FFA x10 at 3, s3 = final layout;
-`culstat.py` there makes the per-link / rail / item tables). Host load1 about 1-6 during the sets; other agents' soaks interleaved on
-the lock (sets are serial, never concurrent).
+Engine 5.8.4. Second run (2026-11-20, branch `wip/m7-19-b3-culmen`): base = earlier WIP 52e488c + merge of `m7-maps` (H14/H15 bot
+changes included) + the one layout iteration **kiosks 250 -> 700** (`KIOSK_TOP_Z` in `culmen_layout.py`). Raw logs:
+`/mnt/oldroot/velox-scratch/m7-culmen/run2/` (r1 = regen + navlint + FT, d1 = pad dump + CulmenRun x3, s1 = soak sets; helper scripts
+and `culstat.py` there). Host load1 about 0.9-2.0 during the sets (quiet). Files of the first run (kiosks 250) are in `pre-kiosk/`
+(and `first-set/` = its s2 set before the item iteration).
 
 | 5.3 | Result | File |
 |---|---|---|
-| (a) validate-only + golden | PASS (62 solids, 46 items, 10 spawns, 42 links, 11 pads); golden written | Tools/editor/maps/golden/culmen.json |
-| (b) navlint | PASS clusters=0 lowclear=0, nav build 1.09-1.20 s at `NAV_TILE_SIZE_UU` 4000 (8 tiles, 37.7 KB), no `link_span` | navlint.txt |
+| (a) validate-only + golden | PASS (62 solids, 46 items, 10 spawns, 42 links, 11 pads); golden rewritten (kiosk z1 700, kit 387) | Tools/editor/maps/golden/culmen.json |
+| (b) navlint | PASS walkable 3757 m2, covered 99.98 %, clusters=0 lowclear=0, nav build 1.14-1.29 s | navlint.txt |
 | (c) FtMapReachability (WalkExempt Railgun) | PASS checks=7 failed=0, links_all 42/42, pad_links 11 | fts-map-reachability.txt |
-| pad landings vs `DumpPadLandings` | all 11 within 60 cm: P1/P2 0.2, P3/P4 1.8, P5/P6 1.6, P7 0.4, P8 0.0, P9 0.3, P10/P11 29.1 cm (S3's 30 cm apex deviation D4) | padlandings.txt |
-| (d) CulmenRun 100 ms / 2 % | PASS 8/8 checks, 7 pads live (P7 P8 P5 P4 P6 P3 P10, no input in the flight), corrections 0 (d2, d3, d4) | culmenrun.txt |
-| (e) BotRun x3 | set behaviour PASS, cost PASS (rounds 1/2 cost PASS, round 3 slow throughout, not judged); stuck 1/0/0, dwell <= 4, majors 5/5, world_kills 0 | botrun-set.txt |
-| (e) FFA x10 at 3 | FAIL: max_dwell_s 34 and item_coverage 40/46; every other invariant PASS (stuck 0, Drop 100 %, JumpPad 99.0 %, nav 1.09 s) | ffa3-set.txt, ffa3-links.txt |
-| (e) FFA x10 at 6 | FAIL: max_dwell_s 11; every other invariant PASS (stuck 3, Drop 100 %, JumpPad 97.9 %, coverage 46/46) | ffa6-set.txt, ffa6-links.txt |
-| (e) FFA x10 at 8 (report-only) | see ffa8-set.txt | ffa8-set.txt, ffa8-links.txt |
-| extra gate: Haste, both far 50 HP | Haste taken every round in every set; H50_W 1/10 rounds (3 bots) and 4/10 (6 bots), H50_E 0/10 (3 bots, s3) and 2/10 (6 bots) | ffa*-links.txt |
-| (f) evidence | this directory (first-set/ = s2, before the item iteration) | |
+| pad landings vs `DumpPadLandings` | all 11 within 60 cm; roof pads P1/P2 0.2 cm, P3/P4 1.8, P5/P6 1.6; P10/P11 29.1 cm (S3 D4) | padlandings.txt |
+| (d) CulmenRun 100 ms / 2 % | PASS 3/3 rounds, 8/8 checks each, 7 pads, C=0 (corrections 0) | culmenrun.txt |
+| (e) BotRun x3 | set behaviour PASS, cost PASS; stuck 0/1/0, dwell <= 3, majors 5/5. Round 3 per-round FAIL only on `allunreach_air` 1 (D33, open B6 item) | botrun-set.txt |
+| (e) FFA x10 at 3 | **FAIL item_coverage 43/46**; every other invariant PASS (stuck 0, dwell 4, Drop 100 %, JumpPad 97.5 %, nav 1.29 s) | ffa3-set.txt, ffa3-links.txt |
+| (e) FFA x10 at 6 | PASS every invariant (stuck 1, dwell 4, Drop 100 %, JumpPad 97.9 %, coverage 46/46, nav 1.17 s) | ffa6-set.txt, ffa6-links.txt |
+| (e) FFA x10 at 8 (report-only) | every invariant PASS (stuck 1, dwell 4, Drop 99.4 %, JumpPad 99.1 %, coverage 46/46); cost not judged | ffa8-set.txt, ffa8-links.txt |
+| extra gate: Haste, both far 50 HP | Haste 10/10 rounds in every set. H50_W 2/10 (3 bots), 6/10 (6), 8/10 (8); **H50_E 0/10 (3 bots)**, 5/10 (6), 3/10 (8) | ffa*-links.txt |
+| (f) evidence | this directory | |
 
-**Dwell cause (all three >= 6 s episodes, dwell-kiosks.txt):** bots stranded on the 250 cm concourse kiosk tops: Kiosk2 (-1058,-1438)
-34 s, Kiosk1 (-1976,-1764) 12 s, Kiosk4 (1937,-1482) 11 s, each after a fight jump / fall from the Viaduct (pawn z 322 = top 250 + 72),
-goal none/roam (no nav on the top, no link down). S3 deviation D6 noted that a player dropping from the Viaduct can stand on them in
-the blockout. Not fixed (iteration budget spent); proposed fix: kiosks out of reach from the 320 decks (height >= ~550, or a
-`DROP` link off each top plus nav fill), then re-run the three FFA sets.
+Per-run FAIL flags in the FFA sets are `allunreach_air` (open B6 ruling) and, at 3 bots, `budget>300` in 4 runs (cost; host); neither is
+a map-independent invariant.
 
-**Links (final layout).** Every pad link has attempts: at 6 bots P1 60/61, P2 49/49, P3 2/3, P4 16/17, P5 11/11, P6 2/2, P7 58/58,
-P8 23/25, P9 90/93, P10 21/21, P11 44/44. **JUMP_FAST (6 links, G1 gaps): 0 attempts in every set** (s2, s3 at 3 / 6 / 8 bots and
-BotRun): bots reach the Viaduct by P9, the bridges BrSW / BrSE and the drops; the H11 "can't build speed above ground speed" question
-stays unmeasured on Culmen. **ROCKET_JUMP RJ1-RJ4: 0 attempts** (Medium bots). Drops 100 % (105/105 at 6 bots).
+**Kiosk iteration (dwell fixed).** First run: three >= 6 s dwells (34 / 12 / 11 s), all bots stranded on the 250 cm kiosk tops (no nav,
+no link down) after a jump or fall from the 320 Viaduct (`pre-kiosk/dwell-kiosks.txt`). Jump apex is 675^2 / 4000 = 114 cm, so a 700 top
+is out of reach from the decks (434) and from the flat 480 Porticus S top (594) that Kiosk2 / Kiosk4 abut. After it: max dwell 4 s in
+all three FFA sets, no episode >= 6 s (`dwell.txt`).
 
-**Rail on the long lanes** (victim's last 1 Hz position on the Trench L0 strip or the Viaduct deck): 3 bots 10.0 % of all kills
-(Trench 1/4, Viaduct 0/3); 6 bots 21.6 % of all kills, Trench 10/26 = 38.5 %, Viaduct 3/30 = 10 %.
+**Remaining failure: coverage at 3 bots.** Untaken in FFA x10 at 3: `H50_E` (3600, 2000), `T_H5_1` (1400, 1600), `T_H5_3` (2200, 1600):
+all in the east Trench, all health. The first run's 3-bot set missed the same area (H50_E, T_H5_1..3). Bots do pass through: Drop_TE_Trench
+8/8 (landing (2300, 1650)) and P11 (3400, 1650) 17/17, so the line landing -> P11 is used, but the health sits off it (T_H5 at y 1600 west of
+the landing, H50_E 350 cm north-east of P11) and three bots rarely need health. Proposed fix (an item iteration, not done: the
+iteration budget went to the kiosks): T_H5 row onto the landing -> P11 line (x 2400..3200, y 1650) and H50_E nearer the P11 approach,
+as task 38 did for Fornax; or a B6 ruling that minor health at 3 bots on a 46-item map is judged at 6 bots.
 
-**Kit (art plan, `--mode art --validate-only`):** 383 kit instances (Floor_400 144, Wall_400 134, Bridge_400 40, Wall_Trim 48,
-Wall_Door400 6, Pad_Ring 11), 0 protrude; draw calls are measured on the Mac.
-
-**Layout changes against S3/P6 (`culmen_layout.py`):**
-- `NAV_TILE_SIZE_UU` 4000: P3-P6 and P8 spanned 2 tiles at 1000 (validator link-span rule).
-- S10 (2000,-1250) sat on the Terrace E inner edge (x 2000): every path from it was partial (FT 93 failures). Moved to (2500, 900,
-  z 320) yaw 180, the only Terrace E point that keeps >= 10 m to S7 and no spawn-to-RA sightline (7.3 m to SG-E).
-- BrSE (bring-up defect): `_pair` point-mirrored BrSW onto the Trench (2200..2500, 1400..1900) where Drop_TE_Trench landed on it
-  (link_timeout every attempt in s1). Now the X mirror (2200..2500, -1900..-1400): Terrace E south end to the Viaduct, as BrSW.
-- The one item iteration after s2 (42/46: three NW roof-ramp shards and T_H5_4 never taken): NW_Shard_2..4 onto the P1 landing ->
-  RA line ((-3650,600), (-3700,0), (-3550,-300), z 640); T_H5_4 (2600,1600) -> (2000,1600). s3 then took them; its 3-bot set missed
-  six others (H50_E, H25_6 on Terrace E, H25_7 on the Spire deck, T_H5_1..3 in the Trench), its 6-bot set took 46/46.
-
-Haste DA: `DA_Item_Powerup_Haste` regenerated with `create_item_content.py` (only that asset changed); `DisabledInModes` =
-`Velox.Mode.Duel` (the script re-reads and asserts it).
+**Links.** JUMP_FAST (6 links) and ROCKET_JUMP RJ1-RJ4: 0 attempts in every set, as in the first run. Rail share on the Trench lane:
+1/7 kills (3 bots), 11/31 = 35.5 % (6 bots).

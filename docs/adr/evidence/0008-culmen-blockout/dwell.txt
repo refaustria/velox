@@ -1,0 +1,1 @@
+No dwell episode >= 6 s in FFA x10 at 3 / 6 / 8 after the kiosk iteration (dwellwhy.py 6: no lines; set max_dwell_s 4 / 4 / 4).

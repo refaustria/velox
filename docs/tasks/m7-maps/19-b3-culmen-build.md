@@ -55,3 +55,15 @@ Evidence `docs/adr/evidence/0008-culmen-blockout/README.md` (table, per-link num
   kiosk fix (taller kiosks or drop links off their tops) + re-run of the FFA sets.
 - Haste DA regenerated (`DisabledInModes` Duel). Out-of-list: `infra/ci/nettest.sh` (CulmenRun on L_Culmen_Blockout, 7 pads / 8
   checks, as B1/B2/B4/B5 did), `Content/Items/DA_Item_Powerup_Haste.uasset` (lead request).
+
+### B3 resume (dev-hard, 2026-11-20, branch `wip/m7-19-b3-culmen`, engine 5.8.4) — reported back for split/escalation
+Evidence `docs/adr/evidence/0008-culmen-blockout/README.md` (first-run files moved to `pre-kiosk/`), raw /mnt/oldroot/velox-scratch/m7-culmen/run2/.
+- WIP verified: validate-only, golden, fts row, nettest row, Haste DA `DisabledInModes` Duel; Editor + Game build green (merge with H14/H15).
+- The one layout iteration: kiosks 250 -> 700 (`KIOSK_TOP_Z`; jump apex 114 cm, out of reach from the 320 decks and the 480 Porticus top).
+- (a) PASS, golden rewritten. (b) navlint PASS clusters 0 / lowclear 0, nav 1.14-1.29 s. (c) FtMapReachability PASS 7/7; all 11 pad landings
+  within 29.1 cm of `DumpPadLandings` (roof pads <= 1.8 cm). (d) CulmenRun PASS 3/3 rounds, 8/8 checks, corrections 0.
+- (e) NOT ticked: BotRun x3 set PASS (round 3 per-round `allunreach_air` 1, B6); FFA x10 at 6 and at 8 every invariant PASS (dwell 4, coverage 46/46);
+  FFA x10 at 3 FAIL item_coverage 43/46 (H50_E, T_H5_1, T_H5_3, all east Trench health), every other invariant PASS. Dwell fixed (34 s -> 4 s).
+  Extra gate: Haste 10/10 in every set; H50_E 0/10 at 3 bots, 5/10 at 6, 3/10 at 8; H50_W 2/6/8 of 10.
+- Escalation (rule, iteration budget spent): item iteration T_H5 row onto the Drop_TE_Trench landing -> P11 line and H50_E nearer P11
+  (as task 38 for Fornax), then re-run FFA x10 at 3 (+ at 6 to keep coverage); or a B6 ruling on minor health coverage at 3 bots.
