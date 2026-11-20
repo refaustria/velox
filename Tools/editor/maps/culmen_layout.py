@@ -73,6 +73,12 @@ def _pair(b, wid, eid):
     return [b._replace(id=wid), _mir(b)._replace(id=eid)]
 
 
+# Kiosk top (B3 layout iteration). Jump apex = JumpVelocity^2 / (2 |GravityZ|) = 675^2 / 4000 = 114 cm (VeloxMovementSettings), so
+# feet reach 434 from the 320 decks (Viaduct, terraces) and 594 from the flat 480 Porticus S top that Kiosk2 / Kiosk4 abut; 700 keeps
+# >= 100 cm margin. The nearest 640 surface (roof corners) is >= 840 cm away horizontally (TowerE corner to Kiosk4), out of reach above 700. Rocket jumps can still
+# reach it (humans only; bots do not rocket jump onto tops).
+KIOSK_TOP_Z = 700
+
 BOXES = (
     [Box("Ground", "floor", "Floor", -3800, 3800, -2400, 2400, -100, 0)]
     # the two roofs (Tower), the roof-ramp heads (L2) and the sealed bases under the roof ramps (L1) with the End Terraces
@@ -96,11 +102,12 @@ BOXES = (
     + [Box("Viaduct", "platform", "Platform", -3000, 3000, -2400, -1900, 0, 320),
        Box("Car", "platform", "Platform", -600, 600, 1800, 2200, 0, 320),
        Box("Wall_N", "wall", "Wall", -3800, 3800, 2200, 2400, 0, 1000)]       # skyline wall: keeps the footprint symmetric, nothing climbs it
-    # concourse kiosks (cover): blockout boxes, the 50 deg ridge cap of the art pass makes them unwalkable (section 4)
-    + [Box("Kiosk1", "wall", "Wall", -2000, -1800, -1900, -1700, 0, 250),
-       Box("Kiosk2", "wall", "Wall", -1200, -1000, -1600, -1400, 0, 250),
-       Box("Kiosk3", "wall", "Wall", 1000, 1200, -1900, -1700, 0, 250),
-       Box("Kiosk4", "wall", "Wall", 1800, 2000, -1600, -1400, 0, 250)]
+    # concourse kiosks (cover). B3 iteration: KIOSK_TOP_Z 700 instead of 250 + art ridge (S3 D6): a 250 top was reachable by a jump / fall
+    # from the Viaduct, a no-nav island where bots stranded (FFA dwell 34 / 12 / 11 s). See KIOSK_TOP_Z.
+    + [Box("Kiosk1", "wall", "Wall", -2000, -1800, -1900, -1700, 0, KIOSK_TOP_Z),
+       Box("Kiosk2", "wall", "Wall", -1200, -1000, -1600, -1400, 0, KIOSK_TOP_Z),
+       Box("Kiosk3", "wall", "Wall", 1000, 1200, -1900, -1700, 0, KIOSK_TOP_Z),
+       Box("Kiosk4", "wall", "Wall", 1800, 2000, -1600, -1400, 0, KIOSK_TOP_Z)]
     # roofs: one holo-billboard wall across the middle (20 thick, 300 high) and the 120 cm glass parapet on the Forum edge with 400 gaps on the pad lines
     + _pair(Box("x", "wall", "Wall", -3600, -2800, -10, 10, 640, 940), "Bill_W", "Bill_E")
     + _pair(Box("x", "wall", "Wall", -2620, -2600, -800, -650, 640, 760), "ParRoof_W1", "ParRoof_E1")
