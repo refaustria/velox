@@ -1,0 +1,15 @@
+[ci] Server mode: dedicated
+[ci] Net soak: scripts=FornaxRun rounds=1 port=7941 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/mnt/oldroot/velox-scratch/38-fornax-items/ci/20261120-173104-729492/nettest
+[ci] bands=L_ItemTest
+[ci] [FornaxRun] load gate: load1=0.92 at round start (gate 2.0, waited 0s)
+[ci] [FornaxRun] starting dedicated server (60 Hz), log /mnt/oldroot/velox-scratch/38-fornax-items/ci/20261120-173104-729492/nettest/FornaxRun-server.log
+[ci] [FornaxRun] starting client (120 Hz, packet simulation 100 ms one way), log /mnt/oldroot/velox-scratch/38-fornax-items/ci/20261120-173104-729492/nettest/FornaxRun-client.log
+Terminated
+[ci] [FornaxRun] server (dedicated) rss_max_kb=1765504 rss_mean_kb=1751344 rss_last_kb=1765504 rss_samples=13
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+FornaxRun          moves=5084  C=0   echoes=0   gaps=4   repaired=45  repaired_extra=14  resent=2605  resent_extra=2605 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=101.7 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1'] replays=4 acks_ignored=0 rpcs=2635  
+Rounds passed: 1/1 (requested 1)
+Logs: /mnt/oldroot/velox-scratch/38-fornax-items/ci/20261120-173104-729492/nettest
+[ci] NET SOAK OK
+rc=0

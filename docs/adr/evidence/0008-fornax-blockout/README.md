@@ -54,3 +54,6 @@ max_dwell 6 in one run, item coverage 28/30), `botduel-set-b4b.txt` (BotDuel x3 
 `ffa3-set-h15.txt` (FFA x10 at 3, H15 final build): max_dwell 3 (B4b 6), hazard gate PASS (self 0), stuck 0, kills 157 (B4b 155);
 FAIL item_coverage 26/30 (Health_Small only, minors as in B4/B4b; no under_goal drop on this map); per-run FAILs budget>300 (host).
 Dwell classes: ../0008-orbita-blockout/h15-dwell-classes.txt. Details in docs/tasks/m7-maps/37-h15-open-fight-standoff.md.
+
+## B4d (task M7 38, minor items onto routes)
+`ffa3-set-m7-38.txt` (FFA x10 at 3, final layout): item_coverage 30/30, all invariants PASS (stuck 0, dwell 4, Drop 100 %, Jump 93.3 %, JumpPad 100 %), hazard gate PASS (self 0, credited 3); the set line FAILs only on per-run budget>300 (host cost, report-only). `ffa3-set-m7-38-first.txt`: first layout 29/30 (Shard_N3 on the north stairs, then moved). `botduel-set-m7-38.txt` BotDuel x3 PASS, hazard per round credited [2,0,1], self 0. `navlint-m7-38.txt` PASS, `fts-map-reachability-m7-38.txt` PASS, `fornaxrun-m7-38.txt` PASS. Raw: /mnt/oldroot/velox-scratch/38-fornax-items/.
