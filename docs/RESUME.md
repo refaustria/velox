@@ -1,5 +1,7 @@
 # Resume — state of 2026-11-12
 
+> **2026-11-20 handover: M7 work continues on branch `m7-maps`.** Read `docs/RESUME.md` and `STATUS.md` **on that branch** (`git show origin/m7-maps:docs/RESUME.md`) — this file on `main` is out of date until `m7-maps` is merged.
+
 `main` = M0–M6 (VM part). `m6-online` is merged and can be left as is. No agent, soak or UE process is running except production.
 
 ## Production on this host
