@@ -1,0 +1,58 @@
+[ci] band=none (report-only) for map L_Sacrarium_Blockout
+run 1 exit=0
+run 2 exit=0
+run 3 exit=0
+run 4 exit=0
+run 5 exit=0
+run 6 exit=0
+run 7 exit=0
+run 8 exit=0
+run 9 exit=0
+run 10 exit=0
+run 1: PASS stuck=0 pocket=0 repaths=66 [Aquila=11 Celer=7 Fulgur=14 Rapidus=14 Sagitta=11 Ventus=9] rules=[] max_dwell_s=3 [Fulgur@(-1616,146),goal=fight] timed_waits=9 wait_samples=9 wait_max_s=4.8 [Ventus:Armor_Red:R=5.4,lead=-3.2] wait_capped=0 link_max_dt=1.38 [Ventus:VeloxNavLink_0:ok] link_fail_reasons=[below_start=1 relaunched=5 replaced=6] long_links_not_timeout=[] bursts=[] pickups=117 mega=4 kills=25 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=26.5% armed_fight_share=40.2% (130/323) allunreach_air=0 allunreach_ground=0 budget_mean_us=241.4 run_mean_us=240.4 nav_s=1.203 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 2: PASS stuck=0 pocket=0 repaths=91 [Aquila=18 Celer=15 Fulgur=19 Rapidus=14 Sagitta=13 Ventus=12] rules=[] max_dwell_s=3 [Ventus@(-1356,1852),goal=fight] timed_waits=6 wait_samples=6 wait_max_s=5.5 [Ventus:Armor_Yellow:R=6.3,lead=0.1] wait_capped=0 link_max_dt=1.71 [Aquila:VeloxNavLink_0:ok] link_fail_reasons=[below_start=1 missed=1 relaunched=6 replaced=2] long_links_not_timeout=[] bursts=[] pickups=116 mega=4 kills=21 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=16.8% armed_fight_share=25.0% (88/352) allunreach_air=0 allunreach_ground=0 budget_mean_us=206.4 run_mean_us=203.3 nav_s=1.18 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 3: PASS stuck=0 pocket=0 repaths=80 [Aquila=15 Celer=12 Fulgur=9 Rapidus=17 Sagitta=11 Ventus=16] rules=[] max_dwell_s=2 [Sagitta@(-955,1338),goal=item] timed_waits=10 wait_samples=12 wait_max_s=5.9 [Aquila:Armor_Yellow:R=5.9,lead=-0.1] wait_capped=0 link_max_dt=1.36 [Celer:VeloxNavLink_0:ok] link_fail_reasons=[below_start=1 missed=2 relaunched=4 replaced=2] long_links_not_timeout=[] bursts=[] pickups=118 mega=4 kills=23 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=21.7% armed_fight_share=29.2% (103/353) allunreach_air=0 allunreach_ground=0 budget_mean_us=210.8 run_mean_us=209.0 nav_s=1.207 world_kills=0 no_nav_point=0 not_at_goal=1 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 4: PASS stuck=0 pocket=0 repaths=69 [Aquila=13 Celer=13 Fulgur=9 Rapidus=14 Sagitta=6 Ventus=14] rules=[] max_dwell_s=2 [Sagitta@(1450,-700),goal=item] timed_waits=5 wait_samples=6 wait_max_s=6.2 [Aquila:Armor_Yellow:R=6.3,lead=0.7] wait_capped=0 link_max_dt=1.68 [Sagitta:VeloxNavLink_1:ok] link_fail_reasons=[below_start=1 missed=3 relaunched=9 replaced=3] long_links_not_timeout=[] bursts=[] pickups=114 mega=4 kills=23 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=19.0% armed_fight_share=24.7% (85/344) allunreach_air=0 allunreach_ground=0 budget_mean_us=201.7 run_mean_us=201.2 nav_s=1.171 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 5: PASS stuck=0 pocket=0 repaths=66 [Aquila=13 Celer=8 Fulgur=9 Rapidus=18 Sagitta=9 Ventus=9] rules=[] max_dwell_s=3 [Rapidus@(931,-346),goal=item] timed_waits=6 wait_samples=8 wait_max_s=3.3 [Sagitta:Armor_Yellow:R=3.5,lead=0.3] wait_capped=0 link_max_dt=1.77 [Aquila:VeloxNavLink_0:ok] link_fail_reasons=[missed=1 relaunched=5 replaced=2] long_links_not_timeout=[] bursts=[] pickups=119 mega=4 kills=25 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=21.7% armed_fight_share=29.7% (111/374) allunreach_air=0 allunreach_ground=0 budget_mean_us=205.5 run_mean_us=204.3 nav_s=1.167 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 6: PASS stuck=0 pocket=0 repaths=73 [Aquila=11 Celer=15 Fulgur=8 Rapidus=15 Sagitta=12 Ventus=12] rules=[] max_dwell_s=3 [Rapidus@(1228,1862),goal=fight] timed_waits=3 wait_samples=4 wait_max_s=4.2 [Celer:Armor_Yellow:R=4.6,lead=1.1] wait_capped=0 link_max_dt=1.85 [Ventus:VeloxNavLink_0:ok] link_fail_reasons=[below_start=2 relaunched=8 replaced=6] long_links_not_timeout=[] bursts=[] pickups=118 mega=4 kills=24 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=17.6% armed_fight_share=25.2% (81/322) allunreach_air=0 allunreach_ground=0 budget_mean_us=193.4 run_mean_us=191.4 nav_s=1.182 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 7: PASS stuck=0 pocket=0 repaths=82 [Aquila=8 Celer=13 Fulgur=16 Rapidus=11 Sagitta=16 Ventus=18] rules=[] max_dwell_s=5 [Celer@(1352,-304),goal=item] timed_waits=8 wait_samples=10 wait_max_s=4.0 [Ventus:Weapon_RocketLauncher:R=4.4,lead=0.7] wait_capped=0 link_max_dt=1.51 [Sagitta:VeloxNavLink_0:ok] link_fail_reasons=[below_start=1 relaunched=2 replaced=2] long_links_not_timeout=[] bursts=[] pickups=116 mega=4 kills=26 suicides=0 refused=0 giveup=0 errors=0 supp1=1.0% fight_yields=2 fight_share=21.6% armed_fight_share=36.0% (109/303) allunreach_air=0 allunreach_ground=0 budget_mean_us=199.3 run_mean_us=198.4 nav_s=1.242 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 8: PASS stuck=0 pocket=0 repaths=65 [Aquila=12 Celer=6 Fulgur=13 Rapidus=12 Sagitta=10 Ventus=12] rules=[] max_dwell_s=3 [Sagitta@(162,1293),goal=fight] timed_waits=12 wait_samples=14 wait_max_s=5.8 [Sagitta:Armor_Red:R=6.4,lead=-0.3] wait_capped=0 link_max_dt=1.44 [Fulgur:VeloxNavLink_0:ok] link_fail_reasons=[below_start=1 relaunched=5 replaced=1] long_links_not_timeout=[] bursts=[] pickups=112 mega=4 kills=19 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=26.9% armed_fight_share=39.2% (131/334) allunreach_air=0 allunreach_ground=0 budget_mean_us=205.5 run_mean_us=203.9 nav_s=1.26 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 9: PASS stuck=0 pocket=0 repaths=71 [Aquila=15 Celer=9 Fulgur=13 Rapidus=13 Sagitta=12 Ventus=9] rules=[] max_dwell_s=2 [Rapidus@(1628,-1794),goal=item] timed_waits=8 wait_samples=9 wait_max_s=5.0 [Fulgur:Armor_Yellow:R=5.7,lead=0.6] wait_capped=0 link_max_dt=1.84 [Ventus:VeloxNavLink_1:ok] link_fail_reasons=[below_start=1 relaunched=8 replaced=2] long_links_not_timeout=[] bursts=[] pickups=116 mega=4 kills=27 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=23.7% armed_fight_share=35.1% (121/345) allunreach_air=0 allunreach_ground=0 budget_mean_us=206.3 run_mean_us=203.5 nav_s=1.2 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 10: PASS stuck=0 pocket=0 repaths=87 [Aquila=17 Celer=12 Fulgur=12 Rapidus=11 Sagitta=13 Ventus=22] rules=[] max_dwell_s=3 [Aquila@(1162,-392),goal=fight] timed_waits=4 wait_samples=4 wait_max_s=6.2 [Aquila:Armor_Yellow:R=6.9,lead=0.5] wait_capped=0 link_max_dt=1.40 [Ventus:VeloxNavLink_0:ok] link_fail_reasons=[below_start=1 relaunched=7] long_links_not_timeout=[] bursts=[] pickups=116 mega=4 kills=27 suicides=0 refused=0 giveup=0 errors=0 supp1=0.6% fight_yields=2 fight_share=27.1% armed_fight_share=35.7% (122/342) allunreach_air=0 allunreach_ground=0 budget_mean_us=197.8 run_mean_us=196.0 nav_s=1.252 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+SET runs=10 PASS sum_stuck=0 max_run_stuck=0 bursts=0 pocket=0 dwell_ge6_runs=0 max_dwell=5 wait_max_s=6.2 max_link_dt=1.85 sum_kills=240 min_kills=19 sum_repaths=750 max_run_repaths=91 not_at_goal=1 rules={}
+SET speed strikes: -
+SET band=none (report-only): sum_kills=240 not judged; the per-run kills / pickups / Mega bands are not judged either
+SET hazard (report-only, ADR 0008 3.5): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0 per run self=[0,0,0,0,0,0,0,0,0,0]
+SET invariants (ADR 0006 section 7, every map):
+  left_arena                   0                                            limit 0        PASS
+  world_kill                   0                                            limit 0        PASS
+  no_nav_point                 0                                            limit 0        PASS
+  giveup                       0                                            limit 0        PASS
+  sum_stuck                    0                                            limit <= 5     PASS
+  bursts                       0                                            limit 0        PASS
+  max_dwell_s                  5                                            limit <= 5     PASS
+  nav_build_s                  1.260                                        limit <= 2.0   PASS
+  link_success[Drop]           98.4 % (187/190) aborted=44                  limit >= 90 %  PASS
+  link_success[JumpPad]        98.6 % (279/283) aborted=51                  limit >= 90 %  PASS
+  item_coverage                38/38 pickups (19 definitions)               limit all      PASS
+Logs: /mnt/oldroot/velox-scratch/31-sacrarium-route/ffa10a

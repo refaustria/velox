@@ -205,6 +205,15 @@ _COL = ((-800, -800), (-800, -400), (-800, 400), (-800, 800), (-400, -800), (-40
         (800, -800), (800, -400), (800, 400), (800, 800))
 BOXES += [Box(f"Col_{i}", "wall", "Wall", cx - 50, cx + 50, cy - 50, cy + 50, 0, 300) for i, (cx, cy) in enumerate(_COL)]
 
+# Item pedestals (task M7 31): a solid under the two deck items whose floor below is walkable and not a corridor (YA_E on the east gallery,
+# Mega on its ledge). Without one a bot on the floor under the item (2-D within 130 cm, dz > 300) satisfies the engine's reach test in 2-D, the
+# path ends under the item and the bot stalls (H15 under_goal drops); a 220-wide solid keeps every nav point >= 145 cm from the item centre.
+# Mega runs to the chapel wall and the pedestal spans the ledge's north half (a 40 / 90 cm strip beside it would be walk-in floor without nav,
+# navlint clusters). Not done for RA (a 10-set run had one 8 s roam dwell beside it) and the Railgun (the loft is over the whole of Gal_S).
+_PED = 110
+BOXES += [Box(f"Ped_{n}", "wall", "Wall", x0, x1, y0, y1, 0, 300)
+          for n, x0, x1, y0, y1 in (("YA_E", 1000 - _PED, 1000 + _PED, -_PED, _PED), ("Mega", 2550 - _PED, 2700, -1600 - _PED, -1400))]
+
 # Quad dais (400 x 400, top +40) with one 20 cm step ring (500 x 500)
 BOXES += [Box("Dais_Step", "platform", "Platform", -250, 250, -250, 250, 0, 20),
           Box("Dais", "platform", "Platform", -200, 200, -200, 200, 0, 40)]
