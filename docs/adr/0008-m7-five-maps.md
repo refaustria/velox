@@ -1,6 +1,6 @@
 # ADR 0008 — M7: five maps as blockouts (shared map pipeline, themed kit, hazards and void, bot edge behaviour)
 
-**Status:** Proposed 2026-11-12 (architect). The human approved building all five concepts on 2026-11-12 ("setze alles um"); this ADR turns that into decisions and tasks.
+**Status:** Proposed 2026-11-12 (architect). The human approved building all five concepts on 2026-11-12 ("setze alles um"); this ADR turns that into decisions and tasks. Amended 2026-11-20 by G1–G4 (task 22, B6: per-map soak bands, `hazard_death_self` bands replacing the 5.3 provisional gates).
 **Scope:** everything `dev`/`dev-hard` need to build `docs/maps/{sacrarium,culmen,orbita,nemus,fornax}.md` as **blockouts** (`L_<Name>_Blockout`), with the kit and art-pass decisions fixed far enough that the art pass needs no second ADR. Amendments to this ADR are numbered **G1, G2, …**.
 **Amends:** ADR 0006 §2 (one generator for all maps), §7 and E0.3 (e) (soak metrics on hazard maps, one floor-Z exception), §8 (kit cap wording); ADR 0004 §6 (kill credit for hazard deaths); ADR 0005 §5/§10 (edge-aware overlay, hop landing guard, airborne recovery, hazard escape; these get D-numbers when implemented). It supersedes nothing: every hard invariant and budget of ADR 0006 stays in force. ROADMAP M7 says "two more maps"; the lead updates it to five.
 
@@ -272,4 +272,58 @@ Culmen's maglev train; fall damage; Battle Suit against lava; plasma jump as a d
 
 ## Amendments
 
-None yet.
+### G1 — Per-map soak bands (task 22, B6, 2026-11-20; architect, Opus stand-in)
+
+Bands for the five blockouts, `infra/ci/bands/L_<Name>.sh`, each sourced by `L_<Name>_Blockout.sh` (the art map is generated from the same layout table, as on DM1). Derivation: `docs/adr/evidence/0008-bands-b6/b6_bands.py` → `b6_bands.out` (per-run / per-round figures typed in from the raw logs under `/mnt/oldroot/velox-scratch/`, sources per set in the script).
+
+(a) **Method.** Lower bands by ADR 0006 E3 / D51 (1): k is the largest value with P(false FAIL | unchanged bots and layout) ≤ 2.5 % under Poisson (observed mean) and under a bootstrap over the observed runs or rounds; the smaller k. Two refinements: a per-run or per-round minimum is judged on every run of the set, so its P(false FAIL) is family-wise, 1 − (1 − p)^n; Mega takes are a capped count (one take per 35 s cycle) and are modelled Binomial(4, p) with p at its Wilson 95 % lower limit, timed Mega returns Binomial(6, p) likewise. A value that only reproduces a runner default is stated, not derived.
+
+(b) **Basis.** Basis A = sets on the final layout with the current bots (H15, `1fe0997`, and later). Basis B = A plus sets that differ only in items or bot version (D40 caveat, as E4 basis B). The band is the more lenient of A and B. **A band needs a basis A**; older-bot sets can widen a basis but never be the only one (exception for hazard upper bands in G2 (b)). A script or map without a basis A gets candidate values in its band file's comments, not `BAND_*` values.
+
+(c) **Bot count.** A band file is keyed by map, not by bot count, but the counts grow with bots. Rule: a lower band holds at the bot count of its basis **or more**, a hazard upper band at that count **or fewer**. The band file reads the runner's bot count after option parsing (`ffa.sh --bots` → `BOTS`, default 3; `nettest.sh --bots` → `BOTS_COUNT`, default 3; both are set before `ci_load_bands`) and sets only the block that holds. `ffa.sh --reeval` without `--bots` therefore applies the 3-bot block: weaker, never a false FAIL. This couples the band files to two runner variable names; G1 (f) 3 replaces that with an explicit export.
+
+(d) **Per key.** Each `BAND_*` key is judged on its own (`judge()` in nettest.sh, the per-key checks in ffa_set.py); `has_band` only changes the label. `BAND_ROUND_KILLS_MIN` is shared by BotRun kills and BotDuel frags, so it is left unset on a map where one of the two scripts has no basis A (Fornax).
+
+| Map | FFA (ffa.sh, 10 runs) | BotRun ×3 | BotDuel ×3 | Basis |
+|---|---|---|---|---|
+| Sacrarium | ≥ 6 bots: Σ kills ≥ 206; per run kills ≥ 11, pickups ≥ 86, Mega ≥ 2. 3 bots: report-only | report-only | — | A: FFA@6 on b35c294 (Σ 236); B: + two pre-31 H15 sets (240, 235). FFA@3 and BotRun exist only with H9/H10 bots |
+| Nemus | report-only (candidates @3: 54 / – / 39 / –; @6: 204 / 11 / 82 / 1) | report-only (candidates 36 / 9 / 15) | — | no basis A: every set ran with H13 bots (B2b, df83346) |
+| Culmen | ≥ 6 bots: Σ ≥ 182; per run kills ≥ 9, pickups ≥ 82, Mega ≥ 1. 3–5 bots: Σ ≥ 43; pickups ≥ 44, Mega ≥ 1 (no per-run kill floor) | ≥ 3 bots: pickups ≥ 40, links ok ≥ 12 per round; Σ kills ≥ 10; round kills ≥ 1 (default) | — | A: run3 (111166b, H15): FFA Σ 57 / 213 / 355, BotRun 6 7 5; B: + run2 (items only) |
+| Fornax | ≥ 3 bots: Σ ≥ 118; per run kills ≥ 5, pickups ≥ 57, Mega ≥ 2 | report-only | Σ frags ≥ 23, Σ camp ≥ 12, Mega within 3 s ≥ 1, within 10 s ≥ 2 | A: 38 ffa-b (Σ 141), BotDuel m7-38 (12 11 16); B: + 38 ffa-a, H15 v2/fix, pre-H15 duels B4/b4b/h9 |
+| Orbita | ≥ 4 bots: Σ ≥ 117; per run kills ≥ 5, pickups ≥ 59, Mega ≥ 2 | — | report-only (candidates 4 / 24 / 2 / 2) | A: H15 v2 (Σ 140); B: + H15 fix + four H13 sets (60 runs) |
+
+Every chosen value has P(false FAIL) between 0.1 % and 2.5 % (per value in the band file and in `b6_bands.out`). A FAIL means what it means on DM1 (E3): fewer fights (kills), a dead route or item (pickups, Mega), a broken link (links ok), less pressure in the duel (frags, camp), or a Mega timing regression.
+
+Not banded, because the evidence does not support a number at 2.5 %: per-run kills at ≤ 6 kills per run (Culmen at 3 bots, as DM1); `BAND_BOTRUN_MEGA_REQUIRED` on Culmen (P of a Mega-less round 1.9 %, 5.5 % over three) and on Nemus (one round with a single take); `BAND_BOTRUN_MAJOR_REQUIRED` on Culmen (Quad and Haste spawn once per round; 6 of 6 rounds give P(set miss) ≈ e^−3 = 5 %); Culmen FFA at 8 bots gets the 6-bot block (5.3 keeps it report-only; its own values are in `b6_bands.out`).
+
+(e) **Re-derivation** of a map's bands: after any layout-table or bot-knob change on that map (a bot change re-derives all five), or when a basis A for a report-only script arrives, or at 12 current-bot rounds per nettest script (E4). A change that can only raise a count never raises a band.
+
+(f) **Follow-up tasks** (the lead writes them):
+1. `dev`: current-bot confirmation sets — Nemus FFA ×10 at 3 and at 6 + BotRun ×3; Sacrarium FFA ×10 at 3 + BotRun ×3; Fornax BotRun ×3 (with the BotWatch park artefact fixed or excluded first); Orbita BotDuel ×3. The architect turns them into bands (candidates in the band files).
+2. `dev`: G3 runner change.
+3. `dev`: `ffa.sh` and `nettest.sh` export `VELOX_BAND_BOTS` before `ci_load_bands` and print it in the band label; the band files switch from `BOTS` / `BOTS_COUNT` to it.
+
+### G2 — `hazard_death_self` bands (replace the 5.3 provisional gates)
+
+(a) **Method (an upper band; E3 has none).** K is the smallest value with P(false FAIL) ≤ 2.5 % under Poisson with the rate at its one-sided 95 % upper limit (Garwood; the counts are mostly 0, a plug-in rate gives a degenerate band) and under a bootstrap; the larger K, over bases A and B. Detection power is checked against the broken-edge sets (Orbita B5: 182 per FFA set, 10 / 19 / 22 per BotDuel round; H12: 128 per set).
+
+| Map | `BAND_HAZARD_SELF_SET_MAX` (FFA ×10, ≤ basis bots) | `BAND_HAZARD_SELF_ROUND_MAX` (every BotDuel round) | Basis | Was |
+|---|---|---|---|---|
+| Fornax | **4** (≤ 3 bots): 0 in 40 H15 runs → K 3; 4 in 80 runs with pre-H15 → K 4; P(false FAIL) 0.6 %; catches 1 self death per run 97 %, B5/H12 always | **4**: 0 in 3 H15 rounds → K 4; 1 in 10 → K 3; P 1.1 % over three rounds | A: 38 ffa-a/b, H15 v2/fix; duel m7-38 | 6 / 1 (1 had P(false FAIL) ≈ 23 % over three rounds) |
+| Orbita | **13** (≤ 4 bots): 8 in 20 H15 runs (0–3 per run) → K 13; 26 in 60 with H13 → K 11; P 1.6 %; catches 2 per run 93 %, B5/H12 always, 1 per run only 14 % | **5**: 1 in 3 H13 rounds; P 1.7 % over three rounds; B5 rounds all over it | A: H15 v2 + fix; duel H13 b5b only | 10 / 2 (P(false FAIL) 11 % / 51 % at the upper rates) |
+
+(b) Orbita's round band rests on H13 rounds only. It is admitted as the one exception to G1 (b) because the gate must exist (5.3: a broken edge behaviour must not pass as report-only) and the Orbita FFA self-death rate did not move from H13 to H15 (0.45 vs 0.40 per run). It is re-derived with the first current-bot BotDuel ×3 (G1 (f) 1).
+
+(c) `hazard_death_credited` stays unjudged (gameplay). `has_band` still ignores `BAND_HAZARD_*`; on Orbita the hazard bands are judged even when no other band applies (3 bots, BotDuel).
+
+### G3 — `allunreach_air` and `budget>300` in the FFA per-run verdict
+
+`ffa_summary.py` puts both in a run's `fails`, so a set line reads `FAIL(per_run: …)` whatever the bands say: `allunreach_air` (a bot airborne with no reachable goal after a launch) in 2–5 of 10 Nemus runs and 6–10 of 10 Culmen runs per set, `budget>300` in up to 4 of 10 runs of most 3-bot sets on this VM (host cost; DM1's FFA sets carry it too).
+
+- **`allunreach_air` is a diagnostic, not an invariant, and gets no band** on any map. It is map-dependent (launch geometry), not a defect by itself, and has no stable rate to band (2 to 10 of 10 runs per set, rising with the bot count). A real defect behind it shows in the judged numbers (dwell, stuck, item coverage, pickups). It moves from the per-run `fails` to a printed per-run flag with a per-set count.
+- **`budget>300`** is a cost check. By D47 cost is judged only on clean windows of a quiet host, which `ffa.sh` cannot tell; it moves to a printed flag as well and stays judged by nettest.sh's D47 cost windows (and on the Mac Studio).
+- Runner change (G1 (f) 2): both out of `fails` in `ffa_summary.py`, counted in the SET line. Until it lands the lead reads `per_run` FAILs that list only these two flags as report-only.
+
+### G4 — Culmen 3-bot item coverage
+
+The lead decision of 2026-11-20 (STATUS.md, task 19 (e)) stands: the 3-bot item-coverage gate is report-only for Culmen; 6- and 8-bot coverage (46/46) and all other invariants stay gating; §5.3 is not amended. Item coverage is a map-independent invariant and a band file cannot exempt a real map (`BAND_FFA_COVERAGE_EXEMPT` is honoured on test maps only), so `L_Culmen.sh` documents the decision and changes nothing: an FFA ×10 at 3 bots on Culmen still prints `item_coverage FAIL`, which the lead reads as report-only. The Fornax minor-coverage question of the task file is superseded by task 38 (30/30 at 3 bots).
