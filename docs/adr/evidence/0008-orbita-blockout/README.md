@@ -57,3 +57,13 @@ Engine 5.8.4, branch `wip/m7-33-h13-void-edges` (H11 JUMP fix, H12 per-map nav t
 
 Before/after classes: `void-deaths-h12-classified.txt` (H12: 97 ground walk/strafe off a deck edge, 31 own hops, 0 gap, 0 knockback)
 vs `void-deaths-b5b.txt` (per death `VeloxBotFall` cause: walk 3, dodge 1, pad_offlink 1).
+
+## B5c re-soak (M7 H15, 2026-11-14)
+
+Branch `wip/m7-37-h15-standoff` (H15 fight dwell rule + under-goal drop). Raw logs /mnt/oldroot/velox-scratch/m7-h15/ (v2 = final build).
+
+| 5.3 | Result | File |
+|---|---|---|
+| (e) FFA x10 at 4 | **all invariants PASS**: max_dwell 5 (B5b 6), coverage 37/37, stuck 0, Drop/Jump/JumpPad >= 90 %; hazard gate PASS self 6 (gate 10), credited 13; kills 140 (B5b 152, H13 sets 129-152); per-run FAILs budget>300 only (host) | ffa4-set-h15.txt |
+| dwell classes | before: every class=other run >= 5 s but one is a Fight goal, vis=1, path=0, strafing 100-950 cm/s inside one 1 Hz circle; after: one 5 s fight/item run | h15-dwell-classes.txt |
+| DM1 BotRun x3 | set behaviour PASS (kills 7/12/11, stuck 1/2/0, dwell 4/3/2), cost not judged (host) | dm1-botrun-h15.txt |

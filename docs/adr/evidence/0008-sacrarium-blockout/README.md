@@ -43,3 +43,8 @@ H10 fix (unique bot PlayerIds) + `BulletsAmmo` moved to (-1600,-1100). Raw: /mnt
 | DM1 BotRun x3 | set PASS (stuck 1/1/0, dwell 3/3/3) | b1c/dm1-botrun-set.txt |
 | navlint / fts | PASS / OK 15/15 | b1c/navlint.txt, b1c/fts.txt |
 | SacrariumRun | FAIL `loft (pad Quad)` (also on the B1 umap in a clean run: script knife edge) | b1c/sacrariumrun.txt, b1c/sacrariumrun-base-umap.txt |
+
+## M7 H15 (fight dwell rule + under-goal drop)
+`ffa6-set-h15.txt` (FFA x10 at 6, H15 final build): **SET PASS**, max_dwell 4 (H10 5), dwell>=6 runs 0, stuck 3, coverage 38/38,
+kills 235 (H10 230). The first H15 build (dwell rule only) failed here with 7 s (a Fight -> Item -> Fight flicker reset the window)
+and two 6 s item stalls under Armor_Yellow (1000,0,320); both fixed, see docs/tasks/m7-maps/37-h15-open-fight-standoff.md.

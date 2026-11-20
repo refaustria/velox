@@ -137,6 +137,29 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm/s"))
 	float TakeoffMaxLateralCmS = 250.f;
 
+	/**
+	 * Task M7 H14: the landing zone of a JUMP / JUMP_FAST link is probed this far past the link end along the link (one
+	 * nav raycast at the segment start, cm). A zone whose nav reaches this far is not short: no take-off speed cap.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float TakeoffLandProbeCm = 400.f;
+
+	/**
+	 * Task M7 H14: on a short landing zone (nav ends within TakeoffLandProbeCm past the link end) the take-off along-link
+	 * speed is capped so that the flight lands this far short of the zone's far nav edge (cm; Fornax Isle_In: 300 cm
+	 * island, bots took off at 850-1000 cm/s from a bunny hop and flew past it). Excess speed is shed on the ground.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float TakeoffLandFarInsetCm = 40.f;
+
+	/**
+	 * Task M7 H14: on the plain segment into a short-landing gap link, from this far before the link start (along the
+	 * link) the bot does not hop (a hop landing at the take-off carries its bunny-hop speed into the jump) and coasts
+	 * (no wish: ground friction) while its along-link speed is above the cap (cm).
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "0.0", Units = "cm"))
+	float TakeoffBrakeLeadCm = 250.f;
+
 	/** Task M7 H11: depth of the take-off ledge probe below the feet (cm; deeper than a stair step). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Bots|Navigation", Meta = (ClampMin = "1.0", Units = "cm"))
 	float TakeoffLedgeDepthCm = 60.f;

@@ -13,7 +13,10 @@ come in along the link or from the side, as onto the Nemus log from Log_Land) cu
     is in the lava (Fornax lava hops) 300 cm below the take-off (Nemus log breaks: 320); no nav in the gap;
   per lane one JUMP nav link, both ways (Nemus), from 60 cm before the west edge to 100 cm onto the east platform (the Fornax
     / Nemus authoring rule; the way back takes off 100 cm before the east edge and lands 60 cm onto the west platform);
-  one PlayerStart per lane on the west platform, static sun + sky, KillZ -1500, one NavMeshBoundsVolume over both lanes.
+  one PlayerStart per lane on the west platform, static sun + sky, KillZ -1500, one NavMeshBoundsVolume over all lanes;
+  task M7 H14, the island lane at y 3400 (Fornax Isle_In): west platform x -250..0 (1200 wide, no run-up room), a 250 cm lava gap, a 300 x 300
+    island x 250..550 (y +-150, solid block top 0), lava all round it to x 1300 (one bed x 0..1300 y +-600, top -300, under a
+    lava volume), one one-way JUMP link from 60 cm before the west edge to 100 cm onto the island (410 cm, as Isle_In).
 FT_BotGapJump (Source/Velox/Tests/VeloxBotGapFt.cpp, infra/ci/fts.sh) depends on these coordinates.
 """
 import os
@@ -37,8 +40,14 @@ LAVA_T = 20.0
 TAKEOFF_INSET = 60.0              # link start inside the west edge (x 0)
 LAND_INSET = 100.0                # link end inside the east edge (x G)
 KILL_Z = -1500.0
+ISLE_Y = 3400.0                   # task M7 H14: the short-landing lane (Fornax Isle_In)
+ISLE_GAP = 250.0
+ISLE_LEN = 300.0
+ISLE_HALF_Y = 150.0
+ISLE_RUN = 250.0                  # the take-off platform: 250 cm deep (no H11 run-up, as Isle_In on Fornax)
+ISLE_LAVA_TO = 1300.0             # lava beyond the island (an overshoot lands in it)
 
-EXPECTED = {"ground": 4, "hazard": 2, "hazardvolume": 2, "navlink": 2, "playerstart": 2, "light": 2, "navbounds": 1}
+EXPECTED = {"ground": 6, "hazard": 3, "hazardvolume": 3, "navlink": 3, "playerstart": 3, "light": 2, "navbounds": 1}
 
 
 def span(a, b):
@@ -60,16 +69,36 @@ def build_lane(gap, y):
     vm.player_start(f"PlayerStart_Gap{gap}", (-1000.0, y, 100.0), 0.0, folder="Starts")
 
 
+def build_island_lane():
+    """Task M7 H14: Fornax Isle_In - a 250 cm lava hop onto a 300 cm island with lava behind it (short landing zone)."""
+    y = ISLE_Y
+    (bz, bs) = span(BLOCK_BOTTOM, 0.0)
+    (cy, sy) = span(y - LANE_HALF_Y, y + LANE_HALF_Y)
+    (cx, sx) = span(-ISLE_RUN, 0.0)       # short: no room for the H11 run-up behind the start (Fornax Isle_In: run_up=0)
+    vm.box("Isle_West", (cx, cy, bz), (sx, sy, bs), "Floor", "ground", folder="LaneIsle")
+    (ix, isx) = span(ISLE_GAP, ISLE_GAP + ISLE_LEN)
+    (iy, isy) = span(y - ISLE_HALF_Y, y + ISLE_HALF_Y)
+    vm.box("Isle_Island", (ix, iy, bz), (isx, isy, bs), "Floor", "ground", folder="LaneIsle")
+    (lx, lsx) = span(0.0, ISLE_LAVA_TO)
+    (hz, hs) = span(BED_TOP - BED_T, BED_TOP)
+    vm.box("Isle_LavaBed", (lx, cy, hz), (lsx, sy, hs), "RampBlocked", "hazard", folder="LaneIsle")
+    (lz, ls) = span(BED_TOP, BED_TOP + LAVA_T)
+    vm.hazard("Isle_Lava", "lava", (lx, cy, lz), (lsx, sy, ls), folder="LaneIsle")
+    vm.nav_link("Isle_Link", unreal.VeloxNavLinkType.JUMP, (-TAKEOFF_INSET, y, 0.0), (ISLE_GAP + LAND_INSET, y, 0.0), both_ways=False)
+    vm.player_start("PlayerStart_Isle", (-150.0, y, 100.0), 0.0, folder="Starts")
+
+
 def build_map():
     les = vm.rebuild_map(MAP_PATH)
     if les is None:
         return
     for gap, y in LANES.items():
         build_lane(gap, y)
+    build_island_lane()
     vm.static_sun_and_sky()
     vm.set_kill_z(KILL_Z)
     x0, x1 = -RUN_LEN - 100.0, max(LANES) + RUN_LEN + 100.0
-    y0, y1 = min(LANES.values()) - LANE_HALF_Y - 100.0, max(LANES.values()) + LANE_HALF_Y + 100.0
+    y0, y1 = min(LANES.values()) - LANE_HALF_Y - 100.0, ISLE_Y + LANE_HALF_Y + 100.0
     (nx, nsx), (ny, nsy), (nz, nsz) = span(x0, x1), span(y0, y1), span(BED_TOP - 150.0, 300.0)
     vm.nav_bounds((nx, ny, nz), (nsx, nsy, nsz))
 
@@ -77,8 +106,8 @@ def build_map():
     actors = vm.EAS.get_all_level_actors()
     n_hz = sum(1 for a in actors if isinstance(a, unreal.VeloxHazardVolume))
     n_links = sum(1 for a in actors if isinstance(a, unreal.VeloxNavLink))
-    vm.log(f"HazardVolumes={n_hz} (expected 2) NavLinks={n_links} (expected 2)")
-    if n_hz != 2 or n_links != 2:
+    vm.log(f"HazardVolumes={n_hz} (expected 3) NavLinks={n_links} (expected 3)")
+    if n_hz != 3 or n_links != 3:
         vm.fail("level actor class counts mismatch")
     vm.save_map(les)
 

@@ -290,9 +290,74 @@ namespace VeloxBotRules
 		return true;
 	}
 
+	bool UpdateFightDwell(FVeloxStandoffWindow& Window, bool bWatched, const FVector2D& Pos, double Now, float RadiusCm, float Seconds,
+		float PeriodSeconds, float SampleSeconds, bool bMayFire)
+	{
+		if (!bWatched || PeriodSeconds <= 0.f || Seconds <= 0.f)
+		{
+			Window.Reset();
+			return false;
+		}
+		constexpr double TimeEpsilon = 1e-6;
+		if (Window.Times.Num() == 0 || Now - Window.Times.Last() + TimeEpsilon >= SampleSeconds)
+		{
+			Window.Times.Add(Now);
+			Window.Positions.Add(Pos);
+		}
+		// Anchors are the samples at least Seconds old; keep one PeriodSeconds of them (every sampling phase) and the rest.
+		const double AnchorLatest = Now - Seconds;
+		const double KeepFrom = AnchorLatest - PeriodSeconds;
+		int32 Drop = 0;
+		while (Drop + 1 < Window.Times.Num() && Window.Times[Drop + 1] <= KeepFrom + TimeEpsilon)
+		{
+			++Drop;
+		}
+		if (Drop > 0)
+		{
+			Window.Times.RemoveAt(0, Drop);
+			Window.Positions.RemoveAt(0, Drop);
+		}
+		const int32 Steps = FMath::Max(1, FMath::CeilToInt(Seconds / PeriodSeconds - 1e-4f));
+		// The nearest sample is within half the real spacing (SampleSeconds rounded up to whole ticks); a hitch leaves a gap.
+		const double MatchTolerance = SampleSeconds + TimeEpsilon;
+		const double RadiusSq = FMath::Square(static_cast<double>(RadiusCm));
+		const int32 Num = Window.Times.Num();
+		for (int32 A = 0; A < Num && Window.Times[A] <= AnchorLatest + TimeEpsilon; ++A)
+		{
+			bool bInside = true;
+			int32 Cursor = A;
+			for (int32 Step = 1; Step <= Steps && bInside; ++Step)
+			{
+				const double Want = Window.Times[A] + Step * static_cast<double>(PeriodSeconds);
+				// The samples are in time order: advance to the one nearest Want.
+				while (Cursor + 1 < Num && FMath::Abs(Window.Times[Cursor + 1] - Want) <= FMath::Abs(Window.Times[Cursor] - Want))
+				{
+					++Cursor;
+				}
+				bInside = FMath::Abs(Window.Times[Cursor] - Want) <= MatchTolerance
+					&& FVector2D::DistSquared(Window.Positions[Cursor], Window.Positions[A]) <= RadiusSq;
+			}
+			if (bInside)
+			{
+				if (!bMayFire)
+				{
+					return false;
+				}
+				Window.Reset();
+				return true;
+			}
+		}
+		return false;
+	}
+
 	bool IsAtGoal(const FVector& Feet, const FVector& Target, float Radius2D, float MaxDzCm)
 	{
 		return FVector::DistSquared2D(Feet, Target) <= FMath::Square(static_cast<double>(Radius2D)) && FMath::Abs(Feet.Z - Target.Z) <= MaxDzCm;
+	}
+
+	bool IsUnderGoal(const FVector& Feet, const FVector& Target, float Radius2D, float MaxDzCm)
+	{
+		return FVector::DistSquared2D(Feet, Target) <= FMath::Square(static_cast<double>(Radius2D)) && FMath::Abs(Feet.Z - Target.Z) > MaxDzCm;
 	}
 
 	bool WallTangent(const FVector& ImpactNormal, FVector2D& OutTangent)
@@ -632,6 +697,7 @@ void AVeloxBotController::SetGoal(const FVeloxBotGoal& NewGoal)
 		State.FightStandoff.Reset();
 		State.FightEdgeBlockedSeconds = 0.0;
 	}
+	State.UnderGoalSince = -1.0;
 }
 
 void AVeloxBotController::SetForcedItemGoal(AVeloxPickup* Item)
@@ -1870,6 +1936,37 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 		AddStuckStrike(bSlow ? TEXT("speed") : TEXT("progress"), SegmentTarget, SegmentDist, bNoProgress ? WindowDist : -1.f);
 	}
 
+	// Task M7 H15: the path ended under (or over) the item, on another level (Sacrarium Armor_Yellow on its pedestal at z 320,
+	// the bot 12 cm from the path end on the floor at z 72, speed ~0 for 4-6 s until the D18 progress strike): the engine's
+	// reach test never passes there. UnderGoalSeconds of it drops the item for UnreachableRetrySeconds and re-evaluates.
+	{
+		FVector ItemAt;
+		float ItemAcceptance = 0.f;
+		const bool bUnder = UnderGoalSeconds > 0.f && State.Goal.Type == EVeloxBotGoal::Item && !State.bForcedGoal && bTracking && bOnGround &&
+			GetGoalTarget(ItemAt, ItemAcceptance) &&
+			VeloxBotRules::IsUnderGoal(Movement->GetActorFeetLocation(), ItemAt, ItemAcceptance + GoalMoveToleranceCm, GetArrivalMaxDzCm());
+		if (!bUnder)
+		{
+			State.UnderGoalSince = -1.0;
+		}
+		else if (State.UnderGoalSince < 0.0)
+		{
+			State.UnderGoalSince = T;
+		}
+		else if (T - State.UnderGoalSince >= UnderGoalSeconds)
+		{
+			AVeloxPickup* Item = State.Goal.Item.Get();
+			UE_LOG(LogVeloxBots, Log, TEXT("VeloxBotPath bot=%s to=%s result=under_goal dz=%.0f item=%s"), *GetBotName(), *ItemAt.ToCompactString(),
+				Movement->GetActorFeetLocation().Z - ItemAt.Z, *GetNameSafe(Item));
+			StopMove();
+			SetGoal(FVeloxBotGoal());
+			if (UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(GetWorld()))
+			{
+				Router->MarkUnreachable(this, Item);
+			}
+		}
+	}
+
 	// Task 06b fight stand-off (beside D30): a Fight goal that keeps the bot inside a FightStandoffRadiusCm circle for
 	// FightStandoffSeconds - pathless at a ledge corner with the target below, dodge-hopping in place, or a chase whose
 	// last seen point is reached or unreachable - yields like a fight_stall strike, without the strike: the decision does
@@ -1885,10 +1982,25 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 		State.FightEdgeBlockedSeconds += bBlocked ? DeltaSeconds : 0.0;
 		bEdgeYield = State.FightEdgeBlockedSeconds >= FightEdgeYieldSeconds;
 	}
-	if (bEdgeYield || VeloxBotRules::UpdateFightStandoff(State.FightStandoff, bStandoffWatched, FVector2D(Feet), T, FightStandoffRadiusCm, FightStandoffSeconds))
+	const bool bStandoff = VeloxBotRules::UpdateFightStandoff(State.FightStandoff, bStandoffWatched, FVector2D(Feet), T, FightStandoffRadiusCm, FightStandoffSeconds);
+	// Task M7 H15: a strafing fight in the open (both bots holding range, flipping the strafe every 0.5-1.2 s) swings more
+	// than FightStandoffRadiusCm around a fixed point, so the 06b test never holds while the soak's 1 Hz samples stay in
+	// one 150 cm circle (Orbita hub / Fornax gallery 6 s fight dwells). The dwell rule measures what the soak measures.
+	// Task M7 H15: the dwell window measures where the bot stands, so a short non-Fight stretch (the router flicking to an
+	// item and back) keeps it (sampling on); it fires only while watched.
+	if (bStandoffWatched)
+	{
+		State.FightDwellWatchedAt = T;
+	}
+	const bool bDwellSampled = bStandoffWatched || (State.FightDwellWatchedAt >= 0.0 && T - State.FightDwellWatchedAt <= FightDwellGraceSeconds
+		&& !State.bForcedGoal && !Follow->IsOnLink());
+	const bool bDwell = VeloxBotRules::UpdateFightDwell(State.FightDwell, bDwellSampled, FVector2D(Feet), T, FightStandoffRadiusCm, FightStandoffSeconds,
+		FightDwellPeriodSeconds, 0.1f, bStandoffWatched);
+	if (bEdgeYield || bStandoff || bDwell)
 	{
 		State.FightEdgeBlockedSeconds = 0.0;
 		State.FightStandoff.Reset();
+		State.FightDwell.Reset();
 		State.FightEdgeYields += bEdgeYield ? 1 : 0;
 		++State.FightYields;
 		const APawn* Enemy = State.Goal.Enemy.Get();
@@ -1896,7 +2008,7 @@ void AVeloxBotController::Navigate(float DeltaSeconds)
 			*Character->GetActorLocation().ToCompactString(), *GetNameSafe(Enemy), IsGoalEnemyVisible() ? 1 : 0,
 			Enemy ? FVector::Dist2D(Enemy->GetActorLocation(), Character->GetActorLocation()) : -1.0,
 			Enemy ? Enemy->GetActorLocation().Z - Character->GetActorLocation().Z : 0.0, StandoffSpan, State.bMoveActive ? 1 : 0,
-			bOnGround ? 1 : 0, State.FightYields, bEdgeYield ? TEXT("edge") : TEXT("standoff"));
+			bOnGround ? 1 : 0, State.FightYields, bEdgeYield ? TEXT("edge") : (bStandoff ? TEXT("standoff") : TEXT("dwell")));
 		State.FightSuppressedUntil = T + FightStallCooldownSeconds;
 		if (UVeloxBotItemRouter* Router = UVeloxBotItemRouter::Get(GetWorld()))
 		{

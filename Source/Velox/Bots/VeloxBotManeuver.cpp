@@ -204,6 +204,20 @@ FVeloxManeuverOutput FVeloxBotManeuver::Tick(const FVeloxManeuverInput& In)
 				EnterPhase(EVeloxManeuverPhase::BackUp, In.Time);
 				Out.WishToward = EVeloxManeuverWish::AwayFromStart;
 			}
+			else if (In.bOnGround)
+			{
+				// Task M7 H14: a short landing zone (Fornax Isle_In, a 300 cm island) caps the take-off speed; above it coast
+				// (no wish: Q3 ground friction sheds ~10 % per 60 Hz tick) until the take-off. Judged at the latest take-off
+				// point (TakeoffMaxPastStartCm), so a ledge-triggered (earlier) take-off lands shorter still.
+				const float TakeoffAt = FMath::Max(In.ProgressCm, Params.TakeoffMaxPastStartCm);
+				const float MaxAlong = VeloxBotManeuverRules::GapTakeoffMaxSpeed(Params.LinkLengthCm, TakeoffAt, Params.LandBeyondEndCm,
+					Params.TakeoffLandFarInsetCm, Params.GapAirSeconds);
+				const float NeedAlong = VeloxBotManeuverRules::GapTakeoffSpeed(Params.LinkLengthCm, TakeoffAt, Params.TakeoffLandInsetCm, Params.GapAirSeconds);
+				if (VeloxBotManeuverRules::ShouldShedTakeoffSpeed(In.AlongSpeedCmS, MaxAlong, NeedAlong))
+				{
+					Out.WishScale = 0.f;
+				}
+			}
 			return Out;
 
 		case EVeloxManeuverType::RocketJump:

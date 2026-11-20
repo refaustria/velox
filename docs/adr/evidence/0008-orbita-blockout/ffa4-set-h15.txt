@@ -1,0 +1,18 @@
+SET runs=10 FAIL(per_run:run 1,run 2,run 10) sum_stuck=0 max_run_stuck=0 bursts=0 pocket=0 dwell_ge6_runs=0 max_dwell=5 wait_max_s=9.2 max_link_dt=3.12 sum_kills=140 min_kills=11 sum_repaths=326 max_run_repaths=37 not_at_goal=1 rules={}
+SET speed strikes: -
+SET band=L_Orbita_Blockout (no BAND_* value) (report-only): sum_kills=140 not judged; the per-run kills / pickups / Mega bands are not judged either
+SET hazard (GATE set sum <= 10 (ADR 0008 5.3)): hazard_touch=19 hazard_death_credited=13 hazard_death_self=6 per bot touch/credited/self: Celer:2/0/2 Fulgur:4/3/1 Rapidus:8/5/3 Ventus:5/5/0 per run self=[0,0,3,0,0,2,0,1,0,0]
+SET invariants (ADR 0006 section 7, every map):
+  left_arena                   0                                            limit 0        PASS
+  world_kill                   0                                            limit 0        PASS
+  no_nav_point                 0                                            limit 0        PASS
+  giveup                       0                                            limit 0        PASS
+  sum_stuck                    0                                            limit <= 5     PASS
+  bursts                       0                                            limit 0        PASS
+  max_dwell_s                  5                                            limit <= 5     PASS
+  nav_build_s                  0.787                                        limit <= 2.0   PASS
+  link_success[Drop]           100.0 % (44/44) aborted=7                    limit >= 90 %  PASS
+  link_success[Jump]           99.0 % (104/105) aborted=25                  limit >= 90 %  PASS
+  link_success[JumpPad]        100.0 % (97/97) aborted=17                   limit >= 90 %  PASS
+  item_coverage                37/37 pickups (19 definitions)               limit all      PASS
+Logs: /mnt/oldroot/velox-scratch/m7-h15/v2/orb

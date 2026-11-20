@@ -344,6 +344,50 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		const TPair<int32, double> Arrive = RunStandoff(
 			[](int32 Tk) { return Tk < 150 ? FVector2D(1000.0 - Tk * (400.0 / 60.0), 0.0) : FVector2D(0.0, FMath::Min(75.0, (Tk - 150) * 0.5)); }, Always, 600);
 		TestTrue(TEXT("06b: arrival then drift -> fires about 3 s after the arrival"), Arrive.Key >= 1 && Arrive.Value >= 5.0 && Arrive.Value <= 5.5);
+		// Task M7 H15 fight dwell rule: the soak's 1 Hz run (positions 1 s apart within 150 cm of the first) at every phase.
+		auto RunDwell = [](TFunctionRef<FVector2D(int32)> PosAt, TFunctionRef<bool(int32)> WatchedAt, int32 Ticks, float Period)
+		{
+			FVeloxStandoffWindow Window;
+			double FirstAt = -1.0;
+			int32 Fires = 0;
+			for (int32 Tick = 0; Tick <= Ticks; ++Tick)
+			{
+				if (VeloxBotRules::UpdateFightDwell(Window, WatchedAt(Tick), PosAt(Tick), Tick / 60.0, 150.f, 3.f, Period))
+				{
+					++Fires;
+					FirstAt = FirstAt < 0.0 ? Tick / 60.0 : FirstAt;
+				}
+			}
+			return TPair<int32, double>(Fires, FirstAt);
+		};
+		// Hub stand-off: strafing +-300 cm around one point, a flip cycle of 1 s: the 06b test never holds, the dwell rule fires at 3 s.
+		auto Hub = [](int32 Tk) { return FVector2D(300.0 * FMath::Sin(2.0 * UE_DOUBLE_PI * Tk / 60.0), 40.0); };
+		TestEqual(TEXT("H15: hub strafe -> 06b stand-off never fires"), RunStandoff(Hub, Always, 400).Key, 0);
+		const TPair<int32, double> HubDwell = RunDwell(Hub, Always, 400, 1.f);
+		TestEqual(TEXT("H15: hub strafe -> dwell fires twice in 6.7 s"), HubDwell.Key, 2);
+		TestTrue(TEXT("H15: ... first at 3.0 s"), FMath::Abs(HubDwell.Value - 3.0) <= 1.0 / 60.0 + 1e-6);
+		TestEqual(TEXT("H15: period 0 turns the dwell rule off"), RunDwell(Hub, Always, 400, 0.f).Key, 0);
+		// Standing still: fires at 3 s as the 06b rule does.
+		const TPair<int32, double> StillDwell = RunDwell([](int32) { return FVector2D(5.0, 5.0); }, Always, 200, 1.f);
+		TestTrue(TEXT("H15: still -> dwell at 3 s"), StillDwell.Key == 1 && FMath::Abs(StillDwell.Value - 3.0) <= 1.0 / 60.0 + 1e-6);
+		// A fight that moves: closing in at 300 cm/s, or circle-strafing at 600 cm/s on a 400 cm radius: never fires.
+		TestEqual(TEXT("H15: closing in -> no dwell"), RunDwell([](int32 Tk) { return FVector2D(Tk * 5.0, 0.0); }, Always, 600, 1.f).Key, 0);
+		TestEqual(TEXT("H15: circle strafe -> no dwell"),
+			RunDwell([](int32 Tk) { return FVector2D(400.0 * FMath::Cos(Tk * 0.025), 400.0 * FMath::Sin(Tk * 0.025)); }, Always, 900, 1.f).Key, 0);
+		// Not watched (goal changes) clears the window.
+		TestEqual(TEXT("H15: not watched clears the dwell window"),
+			RunDwell([](int32) { return FVector2D::ZeroVector; }, [](int32 Tk) { return (Tk % 150) < 120; }, 600, 1.f).Key, 0);
+		// Sampled but not judged (the grace after a Fight goal): no fire, the window is kept, the first judged tick fires.
+		{
+			FVeloxStandoffWindow Window;
+			bool bFired = false;
+			for (int32 Tick = 0; Tick <= 240; ++Tick)
+			{
+				bFired |= VeloxBotRules::UpdateFightDwell(Window, true, FVector2D(5.0, 5.0), Tick / 60.0, 150.f, 3.f, 1.f, 0.1f, Tick >= 240);
+			}
+			TestTrue(TEXT("H15: not judged keeps the window; fires when judged"), bFired && Window.Times.Num() == 0);
+		}
+		TestEqual(TEXT("H15: FightDwellPeriodSeconds 1 (default)"), GetDefault<AVeloxBotController>()->FightDwellPeriodSeconds, 1.f);
 		TestEqual(TEXT("06b: FightStandoffSeconds 3 (ini)"), GetDefault<AVeloxBotController>()->FightStandoffSeconds, 3.f);
 		TestEqual(TEXT("06b: FightStandoffRadiusCm 150 (ini)"), GetDefault<AVeloxBotController>()->FightStandoffRadiusCm, 150.f);
 		TestEqual(TEXT("06b: StuckProgressFlightSlackSeconds 0.15 (ini)"), GetDefault<AVeloxBotController>()->StuckProgressFlightSlackSeconds, 0.15f);
@@ -357,6 +401,10 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("06b: floor item 80 cm above the feet (LG pedestal) -> arrived"), VeloxBotRules::IsAtGoal(FVector(0.0, 1300.0, 2.0), FVector(0.0, 1300.0, 80.0), 80.f, 140.f));
 		TestFalse(TEXT("06b: on the ledge 320 cm above a floor item -> not arrived"), VeloxBotRules::IsAtGoal(FVector(0.0, 0.0, 330.0), FVector(0.0, 0.0, 10.0), 80.f, 140.f));
 		TestFalse(TEXT("06b: 2-D outside the radius -> not arrived"), VeloxBotRules::IsAtGoal(FVector(100.0, 0.0, 0.0), FVector::ZeroVector, 80.f, 140.f));
+		// Task M7 H15: under the item (Sacrarium Armor_Yellow: feet 72, item 320) vs on its level or beside it.
+		TestTrue(TEXT("H15: 248 cm under the item -> under goal"), VeloxBotRules::IsUnderGoal(FVector(989.0, 5.0, 72.0), FVector(1000.0, 0.0, 320.0), 80.f, 140.f));
+		TestFalse(TEXT("H15: on the item's level -> not under"), VeloxBotRules::IsUnderGoal(FVector(989.0, 5.0, 300.0), FVector(1000.0, 0.0, 320.0), 80.f, 140.f));
+		TestFalse(TEXT("H15: beside, 2-D outside -> not under"), VeloxBotRules::IsUnderGoal(FVector(1200.0, 0.0, 72.0), FVector(1000.0, 0.0, 320.0), 80.f, 140.f));
 	}
 
 	// D18 hop headroom: JumpVelocity^2 / (2 |g|) + margin (675 cm/s, -2000 cm/s^2 -> 113.9 + 10).

@@ -261,6 +261,12 @@ public:
 	/** Re-evaluate Bot on its next tick (tests, cheats). */
 	void RequestEvaluation(const AVeloxBotController* Bot);
 
+	/**
+	 * Task M7 H15: the bot stands under (or over) Pickup at its path's end, the item on another level: Pickup is skipped
+	 * for UnreachableRetrySeconds (as a partial path marks it, D24) and Bot re-evaluates on its next tick.
+	 */
+	void MarkUnreachable(const AVeloxBotController* Bot, AVeloxPickup* Pickup);
+
 	/** Totals since the world started (budget line, task 05's VeloxBotBudget can read these). */
 	int64 GetPathQueryCount() const { return TotalPathQueries; }
 	int64 GetEvaluationCount() const { return TotalEvaluations; }

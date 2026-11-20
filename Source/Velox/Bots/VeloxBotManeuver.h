@@ -128,6 +128,13 @@ struct FVeloxManeuverParams
 	 * Start an approach mostly across the link backs up at once (cm/s; UVeloxBotSettings::TakeoffMaxLateralCmS; 0 = off).
 	 */
 	float TakeoffMaxLateralCmS = 0.f;
+	/**
+	 * Jump / JumpFast (task M7 H14): how far the landing zone's nav reaches past End along the link (cm; the follower's nav
+	 * raycast up to UVeloxBotSettings::TakeoffLandProbeCm); < 0 = farther (not short): no take-off speed cap.
+	 */
+	float LandBeyondEndCm = -1.f;
+	/** Jump / JumpFast (task M7 H14): the capped flight lands this far short of that far nav edge (UVeloxBotSettings::TakeoffLandFarInsetCm). */
+	float TakeoffLandFarInsetCm = 40.f;
 	/** JumpFast: AVeloxNavLink::RequiredSpeedCmS. */
 	float RequiredSpeedCmS = 0.f;
 	/** JumpFast: jump only at >= RequiredSpeedCmS x this. */
@@ -221,6 +228,30 @@ namespace VeloxBotManeuverRules
 	inline float GapTakeoffSpeed(float LinkLengthCm, float ProgressCm, float LandInsetCm, float AirSeconds)
 	{
 		return AirSeconds > UE_KINDA_SMALL_NUMBER ? FMath::Max(0.f, LinkLengthCm - ProgressCm - LandInsetCm) / AirSeconds : 0.f;
+	}
+
+	/**
+	 * Task M7 H14: the largest along-link take-off speed (cm/s) whose flight from ProgressCm past Start still lands
+	 * FarInsetCm short of the landing zone's far nav edge (LandBeyondEndCm past End): (LinkLengthCm + LandBeyondEndCm -
+	 * FarInsetCm - ProgressCm) / AirSeconds, at least 1 cm/s. 0 = no cap (LandBeyondEndCm < 0: the zone is not short; no
+	 * flight time).
+	 */
+	inline float GapTakeoffMaxSpeed(float LinkLengthCm, float ProgressCm, float LandBeyondEndCm, float FarInsetCm, float AirSeconds)
+	{
+		if (LandBeyondEndCm < 0.f || AirSeconds <= UE_KINDA_SMALL_NUMBER)
+		{
+			return 0.f;
+		}
+		return FMath::Max(1.f, (LinkLengthCm + LandBeyondEndCm - FarInsetCm - ProgressCm) / AirSeconds);
+	}
+
+	/**
+	 * Task M7 H14: shed speed (coast) only when the cap is above the speed the flight needs (GapTakeoffSpeed): a zone too
+	 * short for both is left to the H11 rules.
+	 */
+	inline bool ShouldShedTakeoffSpeed(float AlongSpeedCmS, float MaxAlongCmS, float NeedAlongCmS)
+	{
+		return MaxAlongCmS > 0.f && MaxAlongCmS > NeedAlongCmS && AlongSpeedCmS > MaxAlongCmS;
 	}
 
 	/**
