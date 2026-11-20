@@ -37,3 +37,25 @@ as task 38 did for Fornax; or a B6 ruling that minor health at 3 bots on a 46-it
 
 **Links.** JUMP_FAST (6 links) and ROCKET_JUMP RJ1-RJ4: 0 attempts in every set, as in the first run. Rail share on the Trench lane:
 1/7 kills (3 bots), 11/31 = 35.5 % (6 bots).
+
+## Item iteration 19b (run3, 2026-11-20, items only)
+
+`T_H5_1..3` (1400/1800/2200, 1600) -> (2500/2800/3100, 1650), `H50_E` (3600, 2000) -> (3000, 1850); no geometry change, golden unchanged
+(byte-identical rewrite). Raw logs `/mnt/oldroot/velox-scratch/m7-culmen/run3/`. The set files in this directory (ffa*-set / -links, dwell, botrun-set,
+navlint, fts, padlandings, culmenrun) are now the run3 data; run2 data is in git history (4c2ad11).
+
+| Gate | Result |
+|---|---|
+| validate-only, golden, dm1 golden check | PASS (62 solids, 46 items, 10 spawns, 42 links) |
+| navlint | PASS clusters 0 (edge 0) lowclear 0 |
+| FtMapReachability | PASS checks=7 failed=0 |
+| CulmenRun 100 ms / 2 % | PASS 3/3, C=0 |
+| FFA x10 at 3 | **FAIL item_coverage 43/46**; other invariants PASS (stuck 1, dwell 3, Drop 100 %, JumpPad 98.9 %) |
+| FFA x10 at 6 | all invariants PASS, coverage 46/46 (stuck 0, dwell 3) |
+| FFA x10 at 8 (report) | all invariants PASS, coverage 46/46 (stuck 3, dwell 4) |
+| BotRun x3 | set behaviour PASS, cost not judged (round 3 slow, D47 d); allunreachable air/ground 0 in all rounds |
+| Haste / H50_E / H50_W (of 10) | 3 bots 10 / 1 / 2; 6 bots 10 / 4 / 5; 8 bots 10 / 5 / 8 |
+
+Untaken at 3 bots: `T_H5_2` (2800, 1650) east Trench, `NW_Shard_4` (-3550, -300, 640) NW roof, `H25_7` (0, -400, 320) Spire deck.
+The east-Trench part improved (H50_E and T_H5_1/3 now taken, only T_H5_2 missed) but different, untouched items dropped out: the 3-bot miss set
+moves from set to set (first run H50_E/T_H5_1..3, run2 same, run3 above), i.e. coverage at 3 bots is statistical at 46 items.

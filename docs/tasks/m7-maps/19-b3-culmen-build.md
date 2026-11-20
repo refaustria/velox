@@ -67,3 +67,10 @@ Evidence `docs/adr/evidence/0008-culmen-blockout/README.md` (first-run files mov
   Extra gate: Haste 10/10 in every set; H50_E 0/10 at 3 bots, 5/10 at 6, 3/10 at 8; H50_W 2/6/8 of 10.
 - Escalation (rule, iteration budget spent): item iteration T_H5 row onto the Drop_TE_Trench landing -> P11 line and H50_E nearer P11
   (as task 38 for Fornax), then re-run FFA x10 at 3 (+ at 6 to keep coverage); or a B6 ruling on minor health coverage at 3 bots.
+
+### 19b item iteration (dev, 2026-11-20, branch `m7-19b-culmen-items` -> `wip/m7-19-b3-culmen`, engine 5.8.4)
+Item positions only: `T_H5_1..3` onto (2500/2800/3100, 1650), `H50_E` (3000, 1850). Evidence `docs/adr/evidence/0008-culmen-blockout/README.md` (19b section), raw run3/.
+- PASS: validate-only, golden (unchanged), dm1 golden, navlint (clusters 0, lowclear 0), FtMapReachability 7/7, CulmenRun 3/3 C=0, FFA x10 at 6 (46/46) and at 8 (46/46), BotRun x3 behaviour.
+- FAIL: FFA x10 at 3 item_coverage 43/46, untaken T_H5_2 (2800, 1650), NW_Shard_4 (-3550, -300, 640), H25_7 (0, -400, 320); all other invariants PASS. Budget (one item iteration) spent: reported for escalation (or a ruling that coverage at 3 bots is judged at 6).
+- Haste 10/10 in all sets; H50_E 1/4/5 and H50_W 2/5/8 of 10 at 3/6/8 bots.
+

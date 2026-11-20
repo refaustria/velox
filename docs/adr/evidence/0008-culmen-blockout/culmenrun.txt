@@ -1,52 +1,52 @@
-CulmenRun          moves=3929  C=0   echoes=0   gaps=4   repaired=54  repaired_extra=16  resent=2019  resent_extra=2019 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=78.6 pads=['VeloxJumpPad_2', 'VeloxJumpPad_3', 'VeloxJumpPad_4', 'VeloxJumpPad_5', 'VeloxJumpPad_6', 'VeloxJumpPad_7', 'VeloxJumpPad_9'] replays=5 acks_ignored=0 rpcs=2032  VeloxAnomaly at=logout pid=256 shots=0(+0) switches=1(+1) rejects{} snaps=0(+0) clamps=0(+0) late_retargets=0(+0) fresh_retargets=0(+0) orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00 reject_share=0.00 rtt_ms=234 player=Player
-CulmenRun          moves=3928  C=0   echoes=0   gaps=5   repaired=47  repaired_extra=17  resent=2017  resent_extra=2017 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=78.6 pads=['VeloxJumpPad_2', 'VeloxJumpPad_3', 'VeloxJumpPad_4', 'VeloxJumpPad_5', 'VeloxJumpPad_6', 'VeloxJumpPad_7', 'VeloxJumpPad_9'] replays=4 acks_ignored=0 rpcs=2030  VeloxAnomaly at=logout pid=256 shots=0(+0) switches=1(+1) rejects{} snaps=0(+0) clamps=0(+0) late_retargets=0(+0) fresh_retargets=0(+0) orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00 reject_share=0.00 rtt_ms=238 player=Player
-CulmenRun          moves=3928  C=0   echoes=0   gaps=5   repaired=49  repaired_extra=18  resent=2014  resent_extra=2007 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=78.6 pads=['VeloxJumpPad_2', 'VeloxJumpPad_3', 'VeloxJumpPad_4', 'VeloxJumpPad_5', 'VeloxJumpPad_6', 'VeloxJumpPad_7', 'VeloxJumpPad_9'] replays=4 acks_ignored=0 rpcs=2029  VeloxAnomaly at=logout pid=256 shots=0(+0) switches=1(+1) rejects{} snaps=0(+0) clamps=0(+0) late_retargets=0(+0) fresh_retargets=0(+0) orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00 reject_share=0.00 rtt_ms=238 player=Player
+CulmenRun          moves=3927  C=1   echoes=2   gaps=4   repaired=35  repaired_extra=12  resent=2014  resent_extra=2001 strays_le_2_5=1  max=1.81   mean=1.81  PASS  Lexp=78.5 pads=['VeloxJumpPad_13', 'VeloxJumpPad_14', 'VeloxJumpPad_15', 'VeloxJumpPad_16', 'VeloxJumpPad_17', 'VeloxJumpPad_18', 'VeloxJumpPad_20'] replays=8 acks_ignored=1 rpcs=2028  VeloxAnomaly at=logout pid=256 shots=0(+0) switches=1(+1) rejects{} snaps=0(+0) clamps=0(+0) late_retargets=0(+0) fresh_retargets=0(+0) orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00 reject_share=0.00 rtt_ms=238 player=Player
+CulmenRun          moves=3929  C=1   echoes=2   gaps=2   repaired=40  repaired_extra=16  resent=2016  resent_extra=2008 strays_le_2_5=1  max=2.15   mean=2.15  PASS  Lexp=78.6 pads=['VeloxJumpPad_13', 'VeloxJumpPad_14', 'VeloxJumpPad_15', 'VeloxJumpPad_16', 'VeloxJumpPad_17', 'VeloxJumpPad_18', 'VeloxJumpPad_20'] replays=8 acks_ignored=0 rpcs=2029  VeloxAnomaly at=logout pid=256 shots=0(+0) switches=1(+1) rejects{} snaps=0(+0) clamps=0(+0) late_retargets=0(+0) fresh_retargets=0(+0) orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00 reject_share=0.00 rtt_ms=235 player=Player
+CulmenRun          moves=3919  C=0   echoes=0   gaps=8   repaired=31  repaired_extra=10  resent=2013  resent_extra=1995 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=78.4 pads=['VeloxJumpPad_13', 'VeloxJumpPad_14', 'VeloxJumpPad_15', 'VeloxJumpPad_16', 'VeloxJumpPad_17', 'VeloxJumpPad_18', 'VeloxJumpPad_20'] replays=5 acks_ignored=0 rpcs=2027  VeloxAnomaly at=logout pid=256 shots=0(+0) switches=1(+1) rejects{} snaps=0(+0) clamps=0(+0) late_retargets=0(+0) fresh_retargets=0(+0) orphans=0(+0) rpc_refused=0(+0) discrepancies=0(+0) late_share=0.00 reject_share=0.00 rtt_ms=231 player=Player
 Rounds passed: 3/3 (requested 3)
-VeloxJumpPad: pad=VeloxJumpPad_6 role=autonomous t=2.336 ts=1.825831 src=live applied=1 launch=V(X=-777.23, Z=1296.92)
-VeloxScript: check 'car roof (P7)' PASS st=5.800 pos=V(X=422.49, Y=2000.00, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_7 role=autonomous t=5.112 ts=4.601643 src=live applied=1 launch=V(X=-1326.19, Y=-612.09, Z=1470.37)
-VeloxScript: check 'Terrace W (P8)' PASS st=12.300 pos=V(X=-2223.71, Y=1097.12, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_4 role=autonomous t=12.663 ts=12.152245 src=live applied=1 launch=V(X=1535.01, Y=-127.87, Z=1357.65)
-VeloxScript: check 'Spire NW (P5)' PASS st=23.150 pos=V(X=-430.77, Y=309.57, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_3 role=autonomous t=15.889 ts=15.378028 src=live applied=1 launch=V(X=2180.44, Y=85.89, Z=1443.75)
-VeloxScript: check 'East Roof (P4)' PASS st=29.650 pos=V(X=2830.96, Y=391.66, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_5 role=autonomous t=20.172 ts=19.661604 src=live applied=1 launch=V(X=-1535.01, Y=127.87, Z=1357.65)
-VeloxScript: check 'Spire SE (P6)' PASS st=37.600 pos=V(X=339.59, Y=-278.67, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_2 role=autonomous t=23.289 ts=22.778412 src=live applied=1 launch=V(X=-2180.44, Y=-85.89, Z=1443.75)
-VeloxScript: check 'West Roof (P3)' PASS st=44.100 pos=V(X=-2827.59, Y=-438.12, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxScript: check 'west pocket (two walk-offs)' PASS st=50.401 pos=V(X=-3762.40, Y=-2362.40, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_9 role=autonomous t=32.007 ts=31.495541 src=live applied=1 launch=V(X=196.59, Y=591.24, Z=1363.23)
-VeloxScript: check 'End Terrace SW (P10)' PASS st=56.700 pos=V(X=-3234.97, Y=-1100.05, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxNetSoak: script=CulmenRun moves=3929 corrections=0 max=0.00 mean=0.00 checks=8/8 peak2d=2182.1 peak_t=15.897 result=PASS reason=-
-VeloxJumpPad: pad=VeloxJumpPad_6 role=autonomous t=2.663 ts=1.811721 src=live applied=1 launch=V(X=-777.23, Z=1296.92)
-VeloxScript: check 'car roof (P7)' PASS st=5.800 pos=V(X=421.98, Y=2000.00, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_7 role=autonomous t=5.434 ts=4.583107 src=live applied=1 launch=V(X=-1326.19, Y=-612.09, Z=1470.37)
-VeloxScript: check 'Terrace W (P8)' PASS st=12.300 pos=V(X=-2221.35, Y=1096.81, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_4 role=autonomous t=12.987 ts=12.136344 src=live applied=1 launch=V(X=1535.01, Y=-127.87, Z=1357.65)
-VeloxScript: check 'Spire NW (P5)' PASS st=23.150 pos=V(X=-430.75, Y=309.24, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_3 role=autonomous t=16.213 ts=15.361617 src=live applied=1 launch=V(X=2180.44, Y=85.89, Z=1443.75)
-VeloxScript: check 'East Roof (P4)' PASS st=29.650 pos=V(X=2830.81, Y=391.33, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_5 role=autonomous t=20.498 ts=19.646551 src=live applied=1 launch=V(X=-1535.01, Y=127.87, Z=1357.65)
-VeloxScript: check 'Spire SE (P6)' PASS st=37.600 pos=V(X=339.45, Y=-279.02, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_2 role=autonomous t=23.615 ts=22.763378 src=live applied=1 launch=V(X=-2180.44, Y=-85.89, Z=1443.75)
-VeloxScript: check 'West Roof (P3)' PASS st=44.100 pos=V(X=-2827.89, Y=-438.49, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_17 role=autonomous t=2.515 ts=1.750963 src=live applied=1 launch=V(X=-777.23, Z=1296.92)
+VeloxScript: check 'car roof (P7)' PASS st=5.800 pos=V(X=428.99, Y=2000.00, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_18 role=autonomous t=5.296 ts=4.531987 src=live applied=1 launch=V(X=-1326.19, Y=-612.09, Z=1470.37)
+VeloxScript: check 'Terrace W (P8)' PASS st=12.300 pos=V(X=-2220.35, Y=1097.13, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_15 role=autonomous t=12.850 ts=12.086480 src=live applied=1 launch=V(X=1535.01, Y=-127.87, Z=1357.65)
+VeloxScript: check 'Spire NW (P5)' PASS st=23.150 pos=V(X=-427.05, Y=309.53, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_14 role=autonomous t=16.068 ts=15.303813 src=live applied=1 launch=V(X=2180.44, Y=85.89, Z=1443.75)
+VeloxScript: check 'East Roof (P4)' PASS st=29.650 pos=V(X=2830.50, Y=391.80, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_16 role=autonomous t=20.353 ts=19.588930 src=live applied=1 launch=V(X=-1535.01, Y=127.87, Z=1357.65)
+VeloxScript: check 'Spire SE (P6)' PASS st=37.600 pos=V(X=335.87, Y=-278.64, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_13 role=autonomous t=23.462 ts=22.697428 src=live applied=1 launch=V(X=-2180.44, Y=-85.89, Z=1443.75)
+VeloxScript: check 'West Roof (P3)' PASS st=44.100 pos=V(X=-2824.91, Y=-436.79, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
 VeloxScript: check 'west pocket (two walk-offs)' PASS st=50.402 pos=V(X=-3762.40, Y=-2362.40, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_9 role=autonomous t=32.332 ts=31.480694 src=live applied=1 launch=V(X=196.59, Y=591.24, Z=1363.23)
-VeloxScript: check 'End Terrace SW (P10)' PASS st=56.700 pos=V(X=-3234.97, Y=-1100.05, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxNetSoak: script=CulmenRun moves=3928 corrections=0 max=0.00 mean=0.00 checks=8/8 peak2d=2182.1 peak_t=16.221 result=PASS reason=-
-VeloxJumpPad: pad=VeloxJumpPad_6 role=autonomous t=2.565 ts=1.796349 src=live applied=1 launch=V(X=-777.23, Z=1296.92)
-VeloxScript: check 'car roof (P7)' PASS st=5.800 pos=V(X=422.06, Y=2000.00, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_7 role=autonomous t=5.337 ts=4.568714 src=live applied=1 launch=V(X=-1326.19, Y=-612.09, Z=1470.37)
-VeloxScript: check 'Terrace W (P8)' PASS st=12.300 pos=V(X=-2221.34, Y=1097.13, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_4 role=autonomous t=12.891 ts=12.122486 src=live applied=1 launch=V(X=1535.01, Y=-127.87, Z=1357.65)
-VeloxScript: check 'Spire NW (P5)' PASS st=23.150 pos=V(X=-430.80, Y=309.59, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_3 role=autonomous t=16.116 ts=15.347773 src=live applied=1 launch=V(X=2180.44, Y=85.89, Z=1443.75)
-VeloxScript: check 'East Roof (P4)' PASS st=29.650 pos=V(X=2830.69, Y=391.67, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_5 role=autonomous t=20.400 ts=19.631300 src=live applied=1 launch=V(X=-1535.01, Y=127.87, Z=1357.65)
-VeloxScript: check 'Spire SE (P6)' PASS st=37.600 pos=V(X=339.51, Y=-278.67, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_2 role=autonomous t=23.517 ts=22.748060 src=live applied=1 launch=V(X=-2180.44, Y=-85.89, Z=1443.75)
-VeloxScript: check 'West Roof (P3)' PASS st=44.100 pos=V(X=-2827.72, Y=-438.12, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxScript: check 'west pocket (two walk-offs)' PASS st=50.401 pos=V(X=-3762.40, Y=-2362.40, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxJumpPad: pad=VeloxJumpPad_9 role=autonomous t=32.234 ts=31.465021 src=live applied=1 launch=V(X=196.59, Y=591.24, Z=1363.23)
-VeloxScript: check 'End Terrace SW (P10)' PASS st=56.700 pos=V(X=-3234.98, Y=-1100.08, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
-VeloxNetSoak: script=CulmenRun moves=3928 corrections=0 max=0.00 mean=0.00 checks=8/8 peak2d=2182.1 peak_t=16.125 result=PASS reason=-
+VeloxJumpPad: pad=VeloxJumpPad_20 role=autonomous t=32.180 ts=31.415596 src=live applied=1 launch=V(X=196.59, Y=591.24, Z=1363.23)
+VeloxScript: check 'End Terrace SW (P10)' PASS st=56.700 pos=V(X=-3234.97, Y=-1100.06, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxNetSoak: script=CulmenRun moves=3927 corrections=3 max=1.81 mean=0.60 checks=8/8 peak2d=2182.1 peak_t=16.076 result=PASS reason=-
+VeloxJumpPad: pad=VeloxJumpPad_17 role=autonomous t=2.241 ts=1.750125 src=live applied=1 launch=V(X=-777.23, Z=1296.92)
+VeloxScript: check 'car roof (P7)' PASS st=5.800 pos=V(X=422.48, Y=2000.00, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_18 role=autonomous t=5.016 ts=4.525385 src=live applied=1 launch=V(X=-1326.19, Y=-612.09, Z=1470.37)
+VeloxScript: check 'Terrace W (P8)' PASS st=12.300 pos=V(X=-2223.19, Y=1097.13, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_15 role=autonomous t=12.567 ts=12.075992 src=live applied=1 launch=V(X=1535.01, Y=-127.87, Z=1357.65)
+VeloxScript: check 'Spire NW (P5)' PASS st=23.150 pos=V(X=-430.73, Y=309.59, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_14 role=autonomous t=15.792 ts=15.301261 src=live applied=1 launch=V(X=2180.44, Y=85.89, Z=1443.75)
+VeloxScript: check 'East Roof (P4)' PASS st=29.650 pos=V(X=2830.81, Y=391.68, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_16 role=autonomous t=20.076 ts=19.584887 src=live applied=1 launch=V(X=-1535.01, Y=127.87, Z=1357.65)
+VeloxScript: check 'Spire SE (P6)' PASS st=37.600 pos=V(X=339.47, Y=-278.68, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_13 role=autonomous t=23.193 ts=22.701687 src=live applied=1 launch=V(X=-2180.44, Y=-85.89, Z=1443.75)
+VeloxScript: check 'West Roof (P3)' PASS st=44.100 pos=V(X=-2827.73, Y=-438.14, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxScript: check 'west pocket (two walk-offs)' PASS st=50.402 pos=V(X=-3762.40, Y=-2362.45, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_20 role=autonomous t=31.911 ts=31.419355 src=live applied=1 launch=V(X=196.59, Y=591.24, Z=1363.23)
+VeloxScript: check 'End Terrace SW (P10)' PASS st=56.700 pos=V(X=-3234.98, Y=-1100.12, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxNetSoak: script=CulmenRun moves=3929 corrections=3 max=2.15 mean=0.72 checks=8/8 peak2d=2182.1 peak_t=15.800 result=PASS reason=-
+VeloxJumpPad: pad=VeloxJumpPad_17 role=autonomous t=2.640 ts=1.785339 src=live applied=1 launch=V(X=-777.23, Z=1296.92)
+VeloxScript: check 'car roof (P7)' PASS st=5.800 pos=V(X=422.50, Y=2000.00, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_18 role=autonomous t=5.417 ts=4.562803 src=live applied=1 launch=V(X=-1326.19, Y=-612.09, Z=1470.37)
+VeloxScript: check 'Terrace W (P8)' PASS st=12.300 pos=V(X=-2225.41, Y=1096.94, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_15 role=autonomous t=12.972 ts=12.117156 src=live applied=1 launch=V(X=1535.01, Y=-127.87, Z=1357.65)
+VeloxScript: check 'Spire NW (P5)' PASS st=23.150 pos=V(X=-430.70, Y=309.60, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_14 role=autonomous t=16.197 ts=15.342454 src=live applied=1 launch=V(X=2180.44, Y=85.89, Z=1443.75)
+VeloxScript: check 'East Roof (P4)' PASS st=29.650 pos=V(X=2830.77, Y=391.69, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_16 role=autonomous t=20.481 ts=19.626112 src=live applied=1 launch=V(X=-1535.01, Y=127.87, Z=1357.65)
+VeloxScript: check 'Spire SE (P6)' PASS st=37.600 pos=V(X=334.28, Y=-278.25, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_13 role=autonomous t=23.601 ts=22.746481 src=live applied=1 launch=V(X=-2180.44, Y=-85.89, Z=1443.75)
+VeloxScript: check 'West Roof (P3)' PASS st=44.100 pos=V(X=-2828.91, Y=-438.17, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxScript: check 'west pocket (two walk-offs)' PASS st=50.403 pos=V(X=-3762.40, Y=-2362.40, Z=72.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxJumpPad: pad=VeloxJumpPad_20 role=autonomous t=32.320 ts=31.465569 src=live applied=1 launch=V(X=196.59, Y=591.24, Z=1363.23)
+VeloxScript: check 'End Terrace SW (P10)' PASS st=56.700 pos=V(X=-3234.41, Y=-1098.39, Z=392.15) onGround=1 crouched=0 half_height=70.00 eye=55.00
+VeloxNetSoak: script=CulmenRun moves=3919 corrections=0 max=0.00 mean=0.00 checks=8/8 peak2d=2182.1 peak_t=16.205 result=PASS reason=-

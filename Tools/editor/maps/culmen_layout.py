@@ -173,6 +173,8 @@ def ramp_z(r, x, y):
 _RNW, _RSE = RAMPS[0], RAMPS[1]
 # B3 item iteration (FFA x10 at 3: never taken): NW_Shard_2..4 off the NW roof ramp onto the P1 landing -> RA line (west of Bill_W);
 # T_H5_4 (2600, 1600) -> (2000, 1600), next to the Drop_TE_Trench landing. The SE shards stay on their ramp (taken).
+# B3b item iteration (FFA x10 at 3: 43/46, east Trench health never taken): T_H5_1..3 onto the Drop_TE_Trench landing (2300, 1650) -> P11 (3400, 1650)
+# line (x 2500 / 2800 / 3100, y 1650), H50_E (3600, 2000) -> (3000, 1850) beside it. Items only, no geometry.
 ITEMS = [
     _it("RA", "Armor.Red", -3300, -350, 640),
     _it("MH", "Health.Mega", 3300, 350, 640),
@@ -196,7 +198,7 @@ ITEMS = [
     _it("ShellsAmmo_W", "Ammo.Shells", -3400, 2000),
     _it("BulletsAmmo", "Ammo.Bullets", 1500, 900),
     _it("H50_W", "Health.Large", -3400, -2100),
-    _it("H50_E", "Health.Large", 3600, 2000),
+    _it("H50_E", "Health.Large", 3000, 1850),
     _it("H25_1", "Health.Medium", -1300, 400),
     _it("H25_2", "Health.Medium", 1300, -400),
     _it("H25_3", "Health.Medium", -3000, 1600),
@@ -204,7 +206,7 @@ ITEMS = [
     _it("H25_5", "Health.Medium", -2300, -600, 320),
     _it("H25_6", "Health.Medium", 2300, 600, 320),
     _it("H25_7", "Health.Medium", 0, -400, 320),
-] + [_it(f"T_H5_{i + 1}", "Health.Small", x, 1600) for i, x in enumerate((1400, 1800, 2200, 2000))] \
+] + [_it(f"T_H5_{i + 1}", "Health.Small", x, 1650) for i, x in enumerate((2500, 2800, 3100, 2000))] \
   + [_it(f"C_H5_{i + 1}", "Health.Small", x, -1650) for i, x in enumerate((300, 500, 700, 900))] \
   + [_it("NW_Shard_1", "Armor.Shard", -2800, 1100, ramp_z(_RNW, -2800, 1100))] \
   + [_it(f"NW_Shard_{i + 2}", "Armor.Shard", x, y, 640) for i, (x, y) in enumerate(((-3650, 600), (-3700, 0), (-3550, -300)))] \
