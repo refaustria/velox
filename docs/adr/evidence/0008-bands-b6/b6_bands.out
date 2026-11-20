@@ -1,0 +1,162 @@
+ADR 0008 G1/G2 band derivation (task 22, B6). P(false FAIL) is under the Poisson / binomial model at the chosen band.
+
+== Sacrarium FFA x10 at 6 bots (A = final layout b35c294, H15; B = A + pre-31 layout H15 x2)
+   basis A: 10 runs, kills mean 23.60, pickups 105-122, mega 4-4
+  FFA_KILLS_MIN (sum/10)     A    band  206   P(false FAIL)  2.17 %   ref  236.000 
+  FFA_RUN_KILLS_MIN          A    band   11   P(false FAIL)  1.37 %   ref   23.600 
+  FFA_RUN_PICKUPS_MIN        A    band   86   P(false FAIL)  2.05 %   ref  115.000 
+  FFA_RUN_MEGA_MIN           A    band    2   P(false FAIL)  0.96 %   ref    0.937 
+   basis B: 30 runs, kills mean 23.70, pickups 105-122, mega 4-4
+  FFA_KILLS_MIN (sum/10)     B    band  207   P(false FAIL)  2.19 %   ref  237.000 
+  FFA_RUN_KILLS_MIN          B    band   11   P(false FAIL)  1.29 %   ref   23.700 
+  FFA_RUN_PICKUPS_MIN        B    band   86   P(false FAIL)  2.17 %   ref  114.800 
+  FFA_RUN_MEGA_MIN           B    band    2   P(false FAIL)  0.04 %   ref    0.978 
+   (no basis A at 3 bots; candidate from H10 bots only)
+   basis B: 10 runs, kills mean 5.50, pickups 59-76, mega 4-4
+  FFA_KILLS_MIN (sum/10)     B    band   41   P(false FAIL)  2.13 %   ref   55.000 
+  FFA_RUN_KILLS_MIN          B    band    0   P(false FAIL)  0.00 %   ref    5.500 
+  FFA_RUN_PICKUPS_MIN        B    band   44   P(false FAIL)  2.15 %   ref   65.300 
+  FFA_RUN_MEGA_MIN           B    band    2   P(false FAIL)  0.96 %   ref    0.937 
+   Sacrarium BotRun: no basis A (b1b/b1c/h9 are H9-H10 bots on older layouts) -> report-only
+
+== Nemus FFA x10 at 3 (no basis A: H13 bots only; candidates)
+   basis B: 20 runs, kills mean 7.00, pickups 46-68, mega 2-4
+  FFA_KILLS_MIN (sum/10)     B    band   54   P(false FAIL)  2.08 %   ref   70.000 
+  FFA_RUN_KILLS_MIN          B    band    1   P(false FAIL)  0.91 %   ref    7.000 
+  FFA_RUN_PICKUPS_MIN        B    band   39   P(false FAIL)  2.19 %   ref   59.150 
+  FFA_RUN_MEGA_MIN           B    band    0   P(false FAIL)  0.00 %   ref    0.676 
+== Nemus FFA x10 at 6 (candidates)
+   basis B: 10 runs, kills mean 23.30, pickups 102-117, mega 3-4
+  FFA_KILLS_MIN (sum/10)     B    band  204   P(false FAIL)  2.47 %   ref  233.000 
+  FFA_RUN_KILLS_MIN          B    band   11   P(false FAIL)  1.64 %   ref   23.300 
+  FFA_RUN_PICKUPS_MIN        B    band   82   P(false FAIL)  2.28 %   ref  110.000 
+  FFA_RUN_MEGA_MIN           B    band    1   P(false FAIL)  1.75 %   ref    0.795 
+== Nemus BotRun x3 (candidates, H13)
+   basis B: 3 rounds, kills [6, 8, 10], pickups [54, 52, 50], mega [3, 3, 1], links [14, 20, 21]
+  ROUND_KILLS_MIN            B    band    2   P(false FAIL)  0.90 %   ref    8.000 
+  BOTRUN_PICKUPS_MIN         B    band   36   P(false FAIL)  2.41 %   ref   52.000 
+  BOTRUN_LINK_OK_MIN         B    band    9   P(false FAIL)  1.73 %   ref   18.333 
+  BOTRUN_MEGA_REQUIRED (>=1) B    band    0   P(false FAIL)  0.00 %   ref    0.356 (binomial, up to 4 takes per round observed)
+  BOTRUN_KILLS_MIN (sum/3)   B    band   15   P(false FAIL)  1.98 %   ref   24.000 
+
+== Culmen FFA x10 at 3 (A = run3 final 111166b; B = A + run2 items-only)
+   basis A: 10 runs, kills mean 5.70, pickups 62-71, mega 3-4
+  FFA_KILLS_MIN (sum/10)     A    band   43   P(false FAIL)  2.34 %   ref   57.000 
+  FFA_RUN_KILLS_MIN          A    band    0   P(false FAIL)  0.00 %   ref    5.700 
+  FFA_RUN_PICKUPS_MIN        A    band   45   P(false FAIL)  2.01 %   ref   66.700 
+  FFA_RUN_MEGA_MIN           A    band    1   P(false FAIL)  0.12 %   ref    0.895 
+   basis B: 20 runs, kills mean 5.75, pickups 58-76, mega 3-4
+  FFA_KILLS_MIN (sum/10)     B    band   43   P(false FAIL)  2.01 %   ref   57.500 
+  FFA_RUN_KILLS_MIN          B    band    0   P(false FAIL)  0.00 %   ref    5.750 
+  FFA_RUN_PICKUPS_MIN        B    band   44   P(false FAIL)  1.86 %   ref   65.700 
+  FFA_RUN_MEGA_MIN           B    band    1   P(false FAIL)  0.23 %   ref    0.877 
+== Culmen FFA x10 at 6
+   basis A: 10 runs, kills mean 21.30, pickups 98-117, mega 3-4
+  FFA_KILLS_MIN (sum/10)     A    band  185   P(false FAIL)  2.34 %   ref  213.000 
+  FFA_RUN_KILLS_MIN          A    band   10   P(false FAIL)  2.28 %   ref   21.300 
+  FFA_RUN_PICKUPS_MIN        A    band   82   P(false FAIL)  2.48 %   ref  109.700 
+  FFA_RUN_MEGA_MIN           A    band    1   P(false FAIL)  0.12 %   ref    0.895 
+   basis B: 20 runs, kills mean 21.00, pickups 98-120, mega 3-4
+  FFA_KILLS_MIN (sum/10)     B    band  182   P(false FAIL)  2.26 %   ref  210.000 
+  FFA_RUN_KILLS_MIN          B    band    9   P(false FAIL)  1.10 %   ref   21.000 
+  FFA_RUN_PICKUPS_MIN        B    band   82   P(false FAIL)  1.90 %   ref  110.650 
+  FFA_RUN_MEGA_MIN           B    band    2   P(false FAIL)  0.61 %   ref    0.946 
+== Culmen FFA x10 at 8 (ADR 0008 5.3: report-only; printed for the record)
+   basis A: 10 runs, kills mean 35.50, pickups 119-145, mega 3-4
+  FFA_KILLS_MIN (sum/10)     A    band  319   P(false FAIL)  2.48 %   ref  355.000 
+  FFA_RUN_KILLS_MIN          A    band   20   P(false FAIL)  1.81 %   ref   35.500 
+  FFA_RUN_PICKUPS_MIN        A    band  105   P(false FAIL)  1.95 %   ref  137.000 
+  FFA_RUN_MEGA_MIN           A    band    1   P(false FAIL)  0.12 %   ref    0.895 
+   basis B: 20 runs, kills mean 35.25, pickups 119-145, mega 3-4
+  FFA_KILLS_MIN (sum/10)     B    band  316   P(false FAIL)  2.29 %   ref  352.500 
+  FFA_RUN_KILLS_MIN          B    band   20   P(false FAIL)  2.04 %   ref   35.250 
+  FFA_RUN_PICKUPS_MIN        B    band  106   P(false FAIL)  2.26 %   ref  137.550 
+  FFA_RUN_MEGA_MIN           B    band    2   P(false FAIL)  0.61 %   ref    0.946 
+== Culmen BotRun x3
+   basis A: 3 rounds, kills [6, 7, 5], pickups [66, 54, 61], mega [3, 4, 3], links [18, 25, 26]
+  ROUND_KILLS_MIN            A    band    1   P(false FAIL)  0.74 %   ref    6.000 
+  BOTRUN_PICKUPS_MIN         A    band   43   P(false FAIL)  2.42 %   ref   60.333 
+  BOTRUN_LINK_OK_MIN         A    band   12   P(false FAIL)  1.32 %   ref   23.000 
+  BOTRUN_MEGA_REQUIRED (>=1) A    band    0   P(false FAIL)  0.00 %   ref    0.601 (binomial, up to 4 takes per round observed)
+  BOTRUN_KILLS_MIN (sum/3)   A    band   10   P(false FAIL)  1.54 %   ref   18.000 
+   basis B: 6 rounds, kills [6, 7, 5, 8, 7, 8], pickups [66, 54, 61, 49, 49, 67], mega [3, 4, 3, 3, 3, 3], links [18, 25, 26, 26, 18, 22]
+  ROUND_KILLS_MIN            B    band    1   P(false FAIL)  0.32 %   ref    6.833 
+  BOTRUN_PICKUPS_MIN         B    band   40   P(false FAIL)  1.78 %   ref   57.667 
+  BOTRUN_LINK_OK_MIN         B    band   12   P(false FAIL)  1.74 %   ref   22.500 
+  BOTRUN_MEGA_REQUIRED (>=1) B    band    0   P(false FAIL)  0.00 %   ref    0.630 (binomial, up to 4 takes per round observed)
+  BOTRUN_KILLS_MIN (sum/3)   B    band   12   P(false FAIL)  1.67 %   ref   20.500 
+
+== Fornax FFA x10 at 3 (A = 38 ffa-b final d19266d; B = A + 38 ffa-a + H15 v2 + fix, pre-38 items)
+   basis A: 10 runs, kills mean 14.10, pickups 75-90, mega 4-4
+  FFA_KILLS_MIN (sum/10)     A    band  118   P(false FAIL)  2.15 %   ref  141.000 
+  FFA_RUN_KILLS_MIN          A    band    5   P(false FAIL)  1.66 %   ref   14.100 
+  FFA_RUN_PICKUPS_MIN        A    band   60   P(false FAIL)  1.76 %   ref   85.100 
+  FFA_RUN_MEGA_MIN           A    band    2   P(false FAIL)  0.96 %   ref    0.937 
+   basis B: 40 runs, kills mean 15.05, pickups 68-90, mega 4-4
+  FFA_KILLS_MIN (sum/10)     B    band  127   P(false FAIL)  2.29 %   ref  150.500 
+  FFA_RUN_KILLS_MIN          B    band    5   P(false FAIL)  0.82 %   ref   15.050 
+  FFA_RUN_PICKUPS_MIN        B    band   57   P(false FAIL)  2.33 %   ref   80.675 
+  FFA_RUN_MEGA_MIN           B    band    3   P(false FAIL)  1.61 %   ref    0.983 
+== Fornax BotDuel x3 (A = m7-38 H15 final; B = A + B4, b4b, h9 pre-H15)
+   basis A: frags [12, 11, 16], camp [6, 8, 6], returns <=3 s 6/7, <=10 s 7/7
+  ROUND_KILLS_MIN (frags)    A    band    5   P(false FAIL)  1.12 %   ref   13.000 
+  BOTDUEL_FRAGS_MIN (sum/3)  A    band   27   P(false FAIL)  1.80 %   ref   39.000 
+  BOTDUEL_CAMP_MIN (sum/3)   A    band   12   P(false FAIL)  2.14 %   ref   20.000 
+  MEGA_WITHIN3_MIN           A    band    1   P(false FAIL)  0.86 %   ref    0.548 (N = 6 timed returns per set)
+  MEGA_WITHIN10_MIN          A    band    2   P(false FAIL)  0.78 %   ref    0.721 (N = 6)
+   basis B: frags [12, 11, 16, 10, 11, 12, 12, 9, 11, 9], camp [6, 8, 6, 7, 7, 12, 4], returns <=3 s 14/16, <=10 s 16/16
+  ROUND_KILLS_MIN (frags)    B    band    4   P(false FAIL)  1.17 %   ref   11.300 
+  BOTDUEL_FRAGS_MIN (sum/3)  B    band   23   P(false FAIL)  1.99 %   ref   33.900 
+  BOTDUEL_CAMP_MIN (sum/3)   B    band   13   P(false FAIL)  2.00 %   ref   21.429 
+  MEGA_WITHIN3_MIN           B    band    2   P(false FAIL)  1.40 %   ref    0.684 (N = 6 timed returns per set)
+  MEGA_WITHIN10_MIN          B    band    3   P(false FAIL)  0.51 %   ref    0.855 (N = 6)
+   Fornax BotRun: no basis A (B4 set, pre-H13, FAILs on the BotWatch park world-kill artefact) -> report-only
+== Fornax hazard_death_self, FFA x10 at 3
+  HAZARD_SELF_SET_MAX        A    band    3   P(false FAIL)  0.73 %   rate 0/40 runs, upper-95 set mean 0.75 (Poisson K 3, bootstrap K 0)
+      power vs B5 FFA (m7-orbita/s1): set sum 182 > 3: caught
+      power vs H12 FFA (m7-h12/ffa4): set sum 128 > 3: caught
+      power vs a mild breakage of 1 self death(s) per run: P(caught) 99.0 %
+      power vs a mild breakage of 2 self death(s) per run: P(caught) 100.0 %
+  HAZARD_SELF_SET_MAX        B    band    4   P(false FAIL)  0.64 %   rate 4/80 runs, upper-95 set mean 1.14 (Poisson K 4, bootstrap K 2)
+      power vs B5 FFA (m7-orbita/s1): set sum 182 > 4: caught
+      power vs H12 FFA (m7-h12/ffa4): set sum 128 > 4: caught
+      power vs a mild breakage of 1 self death(s) per run: P(caught) 97.1 %
+      power vs a mild breakage of 2 self death(s) per run: P(caught) 100.0 %
+== Fornax hazard_death_self per BotDuel round
+  HAZARD_SELF_ROUND_MAX      A    band    4   P(false FAIL)  1.09 % over 3 rounds   rate 0/3 rounds, upper-95 1.00
+      power vs B5 BotDuel rounds [10, 19, 22]: 3/3 rounds over the band
+  HAZARD_SELF_ROUND_MAX      B    band    3   P(false FAIL)  0.43 % over 3 rounds   rate 1/10 rounds, upper-95 0.47
+      power vs B5 BotDuel rounds [10, 19, 22]: 3/3 rounds over the band
+
+== Orbita FFA x10 at 4 (A = H15 v2 final; B = A + H15 fix + H13 x4)
+   basis A: 10 runs, kills mean 14.00, pickups 77-91, mega 4-4
+  FFA_KILLS_MIN (sum/10)     A    band  117   P(false FAIL)  2.11 %   ref  140.000 
+  FFA_RUN_KILLS_MIN          A    band    5   P(false FAIL)  1.79 %   ref   14.000 
+  FFA_RUN_PICKUPS_MIN        A    band   59   P(false FAIL)  2.29 %   ref   83.100 
+  FFA_RUN_MEGA_MIN           A    band    2   P(false FAIL)  0.96 %   ref    0.937 
+   basis B: 60 runs, kills mean 14.37, pickups 73-92, mega 3-4
+  FFA_KILLS_MIN (sum/10)     B    band  121   P(false FAIL)  2.42 %   ref  143.667 
+  FFA_RUN_KILLS_MIN          B    band    5   P(false FAIL)  1.37 %   ref   14.367 
+  FFA_RUN_PICKUPS_MIN        B    band   59   P(false FAIL)  2.49 %   ref   82.833 
+  FFA_RUN_MEGA_MIN           B    band    3   P(false FAIL)  1.98 %   ref    0.982 
+== Orbita BotDuel x3 (no basis A: H13 b5b only; candidates)
+   basis B: frags [4, 3, 3], camp [14, 10, 11], returns <=3 s 8/8, <=10 s 8/8
+  ROUND_KILLS_MIN (frags)    B    band    0   P(false FAIL)  0.00 %   ref    3.333 
+  BOTDUEL_FRAGS_MIN (sum/3)  B    band    4   P(false FAIL)  1.03 %   ref   10.000 
+  BOTDUEL_CAMP_MIN (sum/3)   B    band   24   P(false FAIL)  2.08 %   ref   35.000 
+  MEGA_WITHIN3_MIN           B    band    2   P(false FAIL)  0.49 %   ref    0.747 (N = 6 timed returns per set)
+  MEGA_WITHIN10_MIN          B    band    2   P(false FAIL)  0.49 %   ref    0.747 (N = 6)
+== Orbita hazard_death_self, FFA x10 at 4
+  HAZARD_SELF_SET_MAX        A    band   13   P(false FAIL)  1.62 %   rate 8/20 runs, upper-95 set mean 7.22 (Poisson K 13, bootstrap K 10)
+      power vs B5 FFA (m7-orbita/s1): set sum 182 > 13: caught
+      power vs H12 FFA (m7-h12/ffa4): set sum 128 > 13: caught
+      power vs a mild breakage of 1 self death(s) per run: P(caught) 13.6 %
+      power vs a mild breakage of 2 self death(s) per run: P(caught) 93.4 %
+  HAZARD_SELF_SET_MAX        B    band   11   P(false FAIL)  2.04 %   rate 26/60 runs, upper-95 set mean 6.01 (Poisson K 11, bootstrap K 9)
+      power vs B5 FFA (m7-orbita/s1): set sum 182 > 11: caught
+      power vs H12 FFA (m7-h12/ffa4): set sum 128 > 11: caught
+      power vs a mild breakage of 1 self death(s) per run: P(caught) 30.3 %
+      power vs a mild breakage of 2 self death(s) per run: P(caught) 97.9 %
+== Orbita hazard_death_self per BotDuel round (H13 only)
+  HAZARD_SELF_ROUND_MAX      B    band    5   P(false FAIL)  1.71 % over 3 rounds   rate 1/3 rounds, upper-95 1.58
+      power vs B5 BotDuel rounds [10, 19, 22]: 3/3 rounds over the band
