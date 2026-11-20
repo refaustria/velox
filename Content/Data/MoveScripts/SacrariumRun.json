@@ -228,7 +228,7 @@
   {
    "duration": 2.5,
    "forward": 1,
-   "yaw": -156.5,
+   "yaw": -136.4,
    "until": "airborne",
    "label": "to Quad Flight pad (until launched)"
   },
