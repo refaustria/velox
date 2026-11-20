@@ -878,11 +878,12 @@ bool FVeloxItemsModeGatingTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	// Data: the Quad is disabled in Duel only; every other item in no mode.
+	// Data: the Quad and the Haste are disabled in Duel only (Haste: M7 P6/B3, FFA only); every other item in no mode.
 	TestTrue(TEXT("Quad disabled in Duel"), Quad->IsDisabledInMode(VeloxMatchTags::Mode_Duel));
 	TestFalse(TEXT("Quad enabled in FFA"), Quad->IsDisabledInMode(VeloxMatchTags::Mode_FFA));
 	TestFalse(TEXT("an invalid mode tag disables nothing"), Quad->IsDisabledInMode(FGameplayTag()));
-	TestFalse(TEXT("Haste disabled in no mode"), Haste->IsDisabledInMode(VeloxMatchTags::Mode_Duel) || Haste->IsDisabledInMode(VeloxMatchTags::Mode_FFA));
+	TestTrue(TEXT("Haste disabled in Duel"), Haste->IsDisabledInMode(VeloxMatchTags::Mode_Duel));
+	TestFalse(TEXT("Haste enabled in FFA"), Haste->IsDisabledInMode(VeloxMatchTags::Mode_FFA));
 
 	// Runtime: a pickup spawned at BeginPlay of a world whose GameState carries the mode definition.
 	struct FCase { const TCHAR* Name; const UVeloxGameModeDefinition* Mode; bool bQuadKept; };
@@ -906,9 +907,9 @@ bool FVeloxItemsModeGatingTest::RunTest(const FString& Parameters)
 		AVeloxPickup* HastePickup = AVeloxPickup::SpawnPickup(W.World, Haste, FVector(300, 0, 0));
 		W.Advance(0.1f);
 		TestEqual(FString::Printf(TEXT("%s: Quad pickup %s"), Case.Name, Case.bQuadKept ? TEXT("kept") : TEXT("destroyed")), IsValid(QuadPickup), Case.bQuadKept);
-		TestTrue(FString::Printf(TEXT("%s: Haste pickup kept"), Case.Name), IsValid(HastePickup));
+		TestEqual(FString::Printf(TEXT("%s: Haste pickup %s"), Case.Name, Case.bQuadKept ? TEXT("kept") : TEXT("destroyed")), IsValid(HastePickup), Case.bQuadKept);
 		TestEqual(FString::Printf(TEXT("%s: Quad in the registry"), Case.Name), Registry->FindByTag(VeloxGameplayTags::Item_Powerup_Quad.GetTag()).Num(), Case.bQuadKept ? 1 : 0);
-		TestEqual(FString::Printf(TEXT("%s: registry size"), Case.Name), Registry->GetPickups().Num(), Case.bQuadKept ? 2 : 1);
+		TestEqual(FString::Printf(TEXT("%s: registry size"), Case.Name), Registry->GetPickups().Num(), Case.bQuadKept ? 2 : 0);
 	}
 	return true;
 }
