@@ -58,6 +58,11 @@ FIRE_RATE_SCALE="${VELOX_FIRE_RATE_SCALE:-2.0}"
 ITEM_SCRIPTS=" ItemRun "
 # Scripts on L_DM1_Blockout (M5 task 06, ADR 0006 section 7): the scripted map regression, judged like PadRun.
 DM1_SCRIPTS=" DM1Run "
+NEMUS_SCRIPTS=" NemusRun "   # M7 task B2 (ADR 0008 5.3 d): on L_Nemus_Blockout, judged like SacrariumRun; not in the default list (blockout not cooked)
+ORBITA_SCRIPTS=" OrbitaRun "   # M7 task B5 (ADR 0008 5.3 d, concept A3): on L_Orbita_Blockout, every pad twice (idle / forward held), judged like NemusRun per launch
+CULMEN_SCRIPTS=" CulmenRun "   # M7 task B3 (ADR 0008 5.3 d): on L_Culmen_Blockout, seven pads with no input in the flight; not in the default list (blockout not cooked)
+FORNAX_SCRIPTS=" FornaxRun "   # M7 task B4 (ADR 0008 5.3 d): on L_Fornax_Blockout, judged like SacrariumRun; not in the default list (blockout not cooked)
+SACRARIUM_SCRIPTS=" SacrariumRun "   # M7 task B1 (ADR 0008 5.3 d): on L_Sacrarium_Blockout, judged like PadRun/DM1Run; not in the default list (blockout not cooked)
 # Bot soaks (M4 task 07, ADR 0005 section 14 / D36), both on L_ItemTest with the server options in the map URL.
 BOT_SCRIPTS=" BotRun BotDuel "
 BOT_RUN_SECONDS=90      # BotWatch.json
@@ -81,6 +86,7 @@ SERVER_USERDIR=""
 # ADR 0006 section 7: --map <Map> replaces the map part of the BotRun / BotDuel URLs (the ?game=...?Bots=... options stay). The
 # soak bands are per map (infra/ci/bands/<Map>.sh, ci_load_bands in lib.sh); without a band file a map runs report-only.
 MAP_OVERRIDE=""
+BOTS_COUNT=3     # --bots N: bots of the BotRun FFA round (ADR 0008 1.6; default 3 = the stored sets)
 MAP_OVERRIDE_NOTED=0
 BAND_MAP_DEFAULT="L_ItemTest"
 # ADR 0005 D50 (4): --bot-difficulty <preset> substitutes BotDifficulty= in the BotRun/BotDuel URLs; such rounds are
@@ -130,6 +136,8 @@ Options:
   --reeval DIR     Re-run the per-round summary and the set evaluation of the bot soaks on saved logs (a nettest
                    directory, with or without round-<k>/ subdirectories; needs no engine). Host columns are n/a where
                    no <script>-host.log sidecar exists; budget lines without frames=/stalls= degrade the same way.
+  --bots N         Bots of the BotRun FFA round (default 3, so stored sets re-evaluate unchanged; ADR 0008 1.6). BotDuel stays at
+                   2 Hard bots. The set bands are written for 3 bots (stuck sums pro rata for other counts)
   --map NAME       Run BotRun, BotDuel and DM1Run (task 07d; DM1Run default L_DM1_Blockout) on map NAME (ADR 0006 section 7; the ?game=...?Bots=... options stay). Other
                    scripts ignore the flag (logged once). The bands are per map: infra/ci/bands/NAME.sh when it exists
                    (the default map L_ItemTest has one: bands=L_ItemTest), else the run is report-only (band=none) and
@@ -303,12 +311,17 @@ run_one() {
   if [[ "$script" == LatchRun ]]; then cexec="velox.move.Preset Q3, $cexec"; sexec="velox.move.Preset Q3"; fi
   if [[ "$COMBAT_SCRIPTS" == *" $script "* ]]; then map="L_CombatTest"; fi
   if [[ "$DM1_SCRIPTS" == *" $script "* ]]; then map="${MAP_OVERRIDE:-L_DM1_Blockout}"; fi   # task 07d: --map L_DM1 runs DM1Run on the art map
+  if [[ "$SACRARIUM_SCRIPTS" == *" $script "* ]]; then map="L_Sacrarium_Blockout"; fi
+  if [[ "$NEMUS_SCRIPTS" == *" $script "* ]]; then map="L_Nemus_Blockout"; fi
+  if [[ "$ORBITA_SCRIPTS" == *" $script "* ]]; then map="L_Orbita_Blockout"; fi
+  if [[ "$FORNAX_SCRIPTS" == *" $script "* ]]; then map="L_Fornax_Blockout"; fi
+  if [[ "$CULMEN_SCRIPTS" == *" $script "* ]]; then map="L_Culmen_Blockout"; fi
   local connect_url="127.0.0.1:$PORT" client_timeout="$CLIENT_TIMEOUT"
   case "$script" in
     BotRun)
       # FFA with 3 Medium bots; the playing client idles through BotWatch.json and velox.bots.Watch 90 ends it. Client
       # corrections are report-only (LogCorrections), rocket hits on the human are legitimate corrections.
-      map="L_ItemTest?game=FFA?Bots=3?BotDifficulty=Medium"; sexec="velox.bots.Debug 1"
+      map="L_ItemTest?game=FFA?Bots=${BOTS_COUNT}?BotDifficulty=Medium"; sexec="velox.bots.Debug 1"
       cexec="$cexec, velox.move.LogCorrections 1, velox.bots.Watch $BOT_RUN_SECONDS"; script_args=(-VeloxScript=BotWatch)
       client_timeout=$(( CLIENT_TIMEOUT > BOT_RUN_SECONDS + 90 ? CLIENT_TIMEOUT : BOT_RUN_SECONDS + 90 )) ;;
     BotDuel)
@@ -335,9 +348,22 @@ run_one() {
     if [[ "$BOT_SCRIPTS" == *" $script "* ]]; then
       map="${MAP_OVERRIDE}?${map#*\?}"   # keep "game=...?Bots=..."; every BOT_SCRIPTS map URL carries options
     elif [[ "$DM1_SCRIPTS" == *" $script "* ]]; then :   # DM1Run honours --map (task 07d)
+    elif [[ "$SACRARIUM_SCRIPTS" == *" $script "* ]]; then :   # SacrariumRun keeps its own map
+    elif [[ "$NEMUS_SCRIPTS" == *" $script "* ]]; then :   # NemusRun keeps its own map
+    elif [[ "$ORBITA_SCRIPTS" == *" $script "* ]]; then :   # OrbitaRun keeps its own map
+    elif [[ "$FORNAX_SCRIPTS" == *" $script "* ]]; then :   # FornaxRun keeps its own map
+    elif [[ "$CULMEN_SCRIPTS" == *" $script "* ]]; then :   # CulmenRun keeps its own map
     elif (( ! MAP_OVERRIDE_NOTED )); then
       echo "[ci] --map $MAP_OVERRIDE applies to BotRun/BotDuel/DM1Run only; $script and the other scripts keep their own map (logged once)"
       MAP_OVERRIDE_NOTED=1
+    fi
+  fi
+  if [[ "$script" == BotRun ]]; then
+    # M7 H9: per-map park point of the idle human (BotWatch.json parks it at the L_ItemTest south wall, outside the Nemus / Fornax
+    # footprints = world kills). botwatch_park.py reads the map spec; rc 3 (L_ItemTest, DM1, no layout module) keeps BotWatch.json.
+    local park_map="${map%%\?*}" park_json="$OUT_DIR/BotWatch-park.json" park_loc
+    if park_loc="$(python3 -I "$REPO_ROOT/infra/ci/botwatch_park.py" "$park_map" "$REPO_ROOT/Content/Data/MoveScripts/BotWatch.json" "$park_json")"; then
+      script_args=(-VeloxScript="$park_json"); echo "[ci] [BotRun] idle client parked at ($park_loc) for $park_map (botwatch_park.py)"
     fi
   fi
   if [[ "$ITEM_SCRIPTS" == *" $script "* ]]; then
@@ -1168,7 +1194,7 @@ if script == "StrafeRun":
     if bad:
         fails.append("correction > 5 cm within 0.5 s after the speed peak: %s" % fmt(bad))
 
-elif script in ("PadRun", "DM1Run"):
+elif script in ("PadRun", "DM1Run", "SacrariumRun", "NemusRun", "OrbitaRun", "FornaxRun", "CulmenRun"):
     # ADR 0002 A28(iii)/A30(iii): per pad exactly one client line src=live applied=1 and exactly one server line, with equal
     # move time stamps ts (the launch is queued at the end of the same move on both ends). src=replay applied=1 lines (a
     # replay re-entering the trigger) are allowed once per pad and replay and must carry the server's ts; applied=0 lines
@@ -1188,9 +1214,21 @@ elif script in ("PadRun", "DM1Run"):
             rep_lines.setdefault(d["pad"], []).append(d)
     for d in sl:
         srv.setdefault(d["pad"], []).append(d)
+    if script == "OrbitaRun":
+        # M7 B5: every pad is flown twice; the k-th client live launch of a pad pairs with the k-th server launch ("pad#k");
+        # a replayed launch belongs to the server launch whose ts it carries (else to the pad's last one, so it fails there).
+        def split(dd):
+            return {"%s#%d" % (pad, k + 1): [d] for pad, ds in dd.items() for k, d in enumerate(ds)}
+        reps = {}
+        for pad, ds in rep_lines.items():
+            for d in ds:
+                ks = [k for k, sd in enumerate(srv.get(pad, [])) if abs(num(sd, "ts") - num(d, "ts")) <= 1e-6]
+                reps.setdefault("%s#%d" % (pad, (ks[0] if ks else max(0, len(srv.get(pad, [])) - 1)) + 1), []).append(d)
+        live, srv, rep_lines = split(live), split(srv), reps
     detail.append("pads=%s" % sorted(live))
-    if len(live) != 3:
-        fails.append("expected 3 distinct pads launched live on the client, got %d: %s" % (len(live), sorted(live)))
+    want_pads = {"NemusRun": int(os.environ.get("VELOX_NEMUS_PADS", "4")), "OrbitaRun": int(os.environ.get("VELOX_ORBITA_LAUNCHES", "12")), "FornaxRun": 2, "CulmenRun": int(os.environ.get("VELOX_CULMEN_PADS", "7"))}.get(script, 3)   # NemusRun: all five pads (M7 B2); FornaxRun: both pads (M7 B4)
+    if len(live) != want_pads:
+        fails.append("expected %d distinct pads launched live on the client, got %d: %s" % (want_pads, len(live), sorted(live)))
     def gap_at(ts):
         return next((g for g in gaps if num(g, "ts") - num(g, "dt") < ts + 1e-6 and ts <= num(g, "ts") + 1e-6), None)
     cpos, spos = positions(C, "ClientMove"), positions(S, "ServerMove")
@@ -1247,7 +1285,7 @@ elif script in ("PadRun", "DM1Run"):
     if final:
         # PadRun: 3 landing checkpoints; DM1Run (task m5-06): every marker of the script (the count is in the line itself).
         m_chk = re.search(r"checks=(\d+)/(\d+)", final)
-        want_chk = 3 if script == "PadRun" else 7
+        want_chk = {"PadRun": 3, "SacrariumRun": int(os.environ.get("VELOX_SACRARIUM_CHECKS", "9")), "NemusRun": int(os.environ.get("VELOX_NEMUS_CHECKS", "5")), "OrbitaRun": int(os.environ.get("VELOX_ORBITA_CHECKS", "12")), "FornaxRun": int(os.environ.get("VELOX_FORNAX_CHECKS", "8")), "CulmenRun": int(os.environ.get("VELOX_CULMEN_CHECKS", "8"))}.get(script, 7)
         if not m_chk or m_chk.group(1) != m_chk.group(2) or int(m_chk.group(2)) != want_chk:
             fails.append("landing checkpoints: %s (want %d/%d)" % (kv(final).get("checks"), want_chk, want_chk))
 
@@ -2101,6 +2139,9 @@ if script in ("BotRun", "BotDuel"):
     goal_changes = camp_episodes = 0              # D46 (4): VeloxBotRoute bot= goal= lines / episodes of camp=1
     camp_open = {}; camp_max_lead = 0.0
     left_arena = None; world_victims = []; fell_out_lines = 0   # D49 (b)
+    # ADR 0008 3.5: hazard metrics per victim label (report-only, never judged): touches = VeloxHazard lines, deaths = VeloxKill lines
+    # whose tags carry Damage.Hazard (credited: suicide=0, self: suicide=1).
+    hz_touch = collections.Counter(); hz_cred = collections.Counter(); hz_self = collections.Counter()
     # ADR 0005 D50 (4): near-human quantities, per bot, Live phase only (numerators and denominators; pooled as sums).
     #   hitscan: VeloxShot by=<bot> lines, a hit = hits >= 1 (an SG volley is one line, LG one line per 50 ms tick).
     #   projectile: VeloxProjectileExplode by=<bot> lines, a hit = direct != None (a pawn was struck) or confirm_victims >= 1
@@ -2168,6 +2209,11 @@ if script in ("BotRun", "BotDuel"):
                 if WEAPON_ABBR.get(wn_, wn_) == "RL" and not hit_ and (num(d, "splash") >= 1 or d.get("self") == "move_timed"):
                     nh_rl_so["n"] += 1
             continue
+        if "VeloxHazard type=" in l:
+            hm_ = re.search(r"victim=(\S+)", l)
+            if hm_:
+                hz_touch[hm_.group(1)] += 1
+            continue
         if "VeloxKill victim=" in l and "ignored" not in l:
             m = re.search(r"killer=(\S+) suicide=(\d)", l)
             if live and m and m.group(2) == "0" and m.group(1) in bots:
@@ -2176,6 +2222,8 @@ if script in ("BotRun", "BotDuel"):
             tm = re.search(r"tags=\[([^\]]*)\]", l)
             if vm and tm and "Damage.Environment" in tm.group(1):
                 world_victims.append(vm.group(1))
+            if vm and tm and "Damage.Hazard" in tm.group(1) and m:
+                (hz_self if m.group(2) == "1" else hz_cred)[vm.group(1)] += 1
             if vm:
                 kill_at[vm.group(1)].append(utc(l))
             if m and m.group(2) == "1":
@@ -2651,6 +2699,9 @@ if script in ("BotRun", "BotDuel"):
         detail_lines.append("FLAG no camp=1 route line in this round (fact of the round, D49; the set band judges)")
     detail_lines.append("left_arena=%s world_kills=%d [%s] fell_out_lines=%d" % (
         "%s@%s z=%.0f" % left_arena if left_arena else "none", len(world_victims), ",".join(world_victims), fell_out_lines))
+    detail_lines.append("hazard_touch=%d hazard_death_credited=%d hazard_death_self=%d (report-only; per victim: %s)" % (
+        sum(hz_touch.values()), sum(hz_cred.values()), sum(hz_self.values()),
+        " ".join("%s:%d/%d/%d" % (v_, hz_touch[v_], hz_cred[v_], hz_self[v_]) for v_ in sorted(set(hz_touch) | set(hz_cred) | set(hz_self))) or "-"))
     detail_lines.append("camp_lines=%d camp_episodes=%d camp_share_pct=%.1f (of %d goal changes) camp_max_lead_s=%.1f" % (
         camp_lines, camp_episodes, 100.0 * camp_episodes / goal_changes if goal_changes else 0.0, goal_changes, camp_max_lead))
     # ADR 0005 D50 (4)/(5): near-human quantities (Live), per bot and pooled, with the preset's report-only band.
@@ -2682,6 +2733,8 @@ if script in ("BotRun", "BotDuel"):
              "p_norm_mean_us": p_norm_mean, "cost_windows": len(cost_w), "cost_judged": cost_judged, "behaviour_fail": bool(behaviour_fails),
              "camp_episodes": camp_episodes, "camp_lines": camp_lines, "goal_changes": goal_changes, "camp_max_lead": camp_max_lead,
              "left_arena": left_arena[0] if left_arena else None, "world_kills": len(world_victims),
+             "hazard_touch": sum(hz_touch.values()), "hazard_death_credited": sum(hz_cred.values()), "hazard_death_self": sum(hz_self.values()),
+             "hazard_bots": dict((v_, [hz_touch[v_], hz_cred[v_], hz_self[v_]]) for v_ in sorted(set(hz_touch) | set(hz_cred) | set(hz_self))),
              "clean_means": [w["mean"] for w in clean_w], "clean_max_fire": [w["fire"] for w in clean_w],
              "preset": preset, "calibration": calibration or None, "nh": nh_sum, "nh_bots": dict((b_, nh[b_]) for b_ in sorted(bots)),
              "nh_weapon": dict(nh_weapon), "rl_self_only": nh_rl_so["n"], "max_fire_us": max([w["fire"] for w in windows] or [0]), "mega_takes": len(mega), "link_max": link_max,
@@ -2899,7 +2952,19 @@ if script == "BotDuel":
         [r.get("camp_episodes", 0) for r in valid], sum(r.get("camp_episodes", 0) for r in valid), [r.get("camp_lines", 0) for r in valid],
         ["%.1f" % (100.0 * r.get("camp_episodes", 0) / r["goal_changes"]) if r.get("goal_changes") else "0.0" for r in valid], ["%.1f" % r.get("camp_max_lead", 0.0) for r in valid]))
 print("  left_arena=[%s] world_kills=[%s]" % (",".join(r.get("left_arena") or "none" for r in runs), ",".join(str(r.get("world_kills", 0)) for r in runs)))
-print("  %s" % ("bands=%s" % band_label if band_name != "none" else "band=none (report-only: the per-map set bands are printed, not judged; the map-independent invariants are judged)"))
+# ADR 0008 5.3 / H9 (F9): provisional hard gate hazard_death_self per BotDuel round (BAND_HAZARD_SELF_ROUND_MAX, set in the band file
+# of Fornax and Orbita); judged when set, on every valid round, whatever the repeat count. The FFA set sum is judged by ffa_set.py.
+HAZ_ROUND_MAX = band("BAND_HAZARD_SELF_ROUND_MAX")
+hz_gate_txt = "report-only, ADR 0008 3.5"
+if HAZ_ROUND_MAX is not None and script == "BotDuel":
+    hz_gate_txt = "GATE per round <= %d (ADR 0008 5.3)" % HAZ_ROUND_MAX
+    hz_bad = ["round %d: %d" % (k_ + 1, r.get("hazard_death_self", 0)) for k_, r in enumerate(runs) if not r.get("invalid") and r.get("hazard_death_self", 0) > HAZ_ROUND_MAX]
+    if hz_bad: fails.append("hazard_death_self per round > %d (%s)" % (HAZ_ROUND_MAX, "; ".join(hz_bad)))
+print("  hazard (%s): hazard_touch=%s hazard_death_credited=%s hazard_death_self=%s | sums touch=%d credited=%d self=%d" % (
+    hz_gate_txt, [r.get("hazard_touch", 0) for r in runs], [r.get("hazard_death_credited", 0) for r in runs], [r.get("hazard_death_self", 0) for r in runs],
+    sum(r.get("hazard_touch", 0) for r in runs), sum(r.get("hazard_death_credited", 0) for r in runs), sum(r.get("hazard_death_self", 0) for r in runs)))
+has_band = band_name != "none" and any(k_.startswith("BAND_") and not k_.startswith("BAND_HAZARD_") and v_.strip() for k_, v_ in os.environ.items())   # ADR 0008 3.5: no BAND_* value = report-only; BAND_HAZARD_* (the 5.3 gate) does not switch the other bands on
+print("  %s" % ("bands=%s" % band_label if has_band else "band=%s (report-only: the per-map set bands are printed, not judged; the map-independent invariants are judged)" % (band_label if band_name != "none" else "none")))
 # ADR 0006 section 7: link traversal success per link type over the valid rounds (ok / (ok + failed); "aborted" re-plans are not attempts).
 lt_ = {}
 lu_ = collections.Counter()
@@ -3097,6 +3162,7 @@ main() {
       --lag)     [[ $# -ge 2 && "$2" =~ ^[0-9]+$ && "$2" -ge 20 ]] || die "--lag needs an integer >= 20 (ms)"; LAG_OVERRIDE="$2"; shift 2 ;;
       --repeat)  [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--repeat needs a positive integer"; REPEAT="$2"; shift 2 ;;
       --keep-going) KEEP_GOING=1; shift ;;
+      --bots)    [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ && "$2" -le 15 ]] || die "--bots needs an integer 1..15"; BOTS_COUNT="$2"; shift 2 ;;
       --reeval)  [[ $# -ge 2 ]] || die "--reeval needs a directory"; REEVAL_DIR="$2"; shift 2 ;;
       --map)     [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9_]+$ ]] || die "--map needs a map name (letters, digits, underscore)"; MAP_OVERRIDE="$2"; shift 2 ;;
       --server-mode) [[ $# -ge 2 && "$2" =~ ^(dedicated|listen)$ ]] || die "--server-mode needs dedicated|listen"; SERVER_MODE="$2"; shift 2 ;;

@@ -1,0 +1,8 @@
+Terminated
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+SacrariumRun       moves=3385  C=0   echoes=0   gaps=15  repaired=49  repaired_extra=16  resent=1741  resent_extra=1736 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=67.7 pads=['VeloxJumpPad_4', 'VeloxJumpPad_5', 'VeloxJumpPad_7'] replays=4 acks_ignored=0 rpcs=1754  
+Rounds passed: 1/1 (requested 1)
+Logs: /mnt/oldroot/velox-scratch/m7-sacrarium/run6/20261113-022949-568613/nettest
+]LogVeloxNet: VeloxScript: st=2.800 row=2 'South Shrine pad flight' pos=V(X=-387.27, Y=-1824.07, Z=87.50) vel=V(X=6.99, Y=679.37, Z=1748.89)
+]LogVeloxNet: VeloxScript: check 'loft (pad South)' PASS st=5.806 pos=V(X=-377.59, Y=-883.27, Z=712.15) onGround=1 crouched=0 half_height=70.00 eye=55.00

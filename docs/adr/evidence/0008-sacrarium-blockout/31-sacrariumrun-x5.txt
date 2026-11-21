@@ -1,0 +1,45 @@
+[ci] Server mode: dedicated
+[ci] Net soak: scripts=SacrariumRun rounds=5 port=7944 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest
+[ci] bands=L_ItemTest
+[ci] [SacrariumRun] load gate: load1=0.72 at round start (gate 2.0, waited 0s)
+[ci] [SacrariumRun] starting dedicated server (60 Hz), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-1/SacrariumRun-server.log
+[ci] [SacrariumRun] starting client (120 Hz, packet simulation 100 ms one way), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-1/SacrariumRun-client.log
+Terminated
+[ci] [SacrariumRun] server (dedicated) rss_max_kb=1770656 rss_mean_kb=1754842 rss_last_kb=1770656 rss_samples=10
+
+=== Velox net soak round 1/5 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+SacrariumRun       moves=3470  C=0   echoes=0   gaps=2   repaired=49  repaired_extra=17  resent=1778  resent_extra=1778 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=69.4 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_3'] replays=4 acks_ignored=0 rpcs=1791  
+[ci] [SacrariumRun] load gate: load1=1.98 at round start (gate 2.0, waited 0s)
+[ci] [SacrariumRun] starting dedicated server (60 Hz), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-2/SacrariumRun-server.log
+[ci] [SacrariumRun] starting client (120 Hz, packet simulation 100 ms one way), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-2/SacrariumRun-client.log
+Terminated
+[ci] [SacrariumRun] server (dedicated) rss_max_kb=1775792 rss_mean_kb=1758201 rss_last_kb=1775792 rss_samples=11
+
+=== Velox net soak round 2/5 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+SacrariumRun       moves=3467  C=0   echoes=0   gaps=2   repaired=33  repaired_extra=9   resent=1778  resent_extra=1778 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=69.3 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_3'] replays=4 acks_ignored=0 rpcs=1792  
+[ci] [SacrariumRun] load gate: load1=1.88 at round start (gate 2.0, waited 3s)
+[ci] [SacrariumRun] starting dedicated server (60 Hz), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-3/SacrariumRun-server.log
+[ci] [SacrariumRun] starting client (120 Hz, packet simulation 100 ms one way), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-3/SacrariumRun-client.log
+Terminated
+[ci] [SacrariumRun] server (dedicated) rss_max_kb=1775268 rss_mean_kb=1755605 rss_last_kb=1775268 rss_samples=10
+
+=== Velox net soak round 3/5 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+SacrariumRun       moves=3468  C=0   echoes=0   gaps=1   repaired=35  repaired_extra=11  resent=1776  resent_extra=1769 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=69.4 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_3'] replays=5 acks_ignored=0 rpcs=1791  
+[ci] [SacrariumRun] load gate: load1=1.76 at round start (gate 2.0, waited 0s)
+[ci] [SacrariumRun] starting dedicated server (60 Hz), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-4/SacrariumRun-server.log
+[ci] [SacrariumRun] starting client (120 Hz, packet simulation 100 ms one way), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-4/SacrariumRun-client.log
+Terminated
+[ci] [SacrariumRun] server (dedicated) rss_max_kb=1771244 rss_mean_kb=1753400 rss_last_kb=1770892 rss_samples=11
+
+=== Velox net soak round 4/5 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+SacrariumRun       moves=3466  C=0   echoes=0   gaps=5   repaired=38  repaired_extra=14  resent=1777  resent_extra=1770 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=69.3 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_3'] replays=5 acks_ignored=0 rpcs=1791  
+[ci] [SacrariumRun] load gate: load1=1.79 at round start (gate 2.0, waited 0s)
+[ci] [SacrariumRun] starting dedicated server (60 Hz), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-5/SacrariumRun-server.log
+[ci] [SacrariumRun] starting client (120 Hz, packet simulation 100 ms one way), log /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest/round-5/SacrariumRun-client.log
+[ci] [SacrariumRun] server (dedicated) rss_max_kb=1773152 rss_mean_kb=1754602 rss_last_kb=1773152 rss_samples=10
+
+=== Velox net soak round 5/5 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+SacrariumRun       moves=3468  C=0   echoes=0   gaps=2   repaired=46  repaired_extra=12  resent=1779  resent_extra=1779 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=69.4 pads=['VeloxJumpPad_0', 'VeloxJumpPad_1', 'VeloxJumpPad_3'] replays=4 acks_ignored=0 rpcs=1792  
+Rounds passed: 5/5 (requested 5)
+Logs: /home/bojan/velox/.claude/worktrees/agent-ad3c1c10a793f22b9/Saved/CI/20261120-215903-1086094/nettest
+[ci] NET SOAK OK

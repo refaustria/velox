@@ -1,0 +1,17 @@
+Isle_In (VeloxNavLink_3) FFA x10 at 3: missed traversals (take-off along speed, lava within 1.5 s) and totals
+-- base: origin/m7-maps after H13, before H14
+ffa-1.log 2026.11.14-05.00.03:336 Rapidus along=832 past=51 lava=0
+ffa-2.log 2026.11.14-05.02.02:294 Rapidus along=457 past=35 lava=0
+ffa-3.log 2026.11.14-05.04.23:612 Fulgur along=475 past=35 lava=1
+ffa-3.log 2026.11.14-05.04.43:411 Rapidus along=783 past=40 lava=0
+ffa-4.log 2026.11.14-05.06.40:518 Celer along=836 past=50 lava=0
+ffa-6.log 2026.11.14-05.12.56:364 Celer along=483 past=35 lava=1
+ffa-7.log 2026.11.14-05.13.54:395 Rapidus along=838 past=53 lava=0
+ffa-8.log 2026.11.14-05.17.06:270 Celer along=799 past=33 lava=0
+{'ok': 47, 'aborted': 13, 'missed': 6, 'missed/lava': 2}
+-- H14
+ffa-2.log 2026.11.14-10.02.54:588 Celer along=563 past=32 lava=1
+ffa-6.log 2026.11.14-10.11.59:519 Celer along=456 past=36 lava=0
+ffa-9.log 2026.11.14-10.18.28:040 Rapidus along=636 past=37 lava=1
+ffa-9.log 2026.11.14-10.18.58:264 Celer along=463 past=35 lava=0
+{'aborted': 14, 'ok': 57, 'missed/lava': 2, 'missed': 2}

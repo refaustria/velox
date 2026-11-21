@@ -1,0 +1,2 @@
+kills=33 killer_on_loft=3 (9.1%) victim_on_loft=0 (0.0%); bot samples on loft 6.6% of 3555
+kills=103 killer_on_loft=2 (1.9%) victim_on_loft=3 (2.9%); bot samples on loft 6.3% of 7065

@@ -344,6 +344,50 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		const TPair<int32, double> Arrive = RunStandoff(
 			[](int32 Tk) { return Tk < 150 ? FVector2D(1000.0 - Tk * (400.0 / 60.0), 0.0) : FVector2D(0.0, FMath::Min(75.0, (Tk - 150) * 0.5)); }, Always, 600);
 		TestTrue(TEXT("06b: arrival then drift -> fires about 3 s after the arrival"), Arrive.Key >= 1 && Arrive.Value >= 5.0 && Arrive.Value <= 5.5);
+		// Task M7 H15 fight dwell rule: the soak's 1 Hz run (positions 1 s apart within 150 cm of the first) at every phase.
+		auto RunDwell = [](TFunctionRef<FVector2D(int32)> PosAt, TFunctionRef<bool(int32)> WatchedAt, int32 Ticks, float Period)
+		{
+			FVeloxStandoffWindow Window;
+			double FirstAt = -1.0;
+			int32 Fires = 0;
+			for (int32 Tick = 0; Tick <= Ticks; ++Tick)
+			{
+				if (VeloxBotRules::UpdateFightDwell(Window, WatchedAt(Tick), PosAt(Tick), Tick / 60.0, 150.f, 3.f, Period))
+				{
+					++Fires;
+					FirstAt = FirstAt < 0.0 ? Tick / 60.0 : FirstAt;
+				}
+			}
+			return TPair<int32, double>(Fires, FirstAt);
+		};
+		// Hub stand-off: strafing +-300 cm around one point, a flip cycle of 1 s: the 06b test never holds, the dwell rule fires at 3 s.
+		auto Hub = [](int32 Tk) { return FVector2D(300.0 * FMath::Sin(2.0 * UE_DOUBLE_PI * Tk / 60.0), 40.0); };
+		TestEqual(TEXT("H15: hub strafe -> 06b stand-off never fires"), RunStandoff(Hub, Always, 400).Key, 0);
+		const TPair<int32, double> HubDwell = RunDwell(Hub, Always, 400, 1.f);
+		TestEqual(TEXT("H15: hub strafe -> dwell fires twice in 6.7 s"), HubDwell.Key, 2);
+		TestTrue(TEXT("H15: ... first at 3.0 s"), FMath::Abs(HubDwell.Value - 3.0) <= 1.0 / 60.0 + 1e-6);
+		TestEqual(TEXT("H15: period 0 turns the dwell rule off"), RunDwell(Hub, Always, 400, 0.f).Key, 0);
+		// Standing still: fires at 3 s as the 06b rule does.
+		const TPair<int32, double> StillDwell = RunDwell([](int32) { return FVector2D(5.0, 5.0); }, Always, 200, 1.f);
+		TestTrue(TEXT("H15: still -> dwell at 3 s"), StillDwell.Key == 1 && FMath::Abs(StillDwell.Value - 3.0) <= 1.0 / 60.0 + 1e-6);
+		// A fight that moves: closing in at 300 cm/s, or circle-strafing at 600 cm/s on a 400 cm radius: never fires.
+		TestEqual(TEXT("H15: closing in -> no dwell"), RunDwell([](int32 Tk) { return FVector2D(Tk * 5.0, 0.0); }, Always, 600, 1.f).Key, 0);
+		TestEqual(TEXT("H15: circle strafe -> no dwell"),
+			RunDwell([](int32 Tk) { return FVector2D(400.0 * FMath::Cos(Tk * 0.025), 400.0 * FMath::Sin(Tk * 0.025)); }, Always, 900, 1.f).Key, 0);
+		// Not watched (goal changes) clears the window.
+		TestEqual(TEXT("H15: not watched clears the dwell window"),
+			RunDwell([](int32) { return FVector2D::ZeroVector; }, [](int32 Tk) { return (Tk % 150) < 120; }, 600, 1.f).Key, 0);
+		// Sampled but not judged (the grace after a Fight goal): no fire, the window is kept, the first judged tick fires.
+		{
+			FVeloxStandoffWindow Window;
+			bool bFired = false;
+			for (int32 Tick = 0; Tick <= 240; ++Tick)
+			{
+				bFired |= VeloxBotRules::UpdateFightDwell(Window, true, FVector2D(5.0, 5.0), Tick / 60.0, 150.f, 3.f, 1.f, 0.1f, Tick >= 240);
+			}
+			TestTrue(TEXT("H15: not judged keeps the window; fires when judged"), bFired && Window.Times.Num() == 0);
+		}
+		TestEqual(TEXT("H15: FightDwellPeriodSeconds 1 (default)"), GetDefault<AVeloxBotController>()->FightDwellPeriodSeconds, 1.f);
 		TestEqual(TEXT("06b: FightStandoffSeconds 3 (ini)"), GetDefault<AVeloxBotController>()->FightStandoffSeconds, 3.f);
 		TestEqual(TEXT("06b: FightStandoffRadiusCm 150 (ini)"), GetDefault<AVeloxBotController>()->FightStandoffRadiusCm, 150.f);
 		TestEqual(TEXT("06b: StuckProgressFlightSlackSeconds 0.15 (ini)"), GetDefault<AVeloxBotController>()->StuckProgressFlightSlackSeconds, 0.15f);
@@ -357,6 +401,10 @@ bool FVeloxBotControllerRulesTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("06b: floor item 80 cm above the feet (LG pedestal) -> arrived"), VeloxBotRules::IsAtGoal(FVector(0.0, 1300.0, 2.0), FVector(0.0, 1300.0, 80.0), 80.f, 140.f));
 		TestFalse(TEXT("06b: on the ledge 320 cm above a floor item -> not arrived"), VeloxBotRules::IsAtGoal(FVector(0.0, 0.0, 330.0), FVector(0.0, 0.0, 10.0), 80.f, 140.f));
 		TestFalse(TEXT("06b: 2-D outside the radius -> not arrived"), VeloxBotRules::IsAtGoal(FVector(100.0, 0.0, 0.0), FVector::ZeroVector, 80.f, 140.f));
+		// Task M7 H15: under the item (Sacrarium Armor_Yellow: feet 72, item 320) vs on its level or beside it.
+		TestTrue(TEXT("H15: 248 cm under the item -> under goal"), VeloxBotRules::IsUnderGoal(FVector(989.0, 5.0, 72.0), FVector(1000.0, 0.0, 320.0), 80.f, 140.f));
+		TestFalse(TEXT("H15: on the item's level -> not under"), VeloxBotRules::IsUnderGoal(FVector(989.0, 5.0, 300.0), FVector(1000.0, 0.0, 320.0), 80.f, 140.f));
+		TestFalse(TEXT("H15: beside, 2-D outside -> not under"), VeloxBotRules::IsUnderGoal(FVector(1200.0, 0.0, 72.0), FVector(1000.0, 0.0, 320.0), 80.f, 140.f));
 	}
 
 	// D18 hop headroom: JumpVelocity^2 / (2 |g|) + margin (675 cm/s, -2000 cm/s^2 -> 113.9 + 10).
@@ -2520,6 +2568,195 @@ namespace VeloxBotCombatEventsFt
 
 	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtCombatEvents"),
 		TEXT("velox.bots.FtCombatEvents [quit]: FT_BotCombatEvents on L_CombatTest (-game -nullrhi -UseFixedTimeStep -FPS=60): a Hard bot hears damage from behind and turns, dodges a rocket. Non-shipping."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
+}
+
+// ------------------------------------------------------------------------------------------ FT_BotTargetIdentity (task M7 H10)
+//   velox.bots.FtBotTargets   L_CombatTest (-game -nullrhi -UseFixedTimeStep -FPS=60): three bots get distinct, non-zero
+//                             PlayerIds; the watcher (Hard, forced point goal on its spot, facing +X) has one enemy in
+//                             sight at (-100, -300) and a second one hidden behind Cover_03 (x 400..600, y 100..500, 200
+//                             high) at (1000, 300), both frozen. Pass: over 1.5 s the watcher's target is visible on >= 30
+//                             ticks and is the visible enemy on every one of them (never the hidden one). A/B: with
+//                             PlayerId 0 for every bot (the pre-H10 state) the combat memory, keyed by PlayerId, merges
+//                             both enemies into one visible record whose pawn is the last one iterated (the hidden one).
+namespace VeloxBotTargetsFt
+{
+	const FVector WatcherSpot(-600.0, 300.0, 0.0);
+	const FVector SeenSpot(-100.0, -300.0, 0.0);
+	const FVector HiddenSpot(1000.0, 300.0, 0.0);
+	constexpr double SettleSeconds = 0.3;
+	constexpr double ObserveSeconds = 1.5;
+	constexpr int32 MinVisibleTicks = 30;
+
+	struct FTargetsFt : VeloxBotFt::FFtBase
+	{
+		TWeakObjectPtr<AVeloxBotController> Seen;
+		TWeakObjectPtr<AVeloxBotController> Hidden;
+		double Start = 0.0;
+		int32 VisibleTicks = 0;
+		int32 SeenTicks = 0;
+		int32 HiddenTicks = 0;
+		int32 OtherTicks = 0;
+	};
+
+	int32 IdOf(const AController* Controller)
+	{
+		return Controller && Controller->PlayerState ? Controller->PlayerState->GetPlayerId() : 0;
+	}
+
+	bool Setup(const TSharedRef<FTargetsFt>& Ft)
+	{
+		UWorld* World = Ft->World.Get();
+		UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+		if (!Bots)
+		{
+			return false;
+		}
+		// Add order = PlayerArray order: watcher, seen, hidden (the hidden one is iterated last).
+		AVeloxBotController* Watcher = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Hard")), TEXT("FtWatcher"));
+		AVeloxBotController* Seen = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Easy")), TEXT("FtSeen"));
+		AVeloxBotController* Hidden = Bots->AddBot(UVeloxBotSubsystem::LoadDifficulty(TEXT("Easy")), TEXT("FtHidden"));
+		AVeloxCharacter* WatcherPawn = Watcher ? Cast<AVeloxCharacter>(Watcher->GetPawn()) : nullptr;
+		AVeloxCharacter* SeenPawn = Seen ? Cast<AVeloxCharacter>(Seen->GetPawn()) : nullptr;
+		AVeloxCharacter* HiddenPawn = Hidden ? Cast<AVeloxCharacter>(Hidden->GetPawn()) : nullptr;
+		if (!WatcherPawn || !SeenPawn || !HiddenPawn)
+		{
+			Ft->Check(false, TEXT("setup"), FString::Printf(TEXT("watcher=%s seen=%s hidden=%s"), *GetNameSafe(Watcher), *GetNameSafe(Seen), *GetNameSafe(Hidden)));
+			return false;
+		}
+		const int32 IdW = IdOf(Watcher);
+		const int32 IdS = IdOf(Seen);
+		const int32 IdH = IdOf(Hidden);
+		Ft->Check(IdW != 0 && IdS != 0 && IdH != 0 && IdW != IdS && IdW != IdH && IdS != IdH, TEXT("player_ids"),
+			FString::Printf(TEXT("watcher=%d seen=%d hidden=%d"), IdW, IdS, IdH));
+		Ft->Bot = Watcher;
+		Ft->Seen = Seen;
+		Ft->Hidden = Hidden;
+		Seen->SetFrozen(true);
+		Hidden->SetFrozen(true);
+		VeloxBotFt::PlaceAtStart(*SeenPawn, SeenSpot);
+		VeloxBotFt::PlaceAtStart(*HiddenPawn, HiddenSpot);
+		VeloxBotFt::PlaceAtStart(*WatcherPawn, WatcherSpot);
+		// The bot's aim starts at the pawn yaw on possession (OnPossess): re-possess so it faces +X (both enemies inside
+		// the 130 degree perception cone) whatever PlayerStart it spawned on.
+		Watcher->UnPossess();
+		Watcher->Possess(WatcherPawn);
+		Watcher->SetForcedPointGoal(WatcherSpot);
+		Ft->Start = Ft->Now();
+		return true;
+	}
+
+	bool Tick(const TSharedRef<FTargetsFt>& Ft)
+	{
+		const AVeloxBotController* Watcher = Ft->Bot.Get();
+		const AVeloxBotController* Seen = Ft->Seen.Get();
+		const AVeloxBotController* Hidden = Ft->Hidden.Get();
+		if (!Watcher || !Seen || !Hidden)
+		{
+			Ft->Check(false, TEXT("bots"), TEXT("a bot left"));
+			return false;
+		}
+		const double Since = Ft->Now() - Ft->Start;
+		if (Since < SettleSeconds)
+		{
+			return true;
+		}
+		const FVeloxBotEnemyInfo* Target = Watcher->GetCombatState().GetTarget();
+		if (Target && Target->bVisible)
+		{
+			const APawn* TargetPawn = Target->Pawn.Get();
+			++Ft->VisibleTicks;
+			if (TargetPawn && TargetPawn == Seen->GetPawn())
+			{
+				++Ft->SeenTicks;
+			}
+			else if (TargetPawn && TargetPawn == Hidden->GetPawn())
+			{
+				++Ft->HiddenTicks;
+			}
+			else
+			{
+				++Ft->OtherTicks;
+			}
+		}
+		if (Since < SettleSeconds + ObserveSeconds)
+		{
+			return true;
+		}
+		const FString Detail = FString::Printf(TEXT("visible_ticks=%d seen=%d hidden=%d other=%d records=%d"), Ft->VisibleTicks, Ft->SeenTicks, Ft->HiddenTicks,
+			Ft->OtherTicks, Watcher->GetCombatState().Enemies.Num());
+		Ft->Check(Ft->VisibleTicks >= MinVisibleTicks, TEXT("target_visible"), Detail);
+		Ft->Check(Ft->HiddenTicks == 0 && Ft->OtherTicks == 0 && Ft->SeenTicks == Ft->VisibleTicks, TEXT("target_is_the_visible_enemy"), Detail);
+		return false;
+	}
+
+	TSharedPtr<FTargetsFt> GTargetsFt;
+
+	void Command(const TArray<FString>& Args, UWorld* World)
+	{
+		UVeloxBotSubsystem* Bots = World && World->GetNetMode() != NM_Client ? UVeloxBotSubsystem::Get(World) : nullptr;
+		if (!Bots)
+		{
+			UE_LOG(LogVeloxBots, Warning, TEXT("velox.bots.FtBotTargets: needs the authority world of L_CombatTest (-game)."));
+			return;
+		}
+		if (IConsoleVariable* Peaceful = IConsoleManager::Get().FindConsoleVariable(TEXT("velox.bots.Peaceful")))
+		{
+			Peaceful->Set(0, ECVF_SetByCode);
+		}
+		// Only the three bots are combatants: the arena's dummies and the -game local player's pawn go.
+		for (TActorIterator<AVeloxDummySpawner> It(World); It; ++It)
+		{
+			It->Destroy();
+		}
+		for (TActorIterator<AVeloxCharacter> It(World); It; ++It)
+		{
+			if (Cast<AVeloxDummyController>(It->GetController()) || Cast<APlayerController>(It->GetController()))
+			{
+				It->Destroy();
+			}
+		}
+		if (GEngine)
+		{
+			GEngine->Exec(World, TEXT("velox.match.Phase Live"));
+		}
+		TSharedRef<FTargetsFt> Ft = MakeShared<FTargetsFt>();
+		Ft->Name = TEXT("FT_BotTargetIdentity");
+		Ft->World = World;
+		Ft->bQuit = VeloxBotFt::ParseQuit(Args);
+		GTargetsFt = Ft;
+		TWeakPtr<FTargetsFt> Weak = Ft;
+		Bots->CallWhenNavReady([Weak]()
+		{
+			const TSharedPtr<FTargetsFt> F = Weak.Pin();
+			if (!F)
+			{
+				return;
+			}
+			if (!Setup(F.ToSharedRef()))
+			{
+				F->Finish();
+				return;
+			}
+			F->TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak](float)
+			{
+				const TSharedPtr<FTargetsFt> Inner = Weak.Pin();
+				if (!Inner || Inner->bFinished)
+				{
+					return false;
+				}
+				if (!Tick(Inner.ToSharedRef()))
+				{
+					Inner->Finish();
+					return false;
+				}
+				return true;
+			}));
+		});
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs Cmd(TEXT("velox.bots.FtBotTargets"),
+		TEXT("velox.bots.FtBotTargets [quit]: FT_BotTargetIdentity on L_CombatTest (-game -nullrhi -UseFixedTimeStep -FPS=60): unique bot PlayerIds; the target is the visible enemy, never one behind cover. Non-shipping."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&Command));
 }
 

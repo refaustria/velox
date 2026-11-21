@@ -1,0 +1,14 @@
+[ci] Server mode: dedicated
+[ci] Net soak: scripts=NemusRun rounds=1 port=7834 lag=100 ms (FireRun/FireRunControl 50 ms) logs=/mnt/oldroot/velox-scratch/m7-nemus-b2b/20261114-080751-960878/nettest
+[ci] bands=L_ItemTest
+[ci] [NemusRun] load gate: load1=1.84 at round start (gate 2.0, waited 5s)
+[ci] [NemusRun] starting dedicated server (60 Hz), log /mnt/oldroot/velox-scratch/m7-nemus-b2b/20261114-080751-960878/nettest/NemusRun-server.log
+[ci] [NemusRun] starting client (120 Hz, packet simulation 100 ms one way), log /mnt/oldroot/velox-scratch/m7-nemus-b2b/20261114-080751-960878/nettest/NemusRun-client.log
+Terminated
+[ci] [NemusRun] server (dedicated) rss_max_kb=1797896 rss_mean_kb=1781374 rss_last_kb=1797896 rss_samples=15
+
+=== Velox net soak round 1/1 (one way 100 ms (FireRun/FireRunControl 50 ms) / 2 % loss both directions, server 60 Hz, client 120 Hz) ===
+NemusRun           moves=6413  C=0   echoes=0   gaps=7   repaired=70  repaired_extra=19  resent=3267  resent_extra=3260 strays_le_2_5=0  max=0.00   mean=0.00  PASS  Lexp=128.3 pads=['VeloxJumpPad_5', 'VeloxJumpPad_6', 'VeloxJumpPad_7', 'VeloxJumpPad_9'] replays=4 acks_ignored=0 rpcs=3281  
+Rounds passed: 1/1 (requested 1)
+Logs: /mnt/oldroot/velox-scratch/m7-nemus-b2b/20261114-080751-960878/nettest
+[ci] NET SOAK OK

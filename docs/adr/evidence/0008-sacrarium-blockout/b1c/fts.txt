@@ -1,0 +1,16 @@
+[fts] FtItemPickup PASS  ([2026.11.13-08.58.45:173][251]LogV
+[fts] FtNavigation PASS  ([2026.11.13-08.59.05:155][969]LogV
+[fts] FtStrafeCorridor PASS  ([2026.11.13-08.59.24:002][676]
+[fts] FtItemRouting PASS  ([2026.11.13-08.59.41:189][  8]Log
+[fts] FtOffMesh PASS  ([2026.11.13-09.00.02:786][334]LogVelo
+[fts] FtSegmentBlocked PASS  ([2026.11.13-09.00.21:002][802]
+[fts] FtCombatEvents PASS  ([2026.11.13-09.00.38:815][166]Lo
+[fts] FtDm1Reachability PASS  ([2026.11.13-09.00.53:763][  3
+[fts] FtHazard PASS  ([2026.11.13-09.01.11:497][ 86]LogVelox
+[fts] FtMapReachability-L_Sacrarium_Blockout PASS  ([2026.11
+[fts] FtBotEdge PASS  ([2026.11.13-09.01.54:611][601]LogVelo
+[fts] FtBotLavaEscape PASS  ([2026.11.13-09.02.11:931][202]L
+[fts] FtBotKnockOff PASS  ([2026.11.13-09.02.36:206][892]Log
+[fts] FtBotLavaAvoid PASS  ([2026.11.13-09.03.05:072][379]Lo
+[fts] FtBotTargets PASS  ([2026.11.13-09.03.24:068][110]LogV
+[fts] OK 15/15

@@ -2,6 +2,8 @@
 
 #include "Bots/VeloxDummyController.h"
 
+#include "Bots/VeloxBotSubsystem.h"
+
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
 #include "Combat/VeloxGameplayEffects.h"
@@ -19,6 +21,12 @@ AVeloxDummyController::AVeloxDummyController(const FObjectInitializer& ObjectIni
 	PrimaryActorTick.bCanEverTick = true;
 	// A PlayerState gives the dummy an ability system component and a scoreboard entry, like a real combatant.
 	bWantsPlayerState = true;
+}
+
+void AVeloxDummyController::InitPlayerState()
+{
+	Super::InitPlayerState();
+	UVeloxBotSubsystem::AssignUniquePlayerId(*this);
 }
 
 void AVeloxDummyController::OnPossess(APawn* InPawn)

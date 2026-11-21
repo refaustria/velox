@@ -66,12 +66,14 @@ EAS = None
 _MESH = {}
 
 
-def configure(log_prefix=None, fill_nav_kinds=None):
-    global LOG_PREFIX, FILL_NAV_KINDS
+def configure(log_prefix=None, fill_nav_kinds=None, clip_h=None):
+    global LOG_PREFIX, FILL_NAV_KINDS, CLIP_H
     if log_prefix is not None:
         LOG_PREFIX = log_prefix
     if fill_nav_kinds is not None:
         FILL_NAV_KINDS = tuple(fill_nav_kinds)
+    if clip_h is not None:
+        CLIP_H = float(clip_h)
 
 
 def log(msg):
@@ -225,6 +227,10 @@ def box(name, center, size, material, kind, rot=None, collide=True, tags=(), fol
     if fill_nav:
         # Solid box standing on the ground: without this Recast leaves a walkable island at floor level inside it (M4-04e).
         c.set_editor_property("fill_collision_underneath_for_navmesh", True)
+    if kind == "hazard":
+        # lava bed (ADR 0008 1.3): BlockAll like any solid but invisible to navigation, so no walkable island forms over it
+        c.set_editor_property("can_ever_affect_navigation", False)
+        c.set_editor_property("fill_collision_underneath_for_navmesh", False)
     if not collide:
         c.set_collision_profile_name("NoCollision")
         c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
@@ -235,24 +241,59 @@ def box(name, center, size, material, kind, rot=None, collide=True, tags=(), fol
     return a
 
 
-def ramp(name, origin, length, width, thickness, deg, material, kind="ramp", tags=(), folder=None, layout=None, clip=False):
-    """Thin slab whose top surface runs from `origin` (x, y, z) rising along +X at `deg` degrees over `length` cm
-    (the slab centre is offset half a thickness along -normal)."""
+def ramp_center(origin, length, thickness, deg, yaw=0.0):
+    """Slab centre (x, y, z) of a ramp whose top surface starts at `origin` and rises at `deg` along the direction `yaw` (degrees from
+    +X towards +Y): the offset along the run is rotated by yaw. Pure arithmetic (testable outside the editor)."""
     th = math.radians(deg)
-    cx = origin[0] + length / 2 * math.cos(th) + thickness / 2 * math.sin(th)
-    cz = origin[2] + length / 2 * math.sin(th) - thickness / 2 * math.cos(th)
-    return box(name, (cx, origin[1], cz), (length, width, thickness), material, kind, rot=unreal.Rotator(0, deg, 0),
-               tags=tags, folder=folder, layout=layout, clip=clip)
+    off = length / 2 * math.cos(th) + thickness / 2 * math.sin(th)
+    ya = math.radians(yaw)
+    return (origin[0] + off * math.cos(ya), origin[1] + off * math.sin(ya),
+            origin[2] + length / 2 * math.sin(th) - thickness / 2 * math.cos(th))
 
 
-def stairs(name, x0, y, tread, width, riser, steps, material, kind="step", tags=(), folder=None, layout=None):
-    """Solid steps rising along +X from x0: step s spans x0 + s*tread .. +tread and is (s+1)*riser high. Names <name>_<nn>."""
+def ramp(name, origin, length, width, thickness, deg, material, kind="ramp", tags=(), folder=None, layout=None, clip=False, yaw=0.0):
+    """Thin slab whose top surface runs from `origin` (x, y, z) rising at `deg` degrees over `length` cm along +X, or along the
+    direction `yaw` (rotator (roll 0, pitch deg, yaw); the slab centre is offset half a thickness along -normal)."""
+    return box(name, ramp_center(origin, length, thickness, deg, yaw), (length, width, thickness), material, kind,
+               rot=unreal.Rotator(0, deg, yaw), tags=tags, folder=folder, layout=layout, clip=clip)
+
+
+OCT_YAWS = (0.0, 45.0, 90.0, 135.0)
+
+
+def octagon_boxes(cx, cy, d, z0, z1):
+    """[(centre, size, yaw)] of the FOUR boxes d x d*tan(22.5 deg) x (z1 - z0) at yaw 0/45/90/135 that make a regular octagon of
+    across-flats d (ADR 0008 1.3; two squares at 0/45 would leave concave pockets). Pure arithmetic."""
+    w = d * math.tan(math.radians(22.5))
+    return [((cx, cy, (z0 + z1) / 2), (d, w, z1 - z0), yaw) for yaw in OCT_YAWS]
+
+
+def octagon(name, center_xy, d, z0, z1, material, kind, tags=(), folder=None, layout=None, clip=False):
+    """Regular octagon of across-flats d as four boxes named <name>_<n>; all carry the Layout tag `layout` (default: name)."""
+    out = []
+    for n, (c, sz, yaw) in enumerate(octagon_boxes(center_xy[0], center_xy[1], d, z0, z1)):
+        out.append(box(f"{name}_{n}", c, sz, material, kind, rot=unreal.Rotator(0, 0, yaw), tags=tags, folder=folder,
+                       layout=layout or name, clip=clip))
+    return out
+
+
+def stairs_boxes(x0, y, tread, width, riser, steps, axis="x", direction=1, z0=0.0):
+    """[(centre, size)] of each step. Axis x: step s spans x0 + direction*s*tread .. +tread along X at cross position y; axis y swaps
+    the roles (x0 is a Y value, y the X cross position). Step s tops at z0 + (s+1)*riser and is solid down to z0."""
     out = []
     for s in range(steps):
         hgt = (s + 1) * riser
-        out.append(box(f"{name}_{s:02d}", (x0 + s * tread + tread / 2, y, hgt / 2), (tread, width, hgt), material, kind,
-                       tags=tags, folder=folder, layout=layout))
+        run = x0 + direction * (s * tread + tread / 2)
+        c = (run, y, z0 + hgt / 2) if axis == "x" else (y, run, z0 + hgt / 2)
+        sz = (tread, width, hgt) if axis == "x" else (width, tread, hgt)
+        out.append((c, sz))
     return out
+
+
+def stairs(name, x0, y, tread, width, riser, steps, material, kind="step", tags=(), folder=None, layout=None, axis="x", direction=1, z0=0.0):
+    """Solid steps rising along +X (axis "x", direction 1 / -1) or along Y (axis "y") from x0. Names <name>_<nn>."""
+    return [box(f"{name}_{n:02d}", c, sz, material, kind, tags=tags, folder=folder, layout=layout)
+            for n, (c, sz) in enumerate(stairs_boxes(x0, y, tread, width, riser, steps, axis, direction, z0))]
 
 
 def cylinder_marker(name, center, size, material, kind="target", tags=(), folder=None, layout=None):
@@ -288,9 +329,9 @@ def pickup(definition_path, location, tags=(), name=None, folder="Items", layout
 
 
 def jump_pad(name, location_xy, target_location, pad_label=None, target_label=None, folder=None, tags=(), layout=None,
-             trigger_extent=None):
+             trigger_extent=None, floor_z=0.0):
     """AVeloxJumpPad (AimAtTarget) with its trigger centre PAD_LAUNCH_Z above the floor, a TargetPoint at target_location
-    and the visible green disc. Returns the pad.
+    and the visible green disc. `floor_z` (M7 P6): height of the floor the pad stands on (trigger at floor_z + launch_z). Returns the pad.
     trigger_extent (task m6-16): half extents (x, y, z) of a lower/narrower trigger. The box then rests on the floor
     (actor z = extent z), so a pawn only fires the pad while its feet are within 2 x extent z of the floor (a pawn
     hopping through the old 140 cm box launched from up to 140 cm high and overshot). The caller shifts target_location
@@ -298,7 +339,7 @@ def jump_pad(name, location_xy, target_location, pad_label=None, target_label=No
     ext = tuple(trigger_extent) if trigger_extent else PAD_TRIGGER_EXTENT
     launch_z = ext[2] if trigger_extent else PAD_LAUNCH_Z
     tp = spawn(unreal.TargetPoint, target_label or f"{name}_TargetPoint", target_location, None, folder, "targetpoint", tags, layout)
-    a = spawn(unreal.VeloxJumpPad, pad_label or name, (location_xy[0], location_xy[1], launch_z), None, folder, "jumppad",
+    a = spawn(unreal.VeloxJumpPad, pad_label or name, (location_xy[0], location_xy[1], floor_z + launch_z), None, folder, "jumppad",
               tags, layout)
     a.set_editor_property("mode", unreal.VeloxJumpPadMode.AIM_AT_TARGET)
     a.set_editor_property("target", tp)
@@ -344,6 +385,31 @@ def nav_bounds(center, size, name="NavMeshBounds", tags=(), layout=None):
     return v
 
 
+def nav_data(tile_size_uu, name="RecastNavMesh_Velox", layout="NavData"):
+    """Task M7 H12: a placed RecastNavMesh with a per-map TileSizeUU (spec NAV_TILE_SIZE_UU). With one supported agent the runtime
+    nav system registers it in place of the auto-created RecastNavMesh-Default (UNavigationSystemV1::RegisterNavData), every other
+    property comes from the [/Script/NavigationSystem.RecastNavMesh] config. bForceRebuildOnLoad keeps the runtime build (ADR 0005
+    section 3: generated on the server at load), so whatever the editor stored with the actor is never used."""
+    # ARecastNavMesh is notplaceable (EditorActorSubsystem refuses it, and a commandlet editor world has no nav system to spawn its
+    # default): UVeloxNavDataLibrary spawns it in the persistent level.
+    world = unreal.EditorLevelLibrary.get_editor_world()
+    a = unreal.VeloxNavDataLibrary.spawn_map_nav_mesh(world, float(tile_size_uu))
+    if a is None:
+        fail(f"{name}: VeloxNavDataLibrary.spawn_map_nav_mesh returned None")
+        return None
+    a.set_actor_label(name)
+    a.set_folder_path("Navigation")
+    tag_actor(a, name, layout)
+    count("navdata")
+    a.set_editor_property("tile_size_uu", float(tile_size_uu))
+    a.set_editor_property("force_rebuild_on_load", True)
+    got = a.get_editor_property("tile_size_uu")
+    log(f"{name}: tile_size_uu={got:.0f} force_rebuild_on_load={a.get_editor_property('force_rebuild_on_load')}")
+    if abs(got - float(tile_size_uu)) > 0.5:
+        fail(f"{name}: tile_size_uu {got} differs from {tile_size_uu}")
+    return a
+
+
 def nav_link(name, link_type, start, end, pad=None, both_ways=False, required_speed=0.0, folder="NavLinks", tags=(), layout=None):
     """AVeloxNavLink at the start point (LinkStart = 0), LinkEnd relative to it (no rotation)."""
     a = spawn(unreal.VeloxNavLink, name, start, None, folder, "navlink", tags, layout)
@@ -369,6 +435,30 @@ def drop_links(tag, cx, cy, size, top, edges):
         nav_link(f"{tag}_Drop{e}", unreal.VeloxNavLinkType.DROP, start, end)
 
 
+HAZARD_TYPE_ENUM = {"lava": "LAVA", "void": "VOID"}
+
+
+def hazard(name, htype, center, size, folder="Hazards", tags=(), layout=None):
+    """AVeloxHazardVolume (ADR 0008 section 3.3): an axis-aligned box of full extents `size` (cm) centred at `center`; `htype` is
+    "lava" (the box top is the lava surface; put a Box of kind "hazard" under it as the bed) or "void" (one kill on entry).
+    Invisible, no collision for anything but pawn overlaps, no navigation influence (all set by the C++ class). Counted as
+    "hazardvolume"."""
+    if htype not in HAZARD_TYPE_ENUM:
+        fail(f"{name}: hazard type {htype!r} (lava | void)")
+        return None
+    if min(size) <= 0:
+        fail(f"{name}: empty hazard box {size}")
+        return None
+    a = spawn(unreal.VeloxHazardVolume, name, center, None, folder, "hazardvolume", tags, layout)
+    a.set_editor_property("type", getattr(unreal.VeloxHazardType, HAZARD_TYPE_ENUM[htype]))
+    b = a.get_editor_property("box")
+    b.set_box_extent(unreal.Vector(size[0] / 2.0, size[1] / 2.0, size[2] / 2.0), False)
+    got = b.get_unscaled_box_extent()
+    if abs(got.x - size[0] / 2.0) > 0.5 or abs(got.y - size[1] / 2.0) > 0.5 or abs(got.z - size[2] / 2.0) > 0.5:
+        fail(f"{name}: hazard box extent {got} differs from {size} / 2")
+    return a
+
+
 # ---------------------------------------------------------------- map-wide settings
 def clip_box(name, center, size):
     """Invisible BlockAll volume, no navigation influence (M4-07f): seals an open-top arena against knockback."""
@@ -384,15 +474,21 @@ def clip_box(name, center, size):
     return a
 
 
-def clip_walls(half_x, half_y, height=CLIP_H, ceiling_z=None, wall_t=100.0):
-    """Four clip walls coinciding with the visible perimeter walls (inner face at +-half_x / +-half_y), `height` high,
-    plus a ceiling slab (centre Z `ceiling_z`, default height + wall_t / 2, i.e. sitting on the walls). 5 actors, kind "clip"."""
-    h, t = height, wall_t
+def clip_walls(half_x, half_y, height=None, ceiling_z=None, wall_t=100.0, mode="box"):
+    """Four clip walls coinciding with the visible perimeter walls (inner face at +-half_x / +-half_y), `height` high (default: CLIP_H,
+    set per map by configure(clip_h=) from the spec module), plus a ceiling slab (centre Z `ceiling_z`, default height + wall_t / 2,
+    i.e. sitting on the walls). mode "box": 5 actors (walls + ceiling, kind "clip"); "walls": the four walls only; "none": nothing."""
+    if mode not in ("box", "walls", "none"):
+        raise ValueError(f"clip_walls mode {mode!r} (box | walls | none)")
+    if mode == "none":
+        return
+    h, t = (CLIP_H if height is None else height), wall_t
     clip_box("Clip_N", (0, half_y + t / 2, h / 2), (2 * half_x + 2 * t, t, h))
     clip_box("Clip_S", (0, -half_y - t / 2, h / 2), (2 * half_x + 2 * t, t, h))
     clip_box("Clip_E", (half_x + t / 2, 0, h / 2), (t, 2 * half_y, h))
     clip_box("Clip_W", (-half_x - t / 2, 0, h / 2), (t, 2 * half_y, h))
-    clip_box("Clip_Ceiling", (0, 0, h + t / 2 if ceiling_z is None else ceiling_z), (2 * half_x + 2 * t, 2 * half_y + 2 * t, t))
+    if mode == "box":
+        clip_box("Clip_Ceiling", (0, 0, h + t / 2 if ceiling_z is None else ceiling_z), (2 * half_x + 2 * t, 2 * half_y + 2 * t, t))
 
 
 def set_kill_z(z):

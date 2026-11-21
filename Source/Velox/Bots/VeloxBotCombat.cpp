@@ -7,7 +7,9 @@
 #include "Bots/VeloxBotLog.h"
 #include "Bots/VeloxBotPathFollowingComponent.h"
 #include "Bots/VeloxBotCost.h"
+#include "Bots/VeloxBotSettings.h"
 #include "Bots/VeloxBotSubsystem.h"
+#include "Bots/VeloxBotItemRouting.h"
 #include "Bots/VeloxWeaponChoice.h"
 #include "Character/VeloxCharacter.h"
 #include "Combat/VeloxAbilitySystemComponent.h"
@@ -15,6 +17,8 @@
 #include "Combat/VeloxCombatSettings.h"
 #include "Combat/VeloxHealthComponent.h"
 #include "Combat/VeloxHealthSet.h"
+#include "Combat/VeloxHazardSubsystem.h"
+#include "Combat/VeloxHazardVolume.h"
 #include "Core/VeloxCollisionChannels.h"
 #include "Core/VeloxGameplayTags.h"
 #include "Engine/World.h"
@@ -24,6 +28,8 @@
 #include "HAL/IConsoleManager.h"
 #include "Net/VeloxLagCompensationSubsystem.h"
 #include "NavigationSystem.h"
+#include "NavFilters/NavigationQueryFilter.h"
+#include "Movement/VeloxMovementComponent.h"
 #include "Weapons/VeloxProjectile.h"
 #include "Weapons/VeloxWeaponDefinition.h"
 #include "Weapons/VeloxWeaponInventoryComponent.h"
@@ -32,6 +38,14 @@
 
 namespace VeloxBotCombatPrivate
 {
+	TAutoConsoleVariable<int32> CVarBotEdgeAware(TEXT("velox.bots.EdgeAware"), 1,
+		TEXT("0 = the ADR 0008 3.6 edge behaviours (edge-aware overlay, hop landing guard) stay off even on maps with a hazard volume (A/B for FtBotEdge). Server."),
+		ECVF_Default);
+
+	TAutoConsoleVariable<int32> CVarBotEdgeGuard(TEXT("velox.bots.EdgeGuard"), 1,
+		TEXT("0 = the task M7 H13 void-edge additions stay off (ground edge guard, void back-off of the overlay, airborne hop guard, own-hop void recovery); the rest of the ADR 0008 3.6 behaviours stay (A/B). Server."),
+		ECVF_Default);
+
 	TAutoConsoleVariable<int32> CVarBotPeaceful(TEXT("velox.bots.Peaceful"), 0,
 		TEXT("1 = bots perceive no enemies and ignore damage (navigation functional tests; task 05). Server."), ECVF_Default);
 }
@@ -170,7 +184,11 @@ namespace VeloxBotCombat
 		FVector2D Wish = FVector2D::ZeroVector;
 		const double Dist = In.ToEnemy.Size();
 		const FVector2D Dir = Dist > UE_KINDA_SMALL_NUMBER ? In.ToEnemy / Dist : FVector2D::ZeroVector;
-		if (In.bDodge && !In.DodgeDir.IsNearlyZero())
+		if (In.bNoLateralOrRetreat)
+		{
+			// ADR 0008 3.6.1 edge fallback: no strafe and no dodge this tick.
+		}
+		else if (In.bDodge && !In.DodgeDir.IsNearlyZero())
 		{
 			Wish += In.DodgeDir.GetSafeNormal();
 		}
@@ -189,7 +207,7 @@ namespace VeloxBotCombat
 			{
 				Wish += Dir * In.RangeWeight;
 			}
-			else if (In.BestMaxCm > 0.f && Dist < In.BestMinCm)
+			else if (In.BestMaxCm > 0.f && Dist < In.BestMinCm && !In.bNoLateralOrRetreat)
 			{
 				Wish -= Dir * In.RangeWeight;
 			}
@@ -199,6 +217,36 @@ namespace VeloxBotCombat
 			Wish += In.PathWish.GetSafeNormal() * In.PathWeight;
 		}
 		return Wish.GetSafeNormal();
+	}
+
+	FVector EdgeProbePoint(const FVector& Feet, const FVector2D& Velocity2D, const FVector2D& Wish, float LookaheadSeconds, float ProbeCm)
+	{
+		const FVector2D Offset = Velocity2D * FMath::Max(0.f, LookaheadSeconds) + Wish * FMath::Max(0.f, ProbeCm);
+		return Feet + FVector(Offset, 0.0);
+	}
+
+	EVeloxEdgeChoice ChooseEdgeWish(bool bWishOnNav, bool bMirrorOnNav)
+	{
+		return bWishOnNav ? EVeloxEdgeChoice::Keep : (bMirrorOnNav ? EVeloxEdgeChoice::Mirror : EVeloxEdgeChoice::Drop);
+	}
+
+	FVector HopLandingPoint(const FVector& Feet, const FVector2D& Velocity2D, float AirSeconds)
+	{
+		return Feet + FVector(Velocity2D * FMath::Max(0.f, AirSeconds), 0.0);
+	}
+
+	void HopGroundWindow(double LandingZ, float ApexCm, float Distance2D, float WalkableFloorZ, double& OutTopZ, double& OutBottomZ)
+	{
+		const double FloorZ = FMath::Clamp(static_cast<double>(WalkableFloorZ), 0.05, 1.0);
+		const double TanSlope = FMath::Sqrt(FMath::Max(0.0, 1.0 - FloorZ * FloorZ)) / FloorZ;
+		OutTopZ = LandingZ + FMath::Max(0.f, ApexCm);
+		// At least 1 cm below the take-off height, so flat ground at exactly LandingZ is inside the window.
+		OutBottomZ = LandingZ - FMath::Max(1.0, FMath::Max(0.f, Distance2D) * TanSlope);
+	}
+
+	bool IsHeardDamage(const FGameplayTagContainer& DamageTags)
+	{
+		return !DamageTags.HasTag(VeloxGameplayTags::Damage_Hazard);
 	}
 
 	FVeloxProjectileThreat ProjectileThreat(const FVector& Location, const FVector& Velocity, const FVector& Point, float DangerRadiusCm, float HorizonSeconds)
@@ -348,6 +396,16 @@ namespace VeloxBotCombatGlueImpl
 
 	void HandleDamaged(AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, const FVeloxDamageEvent& Event)
 	{
+		if (Event.DamageTags.HasTag(VeloxGameplayTags::Damage_Hazard_Void))
+		{
+			// Task M7 H13: soak diagnostics, the take-off that ended in the void.
+			Bot.NoteVoidDeath();
+		}
+		if (!VeloxBotCombat::IsHeardDamage(Event.DamageTags))
+		{
+			// H8 (review F8): a credited lava tick names the attacker as instigator; it gives away no position.
+			return;
+		}
 		AVeloxCharacter* Attacker = PawnOf(Event.Instigator.Get());
 		if (!Attacker)
 		{
@@ -580,6 +638,143 @@ namespace VeloxBotCombatGlue
 		}
 	}
 
+	bool IsEdgeAware(const UWorld* World)
+	{
+		const UVeloxHazardSubsystem* Hazards = World ? UVeloxHazardSubsystem::Get(World) : nullptr;
+		return Hazards && Hazards->HasHazards() && VeloxBotCombatPrivate::CVarBotEdgeAware.GetValueOnGameThread() != 0;
+	}
+
+	bool IsEdgeGuardOn(const UWorld* World)
+	{
+		return IsEdgeAware(World) && VeloxBotCombatPrivate::CVarBotEdgeGuard.GetValueOnGameThread() != 0;
+	}
+
+	bool IsEdgeAwareEnabled()
+	{
+		return VeloxBotCombatPrivate::CVarBotEdgeAware.GetValueOnGameThread() != 0;
+	}
+
+	bool ProjectsOntoNav(const AVeloxBotController& Bot, const FVector& Point, const FVector& Extent, bool* bOutHazard)
+	{
+		if (bOutHazard)
+		{
+			*bOutHazard = false;
+		}
+		UWorld* World = Bot.GetWorld();
+		const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+		const UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World);
+		const ANavigationData* NavData = Bots ? Bots->GetNavData() : nullptr;
+		if (!NavSys || !NavData)
+		{
+			// No nav data: nothing to judge against (never blocks a wish).
+			return true;
+		}
+		FNavLocation Projected;
+		const bool bProjected = NavSys->ProjectPointToNavigation(Point, Projected, Extent, NavData,
+			UNavigationQueryFilter::GetQueryFilter(*NavData, const_cast<AVeloxBotController*>(&Bot), Bot.GetNavFilter()));
+		// Task M7 H7: a point over a hazard volume is no safe ground for a wish or a hop, whether or not it projects. The
+		// projection may land on the bed's mesh in the volume, or on the rim next to the channel (and an airborne probe is far
+		// above the bed), so the static surface straight under the probe is tested too: a bridge over lava is safe, the lava
+		// top or its bed is not.
+		const UVeloxHazardSubsystem* Hazards = UVeloxHazardSubsystem::Get(World);
+		if (!Hazards || !Hazards->HasHazards())
+		{
+			return bProjected;
+		}
+		bool bHazard = bProjected && Hazards->IsInHazard(Projected.Location + FVector(0.0, 0.0, Bot.HazardProbeUpCm), EVeloxHazardType::Lava);
+		if (!bHazard)
+		{
+			// Task M7 H8 (review F13): the floor under the point is the first Pawn-blocking surface (overlap-only triggers, the
+			// hazard boxes and the void slab do not block; pawns are ignored); it is lava when 1 cm above it lies in a Lava
+			// volume (the bed). Void never counts here: void ledges keep the H4 projection result.
+			FHitResult Hit;
+			const FVector Down = Point - FVector(0.0, 0.0, UVeloxBotSettings::Get().HazardTraceDepthCm);
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(VeloxBotHazardProbe), false, Bot.GetPawn());
+			FCollisionResponseParams Response;
+			Response.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
+			bHazard = World->LineTraceSingleByChannel(Hit, Point, Down, ECC_Pawn, Params, Response) &&
+				Hazards->IsInHazard(Hit.ImpactPoint + FVector(0.0, 0.0, 1.0), EVeloxHazardType::Lava);
+		}
+		if (bOutHazard)
+		{
+			*bOutHazard = bHazard;
+		}
+		return bProjected && !bHazard;
+	}
+
+	bool FindHopLandingGround(const AVeloxBotController& Bot, const FVector& Landing, float ApexCm, float Distance2D, float WalkableFloorZ, FVector& OutGround)
+	{
+		UWorld* World = Bot.GetWorld();
+		if (!World)
+		{
+			return false;
+		}
+		double TopZ = 0.0;
+		double BottomZ = 0.0;
+		VeloxBotCombat::HopGroundWindow(Landing.Z, ApexCm, Distance2D, WalkableFloorZ, TopZ, BottomZ);
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(VeloxBotHopGround), false, Bot.GetPawn());
+		FCollisionResponseParams Response;
+		Response.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
+		if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World))
+		{
+			Bots->NoteTraces(1);
+		}
+		if (!World->LineTraceSingleByChannel(Hit, FVector(Landing.X, Landing.Y, TopZ), FVector(Landing.X, Landing.Y, BottomZ), ECC_Pawn, Params, Response) || Hit.bStartPenetrating)
+		{
+			return false;
+		}
+		OutGround = Hit.ImpactPoint;
+		return true;
+	}
+
+	bool HopLandsSafely(const AVeloxBotController& Bot, const FVector& Landing, float ApexCm, float Distance2D, float WalkableFloorZ, bool* bOutHazard)
+	{
+		if (bOutHazard)
+		{
+			*bOutHazard = false;
+		}
+		FVector Ground;
+		if (!FindHopLandingGround(Bot, Landing, ApexCm, Distance2D, WalkableFloorZ, Ground))
+		{
+			return false;
+		}
+		const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+		const FVector Extent(Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectRadiusCm, Settings.HopLandingProjectHalfHeightCm);
+		// 1 cm above the hit: the hazard trace in ProjectsOntoNav must start above the bed to see it.
+		return ProjectsOntoNav(Bot, Ground + FVector(0.0, 0.0, 1.0), Extent, bOutHazard);
+	}
+
+	bool IsUnsafeGround(const AVeloxBotController& Bot, const FVector& Point)
+	{
+		const UVeloxBotSettings& Settings = UVeloxBotSettings::Get();
+		bool bHazard = false;
+		if (ProjectsOntoNav(Bot, Point, FVector(Settings.EdgeProbeProjectRadiusCm, Settings.EdgeProbeProjectRadiusCm, Settings.OnMeshHalfHeightCm), &bHazard))
+		{
+			return false;
+		}
+		if (bHazard)
+		{
+			return true;
+		}
+		UWorld* World = Bot.GetWorld();
+		if (!World)
+		{
+			return false;
+		}
+		// Off the mesh: a floor within EdgeGuardDropDepthCm under the point (a ledge onto a lower floor, the eroded band of the
+		// deck itself) is ground; nothing there is the void.
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(VeloxBotEdgeGuard), false, Bot.GetPawn());
+		FCollisionResponseParams Response;
+		Response.CollisionResponse.SetResponse(ECC_Pawn, ECR_Ignore);
+		if (UVeloxBotSubsystem* Bots = UVeloxBotSubsystem::Get(World))
+		{
+			Bots->NoteTraces(1);
+		}
+		return !World->LineTraceSingleByChannel(Hit, Point + FVector(0.0, 0.0, 20.0), Point - FVector(0.0, 0.0, Settings.EdgeGuardDropDepthCm), ECC_Pawn, Params, Response);
+	}
+
 	void Overlay(const AVeloxBotController& Bot, FVeloxBotCombatState& Combat, FRandomStream& Stream, const FVeloxBotNavOutput& Nav, FVeloxBotInput& Pending, float Dt)
 	{
 		const AVeloxCharacter* Self = Cast<AVeloxCharacter>(Bot.GetPawn());
@@ -669,7 +864,95 @@ namespace VeloxBotCombatGlue
 		In.StrafeAmplitude = Params.StrafeAmplitude;
 		In.bDodge = bDodging;
 		In.DodgeDir = Combat.ProjectileDodgeDir;
-		const FVector2D Wish = VeloxBotCombat::CombatWish(In);
+		FVector2D Wish = VeloxBotCombat::CombatWish(In);
+		if (!Wish.IsZero() && IsEdgeAware(World))
+		{
+			// ADR 0008 3.6.1 edge-aware overlay: probe ahead of the current motion along the wish; cached EdgeProbeCheckSeconds.
+			const UVeloxBotSettings& BotSettings = UVeloxBotSettings::Get();
+			if (Now >= Combat.NextEdgeProbeTime)
+			{
+				Combat.NextEdgeProbeTime = Now + BotSettings.EdgeProbeCheckSeconds;
+				++Combat.EdgeProbeCount;
+				const FVector ProbeFeet = Self->GetVeloxMovementComponent() ? Self->GetVeloxMovementComponent()->GetActorFeetLocation() : Feet;
+				const FVector2D Velocity2D(Self->GetVelocity());
+				auto OnNav = [&](const FVector2D& W, bool* bHazard = nullptr)
+				{
+					// H8 (review F6, ADR 0008 G2): the agent radius, not GetOnMeshExtent's 100 cm (that accepts ~55 cm past a ledge).
+					return ProjectsOntoNav(Bot, VeloxBotCombat::EdgeProbePoint(ProbeFeet, Velocity2D, W, BotSettings.EdgeProbeLookaheadSeconds, BotSettings.EdgeProbeCm),
+						FVector(BotSettings.EdgeProbeProjectRadiusCm, BotSettings.EdgeProbeProjectRadiusCm, BotSettings.OnMeshHalfHeightCm), bHazard);
+				};
+				const bool bWishOnNav = OnNav(Wish);
+				FVeloxCombatWishInput Mirrored = In;
+				Mirrored.StrafeSign = -In.StrafeSign;
+				Mirrored.DodgeDir = -In.DodgeDir;
+				const FVector2D MirrorWish = bWishOnNav ? Wish : VeloxBotCombat::CombatWish(Mirrored);
+				const EVeloxEdgeChoice Choice = VeloxBotCombat::ChooseEdgeWish(bWishOnNav, !bWishOnNav && !MirrorWish.IsZero() && OnNav(MirrorWish));
+				Combat.bEdgeDrop = Choice == EVeloxEdgeChoice::Drop;
+				if (Choice == EVeloxEdgeChoice::Mirror)
+				{
+					// The other side is the safe one: keep it (the next random flip is probed again within EdgeProbeCheckSeconds).
+					++Combat.EdgeMirrorCount;
+					Combat.StrafeSign = Mirrored.StrafeSign;
+					if (bDodging)
+					{
+						Combat.ProjectileDodgeDir = Mirrored.DodgeDir;
+					}
+					In = Mirrored;
+				}
+				else if (Combat.bEdgeDrop)
+				{
+					++Combat.EdgeDropCount;
+				}
+				// H7: what the Drop leaves (closing in, the path blend) is probed too; over lava the overlay backs off.
+				Combat.bEdgeHazardBack = false;
+				Combat.bEdgeNoWish = false;
+				if (Combat.bEdgeDrop)
+				{
+					FVeloxCombatWishInput Dropped = In;
+					Dropped.bNoLateralOrRetreat = true;
+					const FVector2D Remaining = VeloxBotCombat::CombatWish(Dropped);
+					// H13: and over the void (Orbita: closing in on an enemy across the gap walked the bot off its deck).
+					bool bHazard = false;
+					const bool bUnsafe = !Remaining.IsZero() && (IsEdgeGuardOn(World)
+						? IsUnsafeGround(Bot, VeloxBotCombat::EdgeProbePoint(ProbeFeet, Velocity2D, Remaining, BotSettings.EdgeProbeLookaheadSeconds, BotSettings.EdgeProbeCm))
+						: !OnNav(Remaining, &bHazard) && bHazard);
+					if (bUnsafe)
+					{
+						// H8 (review F7): the reversal is probed as well; on a small island it can point at lava or a ledge
+						// too, and then the overlay writes nothing (the path wish stays).
+						// Task M7 H13: with an item path blended in, the reversal undid the path's progress too (B5b: 6 s
+						// dwells in Horreum's corner, the enemy across the gap): the path wish stays instead, and the ground
+						// edge guard keeps the momentum off the edge.
+						const bool bKeepPath = IsEdgeGuardOn(World) && In.bBlendPath && !Pending.WishDirWorld.IsZero();
+						if (!bKeepPath && OnNav(-Remaining))
+						{
+							Combat.bEdgeHazardBack = true;
+							++Combat.EdgeHazardBackCount;
+						}
+						else
+						{
+							Combat.bEdgeNoWish = true;
+							++Combat.EdgeNoWishCount;
+						}
+					}
+				}
+				if (Choice != EVeloxEdgeChoice::Keep)
+				{
+					UE_LOG(LogVeloxBots, Verbose, TEXT("VeloxBotEdge bot=%s choice=%s at=%s vel=%s wish=(%.2f,%.2f)"), *Bot.GetBotName(),
+						Choice == EVeloxEdgeChoice::Mirror ? TEXT("mirror") : TEXT("drop"), *ProbeFeet.ToCompactString(), *Velocity2D.ToString(), Wish.X, Wish.Y);
+				}
+			}
+			In.bNoLateralOrRetreat = Combat.bEdgeDrop;
+			Wish = VeloxBotCombat::CombatWish(In);
+			if (Combat.bEdgeHazardBack)
+			{
+				Wish = -Wish;
+			}
+			else if (Combat.bEdgeNoWish)
+			{
+				Wish = FVector2D::ZeroVector;
+			}
+		}
 		if (!Wish.IsZero())
 		{
 			Pending.WishDirWorld = Wish;
@@ -679,7 +962,8 @@ namespace VeloxBotCombatGlue
 		if (Now < Combat.DodgeJumpUntil)
 		{
 			UVeloxBotPathFollowingComponent* Follow = Bot.GetBotPathFollowing();
-			Pending.bJumpHeld |= !Follow || Follow->HasHopHeadroom(Now);
+			// ADR 0008 3.6.2: and the hop landing guard on hazard maps (the dodge jump is a hop).
+			Pending.bJumpHeld |= !Follow || (Follow->HasHopHeadroom(Now) && Follow->HasHopLanding());
 		}
 	}
 

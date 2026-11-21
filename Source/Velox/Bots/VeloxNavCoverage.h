@@ -60,6 +60,8 @@ struct FVeloxNavCoverageReport
 	int32 DroppedHeadroom = 0;
 	int32 DroppedOutsideBounds = 0;
 	int32 DroppedIgnored = 0;
+	/** Samples inside an AVeloxHazardVolume (ADR 0008 3.5: exempt by volume, reported as hazard_m2). */
+	int32 DroppedHazard = 0;
 	int32 Surfaces = 0;
 	double WalkableM2 = 0.0;
 	double CoveredPct = 0.0;

@@ -73,6 +73,7 @@ pocket = 0
 nav_secs = []
 no_nav = world_kills = not_at_goal = 0
 left_arena = None
+hz_touch = collections.Counter(); hz_cred = collections.Counter(); hz_self = collections.Counter()   # ADR 0008 3.5, report-only
 LINK_FAILED_REASONS = ('missed', 'timeout', 'noimpulse', 'tooslow')       # ADR 0006 E0.3 (b)
 # Task m5-06b: air_start / relaunched (a flight that was not the link's: begun in the air, or re-launched away from the end).
 LINK_NOT_ATTEMPT_REASONS = ('replaced', 'below_start', 'ineligible', 'air_start', 'relaunched')      # re-plans (D28): not attempts
@@ -163,7 +164,15 @@ with open(path, 'rb') as f:
                     t = re.search(r' t=([\d.]+)', line)
                     mega_times.append(f"{t.group(1) if t else '?'}:{m.group(1)}")
             continue
+        if 'VeloxHazard type=' in line:
+            hm = re.search(r'victim=(\S+)', line)
+            if hm:
+                hz_touch[hm.group(1)] += 1
+            continue
         if 'VeloxKill victim=' in line and 'ignored' not in line:
+            hk = re.search(r'victim=(\S+) .*suicide=(\d) tags=\[[^\]]*Damage\.Hazard', line)
+            if hk:
+                (hz_self if hk.group(2) == '1' else hz_cred)[hk.group(1)] += 1
             if re.search(r'tags=\[[^\]]*Damage\.Environment', line):
                 world_kills += 1
             deaths += 1
@@ -349,6 +358,8 @@ print(f"{label}: {'PASS' if not fails else 'FAIL(' + ','.join(fails) + ')'} stuc
       f"suicides={suicides} refused={refused} giveup={giveup} errors={errors} supp1={supp_share:.1f}% fight_yields={fight_yields} fight_share={fight_share:.1f}% "
       f"armed_fight_share={armed_share:.1f}% ({vis_armed_fight}/{vis_armed}) allunreach_air={allun.get('air', 0)} allunreach_ground={allun.get('ground', 0)} "
       f"budget_mean_us={budget:.1f} run_mean_us={run_mean} nav_s={max(nav_secs) if nav_secs else 'n/a'} world_kills={world_kills} no_nav_point={no_nav} not_at_goal={not_at_goal} left_arena={left_arena or 'none'}")
+print(f"  hazard (report-only): hazard_touch={sum(hz_touch.values())} hazard_death_credited={sum(hz_cred.values())} hazard_death_self={sum(hz_self.values())}"
+      + (' per bot: ' + ' '.join(f'{b}:{hz_touch[b]}/{hz_cred[b]}/{hz_self[b]}' for b in sorted(set(hz_touch) | set(hz_cred) | set(hz_self))) if (hz_touch or hz_cred or hz_self) else ''))
 print(f"  strikes: {' '.join(strike_list) if strike_list else '-'}")
 for fl_ in wait_flags:
     print('  ' + fl_)
@@ -361,6 +372,7 @@ with open(path + '.json', 'w') as jf:
                'wait_max_s': round(wait_max[0], 1), 'wait_capped': wait_capped, 'wait_flags': len(wait_flags), 'link_max_dt': link_max_dt,
                'kills': kills, 'pickups': pickups, 'mega': len(mega_times), 'repaths': repath_total, 'fails': fails,
                'rules': dict(rules), 'speed_strikes': [x for x in strike_list if ':speed' in x],
-               'nav_seconds': max(nav_secs) if nav_secs else None, 'world_kills': world_kills, 'left_arena': left_arena, 'no_nav_point': no_nav, 'not_at_goal': not_at_goal,
+               'nav_seconds': max(nav_secs) if nav_secs else None, 'world_kills': world_kills, 'hazard_touch': sum(hz_touch.values()), 'hazard_death_credited': sum(hz_cred.values()), 'hazard_death_self': sum(hz_self.values()),
+               'hazard_bots': {b: [hz_touch[b], hz_cred[b], hz_self[b]] for b in sorted(set(hz_touch) | set(hz_cred) | set(hz_self))}, 'left_arena': left_arena, 'no_nav_point': no_nav, 'not_at_goal': not_at_goal,
                'giveup': giveup, 'link_types': dict(link_types), 'link_unknown': dict(link_unknown), 'resets': resets, 'spawns': spawns, 'taken': dict(taken),
                'resets_at': resets_at, 'takes_at': takes_at}, jf)

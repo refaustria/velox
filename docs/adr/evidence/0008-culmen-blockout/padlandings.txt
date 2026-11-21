@@ -1,0 +1,12 @@
+VeloxPadLanding pad=VeloxJumpPad_11 origin=V(X=-3640.00, Y=1700.00, Z=70.00) landing=V(X=-3640.00, Y=999.77, Z=640.00) hit=1 link=VeloxNavLink_42 link_end=V(X=-3640.00, Y=1000.00, Z=640.00) dist_to_link_end=0.2
+VeloxPadLanding pad=VeloxJumpPad_12 origin=V(X=3640.00, Y=-1700.00, Z=70.00) landing=V(X=3640.00, Y=-999.77, Z=640.00) hit=1 link=VeloxNavLink_43 link_end=V(X=3640.00, Y=-1000.00, Z=640.00) dist_to_link_end=0.2
+VeloxPadLanding pad=VeloxJumpPad_13 origin=V(X=-350.00, Y=-350.00, Z=390.00) landing=V(X=-2901.74, Y=-450.51, Z=640.00) hit=1 link=VeloxNavLink_44 link_end=V(X=-2900.00, Y=-450.00, Z=640.00) dist_to_link_end=1.8
+VeloxPadLanding pad=VeloxJumpPad_14 origin=V(X=350.00, Y=350.00, Z=390.00) landing=V(X=2901.74, Y=450.51, Z=640.00) hit=1 link=VeloxNavLink_45 link_end=V(X=2900.00, Y=450.00, Z=640.00) dist_to_link_end=1.8
+VeloxPadLanding pad=VeloxJumpPad_15 origin=V(X=-2750.00, Y=550.00, Z=710.00) landing=V(X=-351.62, Y=350.21, Z=320.00) hit=1 link=VeloxNavLink_46 link_end=V(X=-350.00, Y=350.00, Z=320.00) dist_to_link_end=1.6
+VeloxPadLanding pad=VeloxJumpPad_16 origin=V(X=2750.00, Y=-550.00, Z=710.00) landing=V(X=351.62, Y=-350.21, Z=320.00) hit=1 link=VeloxNavLink_47 link_end=V(X=350.00, Y=-350.00, Z=320.00) dist_to_link_end=1.6
+VeloxPadLanding pad=VeloxJumpPad_17 origin=V(X=1100.00, Y=2000.00, Z=70.00) landing=V(X=349.61, Y=2000.00, Z=320.00) hit=1 link=VeloxNavLink_48 link_end=V(X=350.00, Y=2000.00, Z=320.00) dist_to_link_end=0.4
+VeloxPadLanding pad=VeloxJumpPad_18 origin=V(X=-350.00, Y=2000.00, Z=390.00) landing=V(X=-2299.98, Y=1100.01, Z=320.00) hit=1 link=VeloxNavLink_49 link_end=V(X=-2300.00, Y=1100.00, Z=320.00) dist_to_link_end=0.0
+VeloxPadLanding pad=VeloxJumpPad_19 origin=V(Y=-1650.00, Z=70.00) landing=V(Y=-2150.26, Z=320.00) hit=1 link=VeloxNavLink_50 link_end=V(Y=-2150.00, Z=320.00) dist_to_link_end=0.3
+VeloxPadLanding pad=VeloxJumpPad_20 origin=V(X=-3400.00, Y=-1650.00, Z=70.00) landing=V(X=-3191.25, Y=-1022.21, Z=320.00) hit=1 link=VeloxNavLink_51 link_end=V(X=-3200.00, Y=-1050.00, Z=320.00) dist_to_link_end=29.1
+VeloxPadLanding pad=VeloxJumpPad_21 origin=V(X=3400.00, Y=1650.00, Z=70.00) landing=V(X=3191.25, Y=1022.21, Z=320.00) hit=1 link=VeloxNavLink_52 link_end=V(X=3200.00, Y=1050.00, Z=320.00) dist_to_link_end=29.1
+VeloxPadLanding pads=11

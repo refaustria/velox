@@ -1,0 +1,22 @@
+Chute hop probe: 1 Hard bot, goal alternated Flue (-600,1250,320) <-> Hearth (-600,-250,0) every 9 s, 12 legs, log LogVeloxBots Verbose
+VeloxBotHopLanding refused lines: total 62
+  on the chute (X -700..-500, Y 446..1000): 45  elsewhere: 17
+sample refusals on the chute:
+otHopLanding bot=Celer refused at=V(X=-612.75, Y=990.81, Z=321.01) landing=V(X=-725.39, Y=412.92, Z=321.01)
+otHopLanding bot=Celer refused at=V(X=-616.68, Y=598.54, Z=96.02) landing=V(X=-590.83, Y=1218.08, Z=96.02)
+otHopLanding bot=Celer refused at=V(X=-608.91, Y=840.69, Z=235.82) landing=V(X=-592.85, Y=1460.49, Z=235.82)
+otHopLanding bot=Celer refused at=V(X=-586.47, Y=833.09, Z=231.44) landing=V(X=-575.21, Y=1453.73, Z=231.44)
+otHopLanding bot=Celer refused at=V(X=-587.41, Y=819.58, Z=223.64) landing=V(X=-571.08, Y=1440.26, Z=223.64)
+otHopLanding bot=Celer refused at=V(X=-587.72, Y=806.49, Z=216.08) landing=V(X=-565.08, Y=1427.28, Z=216.08)
+otHopLanding bot=Celer refused at=V(X=-587.70, Y=766.53, Z=193.01) landing=V(X=-554.48, Y=1387.47, Z=193.01)
+otHopLanding bot=Celer refused at=V(X=-590.54, Y=752.34, Z=184.81) landing=V(X=-554.50, Y=1373.03, Z=184.81)
+bot links/hazard/stuck lines: 0 hazard+stuck
+slope samples (1 Hz) in the sets:
+duel-s3 ['DA_Bot_Hard']
+  Chute30    samples=5 airborne=0 (0 %) mean_speed=653
+  TapRamp15  samples=0 airborne=0 (0 %) mean_speed=0
+  flatL0     samples=539 airborne=260 (48 %) mean_speed=622
+ffa3-s3 ['DA_Bot_Medium']
+  Chute30    samples=34 airborne=2 (6 %) mean_speed=568
+  TapRamp15  samples=6 airborne=2 (33 %) mean_speed=703
+  flatL0     samples=2493 airborne=1019 (41 %) mean_speed=638

@@ -1,0 +1,17 @@
+SET runs=10 FAIL(per_run:run 7,run 8;inv:sum_stuck;inv:max_dwell_s;inv:link_success[JumpPad];inv:item_coverage) sum_stuck=6 max_run_stuck=2 bursts=0 pocket=0 dwell_ge6_runs=2 max_dwell=6 wait_max_s=7.7 max_link_dt=2.10 sum_kills=103 min_kills=5 sum_repaths=682 max_run_repaths=86 not_at_goal=16 rules={'fight_stall': 3, 'progress': 3}
+SET speed strikes: -
+SET band=none (report-only): sum_kills=103 not judged; the per-run kills / pickups / Mega bands are not judged either
+SET invariants (ADR 0006 section 7, every map):
+  left_arena                   0                                            limit 0        PASS
+  world_kill                   0                                            limit 0        PASS
+  no_nav_point                 0                                            limit 0        PASS
+  giveup                       0                                            limit 0        PASS
+  sum_stuck                    6                                            limit <= 5     FAIL
+  bursts                       0                                            limit 0        PASS
+  max_dwell_s                  6                                            limit <= 5     FAIL
+  nav_build_s                  1.605                                        limit <= 2.0   PASS
+  link_success[Drop]           91.0 % (131/144) aborted=24                  limit >= 90 %  PASS
+  link_success[JumpPad]        85.8 % (247/288) aborted=22                  limit >= 90 %  FAIL
+  item_coverage                37/38 pickups (19 definitions)               limit all      FAIL
+  untaken items (layout or link defect): DA_Item_Ammo_Bullets@(-2500.00,-1700.00)
+Logs: /mnt/oldroot/velox-scratch/m7-sacrarium/s1/ffa6

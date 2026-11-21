@@ -240,6 +240,19 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "1"))
 	int32 EnvironmentKillDamage = 1000;
 
+	// Hazards (ADR 0008 section 3.3). Void volumes deal EnvironmentKillDamage once, tagged Velox.Damage.Hazard.Void.
+	/** Lava: damage per tick while a pawn overlaps the volume (no armor, no knockback). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Hazards", Meta = (ClampMin = "0"))
+	int32 LavaDamagePerTick = 25;
+
+	/** Lava: seconds between ticks (also the minimum gap between contact hits, against boundary jitter). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Hazards", Meta = (ClampMin = "0.01", Units = "s"))
+	float LavaTickSeconds = 0.25f;
+
+	/** A hazard death credits the last other player who damaged or knocked the victim within this many seconds (ADR 0008 3.2). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Hazards", Meta = (ClampMin = "0", Units = "s"))
+	float HazardKillCreditSeconds = 5.0f;
+
 	/** A corpse that died in the air is dropped straight down by at most this much (cm) so it lies on the floor. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Velox|Respawn", Meta = (ClampMin = "0", Units = "cm"))
 	float CorpseDropMaxCm = 3000.f;

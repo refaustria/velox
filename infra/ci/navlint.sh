@@ -27,7 +27,7 @@ Runs
   timeout ${LINT_TIMEOUT} UnrealEditor-Cmd Velox.uproject <Map> -server -nullrhi -unattended -nopause -nosplash -nosound
       -stdout -FullStdOutLogOutput -port=N -ExecCmds="velox.bots.NavCoverage [Grid=CM] [MinClusterM2=M2] [Verbose] Quit"
 parses the VeloxNavCoverage lines and prints
-  [navlint] <Map> walkable_m2=<x> covered_pct=<y> clusters=<n> (walkin=<w> isolated=<i> edge=<e>) lowclear=<p> result=PASS|FAIL|REPORT
+  [navlint] <Map> walkable_m2=<x> covered_pct=<y> clusters=<n> (walkin=<w> isolated=<i> edge=<e>) lowclear=<p> hazard_m2=<h> result=PASS|FAIL|REPORT
 followed by one '[navlint]   cluster ...' / '[navlint]   lowclear_poly ...' line per finding.
 
 Exit: 0 PASS (clusters - edge = 0 and lowclear polys = 0) or --report-only; 1 findings; 2 the run produced no summary
@@ -107,6 +107,8 @@ main() {
   edge="$(sed -nE 's/.* edge=([0-9]+).*/\1/p' <<< "$summary")"
   walkin="$(sed -nE 's/.* walkin=([0-9]+).*/\1/p' <<< "$summary")"
   isolated="$(sed -nE 's/.* isolated=([0-9]+).*/\1/p' <<< "$summary")"
+  local hazard_m2
+  hazard_m2="$(sed -nE 's/.* hazard_m2=([0-9.]+).*/\1/p' <<< "$summary")"
   [[ "$edge" =~ ^[0-9]+$ ]] || edge=0
   [[ "$clusters" =~ ^[0-9]+$ && "$polys" =~ ^[0-9]+$ ]] || { echo "[navlint] $map_name result=ERROR (unparsable summary; log: $log)"; exit 2; }
 
@@ -114,7 +116,7 @@ main() {
   if (( clusters - edge <= 0 && polys == 0 )); then result=PASS
   elif (( REPORT_ONLY )); then result=REPORT
   else result=FAIL; fi
-  echo "[navlint] $map_name walkable_m2=$walkable covered_pct=$covered clusters=$clusters (walkin=${walkin:-?} isolated=${isolated:-?} edge=$edge) lowclear=$polys result=$result"
+  echo "[navlint] $map_name walkable_m2=$walkable covered_pct=$covered clusters=$clusters (walkin=${walkin:-?} isolated=${isolated:-?} edge=$edge) lowclear=$polys hazard_m2=${hazard_m2:-0} result=$result"
   "$GREP" -aoE 'VeloxNavCoverage (cluster|lowclear_poly) .*' "$log" | sed -E 's/^VeloxNavCoverage /[navlint]   /'
   echo "[navlint] log: $log"
   [[ "$result" == FAIL ]] && exit 1

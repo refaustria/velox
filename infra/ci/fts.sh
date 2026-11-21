@@ -26,15 +26,36 @@ FTS=(
   "FtOffMesh|L_ItemTest|velox.bots.FtOffMesh"
   "FtSegmentBlocked|L_ItemTest|velox.bots.FtSegmentBlocked"
   "FtCombatEvents|L_CombatTest|velox.bots.FtCombatEvents"
-  "FtDm1Reachability|@DM1|velox.bots.FtDm1Reachability"
+  "FtDm1Reachability|@DM1|velox.bots.FtDm1Reachability"   # the alias of FtMapReachability (ADR 0008 1.6)
+  "FtHazard|L_HazardTest|velox.combat.FtHazard"
+  "FtMapReachability-L_Sacrarium_Blockout|L_Sacrarium_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Weapon_Railgun"   # M7 B1 (ADR 0008 5.3 c); the Railgun sits on the loft (pads / rocket jumps only)
+  "FtMapReachability-L_Nemus_Blockout|L_Nemus_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Weapon_Railgun"   # M7 B2 (ADR 0008 5.3 c); the Railgun sits on the Corona (pad P4 / rocket jumps only)
+  "FtMapReachability-L_Orbita_Blockout|L_Orbita_Blockout|velox.bots.FtMapReachability"   # M7 B5 (ADR 0008 5.3 c); no Walk check: decks joined by pads and gaps only, spawn S4 (Armamentarium) walks nowhere
+  "FtMapReachability-L_Fornax_Blockout|L_Fornax_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Health_Mega MinMajors=4"   # M7 B4 (ADR 0008 5.3 c); the Mega sits on the Crane Bridge (pad Bellows / rocket jump only); 4 majors (RA, Mega, YA, RG: no powerup)
+  "FtMapReachability-L_Culmen_Blockout|L_Culmen_Blockout|velox.bots.FtMapReachability WalkExempt=DA_Item_Weapon_Railgun"   # M7 B3 (ADR 0008 5.3 c); the Railgun sits on the car roof (pad P7 / rocket jump RJ3 only)
+  "FtBotEdge|L_HazardTest|velox.bots.FtBotEdge"
+  "FtBotEdgeAcross|L_HazardTest|velox.bots.FtBotEdge dummy=across"   # M7 H13: the enemy across the void gap; closing in must not walk the bot off
+  "FtBotLavaEscape|L_HazardTest|velox.bots.FtBotLavaEscape"
+  "FtBotKnockOff|L_HazardTest|velox.bots.FtBotKnockOff"
+  "FtBotLavaAvoid|L_HazardTest|velox.bots.FtBotLavaAvoid"
+  "FtBotGapJump|L_GapTest|velox.bots.FtBotGapJump"   # M7 H11: JUMP gap links 300 / 400 cm, >= 9 of 10 each, hazard behaviours on and off; H14: 300 cm island hop entered at >= 900 cm/s, >= 9 of 10
+  "FtBotTargets|L_CombatTest|velox.bots.FtBotTargets"   # M7 H10: unique bot PlayerIds, the target is the visible enemy
 )
+# One row per M7 map (ADR 0008 1.6): the blockout maps are not in the default list (not cooked, no band yet) and are added with
+# --map-ft <Map>[:WalkExempt ids] (repeatable), e.g. --map-ft L_Sacrarium_Blockout:Quad,Railgun. Row name: FtMapReachability-<Map>.
+MAP_FTS=()
 
 fts_usage() {
   cat <<USAGE
-Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b] [--dm1-map NAME]
+Usage: ${CI_SCRIPT_NAME} [--port N] [--timeout S] [--only a,b] [--dm1-map NAME] [--map-ft Map[:ids]]...
 
 Runs, in order: FtItemPickup (L_ItemTest), FtNavigation (L_ItemTest), FtStrafeCorridor (L_MovementTest),
-FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (${DM1_MAP}, FT_DM1_Reachability),
+FtItemRouting (L_ItemTest), FtOffMesh (L_ItemTest), FtSegmentBlocked (L_ItemTest), FtCombatEvents (L_CombatTest), FtDm1Reachability (${DM1_MAP}, FT_Map_Reachability via the old command name),
+FtHazard (L_HazardTest, FT_Hazard: ADR 0008 3.7), FtBotEdge (L_HazardTest, FT_BotEdge: ADR 0008 3.6.1/2, 60 s fight),
+FtBotEdgeAcross (L_HazardTest, FT_BotEdge dummy=across: task M7 H13, 60 s fight against an enemy across the void gap),
+FtBotLavaEscape (L_HazardTest, FT_BotLavaEscape: ADR 0008 3.6.4), FtBotKnockOff (L_HazardTest, FT_BotKnockOff: ADR 0008 3.6.3, 10 trials + 10 pad crossings + 10 pad crossings knocked sideways in the flight, M7 H8),
+FtBotLavaAvoid (L_HazardTest, FT_BotLavaAvoid: task M7 H7, 8 routes across the lava channel + 8 fights beside it, 0 lava entries),
+FtBotGapJump (L_GapTest, FT_BotGapJump: task M7 H11, 300 and 400 cm JUMP gap links, >= 9 of 10 crossings each, EdgeAware on and off; task M7 H14, a 250 cm hop onto a 300 cm island entered at >= 900 cm/s, >= 9 of 10),
 each as
   UnrealEditor-Cmd Velox.uproject <map> -game -nullrhi -unattended -nosound -UseFixedTimeStep -FPS=60 -log
       -port=N -ExecCmds="velox.bots.Seed ${SEED}, <command> quit"
@@ -46,6 +67,8 @@ Options:
                 port only keeps a stray process from taking the default one.
   --timeout S   Seconds per test before it is killed and counted as FAIL (default ${FT_TIMEOUT}, VELOX_FTS_TIMEOUT)
   --only a,b    Run only these test names
+  --map-ft M[:I] Add a row "FtMapReachability-M" (velox.bots.FtMapReachability on map M; I = comma separated WalkExempt item ids, which
+                switches the Walk-filter check on). Repeatable; runs after the default rows.
   --dm1-map N   Map of FtDm1Reachability (default ${DM1_MAP}; env VELOX_DM1_MAP), e.g. L_DM1 for the art map
   -h, --help    Show this help
 
@@ -82,6 +105,7 @@ main() {
       --port)    [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || die "--port needs a number"; PORT="$2"; shift 2 ;;
       --timeout) [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--timeout needs a positive integer"; FT_TIMEOUT="$2"; shift 2 ;;
       --only)    [[ $# -ge 2 ]] || die "--only needs a value"; only=",$2,"; shift 2 ;;
+      --map-ft)  [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9_]+(:[A-Za-z0-9_.,]+)?$ ]] || die "--map-ft needs Map[:id,id]"; MAP_FTS+=("$2"); shift 2 ;;
       --dm1-map) [[ $# -ge 2 && "$2" =~ ^[A-Za-z0-9_]+$ ]] || die "--dm1-map needs a map name"; DM1_MAP="$2"; shift 2 ;;
       -h|--help) fts_usage; exit 0 ;;
       *) fts_usage >&2; die "unknown option: $1" ;;
@@ -105,6 +129,14 @@ main() {
     if [[ -n "$only" && "$only" != *",$name,"* ]]; then continue; fi
     total=$((total + 1))
     if run_ft "$name" "$map" "$cmd" "$out_dir/fts-$name.log"; then passed=$((passed + 1)); fi
+  done
+  local mf mname mids
+  for mf in "${MAP_FTS[@]+"${MAP_FTS[@]}"}"; do
+    mname="${mf%%:*}"; mids=""; [[ "$mf" == *:* ]] && mids="${mf#*:}"
+    name="FtMapReachability-$mname"
+    if [[ -n "$only" && "$only" != *",$name,"* ]]; then continue; fi
+    total=$((total + 1))
+    if run_ft "$name" "$mname" "velox.bots.FtMapReachability${mids:+ WalkExempt=$mids}" "$out_dir/fts-$name.log"; then passed=$((passed + 1)); fi
   done
   (( total > 0 )) || die "no test selected"
   echo "Logs: $out_dir"

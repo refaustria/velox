@@ -1,0 +1,392 @@
+{
+ "name": "FornaxRun",
+ "note": "L_Fornax_Blockout (M7 B4). Dead-reckoned (800 cm/s) walk anchored on wall corners: deck walk-off onto the RA island, south over the slag bridge, Slag Run south bank, gutter zigzag (hop north, hop back south), Tap ramp up to the gallery, gallery drop into the Tap Room, Tap pad from the mass/gallery corner onto the gallery, gallery north through the tunnel, drop onto the north stairs, east column south, Bellows pad from the mass/gallery corner onto the Crane Bridge, east end drop onto the gallery. Not scripted: island east hop, trench hops, Flue launch, rocket jump (bots and FtMapReachability).",
+ "startYaw": -90,
+ "startLocation": [
+  -1600,
+  800,
+  420
+ ],
+ "rows": [
+  {
+   "duration": 0.3,
+   "label": "settle"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "yaw": -90,
+   "label": "deck south to the edge",
+   "until": "airborne"
+  },
+  {
+   "duration": 1.5,
+   "forward": 1,
+   "yaw": -90,
+   "label": "deck walk-off fall",
+   "until": "ground",
+   "check": {
+    "name": "RA island (deck walk-off)",
+    "box": [
+     -1750,
+     -50,
+     -1450,
+     250
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 1.3,
+   "forward": 1,
+   "yaw": -90,
+   "label": "island south over the slag bridge",
+   "check": {
+    "name": "south floor (slag bridge)",
+    "box": [
+     -1800,
+     -900,
+     -1400,
+     -300
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 0.3,
+   "label": "south wall coast"
+  },
+  {
+   "duration": 1.1,
+   "forward": 1,
+   "yaw": 180,
+   "label": "anchor SW corner of the Crucible"
+  },
+  {
+   "duration": 0.4,
+   "label": "corner coast"
+  },
+  {
+   "duration": 0.3,
+   "forward": 1,
+   "yaw": 0,
+   "label": "east to the Slag door line"
+  },
+  {
+   "duration": 0.5,
+   "label": "door line coast"
+  },
+  {
+   "duration": 1.3,
+   "forward": 1,
+   "yaw": -90,
+   "label": "south through the Slag door to the south wall"
+  },
+  {
+   "duration": 0.3,
+   "label": "south wall coast"
+  },
+  {
+   "duration": 1.05,
+   "forward": 1,
+   "yaw": 0,
+   "label": "south bank east to the gutter hop"
+  },
+  {
+   "duration": 0.5,
+   "label": "gutter coast"
+  },
+  {
+   "duration": 0.15,
+   "forward": 1,
+   "yaw": 90,
+   "label": "gutter run-up north"
+  },
+  {
+   "duration": 0.1,
+   "forward": 1,
+   "yaw": 90,
+   "label": "gutter hop north",
+   "jump": 1
+  },
+  {
+   "duration": 1.2,
+   "forward": 1,
+   "yaw": 90,
+   "label": "gutter hop north flight",
+   "until": "ground",
+   "check": {
+    "name": "gutter hop onto the north bank",
+    "box": [
+     -1500,
+     -1250,
+     -900,
+     -1000
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 0.4,
+   "label": "north bank coast"
+  },
+  {
+   "duration": 0.15,
+   "forward": 1,
+   "yaw": -90,
+   "label": "gutter run-up south"
+  },
+  {
+   "duration": 0.1,
+   "forward": 1,
+   "yaw": -90,
+   "label": "gutter hop south",
+   "jump": 1
+  },
+  {
+   "duration": 1.2,
+   "forward": 1,
+   "yaw": -90,
+   "label": "gutter hop south flight",
+   "until": "ground",
+   "check": {
+    "name": "gutter hop back onto the south bank",
+    "box": [
+     -1500,
+     -1700,
+     -900,
+     -1450
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 0.4,
+   "label": "south bank coast"
+  },
+  {
+   "duration": 1.35,
+   "forward": 1,
+   "yaw": 0,
+   "label": "south bank east to the open end"
+  },
+  {
+   "duration": 0.4,
+   "label": "open end coast"
+  },
+  {
+   "duration": 0.3,
+   "forward": 1,
+   "yaw": 90,
+   "label": "north into the open end line"
+  },
+  {
+   "duration": 0.4,
+   "label": "open end line coast"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "yaw": 0,
+   "label": "east through the open end into the Tap Room"
+  },
+  {
+   "duration": 0.4,
+   "label": "Tap Room coast"
+  },
+  {
+   "duration": 0.5,
+   "forward": 1,
+   "yaw": -90,
+   "label": "anchor Tap Room south wall"
+  },
+  {
+   "duration": 0.3,
+   "label": "south wall coast"
+  },
+  {
+   "duration": 2.6,
+   "forward": 1,
+   "yaw": 0,
+   "label": "up the Tap ramp along the south wall to the gallery",
+   "check": {
+    "name": "Tap ramp up to the gallery",
+    "box": [
+     1900,
+     -1700,
+     2300,
+     -1300
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 0.3,
+   "label": "gallery coast"
+  },
+  {
+   "duration": 1.3,
+   "forward": 1,
+   "yaw": 90,
+   "label": "gallery north to the C drop"
+  },
+  {
+   "duration": 0.4,
+   "label": "gallery coast"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "yaw": 180,
+   "label": "gallery west to the edge",
+   "until": "airborne"
+  },
+  {
+   "duration": 1.2,
+   "label": "gallery drop",
+   "until": "ground"
+  },
+  {
+   "duration": 0.5,
+   "label": "Tap Room landing coast"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "yaw": 90,
+   "label": "anchor mass south face"
+  },
+  {
+   "duration": 0.3,
+   "label": "mass face coast"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "yaw": 0,
+   "label": "anchor gallery face (corner 1855,-345)"
+  },
+  {
+   "duration": 0.4,
+   "label": "corner coast"
+  },
+  {
+   "duration": 1.5,
+   "forward": 1,
+   "yaw": -124.8,
+   "label": "diagonal to the Tap pad (until launched)",
+   "until": "airborne"
+  },
+  {
+   "duration": 2.0,
+   "label": "Tap pad flight",
+   "check": {
+    "name": "Tap pad onto the gallery",
+    "box": [
+     1900,
+     -1250,
+     2300,
+     -750
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 0.4,
+   "forward": 1,
+   "yaw": 0,
+   "label": "anchor gallery east wall"
+  },
+  {
+   "duration": 0.3,
+   "label": "east wall coast"
+  },
+  {
+   "duration": 3.8,
+   "forward": 1,
+   "yaw": 85,
+   "label": "gallery north through the tunnel to the NE corner"
+  },
+  {
+   "duration": 0.4,
+   "label": "NE corner coast"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "yaw": 180,
+   "label": "gallery west off the edge",
+   "until": "airborne"
+  },
+  {
+   "duration": 1.0,
+   "label": "gallery drop onto the north stairs",
+   "until": "ground"
+  },
+  {
+   "duration": 0.5,
+   "label": "stairs coast"
+  },
+  {
+   "duration": 1.0,
+   "forward": 1,
+   "yaw": 0,
+   "label": "anchor gallery face at the north wall (corner 1855,1655)"
+  },
+  {
+   "duration": 0.3,
+   "label": "corner coast"
+  },
+  {
+   "duration": 2.0,
+   "forward": 1,
+   "yaw": -85,
+   "label": "east column south along the gallery face to the mass (corner 1855,345)"
+  },
+  {
+   "duration": 0.4,
+   "label": "corner coast"
+  },
+  {
+   "duration": 1.5,
+   "forward": 1,
+   "yaw": 167.0,
+   "label": "diagonal to the Bellows pad (until launched)",
+   "until": "airborne"
+  },
+  {
+   "duration": 2.2,
+   "label": "Bellows flight",
+   "check": {
+    "name": "Bellows pad onto the Crane Bridge",
+    "box": [
+     1100,
+     850,
+     1900,
+     1250
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 1.6,
+   "forward": 1,
+   "yaw": 0,
+   "label": "bridge east off the end onto the gallery",
+   "check": {
+    "name": "Crane Bridge east end onto the gallery",
+    "box": [
+     1900,
+     850,
+     2300,
+     1300
+    ],
+    "onGround": true
+   }
+  },
+  {
+   "duration": 0.5,
+   "label": "end"
+  }
+ ]
+}

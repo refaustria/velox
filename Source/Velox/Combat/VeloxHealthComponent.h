@@ -5,9 +5,11 @@
 
 #include "Components/ActorComponent.h"
 #include "Delegates/IDelegateInstance.h"
+#include "GameplayTagContainer.h"
 
 #include "VeloxHealthComponent.generated.h"
 
+class AVeloxPlayerState;
 class UVeloxAbilitySystemComponent;
 class UVeloxHealthSet;
 struct FOnAttributeChangeData;
@@ -16,6 +18,31 @@ struct FVeloxDamageEvent;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FVeloxHealthAttributeChanged, UVeloxHealthComponent*, HealthComponent, float, OldValue, float, NewValue, AActor*, Instigator);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FVeloxHealthDeathEvent, AActor*, OwningActor);
 DECLARE_MULTICAST_DELEGATE_OneParam(FVeloxHealthDamageEvent, const FVeloxDamageEvent& /*Event*/);
+
+/**
+ * ADR 0008 3.2: the last other player who hurt or knocked this pawn (server only, not replicated). Lives on the pawn's
+ * health component, so it resets with each life. Read through UVeloxHealthComponent::GetCreditedAttacker.
+ */
+USTRUCT()
+struct FVeloxLastAttacker
+{
+	GENERATED_BODY()
+
+	/** The attacker's player state (outlives the attacker's pawn); weak, so a player who left credits nobody. */
+	UPROPERTY()
+	TWeakObjectPtr<AVeloxPlayerState> Attacker;
+
+	/** Server world time (UWorld::GetTimeSeconds) of the recorded hit; negative = no record. */
+	UPROPERTY()
+	double ServerTime = -1.0;
+
+	/** The recorded hit's damage-type tag (Velox.Damage.<Weapon>), for logs and the feed. */
+	UPROPERTY()
+	FGameplayTag DamageTag;
+
+	bool HasRecord() const { return ServerTime >= 0.0; }
+	void Reset() { *this = FVeloxLastAttacker(); }
+};
 
 UCLASS(ClassGroup = (Velox), Meta = (BlueprintSpawnableComponent))
 class VELOX_API UVeloxHealthComponent : public UActorComponent
@@ -72,6 +99,21 @@ public:
 	/** Server: health reached 0 (AVeloxCharacter::HandleDeath in task 06). */
 	FVeloxHealthDamageEvent OnOutOfHealth;
 
+	/**
+	 * ADR 0008 3.2 (server): the last attacker if the record is younger than WindowSeconds at Now (server world time) and
+	 * the attacker's player state still exists; otherwise null. Callers pass UVeloxCombatSettings::HazardKillCreditSeconds.
+	 */
+	AVeloxPlayerState* GetCreditedAttacker(double Now, float WindowSeconds) const;
+
+	/** The raw record (tests, logs). */
+	const FVeloxLastAttacker& GetLastAttacker() const { return LastAttacker; }
+
+	/**
+	 * Applies the ADR 0008 3.2 write rule to one damage event at server time Now. Called from the health set's OnDamaged
+	 * with the world time; public so tests can drive it with an explicit clock. Returns true if the record was written.
+	 */
+	bool NoteDamageForAttackerCredit(const FVeloxDamageEvent& Event, double Now);
+
 protected:
 	virtual void OnUnregister() override;
 
@@ -85,6 +127,10 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UVeloxHealthSet> HealthSet;
+
+	/** Server only, never replicated (ADR 0008 3.2). Cleared when the component binds to or leaves an ASC. */
+	UPROPERTY(Transient)
+	FVeloxLastAttacker LastAttacker;
 
 private:
 	FDelegateHandle HealthChangedHandle;

@@ -17,6 +17,8 @@ class AVeloxBotController;
 class UVeloxBotDifficulty;
 class AVeloxNavLink;
 class AVeloxProjectile;
+class UBoxComponent;
+struct FActorsInitializedParams;
 class UWorld;
 
 // ADR 0005 section 13: per-phase cycle stats of the bot controllers (`stat VeloxBots`).
@@ -60,6 +62,31 @@ public:
 	 * (or, for BothWays links, also its end as a separate candidate).
 	 */
 	static int32 FindNearestEnd(const TArray<FVector>& Ends, const FVector& Point, double Radius, double MaxDeltaZ);
+
+	/**
+	 * ADR 0008 G5(b), task M7 H8 (review F1): the box the lava nav area marks for a lava volume's box (world-free, testable):
+	 * the volume's own footprint, from its bottom (the bed) to TopCm above its top (the lava surface). No horizontal padding.
+	 */
+	static FBox LavaNavAreaBox(const FBox& VolumeBox, double TopCm);
+
+	/**
+	 * Task M7 H10: gives an AI controller's PlayerState a unique PlayerId from the game session's counter (the one
+	 * AGameSession::RegisterPlayer uses for human players, so bots, dummies and humans never collide). The engine assigns
+	 * PlayerIds only in RegisterPlayer (login); without this every bot kept PlayerId 0, and the bot combat memory, keyed by
+	 * PlayerId, merged all bot enemies into one record (visible if any one was visible, pawn = the last one iterated): a bot
+	 * aimed at and closed in on an enemy behind a wall. Authority only; a PlayerState that already has an id keeps it.
+	 * Returns the id (or the existing one), INDEX_NONE without a PlayerState.
+	 */
+	static int32 AssignUniquePlayerId(AController& Controller);
+
+	/** H8: the lava nav area boxes this subsystem created (null entries skipped). Tests. */
+	TArray<UBoxComponent*> GetHazardNavAreas() const;
+
+	/**
+	 * H8 lint (ADR 0008 G5(c)): pickups, player starts and nav-link ends whose nav poly has area UVeloxNavArea_Hazard
+	 * (each logged as `VeloxNav hazard_area`, Warning); must be 0 on every map. Run at nav ready; public for tests.
+	 */
+	int32 CountHazardAreaPoints() const;
 
 	// --- Nav readiness (ADR 0005 section 3) ---
 
@@ -170,12 +197,19 @@ private:
 	UFUNCTION()
 	void OnNavigationGenerationFinished(ANavigationData* NavData);
 	void MarkNavReady();
+	/** H8 (review F12): lava nav areas are created here, once the level's actors are initialized (before the nav build). */
+	void HandleWorldInitializedActors(const FActorsInitializedParams& Params);
+	/** Adds one lava nav area per Lava AVeloxHazardVolume of the world (velox.bots.EdgeAware on). */
+	void AddHazardNavAreas();
 	/** Pad/pickup trigger components the nav system would export (must be zero: ADR 0005 section 3). */
 	int32 CountNavRelevantTriggers() const;
 
 	TArray<TWeakObjectPtr<AVeloxNavLink>> NavLinks;
 	TArray<TWeakObjectPtr<AVeloxBotController>> Bots;
 	TArray<TWeakObjectPtr<AVeloxProjectile>> Projectiles;
+	/** H8: the lava nav area boxes (owned by their volume actors, created by AddHazardNavAreas). */
+	TArray<TWeakObjectPtr<UBoxComponent>> HazardNavAreas;
+	FDelegateHandle InitActorsHandle;
 
 	TArray<TFunction<void()>> NavReadyCallbacks;
 	FTimerHandle NavPollHandle;

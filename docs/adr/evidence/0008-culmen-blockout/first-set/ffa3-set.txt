@@ -1,0 +1,18 @@
+SET runs=10 FAIL(per_run:run 1,run 2,run 3,run 4,run 5,run 6,run 7,run 8,run 9;inv:item_coverage) sum_stuck=0 max_run_stuck=0 bursts=0 pocket=0 dwell_ge6_runs=0 max_dwell=5 wait_max_s=5.7 max_link_dt=1.90 sum_kills=54 min_kills=4 sum_repaths=292 max_run_repaths=42 not_at_goal=0 rules={}
+SET speed strikes: -
+SET band=none (report-only): sum_kills=54 not judged; the per-run kills / pickups / Mega bands are not judged either
+SET hazard (report-only, ADR 0008 3.5): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0 per run self=[0,0,0,0,0,0,0,0,0,0]
+SET invariants (ADR 0006 section 7, every map):
+  left_arena                   0                                            limit 0        PASS
+  world_kill                   0                                            limit 0        PASS
+  no_nav_point                 0                                            limit 0        PASS
+  giveup                       0                                            limit 0        PASS
+  sum_stuck                    0                                            limit <= 5     PASS
+  bursts                       0                                            limit 0        PASS
+  max_dwell_s                  5                                            limit <= 5     PASS
+  nav_build_s                  1.197                                        limit <= 2.0   PASS
+  link_success[Drop]           100.0 % (72/72) aborted=15                   limit >= 90 %  PASS
+  link_success[JumpPad]        100.0 % (208/208) aborted=13                 limit >= 90 %  PASS
+  item_coverage                42/46 pickups (20 definitions)               limit all      FAIL
+  untaken items (layout or link defect): DA_Item_Armor_Shard@(-3000.00,1100.00,465.59); DA_Item_Armor_Shard@(-3200.00,1100.00,538.38); DA_Item_Armor_Shard@(-3400.00,1100.00,611.18); DA_Item_Health_Small@(2600.00,1600.00)
+Logs: /mnt/oldroot/velox-scratch/m7-culmen/s2/ffa3

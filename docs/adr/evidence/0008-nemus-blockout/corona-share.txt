@@ -1,0 +1,4 @@
+FFA x10 at 3 bots:
+kills=53 killer_on_corona=0 (0.0%) victim_on_corona=0 (0.0%); bot samples on Corona 0.2% of 3533; longest Corona stay 2.0 s
+FFA x10 at 6 bots:
+kills=111 killer_on_corona=0 (0.0%) victim_on_corona=0 (0.0%); bot samples on Corona 0.2% of 7052; longest Corona stay 2.0 s

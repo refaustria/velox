@@ -1,0 +1,14 @@
+BotRun             FAIL cost=FAIL kills=7 frags=7 pickups=50 stuck=0 max_dwell_s=3 link_max_dt=1.76 budget_mean_us=228.4 clean=18/21 P=0
+BotRun             FAIL cost=FAIL kills=5 frags=5 pickups=55 stuck=0 max_dwell_s=3 link_max_dt=1.78 budget_mean_us=223.9 clean=17/21 P=0
+BotRun             FAIL cost=FAIL kills=3 frags=3 pickups=56 stuck=0 max_dwell_s=4 link_max_dt=1.79 budget_mean_us=202.5 clean=18/20 P=0
+=== BotRun set evaluation over 3 round(s) (D36/D46) ===
+  per round: kills=[7, 5, 3] frags=[7, 5, 3] stuck=[0, 0, 0] pickups=[50, 55, 56] max_dwell_s=[3, 3, 4] repaths=[28, 36, 33]
+  sums: stuck=0 kills=15 frags=15 pocket_strikes=0 major_covered=4/4 [Armor_Red,Armor_Yellow,Health_Mega,Powerup_Quad] not_at_goal=1
+  link success by type (invariant >= 90 %, min 30 attempts; failed = missed/timeout/noimpulse/tooslow, aborted = replaced/below_start/ineligible/air_start/relaunched): Drop=18/19 (94.7 %, aborted=3, < 30 attempts: not judged) JumpPad=33/40 (82.5 %, aborted=6)
+  cost (D47): frame_other_ref per round ['2356', '2499', '2192'] (set min 2192); mean_ref ['231.2', '235.7', '205.5']; P windows [0, 0, 0]; rr_round ['-', '-', '-']; p_norm_mean_us ['-', '-', '-']
+  cost: windows clean/total per round ['18/21', '17/21', '18/20']; contended [0, 2, 0]; cost windows [3, 2, 2]; union of clean windows: 53 window(s) mean_us=218.1 max_fire_us=13279
+  - link traversal success per type: JumpPad 82.5 % < 90 %
+  - cost: round 1: 3 cost window(s)
+  - cost: round 2: 2 cost window(s)
+  - cost: round 3: 2 cost window(s)
+  set behaviour FAIL, cost FAIL

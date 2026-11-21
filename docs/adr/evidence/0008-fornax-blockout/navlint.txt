@@ -1,0 +1,4 @@
+[navlint] L_Fornax_Blockout walkable_m2=1494.50 covered_pct=99.85 clusters=0 (walkin=0 isolated=0 edge=0) lowclear=0 hazard_m2=96.00 result=PASS
+[navlint] log: /mnt/oldroot/velox-scratch/m7-fornax/c7/20261113-213036-4446/navlint-L_Fornax_Blockout.log
+ots: VeloxNav built tiles=33 seconds=1.354 links=19 relevant_triggers=0 runtime=Dynamic agent_radius=45.0 agent_height=140.0 step=45.0 cell=19.0 cell_height=10.0 slope=45.5 tile_size=1000
+ots: VeloxNav hazard_area count=0 points=73 lava_polys=0 areas=8

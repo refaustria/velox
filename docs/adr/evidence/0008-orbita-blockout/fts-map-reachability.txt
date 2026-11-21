@@ -1,0 +1,41 @@
+[fts] FtMapReachability-L_Orbita_Blockout FAIL  (exit=1, log: /home/bojan/velox/.claude/worktrees/agent-a87cb8c8bb1fe73e3/Saved/CI/20261113-141746-3541238/fts-FtMapReachability-L_Orbita_Blockout.log)
+    [2026.11.13-13.18.07:942][  5]LogVeloxBots: VeloxReachabilityFt check=major_to_major ok=0 from=DA_Item_Armor_Yellow to=DA_Item_Armor_Yellow why=partial
+    [2026.11.13-13.18.07:942][  5]LogVeloxBots: VeloxReachabilityFt check=major_to_major ok=0 from=DA_Item_Powerup_Quad to=DA_Item_Armor_Yellow why=partial
+    [2026.11.13-13.18.07:942][  5]LogVeloxBots: VeloxReachabilityFt check=major_to_major ok=0 from=DA_Item_Weapon_Railgun to=DA_Item_Armor_Yellow why=partial
+    [2026.11.13-13.18.07:943][  5]LogVeloxBots: VeloxReachabilityFt check=major_to_major_all ok=0 pairs=30 failed=5
+    [2026.11.13-13.18.07:946][  5]LogVeloxBots: VeloxReachabilityFt test=FT_Map_Reachability result=FAIL checks=25 failed=21
+[fts] FAIL 0/1
+LogVeloxBots: VeloxReachabilityFt test=FT_Map_Reachability waiting for the nav build map=L_Orbita_Blockout walk_exempt=0
+LogVeloxBots: VeloxNav built tiles=48 seconds=3.102 links=20 relevant_triggers=0 runtime=Dynamic agent_radius=45.0 agent_height=140.0 step=45.0 cell=19.0 cell_height=10.0 slope=45.5 tile_size=1000
+LogVeloxBots: Warning: VeloxNav link_span link=VeloxNavLink_20 type=JumpPad start_tile=-2,0 end_tile=-4,0: the ends are more than one nav tile apart, Detour never connects this link
+LogVeloxBots: Warning: VeloxNav link_span link=VeloxNavLink_21 type=JumpPad start_tile=4,-1 end_tile=2,-3: the ends are more than one nav tile apart, Detour never connects this link
+LogVeloxBots: Warning: VeloxNav link_span link=VeloxNavLink_23 type=JumpPad start_tile=0,-4 end_tile=0,-1: the ends are more than one nav tile apart, Detour never connects this link
+LogVeloxBots: Warning: VeloxNav link_span link=VeloxNavLink_24 type=JumpPad start_tile=1,2 end_tile=3,0: the ends are more than one nav tile apart, Detour never connects this link
+LogVeloxBots: Warning: VeloxNav link_span link=VeloxNavLink_25 type=JumpPad start_tile=-4,-2 end_tile=-1,-4: the ends are more than one nav tile apart, Detour never connects this link
+LogVeloxBots: VeloxNav hazard_area count=0 points=84 lava_polys=0 areas=0
+LogVeloxBots: VeloxReachabilityFt check=playerstarts ok=1 map=L_Orbita_Blockout n=7 min=2
+LogVeloxBots: VeloxReachabilityFt check=pickups ok=1 n=37 min=8
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_7 to=DA_Item_Armor_Yellow at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_7 to=DA_Item_Health_Medium at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_8 to=DA_Item_Armor_Yellow at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_8 to=DA_Item_Health_Medium at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_9 to=DA_Item_Armor_Yellow at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_9 to=DA_Item_Health_Medium at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_10 to=DA_Item_Armor_Yellow at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_10 to=DA_Item_Health_Medium at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_11 to=DA_Item_Armor_Yellow at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_11 to=DA_Item_Health_Medium at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_12 to=DA_Item_Armor_Yellow at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_12 to=DA_Item_Health_Medium at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_13 to=DA_Item_Armor_Yellow at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup ok=0 from=PlayerStart_13 to=DA_Item_Health_Medium at=V(X=-2400.00, Y=3200.00, Z=160.00) why=partial
+LogVeloxBots: VeloxReachabilityFt check=start_to_pickup_all ok=0 pairs=259 failed=14
+LogVeloxBots: VeloxReachabilityFt check=major_items ok=1 n=6
+LogVeloxBots: VeloxReachabilityFt check=major_to_major ok=0 from=DA_Item_Armor_Red to=DA_Item_Armor_Yellow why=partial
+LogVeloxBots: VeloxReachabilityFt check=major_to_major ok=0 from=DA_Item_Health_Mega to=DA_Item_Armor_Yellow why=partial
+LogVeloxBots: VeloxReachabilityFt check=major_to_major ok=0 from=DA_Item_Armor_Yellow to=DA_Item_Armor_Yellow why=partial
+LogVeloxBots: VeloxReachabilityFt check=major_to_major ok=0 from=DA_Item_Powerup_Quad to=DA_Item_Armor_Yellow why=partial
+LogVeloxBots: VeloxReachabilityFt check=major_to_major ok=0 from=DA_Item_Weapon_Railgun to=DA_Item_Armor_Yellow why=partial
+LogVeloxBots: VeloxReachabilityFt check=major_to_major_all ok=0 pairs=30 failed=5
+LogVeloxBots: VeloxReachabilityFt check=links_all ok=1 links=20 pad_links=6 failed=0
+LogVeloxBots: VeloxReachabilityFt test=FT_Map_Reachability result=FAIL checks=25 failed=21

@@ -1,0 +1,28 @@
+# B5b (H13 final build) self void deaths, FFA x10 at 4 (VeloxBotFall cause per death)
+ffa-3.log Rapidus t=10156.9 zone=Clivus ramp cause=dodge goal=item vis=1 speed=280 hits=[] fall=[2026.11.14-02.49.16:856][554]LogVeloxBots: VeloxBotFall bot=Rapidus cause=dodge fight=1 link=- takeoff=V(X=-360.99, Y=1446.66, Z=13.22) vel=V(X=584.27, Y=707.79, Z=641.35) ago=1.55 recovered=1 own_hop_recovery=3 guard_ago=-1.00 guard_ticks=0
+ffa-4.log Rapidus t=10350.6 zone=Armamentarium cause=pad_offlink goal=item vis=1 speed=1089 hits=[] fall=[2026.11.14-02.52.30:603][733]LogVeloxBots: VeloxBotFall bot=Rapidus cause=pad_offlink fight=1 link=- takeoff=V(X=-3745.47, Y=-356.66, Z=13.14) vel=V(X=-729.85, Y=722.57, Z=641.61) ago=2.10 recovered=1 own_hop_recovery=0 guard_ago=-1.00 guard_ticks=0
+ffa-6.log Celer t=10624.1 zone=Hortus cause=walk goal=fight vis=1 speed=556 hits=[] fall=[2026.11.14-02.57.04:110][439]LogVeloxBots: VeloxBotFall bot=Celer cause=walk fight=1 link=- takeoff=V(X=234.73, Y=2767.23, Z=-320.19) vel=V(X=-255.04, Y=-829.33) ago=1.17 recovered=1 own_hop_recovery=0 guard_ago=1.33 guard_ticks=3
+ffa-6.log Rapidus t=10634.7 zone=Scopulus cause=walk goal=fight vis=1 speed=140 hits=[] fall=[2026.11.14-02.57.14:652][ 67]LogVeloxBots: VeloxBotFall bot=Rapidus cause=walk fight=1 link=- takeoff=V(X=-1770.36, Y=3294.77, Z=155.07) vel=V(X=434.74, Y=9.20) ago=1.24 recovered=1 own_hop_recovery=1 guard_ago=-1.00 guard_ticks=0
+ffa-8.log Ventus t=10853.7 zone=Horreum cause=walk goal=item vis=1 speed=934 hits=[] fall=[2026.11.14-03.00.53:700][525]LogVeloxBots: VeloxBotFall bot=Ventus cause=walk fight=1 link=- takeoff=V(X=-245.71, Y=-2374.27, Z=0.29) vel=V(X=109.50, Y=834.82) ago=1.28 recovered=1 own_hop_recovery=3 guard_ago=1.34 guard_ticks=3
+self void deaths 5
+cause: {'walk': 3, 'dodge': 1, 'pad_offlink': 1}
+zone: {'Clivus ramp': 1, 'Armamentarium': 1, 'Hortus': 1, 'Scopulus': 1, 'Horreum': 1}
+goal/fight: {'fight': 5}
+cause x goal: {('walk', 'fight'): 3, ('dodge', 'fight'): 1, ('pad_offlink', 'fight'): 1}
+# BotDuel x3
+BotDuel-server.log Rapidus t=11295.4 zone=Semita cause=walk goal=item vis=0 speed=858 hits=[] fall=[2026.11.14-03.08.15:391][762]LogVeloxBots: VeloxBotFall bot=Rapidus cause=walk fight=0 link=- takeoff=V(X=2934.06, Y=-3225.95, Z=-4.99) vel=V(X=204.07, Y=-204.47) ago=1.18 recovered=1 own_hop_recovery=1 guard_ago=1.29 guard_ticks=2
+self void deaths 1
+cause: {'walk': 1}
+zone: {'Semita': 1}
+goal/fight: {'item': 1}
+cause x goal: {('walk', 'item'): 1}
+self void deaths 0
+cause: {}
+zone: {}
+goal/fight: {}
+cause x goal: {}
+self void deaths 0
+cause: {}
+zone: {}
+goal/fight: {}
+cause x goal: {}

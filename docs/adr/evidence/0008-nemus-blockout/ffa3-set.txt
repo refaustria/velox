@@ -1,0 +1,61 @@
+[ci] band=none (report-only) for map L_Nemus_Blockout
+run 1 exit=0
+run 2 exit=0
+run 3 exit=0
+run 4 exit=0
+run 5 exit=0
+run 6 exit=0
+run 7 exit=0
+run 8 exit=0
+run 9 exit=0
+run 10 exit=0
+run 1: PASS stuck=0 pocket=0 repaths=65 [Celer=19 Fulgur=30 Rapidus=16] rules=[] max_dwell_s=2 [Celer@(-746,2483),goal=item] timed_waits=0 wait_samples=0 wait_max_s=0.0 [-] wait_capped=0 link_max_dt=2.32 [Celer:VeloxNavLink_42:ok] link_fail_reasons=[below_start=2 missed=1 relaunched=3 replaced=1] long_links_not_timeout=[] bursts=[] pickups=53 mega=2 kills=11 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=11.1% armed_fight_share=10.4% (16/154) allunreach_air=0 allunreach_ground=0 budget_mean_us=269.3 run_mean_us=266.1 nav_s=1.199 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+  FLAG no timed-wait sample although 7 Item routes had available=0 (log-format drift? ADR 0006 E2)
+run 2: PASS stuck=1 pocket=0 repaths=51 [Celer=18 Fulgur=16 Rapidus=17] rules=[fight_stall=1] max_dwell_s=3 [Rapidus@(-762,762),goal=item] timed_waits=1 wait_samples=1 wait_max_s=4.4 [Celer:Powerup_Quad:R=5.0,lead=0.2] wait_capped=0 link_max_dt=2.49 [Celer:VeloxNavLink_43:ok] link_fail_reasons=[below_start=1 relaunched=4 replaced=1] long_links_not_timeout=[] bursts=[] pickups=68 mega=3 kills=10 suicides=0 refused=0 giveup=0 errors=0 supp1=1.2% fight_yields=0 fight_share=18.2% armed_fight_share=29.4% (48/163) allunreach_air=0 allunreach_ground=0 budget_mean_us=286.8 run_mean_us=281.1 nav_s=1.201 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: Rapidus@(-762,762):fight_stall@06:17:43
+run 3: FAIL(budget>300) stuck=0 pocket=0 repaths=60 [Celer=17 Fulgur=18 Rapidus=25] rules=[] max_dwell_s=4 [Rapidus@(-2971,-593),goal=fight] timed_waits=4 wait_samples=5 wait_max_s=7.6 [Celer:Armor_Yellow:R=7.7,lead=-0.8] wait_capped=0 link_max_dt=3.24 [Celer:VeloxNavLink_43:ok] link_fail_reasons=[replaced=1] long_links_not_timeout=[] bursts=[] pickups=64 mega=4 kills=7 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=23.1% armed_fight_share=31.1% (52/167) allunreach_air=0 allunreach_ground=0 budget_mean_us=300.1 run_mean_us=295.2 nav_s=1.167 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 4: FAIL(budget>300) stuck=0 pocket=0 repaths=68 [Celer=21 Fulgur=26 Rapidus=21] rules=[] max_dwell_s=4 [Celer@(-472,-551),goal=fight] timed_waits=3 wait_samples=4 wait_max_s=4.0 [Rapidus:Armor_Yellow:R=4.7,lead=0.6] wait_capped=0 link_max_dt=2.69 [Rapidus:VeloxNavLink_43:ok] link_fail_reasons=[relaunched=3 replaced=1] long_links_not_timeout=[] bursts=[] pickups=59 mega=4 kills=6 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=28.8% armed_fight_share=38.6% (64/166) allunreach_air=0 allunreach_ground=0 budget_mean_us=300.5 run_mean_us=299.7 nav_s=1.174 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 5: FAIL(budget>300) stuck=0 pocket=0 repaths=52 [Celer=14 Fulgur=22 Rapidus=16] rules=[] max_dwell_s=2 [Fulgur@(-2392,2613),goal=none] timed_waits=1 wait_samples=2 wait_max_s=3.2 [Fulgur:Armor_Red:R=3.4,lead=1.0] wait_capped=0 link_max_dt=2.61 [Rapidus:VeloxNavLink_43:ok] link_fail_reasons=[below_start=1 relaunched=4 replaced=1] long_links_not_timeout=[] bursts=[] pickups=56 mega=3 kills=7 suicides=0 refused=0 giveup=0 errors=0 supp1=0.6% fight_yields=1 fight_share=19.0% armed_fight_share=31.1% (50/161) allunreach_air=0 allunreach_ground=0 budget_mean_us=309.2 run_mean_us=307.1 nav_s=1.222 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 6: PASS stuck=0 pocket=0 repaths=45 [Celer=14 Fulgur=15 Rapidus=16] rules=[] max_dwell_s=3 [Celer@(-994,-1212),goal=fight] timed_waits=2 wait_samples=3 wait_max_s=4.5 [Rapidus:Armor_Yellow:R=4.7,lead=-0.0] wait_capped=0 link_max_dt=2.57 [Celer:VeloxNavLink_43:ok] link_fail_reasons=[below_start=1 missed=1 relaunched=4] long_links_not_timeout=[] bursts=[] pickups=67 mega=3 kills=7 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=19.5% armed_fight_share=27.4% (48/175) allunreach_air=0 allunreach_ground=0 budget_mean_us=285.1 run_mean_us=285.3 nav_s=1.196 world_kills=0 no_nav_point=0 not_at_goal=2 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 7: PASS stuck=0 pocket=0 repaths=51 [Celer=22 Fulgur=15 Rapidus=14] rules=[] max_dwell_s=3 [Rapidus@(1400,175),goal=item] timed_waits=3 wait_samples=3 wait_max_s=4.6 [Fulgur:Powerup_Quad:R=5.1,lead=0.3] wait_capped=0 link_max_dt=2.77 [Fulgur:VeloxNavLink_43:ok] link_fail_reasons=[below_start=1 missed=1 relaunched=3 replaced=2] long_links_not_timeout=[] bursts=[] pickups=58 mega=3 kills=7 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=17.6% armed_fight_share=25.4% (44/173) allunreach_air=0 allunreach_ground=0 budget_mean_us=280.0 run_mean_us=277.1 nav_s=1.173 world_kills=0 no_nav_point=0 not_at_goal=2 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 8: FAIL(budget>300,allunreach_air) stuck=0 pocket=0 repaths=56 [Celer=23 Fulgur=18 Rapidus=15] rules=[] max_dwell_s=4 [Fulgur@(-1438,-2662),goal=item] timed_waits=1 wait_samples=1 wait_max_s=2.5 [Celer:Powerup_Quad:R=2.6,lead=-0.9] wait_capped=0 link_max_dt=2.47 [Fulgur:VeloxNavLink_43:ok] link_fail_reasons=[below_start=2 relaunched=2 replaced=1] long_links_not_timeout=[] bursts=[] pickups=50 mega=3 kills=8 suicides=0 refused=0 giveup=0 errors=0 supp1=2.3% fight_yields=2 fight_share=27.4% armed_fight_share=37.9% (83/219) allunreach_air=1 allunreach_ground=0 budget_mean_us=311.7 run_mean_us=306.6 nav_s=1.184 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 9: PASS stuck=0 pocket=0 repaths=63 [Celer=21 Fulgur=25 Rapidus=17] rules=[] max_dwell_s=2 [Rapidus@(1598,238),goal=fight] timed_waits=1 wait_samples=2 wait_max_s=3.9 [Fulgur:Armor_Yellow:R=4.4,lead=0.7] wait_capped=0 link_max_dt=2.35 [Rapidus:VeloxNavLink_42:ok] link_fail_reasons=[below_start=2 relaunched=4] long_links_not_timeout=[] bursts=[] pickups=55 mega=3 kills=5 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=19.8% armed_fight_share=31.5% (57/181) allunreach_air=0 allunreach_ground=0 budget_mean_us=289.7 run_mean_us=287.3 nav_s=1.178 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+run 10: FAIL(allunreach_air) stuck=0 pocket=0 repaths=55 [Celer=13 Fulgur=19 Rapidus=23] rules=[] max_dwell_s=3 [Rapidus@(-450,562),goal=fight] timed_waits=1 wait_samples=2 wait_max_s=3.9 [Rapidus:Powerup_Quad:R=4.0,lead=1.5] wait_capped=0 link_max_dt=2.72 [Fulgur:VeloxNavLink_43:ok] link_fail_reasons=[below_start=2 relaunched=3 replaced=1] long_links_not_timeout=[] bursts=[] pickups=68 mega=4 kills=6 suicides=0 refused=0 giveup=0 errors=0 supp1=0.0% fight_yields=0 fight_share=28.5% armed_fight_share=41.2% (73/177) allunreach_air=1 allunreach_ground=0 budget_mean_us=295.6 run_mean_us=291.0 nav_s=1.174 world_kills=0 no_nav_point=0 not_at_goal=0 left_arena=none
+  hazard (report-only): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0
+  strikes: -
+SET runs=10 FAIL(per_run:run 3,run 4,run 5,run 8,run 10;inv:item_coverage) sum_stuck=1 max_run_stuck=1 bursts=0 pocket=0 dwell_ge6_runs=0 max_dwell=4 wait_max_s=7.6 max_link_dt=3.24 sum_kills=74 min_kills=5 sum_repaths=566 max_run_repaths=68 not_at_goal=4 rules={'fight_stall': 1}
+SET speed strikes: -
+SET band=none (report-only): sum_kills=74 not judged; the per-run kills / pickups / Mega bands are not judged either
+SET hazard (report-only, ADR 0008 3.5): hazard_touch=0 hazard_death_credited=0 hazard_death_self=0 per run self=[0,0,0,0,0,0,0,0,0,0]
+SET invariants (ADR 0006 section 7, every map):
+  left_arena                   0                                            limit 0        PASS
+  world_kill                   0                                            limit 0        PASS
+  no_nav_point                 0                                            limit 0        PASS
+  giveup                       0                                            limit 0        PASS
+  sum_stuck                    1                                            limit <= 5     PASS
+  bursts                       0                                            limit 0        PASS
+  max_dwell_s                  4                                            limit <= 5     PASS
+  nav_build_s                  1.222                                        limit <= 2.0   PASS
+  link_success[Drop]           100.0 % (39/39) aborted=10                   limit >= 90 %  PASS
+  link_success[Jump]           95.7 % (44/46) aborted=30                    limit >= 90 %  PASS
+  link_success[JumpPad]        99.4 % (173/174) aborted=11                  limit >= 90 %  PASS
+  item_coverage                38/41 pickups (19 definitions)               limit all      FAIL
+  untaken items (layout or link defect): DA_Item_Ammo_Shells@(1500.00,1450.00,320.00); DA_Item_Health_Medium@(-2900.00,1300.00,640.00); DA_Item_Health_Medium@(2300.00,640.00)
+Logs: /mnt/oldroot/velox-scratch/m7-nemus-b2b/ffa3b

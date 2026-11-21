@@ -1,0 +1,45 @@
+# M7 H15 dwell classes (dwellwhy.py, class=other runs >= 5 samples; camp / timed-wait excluded)
+## before: H13 B5b Orbita x10 at 4, H14 B4b Fornax x10 at 3, H15 first build (dwell rule only) Sacrarium x10 at 6
+== /mnt/oldroot/velox-scratch/m7-h13/ffa4
+=== m7-h13/ffa4/ffa-2.log | Fulgur dwell=5 at (46,-1934) span=4.0s goals=['fight', 'item'] items=['-', 'DA_Item_Health_Mega'] class=other (wait samples 0/5)
+    arrived=00000 stuck=00000 vis=11110 speed=[332,152,292,231,270]
+    route@-2.9s: goal=Fight item=- camp=0 score=9.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=13.50 t=82.09
+=== m7-h13/ffa4/ffa-3.log | Celer dwell=6 at (-1298,1351) span=5.1s goals=['fight'] items=['-'] class=other (wait samples 0/6)
+    arrived=000000 stuck=000000 vis=111111 speed=[719,258,130,732,712,505]
+    route@-3.5s: goal=Fight item=- camp=0 score=9.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=13.50 t=27.61
+=== m7-h13/ffa4/ffa-8.log | Rapidus dwell=5 at (2611,-2942) span=4.0s goals=['fight'] items=['-'] class=other (wait samples 0/5)
+    arrived=00000 stuck=00000 vis=11111 speed=[948,203,122,59,612]
+    route@+0.0s: goal=Fight item=- camp=0 score=10.32 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=15.48 t=104.83
+=== m7-h13/ffa4/ffa-8.log | Fulgur dwell=5 at (-3178,-21) span=4.0s goals=['fight', 'item'] items=['-', 'DA_Item_Weapon_LightningGun', 'DA_Item_Weapon_Shotgun'] class=other (wait samples 1/5)
+    arrived=00000 stuck=00000 vis=11111 speed=[172,367,151,390,937]
+    route@-4.8s: goal=Fight item=- camp=0 score=12.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=18.00 t=104.60
+== /mnt/oldroot/velox-scratch/m7-h14/fix-ffa3
+=== m7-h14/fix-ffa3/ffa-4.log | Fulgur dwell=6 at (2013,-682) span=5.0s goals=['fight', 'item'] items=['-', 'DA_Item_Weapon_Railgun'] class=other (wait samples 0/6)
+    arrived=000000 stuck=000000 vis=111111 speed=[800,802,801,464,802,326]
+    route@-0.7s: goal=Fight item=- camp=0 score=6.60 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=9.90 t=111.11
+== /mnt/oldroot/velox-scratch/m7-h15/fix/sac
+=== m7-h15/fix/sac/ffa-10.log | Ventus dwell=6 at (902,86) span=5.0s goals=['item'] items=['DA_Item_Armor_Yellow'] class=other (wait samples 0/6)
+    arrived=000000 stuck=000000 vis=011111 speed=[790,143,110,116,118,327]
+    route@-4.6s: goal=Item item=Armor.Yellow camp=0 score=14.50 travel=3.83 available=1 respawn_in=0.0 lead=-3.8 fight=7.26 t=24.55
+=== m7-h15/fix/sac/ffa-1.log | Rapidus dwell=6 at (977,-62) span=5.0s goals=['item'] items=['DA_Item_Armor_Yellow'] class=other (wait samples 0/6)
+    arrived=000000 stuck=000000 vis=111100 speed=[693,110,6,28,5,4]
+    route@-3.9s: goal=Item item=Armor.Yellow camp=0 score=13.14 travel=4.33 available=1 respawn_in=0.0 lead=-4.3 fight=3.92 t=65.38
+=== m7-h15/fix/sac/ffa-5.log | Rapidus dwell=7 at (813,-1162) span=6.1s goals=['fight'] items=['-'] class=other (wait samples 0/7)
+    arrived=0000000 stuck=0000000 vis=1101111 speed=[617,72,0,267,315,14,44]
+    route@-0.5s: goal=Fight item=- camp=0 score=7.04 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=10.56 t=111.75
+=== m7-h15/fix/sac/ffa-7.log | Aquila dwell=5 at (-2043,1964) span=4.0s goals=['fight'] items=['-'] class=other (wait samples 0/5)
+    arrived=01100 stuck=00000 vis=00010 speed=[605,0,0,137,789]
+    route@-0.2s: goal=Fight item=- camp=0 score=9.00 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=13.50 t=84.05
+=== m7-h15/fix/sac/ffa-9.log | Aquila dwell=5 at (2589,-1592) span=4.0s goals=['item'] items=['DA_Item_Health_Mega'] class=other (wait samples 0/5)
+    arrived=00000 stuck=00000 vis=01111 speed=[325,211,92,238,4]
+    route@-4.8s: goal=Item item=Health.Mega camp=0 score=13.01 travel=6.07 available=0 respawn_in=3.9 lead=-2.2 fight=11.61 t=56.81
+=== m7-h15/fix/sac/ffa-9.log | Celer dwell=6 at (2500,-1539) span=5.0s goals=['item'] items=['DA_Item_Health_Mega'] class=other (wait samples 1/6)
+    arrived=000000 stuck=000000 vis=001111 speed=[291,323,711,425,110,131]
+    route@-3.7s: goal=Item item=Health.Mega camp=0 score=15.31 travel=5.53 available=0 respawn_in=4.1 lead=-1.4 fight=5.20 t=56.54
+## after (H15 final build): Orbita, Fornax, Sacrarium
+== /mnt/oldroot/velox-scratch/m7-h15/v2/orb
+=== m7-h15/v2/orb/ffa-2.log | Fulgur dwell=5 at (-1948,-29) span=4.0s goals=['fight', 'item'] items=['-', 'DA_Item_Weapon_LightningGun'] class=other (wait samples 0/5)
+    arrived=00000 stuck=00000 vis=11111 speed=[563,489,336,158,643]
+    route@-2.1s: goal=Fight item=- camp=0 score=10.68 travel=0.00 available=1 respawn_in=0.0 lead=0.0 fight=16.02 t=111.66
+== /mnt/oldroot/velox-scratch/m7-h15/v2/for
+== /mnt/oldroot/velox-scratch/m7-h15/v2/sac

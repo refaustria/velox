@@ -73,6 +73,19 @@ ci_audit() {
   done
 }
 
+# Map golden check (ADR 0008 section 1.5, task M7 P2): pure Python, so it runs before (and independent of) the engine resolve / build
+# and also on machines without Unreal. Every map with Tools/editor/maps/golden/<slug>.json is checked; a mismatch is fatal.
+ci_golden_check() {
+  local f slug
+  for f in "$REPO_ROOT"/Tools/editor/maps/golden/*.json; do
+    [[ -e "$f" ]] || continue
+    slug="$(basename "$f" .json)"
+    info "Golden check: $slug"
+    python3 -I "$REPO_ROOT/Tools/editor/create_map.py" --map "$slug" --golden check || { echo "FAILED: golden check of map $slug" >&2; exit 1; }
+  done
+}
+
+ci_golden_check
 ci_main "$@"
 case " $* " in
   *" --dry-run "*|*" --no-tests "*) ;;
