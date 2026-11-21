@@ -1,6 +1,6 @@
 # Resume — handover 2026-11-20 (M7 paused, new session)
 
-`main` = M0–M6 (VM part). **M7 work lives on branch `m7-maps`** (not yet merged to main). No agent, soak or UE process is running except production. Engine UE 5.8.4 reinstalled at `/opt/UnrealEngine-5.8` (2026-11-12, untrimmed except docs/templates/samples/debug, 47 GB).
+`main` = M0–M6 (VM part) **+ M7 five-map blockouts, merged via PR #1 on 2026-11-21** (Editor + Game build, Server/Client targets not built: installed engine cannot). All agents, soaks and UE processes stopped on 2026-11-21; Unreal Engine 5.8.4 at `/opt/UnrealEngine-5.8` removed to free disk; production velox services stopped (see STATUS.md). Next session must reinstall the engine before any build.
 
 ## Production on this host
 - `velox-server@ffa` — 0.6.1+6d8f35f (`/srv/velox/current`), L_DM1 FFA, 3 Medium bots, UDP 7777; rollback `sudo infra/deploy/release.sh --switch 0.6.0+d6cf8a2`.
